@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proyecto — Analizador de Resultados Financieros (10-Q / 10-K)</title>
+<style>
+  :root {
+    --bg: #0f1520;
+    --panel: #182235;
+    --panel-2: #1e2a42;
+    --border: #2a3a5a;
+    --text: #e8edf6;
+    --muted: #9aa8c0;
+    --accent: #4da3ff;
+    --green: #3ddc97;
+    --red: #ff6b6b;
+    --amber: #ffb454;
+    --purple: #b48bf2;
+    --cyan: #4dd7e8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    padding: 40px 16px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #16233c 0%, #1e2a42 60%, #21304d 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 36px;
+    text-align: center;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 80% 20%, rgba(77,163,255,.15), transparent 60%);
+    pointer-events: none;
+  }
+  .hero h1 { font-size: 1.9rem; letter-spacing: .5px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); margin-top: 10px; }
+  .badges { margin-top: 18px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; position: relative; z-index: 1; }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .b-blue  { color: var(--accent); border-color: var(--accent); background: rgba(77,163,255,.08); }
+  .b-green { color: var(--green); border-color: var(--green); background: rgba(61,220,151,.08); }
+  .b-red   { color: var(--red);   border-color: var(--red);   background: rgba(255,107,107,.08); }
+  .b-amber { color: var(--amber); border-color: var(--amber); background: rgba(255,180,84,.08); }
+  .b-purple{ color: var(--purple);border-color: var(--purple);background: rgba(180,139,242,.08); }
+  .b-cyan  { color: var(--cyan);  border-color: var(--cyan);  background: rgba(77,215,232,.08); }
+
+  /* Sections */
+  section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 30px;
+    margin-bottom: 24px;
+  }
+  h2 {
+    font-size: 1.25rem;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2 .num {
+    background: var(--accent);
+    color: #0b1424;
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: .9rem; font-weight: 700;
+    flex-shrink: 0;
+  }
+  h2 .num.g { background: var(--green); }
+  h2 .num.a { background: var(--amber); }
+  h2 .num.p { background: var(--purple); }
+  h2 .num.c { background: var(--cyan); }
+  h3 { color: var(--accent); font-size: 1.02rem; margin: 20px 0 8px; }
+  h3:first-of-type { margin-top: 6px; }
+  p { color: var(--text); margin-bottom: 10px; }
+  .muted { color: var(--muted); }
+
+  ul, ol { padding-left: 22px; margin-bottom: 12px; }
+  li { margin-bottom: 6px; }
+
+  /* Callout */
+  .callout {
+    border-left: 4px solid var(--amber);
+    background: var(--panel-2);
+    border-radius: 0 10px 10px 0;
+    padding: 14px 18px;
+    margin: 14px 0;
+  }
+  .callout.blue  { border-left-color: var(--accent); }
+  .callout.green { border-left-color: var(--green); }
+  .callout.red   { border-left-color: var(--red); }
+  .callout strong { color: var(--amber); }
+  .callout.blue strong { color: var(--accent); }
+  .callout.green strong { color: var(--green); }
+  .callout.red strong { color: var(--red); }
+
+  /* Cards */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card h4 { color: var(--accent); margin-bottom: 8px; font-size: 1rem; }
+  .card p { font-size: .92rem; margin: 0; }
+  .card .tag {
+    display: inline-block; font-size: .72rem; font-weight: 700;
+    padding: 2px 10px; border-radius: 6px; margin-bottom: 8px;
+  }
+  .tag.fase1 { background: rgba(77,163,255,.15); color: var(--accent); }
+  .tag.fase2 { background: rgba(255,180,84,.15); color: var(--amber); }
+  .tag.futura { background: rgba(180,139,242,.15); color: var(--purple); }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; margin: 10px 0; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; background: var(--panel-2); }
+  td .pill {
+    padding: 2px 10px; border-radius: 999px; font-size: .72rem; font-weight: 600;
+  }
+  .pill.ok { background: rgba(61,220,151,.12); color: var(--green); }
+  .pill.wip { background: rgba(77,163,255,.12); color: var(--accent); }
+  .pill.wait { background: rgba(255,180,84,.12); color: var(--amber); }
+
+  /* Flow diagram */
+  .flow { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 20px 0; }
+  .fnode {
+    background: var(--panel-2);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 22px;
+    width: 100%;
+    max-width: 460px;
+    text-align: center;
+    position: relative;
+  }
+  .fnode .fnum {
+    position: absolute; top: -10px; left: 14px;
+    background: var(--accent); color: #0b1424;
+    font-weight: 700; font-size: .75rem;
+    padding: 1px 10px; border-radius: 999px;
+  }
+  .fnode.no { border-color: var(--red); }
+  .fnode.no .fnum { background: var(--red); color: #fff; }
+  .fnode.fin { border-color: var(--green); }
+  .fnode.fin .fnum { background: var(--green); color: #0b1424; }
+  .fnode strong { display: block; margin-bottom: 4px; }
+  .fnode small { color: var(--muted); }
+  .farrow {
+    width: 2px; height: 26px;
+    background: var(--border);
+    margin: 2px 0;
+    position: relative;
+  }
+  .farrow::after {
+    content: ''; position: absolute; bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: var(--border);
+  }
+  .flabel {
+    font-size: .78rem; color: var(--green); font-weight: 600;
+    background: rgba(61,220,151,.08);
+    border: 1px solid rgba(61,220,151,.3);
+    padding: 2px 12px; border-radius: 999px;
+    margin: 4px 0;
+  }
+  .flabel.no { color: var(--red); border-color: rgba(255,107,107,.3); background: rgba(255,107,107,.08); }
+
+  /* Philosophy */
+  .phil { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+  .phil .card { border-top: 3px solid var(--accent); }
+  .phil .card:nth-child(2) { border-top-color: var(--purple); }
+  .phil .num-big { font-size: 1.6rem; font-weight: 800; color: var(--accent); }
+  .phil .card:nth-child(2) .num-big { color: var(--purple); }
+
+  /* Roadmap */
+  .roadmap { display: flex; flex-direction: column; gap: 0; margin-top: 10px; }
+  .rrow {
+    display: flex; gap: 14px; align-items: flex-start;
+    position: relative; padding-bottom: 18px;
+  }
+  .rrow::before {
+    content: ''; position: absolute; left: 15px; top: 34px; bottom: 0;
+    width: 2px; background: var(--border);
+  }
+  .rrow:last-child::before { display: none; }
+  .rdot {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--panel-2); border: 2px solid var(--accent);
+    color: var(--accent); font-weight: 700; font-size: .8rem;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; z-index: 1;
+  }
+  .rrow.done .rdot { background: var(--green); border-color: var(--green); color: #0b1424; }
+  .rrow.pend .rdot { border-color: var(--border); color: var(--muted); }
+  .rbody { flex: 1; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+  .rbody strong { display: block; }
+  .rbody small { color: var(--muted); }
+
+  /* Pending decisions */
+  .dec {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .dec .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--amber); flex-shrink: 0; margin-top: 7px;
+  }
+  .dec strong { display: block; margin-bottom: 2px; }
+  .dec p { margin: 0; font-size: .9rem; color: var(--muted); }
+
+  .footer {
+    text-align: center; color: var(--muted);
+    font-size: .82rem; margin-top: 28px;
+  }
+
+  @media (max-width: 720px) {
+    .grid, .phil { grid-template-columns: 1fr; }
+    section { padding: 20px; }
+    .hero { padding: 28px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1>Analizador de Resultados <span>Financieros</span><br>10-Q / 10-K</h1>
+    <p>Documento de visión y requisitos · Beta 1.0 · Interfaz en español</p>
+    <div class="badges">
+      <span class="badge b-blue">Solo EE. UU.</span>
+      <span class="badge b-green">10-Q y 10-K</span>
+      <span class="badge b-amber">Sector: consumo defensivo</span>
+      <span class="badge b-purple">IA: modelos intercambiables</span>
+    </div>
+  </div>
+
+  <!-- 1. VISION -->
+  <section>
+    <h2><span class="num">1</span>Visión general</h2>
+    <p>Aplicación web cuyo objetivo es <strong>analizar los resultados financieros</strong> (10-Q trimestrales y 10-K anuales) de empresas de Estados Unidos usando IA.</p>
+    <p>La aplicación <strong>no sustituye</strong> el análisis del usuario: <strong>le ahorra tiempo</strong> entregándole un análisis estructurado en segundos, para que él decida después si profundiza por su cuenta.</p>
+  </section>
+
+  <!-- 2. FILOSOFIA -->
+  <section>
+    <h2><span class="num g">2</span>Filosofía de la aplicación</h2>
+    <p class="muted">La IA es una herramienta de cribado y ahorro de tiempo. El análisis profundo, la decisión final y el juicio de valor siguen siendo del usuario.</p>
+    <div class="phil">
+      <div class="card">
+        <span class="num-big">1</span>
+        <h4>Ya conocemos la empresa al detalle</h4>
+        <p>Queremos hacer el <strong>seguimiento</strong> de sus nuevos resultados: cuando publique un nuevo 10-Q o 10-K.</p>
+      </div>
+      <div class="card">
+        <span class="num-big">2</span>
+        <h4>No conocemos la empresa de nada</h4>
+        <p>Queremos un <strong>filtro rápido</strong> para decidir si merece la pena analizarla más a fondo o no.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. FORMAS DE ANALIZAR -->
+  <section>
+    <h2><span class="num a">3</span>Formas de analizar los resultados</h2>
+    <p class="muted">Existen <strong>2 formas</strong> de llegar al análisis, y ambas ejecutan <strong>exactamente el mismo proceso</strong>.</p>
+
+    <div class="grid">
+      <div class="card">
+        <span class="tag fase1">FASE 1 · Primera en implementarse</span>
+        <h4>Subida manual del PDF</h4>
+        <p>El usuario descarga el informe (10-Q / 10-K) de la fuente que quiera y lo sube a la web (arrastrar / seleccionar archivo). La IA analiza el PDF y devuelve el informe.</p>
+      </div>
+      <div class="card">
+        <span class="tag fase2">FASE 2 · Más adelante</span>
+        <h4>Buscador por empresa</h4>
+        <p>El usuario busca por nombre o ticker (ej.: Molson Coors → <strong>TAP</strong>). Aparece el histórico de resultados publicados (todos los 10-Q y 10-K), puede <strong>ver el PDF original</strong> y pulsar <strong>"Analizar"</strong> sobre cualquiera de ellos.</p>
+      </div>
+    </div>
+
+    <div class="callout blue" style="margin-top: 16px;">
+      <strong>Regla fundamental:</strong> cargar el Q2 2025 de TAP manualmente, o buscarlo y pulsar "Analizar", debe producir <strong>el mismo resultado exacto</strong>.
+    </div>
+  </section>
+
+  <!-- 4. ALCANCE BETA -->
+  <section>
+    <h2><span class="num p">4</span>Alcance de la beta</h2>
+    <table>
+      <tr><th>Ámbito</th><th>Alcance</th></tr>
+      <tr><td><strong>País</strong></td><td>Solo Estados Unidos</td></tr>
+      <tr><td><strong>Informes</strong></td><td>Solo 10-Q y 10-K</td></tr>
+      <tr><td><strong>Sector</strong></td><td>Solo <strong>consumo defensivo</strong> (uno de los sectores más regulares y sencillos de analizar)</td></tr>
+    </table>
+    <div class="callout red">
+      <strong>Todo lo que quede fuera:</strong> debe detectarse y rechazarse con un error claro, ej.: "Este informe no es de una empresa de EE. UU." / "Este informe no corresponde al sector de consumo defensivo".
+    </div>
+  </section>
+
+  <!-- 5. AGENTES -->
+  <section>
+    <h2><span class="num c">5</span>Arquitectura de agentes IA</h2>
+    <p class="muted">Sistema de agentes <strong>extensible</strong>: cada agente hace una tarea concreta. En la beta hay 3 agentes, pero el diseño debe permitir añadir más por <strong>país</strong> y <strong>sector</strong> sin reescribir la lógica base.</p>
+
+    <h3>Flujo del proceso de análisis</h3>
+    <div class="flow">
+      <div class="fnode">
+        <span class="fnum">1</span>
+        <strong>Agente verificador de origen</strong>
+        <small>¿Los resultados son de una empresa de EE. UU.?</small>
+      </div>
+      <div class="flabel">Sí</div>
+      <div class="flabel no">No → Error: no es de EE. UU.</div>
+      <div class="farrow"></div>
+      <div class="fnode">
+        <span class="fnum">2</span>
+        <strong>Agente verificador de sector</strong>
+        <small>¿Es una empresa de consumo defensivo?</small>
+      </div>
+      <div class="flabel">Sí</div>
+      <div class="flabel no">No → Error: no es consumo defensivo</div>
+      <div class="farrow"></div>
+      <div class="fnode fin">
+        <span class="fnum">3</span>
+        <strong>Agente analista principal</strong>
+        <small>Análisis financiero del informe</small>
+      </div>
+      <div class="farrow"></div>
+      <div class="fnode fin" style="max-width: 400px;">
+        <strong>Informe final para el usuario</strong>
+      </div>
+    </div>
+
+    <div class="callout green">
+      <strong>Futuro:</strong> agentes para más países (verificación por país) y más sectores (verificación y análisis por sector), sin tocar los existentes.
+    </div>
+  </section>
+
+  <!-- 6. ARQUITECTURA -->
+  <section>
+    <h2><span class="num">6</span>Requisitos de arquitectura</h2>
+    <p class="muted">La arquitectura debe estar preparada <strong>desde el principio</strong> para:</p>
+
+    <h3>6.1 · Registro / Inicio de sesión</h3>
+    <p>Los usuarios podrán <strong>registrarse e iniciar sesión</strong>. La app se usará localmente al principio, pero el modelo de datos y los flujos deben contemplar usuarios desde el día uno.</p>
+
+    <h3>6.2 · Suscripciones (gratuito / de pago)</h3>
+    <p>Una vez registrado, existirá la opción de <strong>suscribirse</strong> con ventajas como:</p>
+    <ul>
+      <li>Análisis con <strong>modelos de IA mejores</strong>.</li>
+      <li><strong>Sin límite de análisis</strong> (el plan gratuito tendrá límites).</li>
+    </ul>
+    <p class="muted">No se implementa en la beta, pero la arquitectura debe soportarla: usuarios, roles/planes, límites de uso y selección de modelo por plan.</p>
+
+    <h3>6.3 · Capa de abstracción de modelos IA</h3>
+    <p>El modelo a usar <strong>aún no está decidido</strong> (candidatos: DeepSeek, GPT — requiere comparar). Se construirá una <strong>capa abstracta de modelos</strong> para cambiar de proveedor (o usar uno u otro según el plan del usuario) <strong>sin tocar el código de los agentes</strong>. Los agentes hablan con la capa de abstracción, nunca con la API de un proveedor concreto.</p>
+
+    <h3>6.4 · Sistema de agentes extensible</h3>
+    <p>Cada agente es una unidad independiente y registrable. Se añaden agentes nuevos por país y sector sin modificar los existentes.</p>
+
+    <h3>6.5 · Almacenamiento de resultados</h3>
+    <p>Los análisis realizados se deben poder <strong>guardar, listar y consultar por usuario</strong> (histórico de análisis).</p>
+  </section>
+
+  <!-- 7. FUTURO -->
+  <section>
+    <h2><span class="num g">7</span>Funcionalidades futuras (fuera de la beta)</h2>
+    <div class="grid">
+      <div class="card">
+        <span class="tag futura">FUTURO</span>
+        <h4>Análisis completo de la empresa</h4>
+        <p>Botón <strong>"Analizar empresa completa"</strong>: leerá los resultados de los últimos trimestres/años y generará un <strong>informe completo</strong>, no de un único periodo. Requiere el histórico de filings (relacionado con el buscador).</p>
+      </div>
+      <div class="card">
+        <span class="tag futura">FUTURO</span>
+        <h4>Más países y sectores</h4>
+        <p>Extensión de los agentes verificadores y analistas a <strong>nuevos países</strong> y <strong>nuevos sectores</strong>.</p>
+      </div>
+      <div class="card">
+        <span class="tag futura">FUTURO</span>
+        <h4>Suscripciones y planes</h4>
+        <p>Monetización: plan gratuito limitado y plan de pago con <strong>mejores modelos</strong> y <strong>análisis ilimitados</strong>.</p>
+      </div>
+      <div class="card">
+        <span class="tag futura">FUTURO</span>
+        <h4>Comparación de modelos IA</h4>
+        <p>Evaluar DeepSeek vs. GPT para elegir el modelo (o modelos por plan) que mejor analice documentos financieros.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. ROADMAP -->
+  <section>
+    <h2><span class="num a">8</span>Roadmap</h2>
+    <div class="roadmap">
+      <div class="rrow done">
+        <div class="rdot">✓</div>
+        <div class="rbody">
+          <strong>Fase 0 · Documento de visión y requisitos</strong>
+          <small>Este documento · En curso</small>
+        </div>
+      </div>
+      <div class="rrow">
+        <div class="rdot">1</div>
+        <div class="rbody">
+          <strong>Fase 1 · Subida manual de PDF → análisis</strong>
+          <small>Beta: EE. UU. + consumo defensivo · Pendiente</small>
+        </div>
+      </div>
+      <div class="rrow">
+        <div class="rdot">2</div>
+        <div class="rbody">
+          <strong>Fase 2 · Buscador de empresas + histórico de filings</strong>
+          <small>Ticker → listado de 10-Q/10-K → ver PDF → analizar · Pendiente</small>
+        </div>
+      </div>
+      <div class="rrow">
+        <div class="rdot">3</div>
+        <div class="rbody">
+          <strong>Fase 3 · Registro / inicio de sesión</strong>
+          <small>Pendiente</small>
+        </div>
+      </div>
+      <div class="rrow">
+        <div class="rdot">4</div>
+        <div class="rbody">
+          <strong>Fase 4 · Análisis completo de empresa</strong>
+          <small>Multi-periodo · Pendiente</small>
+        </div>
+      </div>
+      <div class="rrow">
+        <div class="rdot">5</div>
+        <div class="rbody">
+          <strong>Fase 5 · Suscripciones y planes</strong>
+          <small>Modelos según plan, límites · Pendiente</small>
+        </div>
+      </div>
+      <div class="rrow pend">
+        <div class="rdot">6</div>
+        <div class="rbody">
+          <strong>Fase 6 · Nuevos países y sectores</strong>
+          <small>Más agentes · Pendiente</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. DECISIONES PENDIENTES -->
+  <section>
+    <h2><span class="num p">9</span>Decisiones pendientes</h2>
+    <div class="dec">
+      <div class="dot"></div>
+      <div>
+        <strong>Stack tecnológico</strong>
+        <p>Framework de frontend/backend, base de datos, hosting · Se elegirá teniendo en cuenta el perfil del desarrollador (sección 10) · Por decidir</p>
+      </div>
+    </div>
+    <div class="dec">
+      <div class="dot"></div>
+      <div>
+        <strong>Modelo de IA</strong>
+        <p>Candidatos: DeepSeek, GPT — requiere comparación de modelos · Por decidir</p>
+      </div>
+    </div>
+    <div class="dec">
+      <div class="dot"></div>
+      <div>
+        <strong>Formato del informe final</strong>
+        <p>El usuario ya tiene varios informes hechos que servirán de referencia · Se definirá en detalle con ejemplos reales</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. CONTEXTO DESARROLLADOR -->
+  <section>
+    <h2><span class="num p">10</span>Contexto del desarrollador</h2>
+    <p class="muted">Información sobre quién construye el proyecto. Cualquier decisión de stack debe tenerlo en cuenta.</p>
+    <div class="grid">
+      <div class="card" style="border-top: 3px solid var(--accent);">
+        <h4>Perfil</h4>
+        <p>Estudiante de <strong>informática (4.º año)</strong>, con base sólida en fundamentos de programación y arquitectura de datos. Tiene un nivel de finanzas que le permite <strong>definir cómo debe analizar la IA</strong> los resultados (el análisis lo define él, no la IA).</p>
+      </div>
+      <div class="card" style="border-top: 3px solid var(--amber);">
+        <h4>Único desarrollador</h4>
+        <p>La complejidad debe ser proporcional a su tiempo disponible (4.º año de carrera). La capa de modelos y el sistema de agentes deben ser <strong>sencillos de entender y extender</strong> por una única persona.</p>
+      </div>
+    </div>
+
+    <h3>Habilidades técnicas</h3>
+    <table>
+      <tr><th>Área</th><th>Conocimientos</th><th>Nivel</th></tr>
+      <tr><td><strong>Base de datos</strong></td><td>SQL</td><td><span class="pill ok">Controla bastante</span></td></tr>
+      <tr><td><strong>Backend</strong></td><td>Java</td><td><span class="pill ok">Controla bastante</span></td></tr>
+      <tr><td><strong>Backend web</strong></td><td>Node.js + Express + MongoDB</td><td><span class="pill wip">Dado en clase</span></td></tr>
+      <tr><td><strong>Frontend</strong></td><td>JavaScript, HTML, CSS (un poco de XHTML)</td><td><span class="pill wip">Dado en clase</span></td></tr>
+      <tr><td><strong>Python</strong></td><td>Nociones</td><td><span class="pill wait">Un poco</span></td></tr>
+    </table>
+
+    <h3>Implicaciones para la arquitectura</h3>
+    <ul>
+      <li>El stack debe <strong>aprovechar sus fortalezas</strong> (SQL, Java) y lo que ya domina del ecosistema web (Node.js/Express/MongoDB), evitando curvas de aprendizaje innecesarias en la beta.</li>
+      <li>La <strong>capa de abstracción de modelos IA</strong> y el <strong>sistema de agentes</strong> deben mantenerse sencillos de entender y extender por una sola persona.</li>
+    </ul>
+  </section>
+
+  <!-- 11. GUIA FASE 1 -->
+  <section>
+    <h2><span class="num c">11</span>Guía para la implementación (Fase 1)</h2>
+    <ol>
+      <li>Definir el stack (decisión pendiente).</li>
+      <li>Crear la <strong>capa de abstracción de modelos IA</strong> (interfaz común, sin proveedor concreto fijado).</li>
+      <li>Crear el <strong>sistema de agentes</strong> con el registro de los 3 agentes de la beta.</li>
+      <li>Crear la <strong>subida manual de PDF</strong> y el flujo completo de análisis (agentes 1 → 2 → 3).</li>
+      <li>Definir el <strong>formato del informe</strong> con los informes de referencia del usuario.</li>
+      <li>Guardar el <strong>histórico de análisis</strong> por usuario.</li>
+      <li>Dejar preparado el esqueleto de: autenticación, planes/suscripciones y buscador (sin implementar la lógica).</li>
+    </ol>
+  </section>
+
+  <div class="footer">
+    Documento de visión vivo · Se actualizará a medida que se tomen decisiones (stack, modelo, formato del informe)
+  </div>
+
+</div>
+</body>
+</html>

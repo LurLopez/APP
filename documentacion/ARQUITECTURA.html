@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arquitectura — Analizador de Resultados Financieros</title>
+<style>
+  :root {
+    --bg: #0f1520;
+    --panel: #182235;
+    --panel-2: #1e2a42;
+    --border: #2a3a5a;
+    --text: #e8edf6;
+    --muted: #9aa8c0;
+    --accent: #4da3ff;
+    --green: #3ddc97;
+    --red: #ff6b6b;
+    --amber: #ffb454;
+    --purple: #b48bf2;
+    --cyan: #4dd7e8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    padding: 40px 16px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+
+  .hero {
+    background: linear-gradient(135deg, #16233c 0%, #1e2a42 60%, #21304d 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px;
+    text-align: center;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 80% 20%, rgba(77,163,255,.15), transparent 60%);
+    pointer-events: none;
+  }
+  .hero h1 { font-size: 1.7rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); margin-top: 8px; position: relative; z-index: 1; }
+  .badges { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; position: relative; z-index: 1; }
+  .badge {
+    display: inline-block; padding: 4px 12px; border-radius: 999px;
+    font-size: .78rem; font-weight: 600; border: 1px solid;
+  }
+  .b-blue  { color: var(--accent); border-color: var(--accent); background: rgba(77,163,255,.08); }
+  .b-green { color: var(--green); border-color: var(--green); background: rgba(61,220,151,.08); }
+  .b-purple{ color: var(--purple); border-color: var(--purple); background: rgba(180,139,242,.08); }
+
+  section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 26px 28px;
+    margin-bottom: 22px;
+  }
+  h2 {
+    font-size: 1.2rem; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  h2 .num {
+    background: var(--accent); color: #0b1424;
+    width: 28px; height: 28px; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: .9rem; font-weight: 700; flex-shrink: 0;
+  }
+  h2 .num.g { background: var(--green); }
+  h2 .num.a { background: var(--amber); }
+  h2 .num.p { background: var(--purple); }
+  h2 .num.c { background: var(--cyan); }
+  h3 { color: var(--accent); font-size: 1rem; margin: 18px 0 8px; }
+  h3:first-of-type { margin-top: 4px; }
+  p { margin-bottom: 10px; }
+  .muted { color: var(--muted); }
+  ul, ol { padding-left: 22px; margin-bottom: 12px; }
+  li { margin-bottom: 6px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: 10px 0; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; background: var(--panel-2); }
+  td code, p code, li code {
+    background: rgba(77,163,255,.1);
+    border: 1px solid rgba(77,163,255,.25);
+    padding: 1px 7px; border-radius: 5px;
+    font-size: .85em; color: var(--cyan);
+  }
+
+  .callout {
+    border-left: 4px solid var(--amber);
+    background: var(--panel-2);
+    border-radius: 0 10px 10px 0;
+    padding: 13px 16px;
+    margin: 12px 0;
+  }
+  .callout.blue  { border-left-color: var(--accent); }
+  .callout.green { border-left-color: var(--green); }
+  .callout.red   { border-left-color: var(--red); }
+  .callout strong { color: var(--amber); }
+  .callout.blue strong { color: var(--accent); }
+  .callout.green strong { color: var(--green); }
+
+  /* Diagrama general */
+  .arch {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+    margin: 14px 0;
+    font-size: .9rem;
+    text-align: center;
+  }
+  .alayer {
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin: 4px auto;
+    max-width: 640px;
+  }
+  .alayer .atitle { font-weight: 700; color: var(--accent); display: block; }
+  .alayer small { color: var(--muted); }
+  .aarrow { color: var(--muted); font-size: 1rem; line-height: 1; padding: 2px 0; }
+  .aflex { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+  .amod {
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    background: var(--panel);
+  }
+  .alayer.primary { border-color: var(--accent); }
+
+  /* Pipeline agentes */
+  .flow { display: flex; flex-direction: column; align-items: center; margin: 14px 0; }
+  .fnode {
+    background: var(--panel-2);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 20px;
+    width: 100%; max-width: 520px;
+    text-align: center;
+    position: relative;
+  }
+  .fnode .fnum {
+    position: absolute; top: -10px; left: 14px;
+    background: var(--accent); color: #0b1424;
+    font-weight: 700; font-size: .75rem;
+    padding: 1px 10px; border-radius: 999px;
+  }
+  .fnode.no { border-color: var(--red); }
+  .fnode.no .fnum { background: var(--red); color: #fff; }
+  .fnode.fin { border-color: var(--green); }
+  .fnode.fin .fnum { background: var(--green); color: #0b1424; }
+  .fnode strong { display: block; }
+  .fnode small { color: var(--muted); }
+  .farrow { width: 2px; height: 22px; background: var(--border); margin: 2px 0; position: relative; }
+  .farrow::after {
+    content: ''; position: absolute; bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: var(--border);
+  }
+  .flabel {
+    font-size: .76rem; font-weight: 600;
+    padding: 2px 12px; border-radius: 999px;
+    background: rgba(61,220,151,.08);
+    border: 1px solid rgba(61,220,151,.3);
+    color: var(--green);
+    margin: 3px 0;
+  }
+  .flabel.no { color: var(--red); border-color: rgba(255,107,107,.3); background: rgba(255,107,107,.08); }
+
+  /* Código */
+  pre {
+    background: #0c1322;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    overflow-x: auto;
+    font-size: .82rem;
+    line-height: 1.55;
+    margin: 10px 0;
+    color: var(--text);
+    font-family: 'Cascadia Code', Consolas, monospace;
+  }
+  pre .c { color: #5a6c8c; }  /* comentario */
+  pre .k { color: var(--purple); } /* keyword */
+  pre .s { color: var(--green); }  /* string */
+
+  /* Estructura carpetas */
+  .tree {
+    background: #0c1322;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-family: 'Cascadia Code', Consolas, monospace;
+    font-size: .82rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: var(--text);
+    white-space: pre;
+    margin: 10px 0;
+  }
+  .tree .dir { color: var(--cyan); }
+  .tree .cmt { color: #5a6c8c; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card h4 { color: var(--accent); margin-bottom: 6px; font-size: .95rem; }
+  .card p { font-size: .88rem; margin: 0; }
+
+  .pill { padding: 2px 10px; border-radius: 999px; font-size: .72rem; font-weight: 600; white-space: nowrap; }
+  .pill.ok { background: rgba(61,220,151,.12); color: var(--green); }
+  .pill.wait { background: rgba(255,180,84,.12); color: var(--amber); }
+  .pill.red { background: rgba(255,107,107,.12); color: var(--red); }
+
+  .footer { text-align: center; color: var(--muted); font-size: .82rem; margin-top: 24px; }
+
+  @media (max-width: 720px) {
+    .grid { grid-template-columns: 1fr; }
+    section { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1>Arquitectura del <span>Analizador Financiero</span></h1>
+    <p>Versión 1.0 · Stack decidido</p>
+    <div class="badges">
+      <span class="badge b-blue">Node.js + Express</span>
+      <span class="badge b-green">PostgreSQL</span>
+      <span class="badge b-purple">Frontend puro → React (Fase 2)</span>
+    </div>
+  </div>
+
+  <!-- 1. STACK -->
+  <section>
+    <h2><span class="num">1</span>Stack tecnológico (decidido)</h2>
+    <table>
+      <tr><th>Capa</th><th>Tecnología</th><th>Por qué</th></tr>
+      <tr><td><strong>Backend</strong></td><td>Node.js + Express (API REST)</td><td>Dominado en clase, ecosistema maduro, mismo idioma que el frontend</td></tr>
+      <tr><td><strong>Base de datos</strong></td><td>PostgreSQL</td><td>Se controla SQL; modelo relacional encaja (users, filings, analyses)</td></tr>
+      <tr><td><strong>Frontend</strong></td><td>HTML/CSS/JS puro (beta)</td><td>Sin curva de aprendizaje; se migrará a React en la Fase 2</td></tr>
+      <tr><td><strong>Extracción PDF</strong></td><td>Librería de texto (ej. <code>pdf-parse</code>)</td><td>Extrae el texto del informe para los agentes</td></tr>
+      <tr><td><strong>Modelos IA</strong></td><td>Capa de abstracción propia (DeepSeek / GPT intercambiables)</td><td>Modelo final por decidir; la capa permite cambiar sin tocar agentes</td></tr>
+      <tr><td><strong>Almacenamiento PDFs</strong></td><td>Filesystem local (<code>uploads/</code>)</td><td>Suficiente para uso local; migrable a S3</td></tr>
+    </table>
+  </section>
+
+  <!-- 2. VISION -->
+  <section>
+    <h2><span class="num g">2</span>Visión general</h2>
+    <div class="arch">
+      <div class="alayer">
+        <span class="atitle">FRONTEND (beta) — HTML / CSS / JS puro (<code>public/</code>)</span>
+        <small>Vista subir PDF · Vista resultado del análisis</small>
+      </div>
+      <div class="aarrow">▼ &nbsp;fetch() / FormData (multipart)&nbsp; ▼</div>
+      <div class="alayer primary">
+        <span class="atitle">BACKEND — Node.js + Express</span>
+        <div class="aflex" style="margin-top: 8px;">
+          <div class="amod">API Layer<br><small>routes / controllers</small></div>
+          <div class="amod">Services<br><small>analysis, pdf, (auth…)</small></div>
+          <div class="amod">Agentes<br><small>registro + runner</small></div>
+          <div class="amod">Modelos IA<br><small>interfaz común</small></div>
+        </div>
+        <div class="aflex" style="margin-top: 8px;">
+          <div class="amod" style="border-color: var(--green);">PostgreSQL<br><small>users · analyses · filings</small></div>
+          <div class="amod" style="border-color: var(--amber);">uploads/<br><small>PDFs (filesystem)</small></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Principios rectores</h3>
+    <ol>
+      <li><strong>API REST pura</strong>: el frontend solo habla con la API vía JSON. El frontend es reemplazable (facilita migrar a React sin tocar nada más).</li>
+      <li><strong>Separación en capas</strong>: API → Services → Agents → Models. Cada capa solo conoce a la inferior.</li>
+      <li><strong>Agentes extensibles</strong>: se añaden agentes por país/sector registrándolos, sin modificar el runner.</li>
+      <li><strong>Modelos intercambiables</strong>: los agentes nunca llaman a una API de IA directamente; siempre vía la capa de modelos.</li>
+    </ol>
+  </section>
+
+  <!-- 3. CARPETAS -->
+  <section>
+    <h2><span class="num a">3</span>Estructura de carpetas</h2>
+    <div class="tree"><span class="dir">app/</span>
+├─ <span class="dir">server.js</span>                <span class="cmt"># Arranque de Express</span>
+├─ <span class="dir">package.json</span> · <span class="dir">.env</span>     <span class="cmt"># Variables (no versionar)</span>
+├─ <span class="dir">config/</span><span class="cmt">/index.js</span>           <span class="cmt"># Lectura de .env (puerto, BD, proveedor IA…)</span>
+├─ <span class="dir">db/</span>
+│  ├─ <span class="dir">pool.js</span>                 <span class="cmt"># Pool de conexiones PostgreSQL</span>
+│  ├─ <span class="dir">schema.sql</span>             <span class="cmt"># Esquema de la BD</span>
+│  └─ <span class="dir">migrations.js</span>          <span class="cmt"># Ejecutor sencillo (beta)</span>
+├─ <span class="dir">src/</span>
+│  ├─ <span class="dir">api/</span>
+│  │  ├─ <span class="dir">routes/</span>  <span class="cmt">upload.routes.js · analyses.routes.js</span>
+│  │  └─ <span class="dir">controllers/</span>  <span class="cmt">upload · analyses</span>
+│  ├─ <span class="dir">services/</span>  <span class="cmt">analysis.service.js · pdf.service.js · (futuro: auth, filing)</span>
+│  ├─ <span class="dir">agents/</span>
+│  │  ├─ <span class="dir">agentRegistry.js</span>   <span class="cmt"># Registro y orden de ejecución</span>
+│  │  ├─ <span class="dir">baseAgent.js</span>       <span class="cmt"># Interfaz/plantilla</span>
+│  │  └─ <span class="dir">agents/</span>  <span class="cmt">originAgent · sectorAgent · analystAgent</span>
+│  ├─ <span class="dir">models/</span>  <span class="cmt">modelProvider.js · deepseekProvider.js · openaiProvider.js</span>
+│  ├─ <span class="dir">middleware/</span>  <span class="cmt">errorHandler.js</span>
+│  └─ <span class="dir">utils/</span>  <span class="cmt">validate.js</span>
+├─ <span class="dir">public/</span>  <span class="cmt">index.html · result.html · css/ · js/main.js</span>
+└─ <span class="dir">uploads/</span>  <span class="cmt"># PDFs subidos</span></div>
+  </section>
+
+  <!-- 4. BD -->
+  <section>
+    <h2><span class="num p">4</span>Base de datos (PostgreSQL)</h2>
+    <h3>Tablas (beta)</h3>
+    <pre><span class="c">-- Usuarios: se crea ahora aunque el registro llegue en Fase 3</span>
+CREATE <span class="k">TABLE</span> users (
+    id            SERIAL PRIMARY KEY,
+    email         TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,                  <span class="c">-- bcrypt</span>
+    plan          TEXT NOT NULL DEFAULT 'free',   <span class="c">-- 'free' | 'premium' (Fase 5)</span>
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+<span class="c">-- Análisis realizados (histórico por usuario)</span>
+CREATE <span class="k">TABLE</span> analyses (
+    id           SERIAL PRIMARY KEY,
+    user_id      INT REFERENCES users(id) ON DELETE CASCADE, <span class="c">-- NULL = anónimo (beta)</span>
+    filename     TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'processing', <span class="c">-- processing|done|error</span>
+    error        TEXT,
+    origin       TEXT,                            <span class="c">-- 'US' | error de origen</span>
+    sector       TEXT,                            <span class="c">-- 'defensive_consumer' | error</span>
+    report       JSONB,                           <span class="c">-- informe final (formato por definir)</span>
+    model_used   TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+<span class="c">-- Filings: histórico por empresa (Fase 2)</span>
+CREATE <span class="k">TABLE</span> filings (
+    id           SERIAL PRIMARY KEY,
+    ticker       TEXT NOT NULL,
+    company_name TEXT NOT NULL,
+    form_type    TEXT NOT NULL,                   <span class="c">-- '10-Q' | '10-K'</span>
+    period       TEXT,                            <span class="c">-- ej. 'Q2 2025'</span>
+    accession_no TEXT UNIQUE,                     <span class="c">-- identificador SEC</span>
+    filing_url   TEXT,
+    filed_at     DATE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_filings_ticker ON filings (ticker);
+CREATE INDEX idx_analyses_user ON analyses (user_id);</pre>
+
+    <div class="callout green">
+      <strong>Preparada para el futuro:</strong> <code>users.plan</code> → suscripciones (Fase 5); <code>analyses.user_id</code> nullable → la beta funciona sin login y el historial se asocia luego; <code>report JSONB</code> → flexible al formato final; <code>filings</code> se rellena en Fase 2 con la API de SEC/EDGAR.
+    </div>
+  </section>
+
+  <!-- 5. AGENTES -->
+  <section>
+    <h2><span class="num c">5</span>Sistema de agentes</h2>
+    <pre><span class="k">class</span> BaseAgent {
+  <span class="k">constructor</span>(id, name) { <span class="k">this</span>.id = id; <span class="k">this</span>.name = name; }
+  <span class="k">async</span> run({ pdfText, metadata }) {
+    <span class="k">throw new</span> Error(<span class="s">'Debe implementarse'</span>);
+  }
+}
+
+<span class="c">// agentRegistry.js — el orden del array = orden del pipeline</span>
+<span class="k">const</span> pipeline = [
+  <span class="k">new</span> OriginAgent(),   <span class="c">// 1. ¿Es de EE. UU.?</span>
+  <span class="k">new</span> SectorAgent(),   <span class="c">// 2. ¿Es consumo defensivo?</span>
+  <span class="k">new</span> AnalystAgent(),  <span class="c">// 3. Análisis principal</span>
+];</pre>
+
+    <div class="flow">
+      <div class="fnode">
+        <span class="fnum">1</span>
+        <strong>OriginAgent</strong>
+        <small>¿Los resultados son de una empresa de EE. UU.?</small>
+      </div>
+      <div class="flabel">Sí</div>
+      <div class="flabel no">No → error guardado, status=error</div>
+      <div class="farrow"></div>
+      <div class="fnode">
+        <span class="fnum">2</span>
+        <strong>SectorAgent</strong>
+        <small>¿Es consumo defensivo?</small>
+      </div>
+      <div class="flabel">Sí</div>
+      <div class="flabel no">No → error guardado, status=error</div>
+      <div class="farrow"></div>
+      <div class="fnode fin">
+        <span class="fnum">3</span>
+        <strong>AnalystAgent</strong>
+        <small>Genera el informe (usa la capa de modelos)</small>
+      </div>
+      <div class="farrow"></div>
+      <div class="fnode fin">
+        <strong>report guardado + status=done</strong>
+      </div>
+    </div>
+
+    <div class="callout blue">
+      <strong>Extensión futura:</strong> Canadá → se registra <code>OriginAgentCA</code>; tecnología → <code>SectorAgentTech</code> + <code>AnalystAgentTech</code>. El runner no cambia.
+    </div>
+  </section>
+
+  <!-- 6. MODELOS -->
+  <section>
+    <h2><span class="num">6</span>Capa de abstracción de modelos IA</h2>
+    <pre><span class="c">// Todos los proveedores implementan esta misma firma.
+// Los agentes llaman SOLO a esta capa, nunca a la API de un proveedor.</span>
+<span class="k">class</span> ModelProvider {
+  <span class="k">async</span> generate({ system, messages, maxTokens }) { <span class="c">// → string</span>
+    <span class="k">throw new</span> Error(<span class="s">'Debe implementarse'</span>);
+  }
+}</pre>
+    <p class="muted">Implementaciones: <code>deepseekProvider.js</code> (candidato A) y <code>openaiProvider.js</code> (candidato B).</p>
+    <ul>
+      <li><strong>Beta:</strong> el proveedor se elige por variables de entorno: <code>AI_PROVIDER=deepseek|openai</code>, <code>AI_API_KEY</code>, <code>AI_MODEL</code>.</li>
+      <li><strong>Fase 5:</strong> el proveedor se elegirá <strong>según el plan del usuario</strong> (free → modelo base, premium → modelo mejor). Mismo código, solo cambia quién elige.</li>
+    </ul>
+    <div class="callout red">
+      <strong>Garantía clave:</strong> los agentes nunca importan <code>deepseek</code> ni <code>openai</code> directamente. Cambiar de modelo = editar <code>.env</code>, no código de agentes.
+    </div>
+  </section>
+
+  <!-- 7. FLUJO -->
+  <section>
+    <h2><span class="num g">7</span>Flujo completo de un análisis (Fase 1)</h2>
+    <ol>
+      <li>Usuario sube PDF (multipart) a <code>POST /api/upload</code></li>
+      <li>Express guarda el archivo en <code>uploads/</code> con nombre único</li>
+      <li><code>pdf.service</code> extrae el texto del PDF</li>
+      <li><code>analysis.service</code> crea registro en <code>analyses</code> (status=processing)</li>
+      <li>Pipeline: OriginAgent → SectorAgent → AnalystAgent (se detiene en el primer error)</li>
+      <li>Se guarda <code>report</code> + status=done</li>
+      <li>Respuesta JSON → <code>result.html</code> muestra el informe</li>
+    </ol>
+    <h3>Endpoints API (beta)</h3>
+    <table>
+      <tr><th>Método</th><th>Ruta</th><th>Función</th></tr>
+      <tr><td><code>POST</code></td><td><code>/api/upload</code></td><td>Sube PDF y lanza el análisis (multipart)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/analyses</code></td><td>Lista de análisis realizados (histórico)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/analyses/:id</code></td><td>Detalle de un análisis (incluye report JSONB)</td></tr>
+    </table>
+    <p class="muted">Fase 2 añadirá: <code>/api/companies?q=TAP</code>, <code>/api/companies/:ticker/filings</code>, <code>/api/filings/:id/analyze</code></p>
+  </section>
+
+  <!-- 8. PLAN -->
+  <section>
+    <h2><span class="num a">8</span>Plan de implementación</h2>
+    <ol>
+      <li><strong>Scaffolding</strong>: <code>npm init</code>, Express, <code>config/</code>, <code>server.js</code> con <code>/api/health</code>.</li>
+      <li><strong>PostgreSQL</strong>: <code>db/pool.js</code>, <code>db/schema.sql</code>, crear <code>users</code> y <code>analyses</code>.</li>
+      <li><strong>Capa de modelos</strong>: <code>modelProvider.js</code> + <code>deepseekProvider.js</code> (mock primero).</li>
+      <li><strong>Agentes</strong>: <code>baseAgent.js</code>, <code>agentRegistry.js</code>, los 3 agentes de la beta.</li>
+      <li><strong>PDF</strong>: <code>pdf.service.js</code> (pdf-parse) + <code>POST /api/upload</code>.</li>
+      <li><strong>Pipeline</strong>: <code>analysis.service.js</code> conectando todo + guardado en BD.</li>
+      <li><strong>Frontend puro</strong>: <code>index.html</code> (subir PDF) + <code>result.html</code> (mostrar informe) + <code>js/main.js</code>.</li>
+      <li><strong>Histórico</strong>: <code>GET /api/analyses</code> + vista de historial.</li>
+      <li><strong>Formato del informe</strong>: con tus informes de referencia (afecta al prompt del AnalystAgent y al JSONB).</li>
+    </ol>
+  </section>
+
+  <!-- 9. PENDIENTES -->
+  <section>
+    <h2><span class="num p">9</span>Decisiones de arquitectura pendientes</h2>
+    <table>
+      <tr><th>Decisión</th><th>Impacto</th><th>Estado</th></tr>
+      <tr><td>Formato exacto del <code>report JSONB</code></td><td>Define el prompt del AnalystAgent y la vista de resultados</td><td><span class="pill wait">Con tus informes de referencia</span></td></tr>
+      <tr><td>Librería de PDF concreta</td><td><code>pdf-parse</code> (sencilla) vs <code>pdfjs-dist</code> (completa)</td><td><span class="pill wait">Paso 5</span></td></tr>
+      <tr><td>Modelo concreto (DeepSeek vs GPT)</td><td>No bloquea: la capa de abstracción permite empezar con cualquiera</td><td><span class="pill wait">Por comparar</span></td></tr>
+      <tr><td>Límites del plan free</td><td>Solo Fase 5, pero el campo <code>plan</code> ya existe</td><td><span class="pill ok">No bloquea</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 10. RIESGOS -->
+  <section>
+    <h2><span class="num c">10</span>Mitigación de riesgos</h2>
+    <div class="grid">
+      <div class="card">
+        <h4>PDF con tablas/escaneado pierde texto</h4>
+        <p>Extraer texto es el paso 1. Si el texto sale vacío o demasiado corto → error claro: "No se pudo extraer texto".</p>
+      </div>
+      <div class="card">
+        <h4>Coste de API de IA</h4>
+        <p>Empezar con modelo barato (DeepSeek) para desarrollo; limitar el texto enviado a los agentes (primeras N páginas si el informe es enorme).</p>
+      </div>
+      <div class="card">
+        <h4>Migrar frontend a React</h4>
+        <p>Garantizado por la API REST pura: el frontend nunca contiene lógica de negocio.</p>
+      </div>
+      <div class="card">
+        <h4>La IA inventa cifras (alucinación)</h4>
+        <p>Prompt del AnalystAgent: análisis estrictamente sobre el texto del PDF; prohibido inventar cifras no presentes.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">Documento vivo · Se actualiza conforme avanza la implementación</div>
+
+</div>
+</body>
+</html>

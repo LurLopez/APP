@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101412">
+  <meta name="description" content="Analiza informes financieros 10-Q y 10-K con una lectura estructurada.">
+  <title>Cifra | Analizador de resultados</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div>
+          <strong>Cifra</strong>
+          <span>financial intelligence</span>
+        </div>
+      </div>
+
+      <div class="workspace-label">Espacio de trabajo</div>
+      <nav class="main-nav" aria-label="Navegación principal">
+        <a class="nav-link active" href="#nuevo">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Nuevo análisis</span>
+          <span class="nav-key">N</span>
+        </a>
+        <a class="nav-link" href="#historial">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13ZM8 8h8M8 12h8M8 16h4"/></svg>
+          <span>Histórico</span>
+          <span class="nav-count">12</span>
+        </a>
+        <a class="nav-link" href="#metodologia">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M4 7h16M7 7v4.5a2 2 0 0 1-4 0V11M17 7v4.5a2 2 0 0 0 4 0V11M5 18h14"/></svg>
+          <span>Metodología</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-grow"></div>
+
+      <div class="future-card">
+        <div class="future-card-top">
+          <span class="phase-label">Próximamente</span>
+          <span class="sparkle" aria-hidden="true">✦</span>
+        </div>
+        <strong>Busca una empresa</strong>
+        <p>Consulta sus filings históricos directamente desde Cifra.</p>
+        <button class="text-button" type="button" disabled>
+          Fase 2 en preparación
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+
+      <div class="account-card">
+        <div class="avatar">LR</div>
+        <div class="account-copy">
+          <strong>Sesión local</strong>
+          <span>Beta privada</span>
+        </div>
+        <button class="icon-button subtle" type="button" aria-label="Opciones de cuenta">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="menu-toggle icon-button" id="menu-toggle" type="button" aria-label="Abrir menú" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="breadcrumbs" aria-label="Migas de pan">
+          <span>Workspace</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          <strong>Nuevo análisis</strong>
+        </div>
+        <div class="topbar-actions">
+          <div class="system-status"><span class="status-dot"></span> Sistema operativo</div>
+          <button class="icon-button" type="button" aria-label="Ayuda">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-.9.9-1.9 1.2-1.9 2.7M12 17h.01"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="page-content">
+        <section class="intro" id="nuevo">
+          <div class="intro-copy">
+            <div class="eyebrow"><span class="eyebrow-line"></span> Analizador de resultados · Fase 1</div>
+            <h1>De un informe denso a <em>una lectura clara.</em></h1>
+            <p>Sube un 10-Q o 10-K y deja que Cifra ordene las señales importantes antes de que tomes una decisión.</p>
+            <div class="scope-list" aria-label="Alcance de la beta">
+              <span><i class="check-icon">✓</i> Empresas de EE. UU.</span>
+              <span><i class="check-icon">✓</i> 10-Q y 10-K</span>
+              <span><i class="check-icon">✓</i> Consumo defensivo</span>
+            </div>
+          </div>
+          <div class="intro-orbit" aria-hidden="true">
+            <div class="orbit orbit-one"></div>
+            <div class="orbit orbit-two"></div>
+            <div class="orbit-core"><span>Q</span><small>10</small></div>
+            <span class="orbit-tag tag-top">US · 10-Q</span>
+            <span class="orbit-tag tag-bottom">IA estructurada</span>
+          </div>
+        </section>
+
+        <section class="workspace-grid">
+          <div class="panel upload-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="section-index">01 / CARGAR DOCUMENTO</span>
+                <h2>Sube un informe para empezar</h2>
+              </div>
+              <span class="file-rule">PDF <span>·</span> máx. 25 MB</span>
+            </div>
+
+            <form id="upload-form">
+              <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Seleccionar informe PDF">
+                <input id="file-input" type="file" accept="application/pdf,.pdf" hidden>
+                <div class="upload-symbol" aria-hidden="true">
+                  <svg viewBox="0 0 28 28"><path d="M14 19V6M9.5 10.5 14 6l4.5 4.5M7 17.5v2A2.5 2.5 0 0 0 9.5 22h9a2.5 2.5 0 0 0 2.5-2.5v-2"/></svg>
+                </div>
+                <h3>Arrastra tu PDF aquí</h3>
+                <p>o <button class="inline-link" id="select-file" type="button">selecciona un archivo</button> desde tu equipo</p>
+                <div class="dropzone-hint"><span class="lock-icon">⌁</span> El documento se procesa de forma privada</div>
+              </div>
+
+              <div class="file-preview" id="file-preview" hidden>
+                <div class="pdf-badge">PDF</div>
+                <div class="file-details">
+                  <strong id="file-name">informe.pdf</strong>
+                  <span id="file-size">0 MB</span>
+                </div>
+                <span class="file-ready"><span class="status-dot"></span> Listo</span>
+                <button class="remove-file" id="remove-file" type="button" aria-label="Quitar archivo">×</button>
+              </div>
+
+              <div class="form-footer">
+                <p><span class="info-icon">i</span> La beta acepta informes de empresas estadounidenses del sector de consumo defensivo.</p>
+                <button class="primary-button" id="analyze-button" type="submit" disabled>
+                  <span>Analizar informe</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+                </button>
+              </div>
+            </form>
+
+            <div class="processing-panel" id="processing-panel" hidden>
+              <div class="processing-head">
+                <div>
+                  <span class="section-index">ANÁLISIS EN CURSO</span>
+                  <h3 id="processing-title">Leyendo tu informe...</h3>
+                </div>
+                <span class="processing-time" id="processing-time">00:01</span>
+              </div>
+              <div class="agent-list">
+                <div class="agent-row" data-agent="origin">
+                  <span class="agent-number">01</span>
+                  <div><strong>Verificador de origen</strong><span>¿La empresa es de EE. UU.?</span></div>
+                  <span class="agent-state">En espera</span>
+                </div>
+                <div class="agent-row" data-agent="sector">
+                  <span class="agent-number">02</span>
+                  <div><strong>Verificador de sector</strong><span>¿Es consumo defensivo?</span></div>
+                  <span class="agent-state">En espera</span>
+                </div>
+                <div class="agent-row" data-agent="analyst">
+                  <span class="agent-number">03</span>
+                  <div><strong>Analista principal</strong><span>Extrayendo señales financieras</span></div>
+                  <span class="agent-state">En espera</span>
+                </div>
+              </div>
+              <div class="progress-track"><span id="progress-bar"></span></div>
+              <p class="demo-disclaimer">Vista de demostración: el pipeline real se conectará a <code>POST /api/upload</code>.</p>
+            </div>
+
+            <div class="result-preview" id="result-preview" hidden>
+              <div class="result-heading">
+                <div>
+                  <span class="section-index">ANÁLISIS COMPLETADO</span>
+                  <h3>La lectura preliminar está lista</h3>
+                </div>
+                <span class="result-status"><span class="status-dot"></span> 3 agentes completados</span>
+              </div>
+              <div class="result-grid">
+                <div class="result-score"><span class="score-label">Señal general</span><strong>Positiva</strong><span class="score-bar"><i></i></span></div>
+                <div class="result-metric"><span>Ingresos interanuales</span><strong>+4,8 %</strong><small>Mejora moderada</small></div>
+                <div class="result-metric"><span>Margen operativo</span><strong>18,2 %</strong><small>Estable</small></div>
+              </div>
+              <button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button>
+            </div>
+          </div>
+
+          <aside class="panel coverage-panel" id="metodologia">
+            <div class="panel-heading compact">
+              <div>
+                <span class="section-index">02 / MÉTODO</span>
+                <h2>Qué ocurre después</h2>
+              </div>
+              <span class="method-icon">✦</span>
+            </div>
+            <div class="method-intro">Tres agentes revisan el documento en orden. Si no cumple el alcance, el análisis se detiene con una explicación clara.</div>
+            <div class="mini-pipeline">
+              <div class="mini-step">
+                <span class="mini-step-number">01</span>
+                <div><strong>Origen</strong><span>Estados Unidos</span></div>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+              </div>
+              <div class="pipeline-connector"></div>
+              <div class="mini-step">
+                <span class="mini-step-number">02</span>
+                <div><strong>Sector</strong><span>Consumo defensivo</span></div>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+              </div>
+              <div class="pipeline-connector"></div>
+              <div class="mini-step final">
+                <span class="mini-step-number">03</span>
+                <div><strong>Análisis</strong><span>Informe estructurado</span></div>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+              </div>
+            </div>
+            <div class="method-note"><span>i</span><p>La IA ayuda a cribar resultados. La decisión final siempre es tuya.</p></div>
+          </aside>
+        </section>
+
+        <section class="stat-row" aria-label="Resumen de actividad">
+          <div class="stat-card">
+            <div class="stat-icon mint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7"/></svg></div>
+            <div><span>Análisis realizados</span><strong>12</strong></div>
+            <small class="stat-trend">+3 este mes</small>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg></div>
+            <div><span>Tiempo medio</span><strong>38<span class="unit">s</span></strong></div>
+            <small class="stat-muted">por informe</small>
+          </div>
+          <div class="stat-card scope-stat">
+            <div class="stat-icon orange"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6.5v5.2c0 4.3 3 7.9 7.5 9.3 4.5-1.4 7.5-5 7.5-9.3V6.5L12 3Z"/><path d="m8.7 12 2.1 2.1 4.6-4.6"/></svg></div>
+            <div><span>Cobertura de beta</span><strong>US <span class="slash">/</span> CD</strong></div>
+            <small class="stat-muted">alcance activo</small>
+          </div>
+        </section>
+
+        <section class="panel history-panel" id="historial">
+          <div class="panel-heading history-heading">
+            <div>
+              <span class="section-index">03 / ACTIVIDAD</span>
+              <h2>Últimos análisis</h2>
+            </div>
+            <a class="text-button" href="#historial">Ver histórico completo <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></a>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Documento</th><th>Empresa</th><th>Periodo</th><th>Estado</th><th></th></tr></thead>
+              <tbody>
+                <tr><td><span class="table-file">PDF</span><strong>tap-q2-2025.pdf</strong></td><td>Molson Coors</td><td>Q2 2025</td><td><span class="table-status done"><i></i> Completado</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr>
+                <tr><td><span class="table-file">PDF</span><strong>ko-10q-2025.pdf</strong></td><td>Coca-Cola</td><td>Q1 2025</td><td><span class="table-status done"><i></i> Completado</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr>
+                <tr><td><span class="table-file">PDF</span><strong>pep-10k-2024.pdf</strong></td><td>PepsiCo</td><td>FY 2024</td><td><span class="table-status warning"><i></i> Revisar</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="empty-hint"><span>⌁</span> Tu histórico se asociará a tu usuario cuando activemos el registro.</div>
+        </section>
+
+        <footer class="page-footer">
+          <span>Cifra <b>·</b> beta 0.1</span>
+          <span>La IA ordena la información. Tú decides qué significa.</span>
+        </footer>
+      </div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
