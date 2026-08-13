@@ -240,7 +240,7 @@
   <!-- HERO -->
   <div class="hero">
     <h1>Arquitectura del <span>Analizador Financiero</span></h1>
-    <p>Versión 1.0 · Stack decidido</p>
+    <p>Versión 1.1 · Stack decidido</p>
     <div class="badges">
       <span class="badge b-blue">Node.js + Express</span>
       <span class="badge b-green">PostgreSQL</span>
@@ -319,7 +319,13 @@
 │  ├─ <span class="dir">middleware/</span>  <span class="cmt">errorHandler.js</span>
 │  └─ <span class="dir">utils/</span>  <span class="cmt">validate.js</span>
 ├─ <span class="dir">public/</span>  <span class="cmt">index.html · result.html · css/ · js/main.js</span>
-└─ <span class="dir">uploads/</span>  <span class="cmt"># PDFs subidos</span></div>
+├─ <span class="dir">uploads/</span>  <span class="cmt"># PDFs subidos</span>
+├─ <span class="dir">agentes/</span>  <span class="cmt"># ENLACE → ~/.config/opencode/agent/ (agentes de opencode)</span>
+└─ <span class="dir">PROYECTO.md</span>  <span class="cmt"># ENLACE → documentacion/PROYECTO.md (resumen inyectado)</span></div>
+
+    <div class="callout green">
+      <strong>Enlaces simbólicos, no copias:</strong> <code>agentes/</code> apunta a <code>~/.config/opencode/agent/</code> (tus agentes de opencode: <code>documentacion.md</code>, <code>agentes.md</code>) y <code>PROYECTO.md</code> a <code>documentacion/PROYECTO.md</code>. Editar a través del enlace modifica el archivo real del prompt. Los agentes integrados (<code>build</code>, <code>plan</code>, <code>explore</code>, <code>general</code>) no aparecen ahí: vienen dentro de opencode. Ambos enlaces están en <code>.gitignore</code>.
+    </div>
   </section>
 
   <!-- 4. BD -->
@@ -510,6 +516,35 @@ CREATE INDEX idx_analyses_user ON analyses (user_id);</pre>
         <h4>La IA inventa cifras (alucinación)</h4>
         <p>Prompt del AnalystAgent: análisis estrictamente sobre el texto del PDF; prohibido inventar cifras no presentes.</p>
       </div>
+    </div>
+  </section>
+
+  <!-- 11. ENTORNO OPENCODE -->
+  <section>
+    <h2><span class="num a">11</span>Entorno de desarrollo: opencode</h2>
+    <p class="muted">Cómo se monta el contexto que reciben los agentes de opencode (no confundir con los agentes de la app de la sección 5).</p>
+    <h3>Configuración actual</h3>
+    <table>
+      <tr><th>Archivo</th><th>Contenido</th></tr>
+      <tr><td><code>opencode.json</code> (raíz)</td><td><code>"instructions": ["documentacion/PROYECTO.md"]</code> → inyecta el resumen en el prompt de todos los agentes</td></tr>
+      <tr><td><code>agentes/</code> (enlace)</td><td><code>documentacion.md</code> y <code>agentes.md</code> (prompts de los agentes de opencode)</td></tr>
+    </table>
+    <h3>Qué recibe la IA en cada mensaje</h3>
+    <ol>
+      <li>Prompt de sistema de opencode + esquemas de las herramientas permitidas.</li>
+      <li>Prompt del agente activo (archivo en <code>~/.config/opencode/agent/</code>).</li>
+      <li><code>documentacion/PROYECTO.md</code> (resumen; el detalle está en <code>PROYECTO-detalle.md</code>).</li>
+      <li>Historial de la sesión + mensaje actual + resultados de herramientas.</li>
+    </ol>
+    <h3>Optimización de tokens (aplicada)</h3>
+    <ul>
+      <li><strong><code>PROYECTO.md</code> resumido</strong> (~2.8 KB): el detalle se movió a <code>PROYECTO-detalle.md</code>, que se lee solo cuando hace falta.</li>
+      <li><strong>Prompts de agentes condensados</strong> (<code>documentacion</code>, <code>agentes</code>).</li>
+      <li><strong>Herramientas no usadas en <code>deny</code></strong> (<code>webfetch</code>, <code>task</code>, <code>skill</code>, <code>todowrite</code>, <code>websearch</code>, <code>apply_patch</code>): opencode deja de enviar sus esquemas al modelo.</li>
+      <li><strong>Resultado medido</strong> (DeepSeek, mensaje "hola"): ~7.900 → <strong>~4.925 tokens</strong> de contexto por mensaje (-38 %).</li>
+    </ul>
+    <div class="callout red">
+      <strong>Regla importante:</strong> los cambios en <code>opencode.json</code>, prompts de agentes o <code>PROYECTO.md</code> solo se aplican <strong>al reiniciar opencode</strong> (la configuración se carga al arrancar).
     </div>
   </section>
 

@@ -15,6 +15,10 @@ const processingTime = document.querySelector('#processing-time');
 const toast = document.querySelector('#toast');
 const sidebar = document.querySelector('#sidebar');
 const menuToggle = document.querySelector('#menu-toggle');
+const backdrop = document.querySelector('#backdrop');
+const appShell = document.querySelector('.app-shell');
+const tickerSearch = document.querySelector('#ticker-search');
+const searchResults = document.querySelector('#search-results');
 
 let selectedFile = null;
 let toastTimer;
@@ -171,19 +175,102 @@ document.querySelector('#new-analysis').addEventListener('click', () => {
 });
 
 menuToggle.addEventListener('click', () => {
-  const isOpen = sidebar.classList.toggle('open');
-  menuToggle.setAttribute('aria-expanded', String(isOpen));
+  if (window.matchMedia('(max-width: 900px)').matches) {
+    const isOpen = sidebar.classList.toggle('open');
+    menuToggle.setAttribute('aria-expanded', String(isOpen));
+    backdrop.classList.toggle('visible', isOpen);
+    return;
+  }
+
+  const isCollapsed = appShell.classList.toggle('sidebar-collapsed');
+  menuToggle.setAttribute('aria-expanded', String(!isCollapsed));
 });
+
+backdrop.addEventListener('click', closeSidebar);
+
+function closeSidebar() {
+  sidebar.classList.remove('open');
+  backdrop.classList.remove('visible');
+  menuToggle.setAttribute('aria-expanded', 'false');
+}
 
 document.querySelectorAll('.nav-link').forEach((link) => {
   link.addEventListener('click', () => {
     document.querySelectorAll('.nav-link').forEach((item) => item.classList.remove('active'));
     link.classList.add('active');
-    sidebar.classList.remove('open');
-    menuToggle.setAttribute('aria-expanded', 'false');
+    closeSidebar();
   });
 });
 
 document.querySelectorAll('.row-action').forEach((button) => {
   button.addEventListener('click', () => showToast('La vista de detalle se conectará al histórico de análisis.'));
+});
+
+const companies = [
+  { ticker: 'TAP', name: 'Molson Coors' },
+  { ticker: 'KO', name: 'Coca-Cola' },
+  { ticker: 'PEP', name: 'PepsiCo' },
+  { ticker: 'WMT', name: 'Walmart' },
+];
+
+function renderSearchResults(query) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const matches = companies.filter((company) =>
+    company.ticker.toLowerCase().includes(normalizedQuery) || company.name.toLowerCase().includes(normalizedQuery),
+  );
+
+  if (!normalizedQuery || !matches.length) {
+    searchResults.hidden = true;
+    searchResults.innerHTML = '';
+    return;
+  }
+
+  searchResults.innerHTML = matches.map((company) => `
+    <button class="search-result" type="button" data-ticker="${company.ticker}">
+      <span>${company.name}</span><strong>${company.ticker}</strong>
+    </button>
+  `).join('');
+  searchResults.hidden = false;
+
+  searchResults.querySelectorAll('.search-result').forEach((result) => {
+    result.addEventListener('click', () => {
+      tickerSearch.value = result.dataset.ticker;
+      searchResults.hidden = true;
+      document.querySelector('#nuevo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      showToast(`Empresa seleccionada: ${result.dataset.ticker}. El buscador de filings estará disponible en la Fase 2.`);
+    });
+  });
+}
+
+tickerSearch.addEventListener('input', (event) => renderSearchResults(event.target.value));
+tickerSearch.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    searchResults.hidden = true;
+    tickerSearch.blur();
+  }
+});
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.search-wrap')) searchResults.hidden = true;
+});
+
+document.querySelectorAll('.close-button').forEach((button) => {
+  button.addEventListener('click', () => {
+    const target = button.dataset.dismiss
+      ? document.querySelector(button.dataset.dismiss)
+      : button.closest('.welcome-section');
+    if (target) target.hidden = true;
+  });
+});
+
+document.querySelector('.promo-button').addEventListener('click', () => {
+  document.querySelector('#nuevo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+document.querySelector('.copy-field button').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText('cifra-beta-local');
+    showToast('Referencia copiada.');
+  } catch {
+    showToast('Referencia: cifra-beta-local');
+  }
 });

@@ -1,6 +1,6 @@
 # Arquitectura — Analizador de Resultados Financieros
 
-> Versión: 1.0 · Fecha: 2026-08-12 · Stack: Node.js + Express + PostgreSQL + Frontend puro (migrable a React)
+> Versión: 1.1 · Fecha: 2026-08-12 · Stack: Node.js + Express + PostgreSQL + Frontend puro (migrable a React)
 
 ---
 
@@ -102,8 +102,16 @@ app/
 │   ├── result.html            # Vista resultado de análisis
 │   ├── css/style.css
 │   └── js/main.js             # fetch() a la API
-└── uploads/                   # PDFs subidos (filesystem local)
+├── uploads/                   # PDFs subidos (filesystem local)
+├── agentes/                   # ENLACE → ~/.config/opencode/agent/ (tus agentes de opencode)
+└── PROYECTO.md                # ENLACE → documentacion/PROYECTO.md (resumen inyectado)
 ```
+
+### Enlaces simbólicos (acceso directo, no copias)
+
+- **`agentes/`** → enlace a `~/.config/opencode/agent/`, la carpeta global con los agentes de opencode (`documentacion.md`, `agentes.md`). Es un **enlace, no una copia**: editar un archivo a través de `agentes/` modifica el archivo real del prompt. Los agentes integrados (`build`, `plan`, `explore`, `general`) no aparecen ahí porque vienen dentro del propio opencode.
+- **`PROYECTO.md`** (raíz) → enlace a `documentacion/PROYECTO.md`, el resumen del proyecto que se inyecta en el prompt de todos los agentes (ver sección 11).
+- Ambos enlaces están en `.gitignore`: existen solo en tu máquina, no se versionan.
 
 ---
 
@@ -295,6 +303,38 @@ Respuesta JSON al frontend → resultado.html muestra el informe
 | Coste de API de IA | Empezar con modelo barato (DeepSeek) para desarrollo; limitar tamaño de texto enviado a los agentes (primeras N páginas si el informe es enorme) |
 | Migrar frontend a React | Garantizado por API REST pura; el frontend nunca contiene lógica de negocio |
 | SQL en los prompts | Recordatorio explícito en el prompt del AnalystAgent de que el análisis es financiero y no debe inventar cifras no presentes en el PDF |
+
+---
+
+## 11. Entorno de desarrollo: opencode (prompts y agentes)
+
+Cómo se monta el contexto que reciben los agentes de opencode (no confundir con los agentes de la app de la sección 5).
+
+### Configuración actual
+
+| Archivo | Contenido |
+|---|---|
+| `opencode.json` (raíz del proyecto) | `"instructions": ["documentacion/PROYECTO.md"]` → inyecta el resumen en el prompt de todos los agentes |
+| `agentes/` (enlace) | `documentacion.md` y `agentes.md` (prompts de los agentes de opencode) |
+
+### Qué recibe la IA en cada mensaje
+
+1. Prompt de sistema de opencode + esquemas de las herramientas permitidas.
+2. Prompt del agente activo (archivo en `~/.config/opencode/agent/`).
+3. `documentacion/PROYECTO.md` (resumen; el detalle está en `documentacion/PROYECTO-detalle.md`).
+4. Historial de la sesión + mensaje actual + resultados de herramientas.
+
+### Optimización de tokens (aplicada)
+
+- **`PROYECTO.md` resumido** (~2.8 KB): el documento completo se movió a `PROYECTO-detalle.md`, que solo se lee cuando hace falta.
+- **Prompts de agentes condensados** (`documentacion`, `agentes`).
+- **Herramientas no usadas en `deny`** (`webfetch`, `task`, `skill`, `todowrite`, `websearch`, `apply_patch`): opencode deja de enviar sus esquemas al modelo.
+- **Resultado medido** (modelo DeepSeek, mensaje "hola"): ~7.900 → **~4.925 tokens** de contexto por mensaje (-38 %).
+
+### Regla importante
+
+- Los cambios en `opencode.json`, prompts de agentes o `PROYECTO.md` **solo se aplican al reiniciar opencode** (la configuración se carga al arrancar).
+- Los enlaces `agentes/` y `PROYECTO.md` están en `.gitignore` (no se versionan).
 
 ---
 
