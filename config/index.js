@@ -13,4 +13,6 @@ const database = process.env.DATABASE_URL
 export default {
   port,
   database,
+  jwtSecret: process.env.JWT_SECRET || 'cifra-dev-secret-cambiar',
+  production: process.env.NODE_ENV === 'production',
 };

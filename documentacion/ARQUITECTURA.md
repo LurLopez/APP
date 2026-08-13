@@ -1,6 +1,6 @@
 # Arquitectura — Analizador de Resultados Financieros
 
-> Versión: 1.1 · Fecha: 2026-08-12 · Stack: Node.js + Express + PostgreSQL + Frontend puro (migrable a React)
+> Versión: 1.2 · Fecha: 2026-08-12 · Stack: Node.js + Express + PostgreSQL + Frontend puro (migrable a React)
 
 ---
 
@@ -61,48 +61,60 @@
 
 ```
 app/
-├── server.js                  # Arranque de Express
-├── package.json
-├── .env                       # Variables (no versionar)
+├── server.js                  # Arranque de Express + estáticos + rutas + errorHandler
+├── package.json               # Scripts: start, dev, db:migrate, db:seed
+├── .env                       # Variables (no versionar): PORT, JWT_SECRET, DATABASE_URL/DB_*
 ├── config/
-│   └── index.js               # Lectura de .env (puerto, BD, proveedor IA…)
+│   └── index.js               # Config central: port, database, jwtSecret, production
 ├── db/
 │   ├── pool.js                # Pool de conexiones PostgreSQL
-│   ├── schema.sql             # Esquema de la BD (crear tablas)
-│   └── migrations.js          # Ejecutor sencillo de schema (beta)
+│   ├── schema.sql             # Esquema de la BD (users, analyses, filings)
+│   ├── migrations.js          # Ejecutor sencillo de schema (npm run db:migrate)
+│   ├── seed.js                # Datos demo idempotentes (npm run db:seed)
+│   └── repositories/
+│       ├── analysisRepository.js  # create/get/list/update de analyses
+│       └── userRepository.js      # create/find de users
 ├── src/
 │   ├── api/                   # Capa HTTP
 │   │   ├── routes/
-│   │   │   ├── upload.routes.js     # POST /api/upload
-│   │   │   └── analyses.routes.js   # GET /api/analyses, GET /api/analyses/:id
+│   │   │   ├── auth.routes.js       # POST /api/auth/register|login|logout, GET /me
+│   │   │   ├── upload.routes.js     # (futuro) POST /api/upload
+│   │   │   └── analyses.routes.js   # (futuro) GET /api/analyses, GET /api/analyses/:id
 │   │   └── controllers/
-│   │       ├── upload.controller.js
-│   │       └── analyses.controller.js
+│   │       ├── auth.controller.js   # Firma JWT y gestiona la cookie de sesión
+│   │       ├── upload.controller.js # (futuro)
+│   │       └── analyses.controller.js # (futuro)
 │   ├── services/              # Lógica de negocio
-│   │   ├── analysis.service.js     # Orquesta: PDF → agentes → guardar
-│   │   ├── pdf.service.js          # Extracción de texto del PDF
-│   │   └── (futuro) auth, filing, subscription
-│   ├── agents/                # Sistema de agentes
+│   │   ├── auth.service.js         # Registro/login (bcrypt, validaciones, AuthError)
+│   │   ├── analysis.service.js     # (futuro) Orquesta: PDF → agentes → guardar
+│   │   ├── pdf.service.js          # (futuro) Extracción de texto del PDF
+│   │   └── (futuro) filing, subscription
+│   ├── agents/                # (futuro) Sistema de agentes
 │   │   ├── agentRegistry.js        # Registro y orden de ejecución
 │   │   ├── baseAgent.js            # Interfaz/plantilla de agente
 │   │   └── agents/
 │   │       ├── originAgent.js      # ¿Es de EE. UU.? (beta)
 │   │       ├── sectorAgent.js      # ¿Es consumo defensivo? (beta)
 │   │       └── analystAgent.js     # Análisis principal (beta)
-│   ├── models/                # Capa de abstracción IA
+│   ├── models/                # (futuro) Capa de abstracción IA
 │   │   ├── modelProvider.js        # Interfaz común: generate(messages)
 │   │   ├── deepseekProvider.js
 │   │   └── openaiProvider.js
 │   ├── middleware/
-│   │   └── errorHandler.js    # Errores uniformes JSON
+│   │   ├── auth.middleware.js  # requireAuth: valida JWT de la cookie y carga req.user
+│   │   └── errorHandler.js     # Errores uniformes JSON { error }
 │   └── utils/
-│       └── validate.js        # Validación de entradas
+│       └── validate.js         # normalizeEmail, isValidEmail, isValidPassword
 ├── public/                    # Frontend (beta, JS puro)
-│   ├── index.html             # Vista subir PDF
-│   ├── result.html            # Vista resultado de análisis
-│   ├── css/style.css
-│   └── js/main.js             # fetch() a la API
+│   ├── index.html             # Web "Terminal Cifra" (topbar + sidebar + secciones)
+│   ├── styles.css             # Diseño clon TIKR (claro)
+│   ├── app.js                 # Dropzone, demo del pipeline, menú, buscador demo
+│   └── auth.js                # Modal login/registro, estado de sesión, logout
 ├── uploads/                   # PDFs subidos (filesystem local)
+├── documentacion/             # PROYECTO*.md, ARQUITECTURA.md, IMPLEMENTACION.md
+│   ├── backend/funcionalidades/<nombre>/    # Doc por funcionalidad (capa backend)
+│   ├── frontend/funcionalidades/<nombre>/   # Doc por funcionalidad (capa frontend)
+│   └── diario/YYYY/MM/YYYY-MM-DD.md         # Registro diario de cambios
 ├── agentes/                   # ENLACE → ~/.config/opencode/agent/ (tus agentes de opencode)
 └── PROYECTO.md                # ENLACE → documentacion/PROYECTO.md (resumen inyectado)
 ```
@@ -161,9 +173,9 @@ CREATE INDEX idx_analyses_user ON analyses (user_id);
 ```
 
 ### Observaciones
-- `users.plan` y la tabla `users` completa: preparadas para **suscripciones (Fase 5)** sin migraciones traumáticas.
-- `analyses.user_id` nullable: la beta local funciona sin login; cuando llegue la auth, se asocia el historial.
-- `report JSONB`: flexible para el formato final del informe (se fijará con los informes de referencia del usuario).
+- `users.plan` y la tabla `users` completa: preparadas para **suscripciones (Fase 5)** sin migraciones traumáticas. La tabla ya se usa para registro/login (Fase 3).
+- `analyses.user_id` nullable: la beta local funciona sin login; la auth ya existe, falta asociar el historial al usuario conectado.
+- `report JSONB`: flexible para el formato final del informe (se fijará con los informes de referencia del usuario); el seed ya guarda un formato provisional.
 - La tabla `filings` se rellena en la **Fase 2** (llamadas a la API de EDGAR/SEC); en beta no se usa, pero ya está definida.
 
 ---
@@ -265,22 +277,40 @@ Respuesta JSON al frontend → resultado.html muestra el informe
 | `POST` | `/api/upload` | Sube PDF y lanza el análisis (multipart) |
 | `GET` | `/api/analyses` | Lista de análisis realizados (histórico) |
 | `GET` | `/api/analyses/:id` | Detalle de un análisis (incluye report JSONB) |
+| `POST` | `/api/auth/register` | Registro de usuario (email + contraseña ≥ 8) → cookie de sesión |
+| `POST` | `/api/auth/login` | Inicio de sesión → cookie de sesión |
+| `POST` | `/api/auth/logout` | Cierra la sesión (borra la cookie) |
+| `GET` | `/api/auth/me` | Usuario actual (requiere cookie válida) |
 
 *(Fase 2 añadirá: `GET /api/companies?q=TAP`, `GET /api/companies/:ticker/filings`, `GET /api/filings/:id/analyze`)*
+
+### Autenticación (Fase 3, implementada)
+
+- Sesión con **JWT en cookie httpOnly** (`SameSite=Lax`, 7 días, `secure` solo en producción). Sin almacenamiento de sesiones en BD.
+- `bcryptjs` para el hash de contraseñas (`users.password_hash`); `cookie-parser` para leer la cookie.
+- `src/services/auth.service.js` (lógica + errores con estado HTTP), `src/api/routes/auth.routes.js` y `src/api/controllers/auth.controller.js`.
+- `src/middleware/auth.middleware.js` (`requireAuth`) protegerá los endpoints que necesiten usuario (ej. histórico por usuario).
+- `src/middleware/errorHandler.js`: respuestas de error siempre JSON `{ error }` con el código HTTP correcto.
+- Secretos en `.env` (`JWT_SECRET`). Pendiente: asociar análisis al usuario conectado (`analyses.user_id`) y límites por plan.
 
 ---
 
 ## 8. Plan de implementación (orden de trabajo)
 
-1. **Scaffolding**: `npm init`, Express, `config/`, `server.js` con `/api/health`.
-2. **PostgreSQL**: `db/pool.js`, `db/schema.sql`, crear tablas `users` y `analyses`.
-3. **Capa de modelos**: `modelProvider.js` + `deepseekProvider.js` (mock primero, luego API real).
-4. **Sistema de agentes**: `baseAgent.js`, `agentRegistry.js`, los 3 agentes de la beta (con prompt básico).
-5. **PDF**: `pdf.service.js` (pdf-parse) + endpoint `POST /api/upload`.
-6. **Pipeline**: `analysis.service.js` conectando todo + guardado en BD.
-7. **Frontend puro**: `public/index.html` (subir PDF) + `public/result.html` (mostrar informe) + `public/js/main.js`.
-8. **Histórico**: `GET /api/analyses` + vista de historial.
-9. **Definir formato del informe** con los informes de referencia del usuario (afecta al prompt del `AnalystAgent` y al `report JSONB`).
+| Paso | Contenido | Estado |
+|---|---|---|
+| 1 | **Scaffolding**: Express, `config/`, `server.js` con `/api/health` | ✅ Hecho |
+| 2 | **PostgreSQL**: `db/pool.js`, `db/schema.sql`, tablas `users` y `analyses` | ✅ Hecho (+ repositorios y seed) |
+| 3 | **Capa de modelos IA**: `modelProvider.js` + proveedor (mock primero) | ⏳ Pendiente |
+| 4 | **Sistema de agentes**: `baseAgent.js`, `agentRegistry.js`, 3 agentes beta | ⏳ Pendiente |
+| 5 | **PDF**: `pdf.service.js` (pdf-parse) + `POST /api/upload` | ⏳ Pendiente |
+| 6 | **Pipeline**: `analysis.service.js` conectando todo + guardado en BD | ⏳ Pendiente |
+| 7 | **Frontend puro**: `public/index.html` + resultados + `js/main.js` | ✅ Hecho (rediseño "Terminal Cifra"; demo, pendiente conectar API) |
+| 8 | **Histórico**: `GET /api/analyses` + vista de historial | 🔶 Repositorio listo; endpoint y vista pendientes |
+| 9 | **Formato del informe** con los informes de referencia del usuario | ⏳ Pendiente |
+| 10 | **Autenticación** (registro/login, bcrypt, sesión JWT en cookie) | ✅ Hecho y probado |
+
+> El detalle de todo lo implementado está en `documentacion/IMPLEMENTACION.md`.
 
 ---
 

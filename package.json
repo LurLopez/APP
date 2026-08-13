@@ -5,12 +5,16 @@
   "type": "module",
   "description": "Primera arquitectura del analizador de resultados financieros 10-Q / 10-K.",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "db:migrate": "node db/migrations.js"
+    "start": "node --env-file=.env server.js",
+    "dev": "node --env-file=.env --watch server.js",
+    "db:migrate": "node --env-file=.env db/migrations.js",
+    "db:seed": "node --env-file=.env db/seed.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.16.3"
   }
 }

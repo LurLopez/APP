@@ -27,6 +27,17 @@ Web que analiza con IA informes financieros de EE. UU. (10-Q trimestral, 10-K an
 - **Histórico de análisis**: guardar, listar y consultar por usuario.
 - **Roadmap**: F1 subida manual → F2 buscador (ticker + histórico + ver PDF + analizar) → F3 registro/login → F4 análisis completo de empresa (multi-periodo) → F5 suscripciones y planes → F6 más países y sectores.
 
+## Estado del roadmap
+
+| Fase | Contenido | Estado |
+|---|---|---|
+| 1 | Subida manual de PDF → análisis (beta) | 🔶 Frontend demo; backend pendiente (modelos IA, agentes, pipeline) |
+| 2 | Buscador de empresas (ticker) + histórico de filings | ⏳ Pendiente |
+| 3 | Registro / inicio de sesión | 🔶 Implementado (backend + frontend); planes y asociación de análisis por usuario pendientes |
+| 4 | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
+| 5 | Suscripciones y planes | ⏳ Pendiente |
+| 6 | Nuevos países y sectores | ⏳ Pendiente |
+
 ## Decisiones pendientes
 
 - **Stack tecnológico** (por decidir; debe aprovechar el perfil: SQL y Java fuertes, Node/Express/MongoDB y JS/HTML/CSS conocidos, Python básico; único desarrollador, estudiante de 4.º de informática).

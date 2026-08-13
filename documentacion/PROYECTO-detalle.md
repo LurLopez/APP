@@ -135,18 +135,21 @@ La arquitectura debe estar preparada desde el principio para:
 | Fase | Contenido | Estado |
 |---|---|---|
 | **0** | Documento de visión y requisitos (este documento) | ✅ En curso |
-| **1** | Subida manual de PDF → análisis (beta, EE. UU. + consumo defensivo) | ⏳ Pendiente |
-| **2** | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | ⏳ Pendiente |
-| **3** | Registro / inicio de sesión | ⏳ Pendiente |
+| **1** | Subida manual de PDF → análisis (beta, EE. UU. + consumo defensivo) | 🔶 Frontend demo; backend pendiente (modelos IA, agentes, pipeline) |
+| **2** | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | ⏳ Pendiente (buscador visual demo en la web) |
+| **3** | Registro / inicio de sesión | 🔶 Implementado (backend + frontend); planes y asociación de análisis por usuario pendientes |
 | **4** | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
 | **5** | Suscripciones y planes (modelos según plan, límites) | ⏳ Pendiente |
 | **6** | Nuevos países y sectores (más agentes) | ⏳ Pendiente |
+
+> El detalle de todo lo implementado hasta la fecha está en `documentacion/IMPLEMENTACION.md`.
 
 ## 9. Decisiones pendientes
 
 | Decisión | Detalle | Estado |
 |---|---|---|
-| **Stack tecnológico** | Framework de frontend/backend, base de datos, hosting. Se elegirá teniendo en cuenta el perfil del desarrollador (sección 10) | 🔴 Por decidir |
+| **Stack tecnológico** | Framework de frontend/backend, base de datos, hosting. Se elegirá teniendo en cuenta el perfil del desarrollador (sección 10) | ✅ Decidido: Node.js + Express + PostgreSQL + frontend puro (ver `ARQUITECTURA.md`) |
+| **Despliegue (dónde alojarlo)** | VPS único vs PaaS (Render/Railway/Neon) con BD gestionada | 🔴 No bloquea; decidir cuando toque publicar |
 | **Modelo de IA** | Candidatos: DeepSeek, GPT — requiere comparación de modelos | 🔴 Por decidir |
 | **Formato del informe final** | El usuario ya tiene varios informes hechos que servirán de referencia. Se definirá en detalle con ejemplos reales | 🔴 Por definir |
 

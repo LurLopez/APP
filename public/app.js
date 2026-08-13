@@ -262,10 +262,6 @@ document.querySelectorAll('.close-button').forEach((button) => {
   });
 });
 
-document.querySelector('.promo-button').addEventListener('click', () => {
-  document.querySelector('#nuevo').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-
 document.querySelector('.copy-field button').addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText('cifra-beta-local');
