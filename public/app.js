@@ -13,10 +13,6 @@ const progressBar = document.querySelector('#progress-bar');
 const processingTitle = document.querySelector('#processing-title');
 const processingTime = document.querySelector('#processing-time');
 const toast = document.querySelector('#toast');
-const sidebar = document.querySelector('#sidebar');
-const menuToggle = document.querySelector('#menu-toggle');
-const backdrop = document.querySelector('#backdrop');
-const appShell = document.querySelector('.app-shell');
 const tickerSearch = document.querySelector('#ticker-search');
 const searchResults = document.querySelector('#search-results');
 
@@ -26,6 +22,7 @@ let analysisTimer;
 let lastAnalysisFailed = true;
 let currentPdfUrl = null;
 let currentPdfName = 'analisis-cifra.pdf';
+let searchDebounceTimer;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -33,6 +30,17 @@ function escapeHtml(value) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('visible'), 3200);
+}
+
+function goToCompany(ticker) {
+  window.location.href = `/empresa/${encodeURIComponent(ticker)}`;
 }
 
 function renderNotes(notes) {
@@ -101,13 +109,6 @@ function renderReport(report) {
     ${horizons.map(renderHorizon).join('')}
     <p class="report-hint">El PDF descargable incluye los bloques completos en los dos horizontes.</p>
   `;
-}
-
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add('visible');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('visible'), 3200);
 }
 
 function formatFileSize(bytes) {
@@ -310,52 +311,28 @@ document.querySelector('#new-analysis').addEventListener('click', () => {
   document.querySelector('#nuevo').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
-menuToggle.addEventListener('click', () => {
-  if (window.matchMedia('(max-width: 900px)').matches) {
-    const isOpen = sidebar.classList.toggle('open');
-    menuToggle.setAttribute('aria-expanded', String(isOpen));
-    backdrop.classList.toggle('visible', isOpen);
-    return;
-  }
-
-  const isCollapsed = appShell.classList.toggle('sidebar-collapsed');
-  menuToggle.setAttribute('aria-expanded', String(!isCollapsed));
-});
-
-backdrop.addEventListener('click', closeSidebar);
-
-function closeSidebar() {
-  sidebar.classList.remove('open');
-  backdrop.classList.remove('visible');
-  menuToggle.setAttribute('aria-expanded', 'false');
-}
-
-document.querySelectorAll('.nav-link').forEach((link) => {
-  link.addEventListener('click', () => {
-    document.querySelectorAll('.nav-link').forEach((item) => item.classList.remove('active'));
-    link.classList.add('active');
-    closeSidebar();
-  });
-});
-
 document.querySelectorAll('.row-action').forEach((button) => {
   button.addEventListener('click', () => showToast('La vista de detalle se conectará al histórico de análisis.'));
 });
 
-const screenerSearchInput = document.querySelector('#screener-search-input');
-const screenerSearchButton = document.querySelector('#screener-search-button');
-const screenerResult = document.querySelector('#screener-result');
-const screenerError = document.querySelector('#screener-error');
-const screenerLoading = document.querySelector('#screener-loading');
+document.querySelectorAll('.home-top-link').forEach((button) => {
+  button.addEventListener('click', () => showToast(`${button.dataset.soon}: disponible próximamente.`));
+});
 
-let screenerSeries = 'quarterly';
-let screenerStatement = 'income';
-let screenerData = null;
-let screenerAuthenticated = false;
-let screenerCurrentTicker = null;
-let searchDebounceTimer;
-let screenerPrecision = 2;
-let screenerHideEmpty = false;
+document.querySelectorAll('.home-card').forEach((card) => {
+  const open = () => goToCompany(card.dataset.ticker);
+  card.addEventListener('click', (event) => {
+    if (event.target.closest('.home-card-fav')) return;
+    open();
+  });
+  card.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') open();
+  });
+});
+
+document.querySelectorAll('.home-card-fav').forEach((button) => {
+  button.addEventListener('click', () => showToast('Los favoritos estarán disponibles próximamente.'));
+});
 
 async function searchCompanies(query) {
   const response = await fetch(`/api/screener/search?q=${encodeURIComponent(query.trim())}`);
@@ -383,250 +360,47 @@ function renderSearchResults(query) {
 
     searchResults.innerHTML = matches.map((company) => `
       <button class="search-result" type="button" data-ticker="${escapeHtml(company.ticker)}">
+        <img class="search-result-logo" src="https://companiesmarketcap.com/img/company-logos/64/${escapeHtml(company.ticker)}.webp" alt="" loading="lazy" data-letter="${escapeHtml((company.name || company.ticker || '?').slice(0, 1).toUpperCase())}">
         <span>${escapeHtml(company.name)}</span><strong>${escapeHtml(company.ticker)}</strong>
       </button>
     `).join('');
     searchResults.hidden = false;
 
     searchResults.querySelectorAll('.search-result').forEach((result) => {
-      result.addEventListener('click', () => {
-        const ticker = result.dataset.ticker;
-        searchResults.hidden = true;
-        tickerSearch.value = ticker;
-        loadCompanyToScreener(ticker);
+      result.addEventListener('click', () => goToCompany(result.dataset.ticker));
+    });
+    searchResults.querySelectorAll('.search-result-logo').forEach((logo) => {
+      logo.addEventListener('error', () => {
+        const letter = document.createElement('span');
+        letter.className = 'search-result-logo search-result-logo-fallback';
+        letter.textContent = logo.dataset.letter || '?';
+        logo.replaceWith(letter);
       });
     });
   }, 250);
 }
 
-function formatMoneyUsd(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-  const num = Number(value) / 1e6;
-  const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: screenerPrecision, maximumFractionDigits: screenerPrecision });
-  const formatted = formatter.format(Math.abs(num));
-  return num < 0 ? `(${formatted})` : formatted;
-}
-
-function formatEps(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-  const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: screenerPrecision, maximumFractionDigits: screenerPrecision });
-  return `${formatter.format(Number(value))} $`;
-}
-
-function formatShares(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-  const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: screenerPrecision, maximumFractionDigits: screenerPrecision });
-  return formatter.format(Number(value) / 1e6);
-}
-
-function periodLabel(period) {
-  if (!period) return '—';
-  if (/^\d{4}$/.test(period)) return `${period} (FY)`;
-  const [year, quarter] = period.split('-Q');
-  return `Q${quarter} ${year}`;
-}
-
-function periodDateLabel(row) {
-  if (!row?.periodEnd) return periodLabel(row?.period);
-  const date = new Date(`${row.periodEnd}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return periodLabel(row.period);
-  return `${date.getUTCDate()}/${date.getUTCMonth() + 1}/${String(date.getUTCFullYear()).slice(-2)}`;
-}
-
-function formatPercentage(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-  const num = Number(value);
-  const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: screenerPrecision === 0 ? 0 : 1, maximumFractionDigits: screenerPrecision === 0 ? 0 : 1 });
-  return `${num < 0 ? `(${formatter.format(Math.abs(num))})` : formatter.format(num)} %`;
-}
-
-function derivedScreenerValue(item, row, rowIndex, rows) {
-  if (item.kind !== 'change' && item.kind !== 'margin') return row.values?.[item.key];
-  const value = row.values?.[item.baseKey];
-  if (item.kind === 'margin') {
-    const revenue = row.values?.revenue;
-    return revenue ? (Number(value) / Number(revenue)) * 100 : null;
-  }
-  const previousIndex = screenerSeries === 'quarterly' ? rowIndex - 4 : rowIndex - 1;
-  const previous = rows[previousIndex]?.values?.[item.baseKey];
-  return previous ? ((Number(value) / Number(previous)) - 1) * 100 : null;
-}
-
-function formatScreenerValue(value, format, kind) {
-  if (kind === 'change' || kind === 'margin') return formatPercentage(value);
-  if (format === 'perShare') return formatEps(value);
-  if (format === 'shares') return formatShares(value);
-  return formatMoneyUsd(value);
-}
-
-function isLockedPeriod(rowIndex, rows) {
-  if (screenerAuthenticated) return false;
-  return rowIndex < Math.max(0, rows.length - 4);
-}
-
-function renderProCell() {
-  return '<span class="pro-pill"><i aria-hidden="true"></i>PRO</span>';
-}
-
-function renderStatementTable(rows, items) {
-  const table = document.querySelector('#screener-statement-table');
-  const title = document.querySelector('#screener-table-title').textContent;
-  table.querySelector('thead').innerHTML = `<tr><th class="sticky-col">${escapeHtml(title)}</th>${rows.map((row) => `<th>${periodDateLabel(row)}</th>`).join('')}</tr>`;
-  table.querySelector('tbody').innerHTML = items.map((item) => {
-    if (item.kind === 'section') return `<tr class="section-row"><td class="sticky-col" colspan="${rows.length + 1}">${escapeHtml(item.label)}</td></tr>`;
-    if (item.kind === 'note') return `<tr class="note-row"><td class="sticky-col" colspan="${rows.length + 1}">${escapeHtml(item.label)}</td></tr>`;
-    const cells = rows.map((row, rowIndex) => isLockedPeriod(rowIndex, rows)
-      ? renderProCell()
-      : formatScreenerValue(derivedScreenerValue(item, row, rowIndex, rows), item.format, item.kind));
-    const rowClass = [item.emphasis ? 'emphasis-row' : '', item.kind === 'change' || item.kind === 'margin' ? 'derived-row' : ''].filter(Boolean).join(' ');
-    return `<tr${rowClass ? ` class="${rowClass}"` : ''} data-metric="${escapeHtml(item.label)}"><td class="sticky-col">${escapeHtml(item.label)}</td>${cells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`;
-  }).join('');
-  table.querySelectorAll('tbody tr[data-metric]').forEach((row) => row.addEventListener('click', () => showToast(`Gráfico de ${row.dataset.metric}: disponible próximamente.`)));
-}
-
-function renderScreenerTables() {
-  if (!screenerData) return;
-  const rows = [...(screenerData[screenerSeries] ?? [])].reverse();
-  const statements = screenerData.statements ?? {};
-  const title = document.querySelector('#screener-table-title');
-  const statementNames = { income: 'Cuenta de resultados', balance: 'Balance de situación', cashflow: 'Estado de Flujo de Efectivo' };
-  title.textContent = `${statementNames[screenerStatement] ?? 'Estado financiero'} | Cifra`;
-  const range = document.querySelector('#screener-period-range');
-  range.textContent = rows.length ? `Datos financieros de ${periodDateLabel(rows[rows.length - 1])} a ${periodDateLabel(rows[0])}` : 'Sin periodos disponibles';
-  const items = statements[screenerStatement] ?? [];
-  const visibleItems = screenerHideEmpty
-    ? items.filter((item) => item.kind || rows.some((row, rowIndex) => {
-      const value = derivedScreenerValue(item, row, rowIndex, rows);
-      return value !== null && value !== undefined;
-    }))
-    : items;
-  renderStatementTable(rows, visibleItems);
-}
-
-function renderScreener(data) {
-  screenerData = data;
-  screenerAuthenticated = data.authenticated === true;
-  document.querySelector('#screener-company-name').innerHTML = `${escapeHtml(data.company.name)} <span class="ticker-chip">${escapeHtml(data.company.ticker)}</span>`;
-  document.querySelector('#screener-company-meta').textContent = `CIK ${data.company.cik} · Moneda USD · Fuente: SEC EDGAR`;
-  renderScreenerTables();
-}
-
-async function refreshScreenerCompany() {
-  if (!screenerCurrentTicker) return;
-  try {
-    const response = await fetch(`/api/screener/company/${encodeURIComponent(screenerCurrentTicker)}`);
-    const data = await response.json().catch(() => ({}));
-    if (response.ok) renderScreener(data);
-  } catch {
-    // Se mantienen los datos actuales si la consulta falla.
-  }
-}
-
-async function loadCompanyToScreener(ticker) {
-  searchResults.hidden = true;
-  tickerSearch.value = ticker;
-  screenerCurrentTicker = ticker.toUpperCase();
-  screenerResult.hidden = true;
-  screenerError.hidden = true;
-  screenerLoading.hidden = false;
-  document.querySelector('#screener').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  try {
-    const response = await fetch(`/api/screener/company/${encodeURIComponent(ticker)}`);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      screenerError.textContent = data.error || 'No se pudo consultar la empresa.';
-      screenerError.hidden = false;
-      return;
-    }
-    renderScreener(data);
-    screenerResult.hidden = false;
-  } catch {
-    screenerError.textContent = 'No se pudo conectar con el servidor. Comprueba que esté en marcha.';
-    screenerError.hidden = false;
-  } finally {
-    screenerLoading.hidden = true;
-  }
-}
-
-async function submitScreenerSearch() {
-  const query = screenerSearchInput.value.trim();
-  if (!query) return;
-  if (/^[A-Z0-9.-]{1,10}$/i.test(query)) {
-    loadCompanyToScreener(query);
-    return;
-  }
-  const companies = await searchCompanies(query);
-  if (!companies.length) {
-    screenerError.textContent = 'Sin resultados en EDGAR para esta búsqueda.';
-    screenerError.hidden = false;
-    return;
-  }
-  loadCompanyToScreener(companies[0].ticker);
-}
-
-screenerSearchButton.addEventListener('click', submitScreenerSearch);
-screenerSearchInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    submitScreenerSearch();
-  }
-});
-
-document.querySelectorAll('.screener-period-toggle button').forEach((button) => {
-  button.addEventListener('click', () => {
-    document.querySelectorAll('.screener-period-toggle button').forEach((item) => item.classList.remove('active'));
-    button.classList.add('active');
-    screenerSeries = button.dataset.series;
-    renderScreenerTables();
-  });
-});
-
-document.querySelectorAll('.screener-tab').forEach((button) => {
-  button.addEventListener('click', () => {
-    if (button.classList.contains('screener-tab-disabled')) {
-      showToast('Esta vista estará disponible próximamente.');
-      return;
-    }
-    document.querySelectorAll('.screener-tab').forEach((item) => item.classList.remove('active'));
-    button.classList.add('active');
-    screenerStatement = button.dataset.statement;
-    renderScreenerTables();
-  });
-});
-
-document.querySelectorAll('[data-precision]').forEach((button) => {
-  button.addEventListener('click', () => {
-    screenerPrecision = Number(button.dataset.precision);
-    document.querySelectorAll('[data-precision]').forEach((item) => item.classList.toggle('active', item === button));
-    renderScreenerTables();
-  });
-});
-
-document.querySelector('[data-table-action="transpose"]').addEventListener('click', () => {
-  document.querySelector('#screener-statement-table').classList.toggle('table-compact');
-});
-
-document.querySelector('[data-table-action="empty"]').addEventListener('click', (event) => {
-  screenerHideEmpty = !screenerHideEmpty;
-  event.currentTarget.classList.toggle('active');
-  renderScreenerTables();
-});
-
-document.querySelector('.screener-advice-close').addEventListener('click', () => {
-  document.querySelector('#screener-advice').hidden = true;
-});
-
-window.addEventListener('auth:change', (event) => {
-  screenerAuthenticated = Boolean(event.detail?.user);
-  if (screenerCurrentTicker) refreshScreenerCompany();
-});
-
 tickerSearch.addEventListener('input', (event) => renderSearchResults(event.target.value));
-tickerSearch.addEventListener('keydown', (event) => {
+tickerSearch.addEventListener('keydown', async (event) => {
   if (event.key === 'Escape') {
     searchResults.hidden = true;
     tickerSearch.blur();
+    return;
+  }
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    const query = tickerSearch.value.trim();
+    if (!query) return;
+    if (/^[A-Z0-9.-]{1,10}$/i.test(query)) {
+      goToCompany(query.toUpperCase());
+      return;
+    }
+    const matches = await searchCompanies(query);
+    if (!matches.length) {
+      showToast('Sin resultados en EDGAR para esta búsqueda.');
+      return;
+    }
+    goToCompany(matches[0].ticker);
   }
 });
 document.addEventListener('click', (event) => {

@@ -32,6 +32,13 @@ export async function markEmailVerified(userId) {
   await query(`UPDATE users SET email_verified = true WHERE id = $1`, [userId]);
 }
 
+export async function updatePassword(userId, passwordHash) {
+  await query(`UPDATE users SET password_hash = $2 WHERE id = $1`, [
+    userId,
+    passwordHash,
+  ]);
+}
+
 export async function saveVerificationCode({ userId, codeHash, expiresAt }) {
   await query(
     `INSERT INTO verification_codes (user_id, code_hash, expires_at)

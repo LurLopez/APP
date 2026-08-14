@@ -1,3 +1,5 @@
+import { getMarketProfile } from './market.service.js';
+
 const COMPANY_TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
 const FACTS_URL_TEMPLATE = 'https://data.sec.gov/api/xbrl/companyfacts/CIK{CIK}.json';
 const SUBMISSIONS_URL_TEMPLATE = 'https://data.sec.gov/submissions/CIK{CIK}.json';
@@ -259,6 +261,128 @@ async function getCompanySubmissions(company) {
   return data;
 }
 
+function latestFactValue(facts, namespace, tags, unit, predicate = () => true) {
+  const candidates = [];
+  for (const tag of tags) {
+    const unitData = facts?.facts?.[namespace]?.[tag]?.units?.[unit];
+    if (!Array.isArray(unitData)) continue;
+    candidates.push(...unitData.filter((entry) => Number.isFinite(Number(entry.val)) && predicate(Number(entry.val), entry)));
+  }
+  candidates.sort((a, b) => {
+    const end = String(b.end ?? '').localeCompare(String(a.end ?? ''));
+    if (end !== 0) return end;
+    const start = String(b.start ?? '').localeCompare(String(a.start ?? ''));
+    if (start !== 0) return start;
+    return String(b.filed ?? '').localeCompare(String(a.filed ?? ''));
+  });
+  return candidates[0]?.val ?? null;
+}
+
+function profileSector(sic) {
+  const code = Number(sic);
+  if ((code >= 2000 && code <= 2199) || (code >= 2830 && code <= 2836) || (code >= 2840 && code <= 2844)) {
+    return 'Consumo defensivo';
+  }
+  if (Number.isFinite(code)) return '—';
+  return null;
+}
+
+function profileIndustry(description) {
+  const translations = {
+    'Malt Beverages': 'Bebidas malteadas',
+    'Bottled and Canned Soft Drinks and Carbonated Waters': 'Bebidas refrescantes',
+    Cigarettes: 'Cigarrillos',
+    'Tobacco Products': 'Productos de tabaco',
+    'Grocery Stores': 'Supermercados',
+  };
+  return translations[description] ?? description ?? null;
+}
+
+function profileAddress(submissions) {
+  const address = submissions?.addresses?.business ?? submissions?.addresses?.mailing;
+  if (!address) return null;
+  return [address.street1, address.street2, address.city, address.stateOrCountryDescription, address.zipCode]
+    .filter(Boolean)
+    .join(', ')
+    .replaceAll(' ,', ',');
+}
+
+function profileCountry(submissions) {
+  const address = submissions?.addresses?.business ?? submissions?.addresses?.mailing;
+  if (!address) return null;
+  if (address?.isForeignLocation === 1 || address?.countryCode) return address.countryCode ?? address.stateOrCountryDescription ?? '—';
+  return 'Estados Unidos';
+}
+
+function profileExchange(company, submissions) {
+  const tickerIndex = Array.isArray(submissions?.tickers)
+    ? submissions.tickers.findIndex((ticker) => ticker === company.ticker)
+    : -1;
+  return submissions?.exchanges?.[tickerIndex] ?? submissions?.exchanges?.[0] ?? null;
+}
+
+function buildCompanyProfile(company, facts, submissions, annual, quarterly, market) {
+  const latestStatement = annual[0] ?? quarterly[0] ?? { values: {} };
+  const values = latestStatement.values ?? {};
+  const latestShares = quarterly[0]?.values?.weightedSharesDiluted
+    ?? latestFactValue(facts, 'dei', ['EntityCommonStockSharesOutstanding'], 'shares', (value) => value > 0)
+    ?? latestFactValue(facts, 'us-gaap', ['WeightedAverageNumberOfSharesOutstandingBasic', 'WeightedAverageNumberOfDilutedSharesOutstanding'], 'shares', (value) => value > 0);
+  const exchange = profileExchange(company, submissions);
+  const industry = profileIndustry(submissions?.sicDescription);
+  const address = profileAddress(submissions);
+  const shares = latestShares ?? null;
+  const marketCap = market?.price && shares ? market.price * shares : null;
+  const recentFiling = normalizeRecentFilings(submissions?.filings?.recent)
+    .find((entry) => entry.form === '10-Q' || entry.form === '10-K');
+  const descriptionParts = [
+    exchange ? `${company.name} cotiza en ${exchange}.` : `${company.name} es una empresa cotizada.`,
+    industry ? `La SEC la clasifica en ${industry.toLowerCase()}.` : null,
+    address ? `Domicilio registrado: ${address}.` : null,
+  ].filter(Boolean);
+
+  return {
+    market: market ?? {
+      currency: 'USD',
+      source: 'Yahoo Finance',
+      sparkline: [],
+    },
+    metrics: {
+      marketCap,
+      week52Low: market?.week52Low ?? null,
+      week52High: market?.week52High ?? null,
+      beta: market?.beta ?? null,
+      dividendPerShare: market?.dividendPerShare ?? null,
+      dividendYield: market?.dividendYield ?? null,
+      volume: market?.volume ?? null,
+      revenue: values.revenue ?? null,
+      eps: values.epsDiluted ?? null,
+      peRatio: market?.price && values.epsDiluted > 0 ? market.price / values.epsDiluted : null,
+      shares,
+      yearChangePercent: market?.yearChangePercent ?? null,
+      dayLow: market?.dayLow ?? null,
+      dayHigh: market?.dayHigh ?? null,
+      previousClose: market?.previousClose ?? null,
+      ipoDate: market?.ipoDate ?? null,
+    },
+    info: {
+      country: profileCountry(submissions),
+      sector: profileSector(submissions?.sic),
+      industry,
+      exchange,
+      fiscalYearEnd: submissions?.fiscalYearEnd ?? null,
+      address,
+      latestFiling: recentFiling
+        ? { formType: recentFiling.form, period: recentFiling.reportDate ?? null, filedAt: recentFiling.filingDate ?? null }
+        : null,
+    },
+    description: descriptionParts.join(' '),
+    sources: {
+      financial: 'SEC EDGAR',
+      market: market?.source ?? 'Yahoo Finance',
+    },
+  };
+}
+
 function filingPeriodLabel(formType, reportDate) {
   if (!reportDate) return '—';
   const year = reportDate.slice(0, 4);
@@ -267,10 +391,24 @@ function filingPeriodLabel(formType, reportDate) {
   return `Q${quarter} ${year}`;
 }
 
+function normalizeRecentFilings(recent) {
+  if (Array.isArray(recent)) return recent;
+  const fields = Object.keys(recent ?? {});
+  if (!fields.length) return [];
+  const length = fields.reduce((max, field) => Math.max(max, recent[field]?.length ?? 0), 0);
+  const entries = [];
+  for (let i = 0; i < length; i += 1) {
+    const entry = {};
+    for (const field of fields) entry[field] = recent[field][i];
+    entries.push(entry);
+  }
+  return entries;
+}
+
 export async function getCompanyFilings(ticker) {
   const company = await getCompanyByTicker(ticker);
   const submissions = await getCompanySubmissions(company);
-  const recent = submissions?.filings?.recent ?? [];
+  const recent = normalizeRecentFilings(submissions?.filings?.recent);
   const filings = recent
     .filter((entry) => entry.form === '10-Q' || entry.form === '10-K')
     .filter((entry) => entry.accessionNumber && entry.primaryDocument)
@@ -278,14 +416,17 @@ export async function getCompanyFilings(ticker) {
     .map((entry) => {
       const accessionNoDashes = entry.accessionNumber.replaceAll('-', '');
       const filedAt = entry.filingDate ?? null;
+      const formShort = entry.form.slice(3).toLowerCase();
+      const primaryDocument = entry.primaryDocument ?? '';
+      const isPdf = primaryDocument.toLowerCase().endsWith('.pdf');
       return {
         formType: entry.form,
         period: entry.reportDate ?? null,
         periodLabel: filingPeriodLabel(entry.form, entry.reportDate),
         filedAt,
         accession: entry.accessionNumber,
-        documentUrl: `https://www.sec.gov/Archives/edgar/data/${company.cik}/${accessionNoDashes}/${entry.primaryDocument}`,
-        documentName: `${company.ticker.toLowerCase()}-${entry.form.replace('10', '')}-${filedAt ? filedAt.slice(0, 4) : accessionNoDashes.slice(0, 4)}.pdf`,
+        documentUrl: `https://www.sec.gov/Archives/edgar/data/${company.cik}/${accessionNoDashes}/${primaryDocument}`,
+        documentName: `${company.ticker.toLowerCase()}-${formShort}-${filedAt ? filedAt.slice(0, 4) : accessionNoDashes.slice(0, 4)}.${isPdf ? 'pdf' : 'htm'}`,
       };
     });
   return {
@@ -294,18 +435,145 @@ export async function getCompanyFilings(ticker) {
   };
 }
 
+const filingIndexCache = new Map();
+const FILING_INDEX_TTL = 24 * 60 * 60 * 1000;
+
+const FILINGS_DIR = new URL('../../uploads/generated/filings/', import.meta.url).pathname;
+const PREVIEWS_DIR = new URL('../../uploads/generated/filings/previews/', import.meta.url).pathname;
+const CHROME_BIN = process.env.CHROME_BIN || 'google-chrome';
+const PDFTOPPM_BIN = process.env.PDFTOPPM_BIN || 'pdftoppm';
+const PREVIEW_DPI = Number(process.env.PREVIEW_DPI) || 100;
+
+async function ensureFilingsDir() {
+  try {
+    const fs = await import('node:fs');
+    fs.mkdirSync(FILINGS_DIR, { recursive: true });
+  } catch {
+    // Si no se puede crear, la generación de PDFs fallará con fallback al HTML.
+  }
+}
+
+function filingPdfFilename(filing) {
+  const stem = (filing.documentName ?? 'informe').replace(/\.html?$/, '');
+  return `${stem}.pdf`;
+}
+
+async function findFilingPdfUrl(company, filing) {
+  const accessionNoDashes = filing.accession.replaceAll('-', '');
+  const indexUrl = `https://www.sec.gov/Archives/edgar/data/${company.cik}/${accessionNoDashes}/index.json`;
+  const cached = filingIndexCache.get(indexUrl);
+  if (!cached || Date.now() - cached.at > FILING_INDEX_TTL) {
+    let data = null;
+    try {
+      const response = await fetch(indexUrl, {
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (response.ok) data = await response.json();
+    } catch {
+      data = null;
+    }
+    filingIndexCache.set(indexUrl, { data, at: Date.now() });
+    return findPdfInIndex(data, filing);
+  }
+  return findPdfInIndex(cached.data, filing);
+}
+
+function findPdfInIndex(indexData, filing) {
+  const items = indexData?.directory?.item;
+  if (!Array.isArray(items)) return null;
+  const pdfs = items
+    .filter((item) => typeof item.name === 'string' && item.name.toLowerCase().endsWith('.pdf'))
+    .map((item) => item.name);
+  if (!pdfs.length) return null;
+  const stem = filing.documentName.replace(/\.html?$/, '').toLowerCase();
+  const match = pdfs.find((name) => name.toLowerCase().replace(/\.pdf$/, '') === stem);
+  if (match) return match;
+  return pdfs.sort((a, b) => b.length - a.length)[0];
+}
+
+async function generateFilingPdf(documentUrl, outPath) {
+  const { execFile } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const execFileAsync = promisify(execFile);
+  await execFileAsync(CHROME_BIN, [
+    '--headless=new',
+    '--disable-gpu',
+    '--no-sandbox',
+    '--no-pdf-header-footer',
+    `--user-agent=${USER_AGENT}`,
+    `--print-to-pdf=${outPath}`,
+    documentUrl,
+  ], { timeout: 90000 });
+}
+
+async function getFilingPdfPath(company, filing) {
+  const fs = await import('node:fs');
+  const filePath = `${FILINGS_DIR}${filingPdfFilename(filing)}`;
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.isFile() && stat.size > 0) return filePath;
+  } catch {
+    // Continúa y lo genera.
+  }
+  ensureFilingsDir();
+
+  const realPdf = await findFilingPdfUrl(company, filing);
+  if (realPdf) {
+    const pdfUrl = `https://www.sec.gov/Archives/edgar/data/${company.cik}/${filing.accession.replaceAll('-', '')}/${realPdf}`;
+    try {
+      const response = await fetch(pdfUrl, {
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/pdf' },
+        signal: AbortSignal.timeout(60000),
+      });
+      if (response.ok) {
+        fs.writeFileSync(filePath, Buffer.from(await response.arrayBuffer()));
+        return filePath;
+      }
+    } catch {
+      // Continúa con la generación vía Chrome.
+    }
+  }
+
+  try {
+    await generateFilingPdf(filing.documentUrl, filePath);
+    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) return filePath;
+  } catch {
+    // El documento primario HTML será el fallback.
+  }
+  return null;
+}
+
 export async function getFilingDocumentStream(ticker, accession) {
-  const { filings } = await getCompanyFilings(ticker);
+  const { company, filings } = await getCompanyFilings(ticker);
   const filing = filings.find((item) => item.accession === accession);
   if (!filing) return null;
+  const filename = filingPdfFilename(filing);
+
+  const filePath = await getFilingPdfPath(company, filing);
+  if (filePath) {
+    const fs = await import('node:fs');
+    const { Readable } = await import('node:stream');
+    const stat = fs.statSync(filePath);
+    return {
+      filename,
+      stream: Readable.toWeb(fs.createReadStream(filePath)),
+      contentType: 'application/pdf',
+      contentLength: String(stat.size),
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
   try {
     const response = await fetch(filing.documentUrl, {
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'application/pdf',
       },
-      signal: AbortSignal.timeout(60000),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     if (!response.ok) {
       throw new Error(`EDGAR respondió ${response.status}`);
     }
@@ -317,10 +585,40 @@ export async function getFilingDocumentStream(ticker, accession) {
       contentLength: response.headers.get('content-length'),
     };
   } catch (error) {
-    const wrapped = new Error(`No se pudo descargar el PDF de EDGAR: ${error.message}`);
+    clearTimeout(timeout);
+    const wrapped = new Error(`No se pudo obtener el documento de EDGAR: ${error.message}`);
     wrapped.code = 'EDGAR_UNAVAILABLE';
     throw wrapped;
   }
+}
+
+export async function getFilingPreview(ticker, accession) {
+  const { company, filings } = await getCompanyFilings(ticker);
+  const filing = filings.find((item) => item.accession === accession);
+  if (!filing) return null;
+  const filename = filingPdfFilename(filing);
+
+  const pdfPath = await getFilingPdfPath(company, filing);
+  if (!pdfPath) return { filename, pages: 0 };
+
+  const fs = await import('node:fs');
+  const previewDir = `${PREVIEWS_DIR}${filing.accession.replaceAll('-', '')}/`;
+  fs.mkdirSync(previewDir, { recursive: true });
+
+  let pages = fs.readdirSync(previewDir).filter((name) => name.endsWith('.png'));
+  if (!pages.length) {
+    try {
+      const { execFile } = await import('node:child_process');
+      const { promisify } = await import('node:util');
+      await promisify(execFile)(PDFTOPPM_BIN, ['-png', '-r', String(PREVIEW_DPI), pdfPath, `${previewDir}page`], { timeout: 180000 });
+      pages = fs.readdirSync(previewDir).filter((name) => name.endsWith('.png'));
+    } catch (error) {
+      const wrapped = new Error(`No se pudo generar la vista previa: ${error.message}`);
+      wrapped.code = 'PREVIEW_UNAVAILABLE';
+      throw wrapped;
+    }
+  }
+  return { filename, pages: pages.length };
 }
 
 function combineConceptData(usGaap, tags, unit) {
@@ -450,13 +748,18 @@ function buildSeries(facts) {
 
 export async function getCompanyResults(ticker, options = {}) {
   const company = await getCompanyByTicker(ticker);
-  const facts = await getCompanyFacts(company);
+  const [facts, submissions, market] = await Promise.all([
+    getCompanyFacts(company),
+    getCompanySubmissions(company).catch(() => null),
+    getMarketProfile(company.ticker).catch(() => null),
+  ]);
   const { annual, quarterly } = buildSeries(facts);
   const authenticated = options.authenticated === true;
   return {
     company: { ticker: company.ticker, name: company.name, cik: company.cik },
     currency: 'USD',
     authenticated,
+    profile: buildCompanyProfile(company, facts, submissions ?? {}, annual, quarterly, market),
     statements: publicStatements(),
     annual,
     quarterly,

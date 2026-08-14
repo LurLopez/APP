@@ -19,6 +19,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api', analysisRoutes);
 app.use('/api/screener', screenerRoutes);
 
+app.get('/empresa/:ticker', (req, res) => {
+  const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
+  if (!/^[A-Z0-9.-]{1,10}$/.test(ticker)) {
+    res.redirect('/');
+    return;
+  }
+  res.sendFile(path.join(__dirname, 'public', 'empresa.html'));
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'cifra-api', phase: 1 });
 });

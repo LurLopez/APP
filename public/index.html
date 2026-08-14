@@ -5,179 +5,235 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#242424">
   <meta name="description" content="Cifra: análisis fundamental de informes financieros 10-Q y 10-K.">
-  <title>Cifra Terminal | Análisis fundamental</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Cifra Terminal | Inicio</title>
+  <link rel="stylesheet" href="/styles.css?v=9">
 </head>
-<body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="brand-area">
-        <a class="brand-lockup" href="#nuevo" aria-label="Cifra Terminal">
+<body class="home-page">
+  <header class="topbar home-topbar">
+    <nav class="home-top-links" aria-label="Accesos rápidos">
+      <button class="home-top-link" type="button" data-soon="Favoritos">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+        <span>Favoritos</span>
+      </button>
+      <button class="home-top-link" type="button" data-soon="Filtros">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14l-5 6v7l-4 2v-9L5 5Z"/></svg>
+        <span>Filtros</span>
+      </button>
+      <button class="home-top-link" type="button" data-soon="Cartera">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+        <span>Cartera</span>
+      </button>
+    </nav>
+
+    <div class="topbar-actions">
+      <div class="auth-area" id="auth-area">
+        <button class="ghost-button" id="auth-login" type="button">Iniciar sesión</button>
+        <button class="promo-button" id="auth-register" type="button">Crear cuenta</button>
+      </div>
+      <div class="user-chip" id="user-chip" hidden>
+        <span class="user-avatar" id="user-avatar">?</span>
+        <span class="user-email" id="user-email">correo@ejemplo.com</span>
+        <button class="user-logout" id="user-logout" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">×</button>
+      </div>
+      <button class="settings-button" type="button" aria-label="Configuración">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V4a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2.9Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="home-main">
+    <section class="home-hero">
+      <div class="home-brand-row">
+        <a class="home-brand" href="/" aria-label="Cifra Terminal">
           <span class="brand-mark" aria-hidden="true">▲</span>
           <strong>Terminal Cifra</strong>
         </a>
-        <button class="collapse-button" id="menu-toggle" type="button" aria-label="Contraer menú" aria-expanded="true">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h12v14H6zM10 5v14"/></svg>
-        </button>
+        <span class="beta-badge">Beta</span>
       </div>
-
-      <div class="search-wrap">
+      <div class="search-wrap home-search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
-        <input id="ticker-search" type="search" autocomplete="off" placeholder="Buscar empresas, tickers ..." aria-label="Buscar empresas o tickers">
-        <span class="search-shortcut">⌄</span>
+        <input id="ticker-search" type="search" autocomplete="off" placeholder="Busca acciones, páginas, secciones..." aria-label="Buscar empresas o tickers">
+        <span class="search-kbd">Ctrl K</span>
         <div class="search-results" id="search-results" hidden></div>
       </div>
+    </section>
 
-      <div class="topbar-actions">
-        <div class="auth-area" id="auth-area">
-          <button class="ghost-button" id="auth-login" type="button">Iniciar sesión</button>
-          <button class="promo-button" id="auth-register" type="button">Crear cuenta</button>
-        </div>
-        <div class="user-chip" id="user-chip" hidden>
-          <span class="user-avatar" id="user-avatar">?</span>
-          <span class="user-email" id="user-email">correo@ejemplo.com</span>
-          <button class="user-logout" id="user-logout" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">×</button>
-        </div>
-        <button class="settings-button" type="button" aria-label="Configuración">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V4a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2.9Z"/></svg>
-        </button>
+    <section class="home-grid-section" aria-label="Empresas destacadas">
+      <div class="home-grid">
+        <article class="home-card" data-ticker="AAPL" tabindex="0" role="link" aria-label="Ver Apple Inc.">
+          <div class="home-card-head">
+            <span class="home-card-logo" style="background:#111">A</span>
+            <div class="home-card-copy">
+              <strong>Apple Inc.</strong>
+              <small>AAPL · NasdaqGS</small>
+              <small>Tecnología</small>
+            </div>
+            <button class="home-card-fav" type="button" aria-label="Añadir Apple a favoritos">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+            </button>
+          </div>
+          <div class="home-card-quote">
+            <div class="home-card-numbers">
+              <strong class="negative"><span class="quote-arrow" aria-hidden="true">▼</span> $304.69</strong>
+              <small class="negative">$−0.57 (−0.19%)</small>
+              <small class="home-card-updated">Actualizado 14/08/2026</small>
+            </div>
+            <svg class="sparkline negative-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 17 C16 10 23 26 38 20 S54 29 68 19 S87 29 101 24 S120 37 136 26 S153 34 168 28 S184 42 197 31 S215 38 226 32 S237 42 240 39"/></svg>
+          </div>
+        </article>
+
+        <article class="home-card" data-ticker="MSFT" tabindex="0" role="link" aria-label="Ver Microsoft Corporation">
+          <div class="home-card-head">
+            <span class="home-card-logo" style="background:#00a4ef">M</span>
+            <div class="home-card-copy">
+              <strong>Microsoft Corporation</strong>
+              <small>MSFT · NasdaqGS</small>
+              <small>Tecnología</small>
+            </div>
+            <button class="home-card-fav" type="button" aria-label="Añadir Microsoft a favoritos">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+            </button>
+          </div>
+          <div class="home-card-quote">
+            <div class="home-card-numbers">
+              <strong class="positive"><span class="quote-arrow" aria-hidden="true">▲</span> $499.64</strong>
+              <small class="positive">$+2.76 (0.56%)</small>
+              <small class="home-card-updated">Actualizado 14/08/2026</small>
+            </div>
+            <svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 42 C15 39 22 42 34 30 S51 36 65 31 S82 40 94 23 S112 28 126 20 S143 27 155 15 S172 20 184 12 S200 24 211 13 S225 18 240 5"/></svg>
+          </div>
+        </article>
+
+        <article class="home-card" data-ticker="JNJ" tabindex="0" role="link" aria-label="Ver Johnson &amp; Johnson">
+          <div class="home-card-head">
+            <span class="home-card-logo" style="background:#c8102e">J</span>
+            <div class="home-card-copy">
+              <strong>Johnson &amp; Johnson</strong>
+              <small>JNJ · NYSE</small>
+              <small>Salud</small>
+            </div>
+            <button class="home-card-fav" type="button" aria-label="Añadir Johnson &amp; Johnson a favoritos">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+            </button>
+          </div>
+          <div class="home-card-quote">
+            <div class="home-card-numbers">
+              <strong class="negative"><span class="quote-arrow" aria-hidden="true">▼</span> $260.73</strong>
+              <small class="negative">$−1.35 (−0.52%)</small>
+              <small class="home-card-updated">Actualizado 14/08/2026</small>
+            </div>
+            <svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 36 C16 39 23 30 35 34 S52 41 62 27 S82 32 92 22 S112 30 126 19 S145 25 156 16 S174 22 188 13 S210 17 221 7 S234 9 240 2"/></svg>
+          </div>
+        </article>
+
+        <article class="home-card" data-ticker="KO" tabindex="0" role="link" aria-label="Ver The Coca-Cola Company">
+          <div class="home-card-head">
+            <span class="home-card-logo" style="background:#f40000">KO</span>
+            <div class="home-card-copy">
+              <strong>The Coca-Cola Company</strong>
+              <small>KO · NYSE</small>
+              <small>Consumo defensivo</small>
+            </div>
+            <button class="home-card-fav" type="button" aria-label="Añadir Coca-Cola a favoritos">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+            </button>
+          </div>
+          <div class="home-card-quote">
+            <div class="home-card-numbers">
+              <strong class="positive"><span class="quote-arrow" aria-hidden="true">▲</span> $87.84</strong>
+              <small class="positive">$+0.42 (0.48%)</small>
+              <small class="home-card-updated">Actualizado 14/08/2026</small>
+            </div>
+            <svg class="sparkline negative-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 43 C13 42 17 36 29 40 S47 31 57 36 S76 22 91 29 S110 16 122 25 S139 20 151 18 S170 27 182 16 S200 18 211 8 S228 11 240 3"/></svg>
+          </div>
+        </article>
+
+        <article class="home-card" data-ticker="NVDA" tabindex="0" role="link" aria-label="Ver NVIDIA Corporation">
+          <div class="home-card-head">
+            <span class="home-card-logo" style="background:#76b900">N</span>
+            <div class="home-card-copy">
+              <strong>NVIDIA Corporation</strong>
+              <small>NVDA · NasdaqGS</small>
+              <small>Tecnología</small>
+            </div>
+            <button class="home-card-fav" type="button" aria-label="Añadir NVIDIA a favoritos">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+            </button>
+          </div>
+          <div class="home-card-quote">
+            <div class="home-card-numbers">
+              <strong class="negative"><span class="quote-arrow" aria-hidden="true">▼</span> $225.11</strong>
+              <small class="negative">$−0.19 (−0.08%)</small>
+              <small class="home-card-updated">Actualizado 14/08/2026</small>
+            </div>
+            <svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 42 C15 39 22 42 34 30 S51 36 65 31 S82 40 94 23 S112 28 126 20 S143 27 155 15 S172 20 184 12 S200 24 211 13 S225 18 240 5"/></svg>
+          </div>
+        </article>
+
+        <article class="home-card" data-ticker="MMM" tabindex="0" role="link" aria-label="Ver 3M Company">
+          <div class="home-card-head">
+            <span class="home-card-logo" style="background:#ff0000">3M</span>
+            <div class="home-card-copy">
+              <strong>3M Company</strong>
+              <small>MMM · NYSE</small>
+              <small>Industriales</small>
+            </div>
+            <button class="home-card-fav" type="button" aria-label="Añadir 3M a favoritos">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+            </button>
+          </div>
+          <div class="home-card-quote">
+            <div class="home-card-numbers">
+              <strong class="positive"><span class="quote-arrow" aria-hidden="true">▲</span> $183.04</strong>
+              <small class="positive">$+0.39 (0.21%)</small>
+              <small class="home-card-updated">Actualizado 14/08/2026</small>
+            </div>
+            <svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 36 C16 39 23 30 35 34 S52 41 62 27 S82 32 92 22 S112 30 126 19 S145 25 156 16 S174 22 188 13 S210 17 221 7 S234 9 240 2"/></svg>
+          </div>
+        </article>
       </div>
-    </header>
+    </section>
 
-    <aside class="sidebar" id="sidebar">
-      <nav class="main-nav" aria-label="Navegación principal">
-        <a class="nav-link active" href="#inicio">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M8 8l-3 4 3 4M16 8l3 4-3 4"/></svg>
-          <span>Noticias del mercado</span>
-        </a>
+    <section class="analysis-section" id="nuevo">
+      <div class="section-title-row analysis-title"><div><span class="eyebrow">ANÁLISIS FUNDAMENTAL</span><h2>Sube un informe para empezar</h2><p class="section-subtitle">La beta acepta informes 10-Q y 10-K de empresas estadounidenses de consumo defensivo.</p></div><span class="scope-badge">FASE 1 · BETA</span></div>
+      <div class="analysis-layout">
+        <div class="panel upload-panel">
+          <div class="panel-heading"><div><span class="section-index">01 / DOCUMENTO</span><h3>Analizar 10-Q o 10-K</h3></div><span class="file-rule">PDF <span>·</span> máx. 25 MB</span></div>
+          <form id="upload-form">
+            <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Seleccionar informe PDF">
+              <input id="file-input" type="file" accept="application/pdf,.pdf" hidden>
+              <div class="upload-symbol" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M14 19V6M9.5 10.5 14 6l4.5 4.5M7 17.5v2A2.5 2.5 0 0 0 9.5 22h9a2.5 2.5 0 0 0 2.5-2.5v-2"/></svg></div>
+              <h3>Arrastra tu PDF aquí</h3><p>o <button class="inline-link" id="select-file" type="button">selecciona un archivo</button> desde tu equipo</p><div class="dropzone-hint">⌁ Procesamiento privado en esta beta</div>
+            </div>
+            <div class="file-preview" id="file-preview" hidden><div class="pdf-badge">PDF</div><div class="file-details"><strong id="file-name">informe.pdf</strong><span id="file-size">0 MB</span></div><span class="file-ready"><span class="status-dot"></span> Listo</span><button class="remove-file" id="remove-file" type="button" aria-label="Quitar archivo">×</button></div>
+            <div class="form-footer"><p><span class="info-icon">i</span> El documento se comprobará antes de generar el informe.</p><button class="primary-button" id="analyze-button" type="submit" disabled>Analizar informe <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></div>
+          </form>
 
-        <div class="nav-section">
-          <div class="nav-section-title">Generación de ideas <span>⌄</span></div>
-          <a class="nav-link" href="#nuevo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"/></svg><span>Panel personalizado</span><b class="new-badge">NUEVO</b></a>
-          <a class="nav-link" href="#historial"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10v14H7zM9 8h6M9 12h6"/></svg><span>Mis análisis guardados</span></a>
-          <a class="nav-link" href="#mercados"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="8" r="2.5"/><path d="M3.5 19c.5-3 2-4.5 4.5-4.5s4 1.5 4.5 4.5M11.5 19c.5-3 2-4.5 4.5-4.5s4 1.5 4.5 4.5"/></svg><span>Seguimiento de empresas</span></a>
-          <a class="nav-link" href="#screener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14l-5 6v7l-4 2v-9L5 5Z"/></svg><span>Cribador global</span></a>
-          <a class="nav-link" href="#valoracion"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4-8 4-8-4 8-4ZM4 12l8 4 8-4M4 17l8 4 8-4"/></svg><span>Centro de valoración</span></a>
-          <a class="nav-link" href="#eventos"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><span>Monitoreo de eventos</span><i class="nav-arrow">›</i></a>
-        </div>
-
-        <div class="nav-section">
-          <div class="nav-section-title">Análisis fundamental <span>⌄</span></div>
-          <a class="nav-link" href="#nuevo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6zM9 8h6M9 12h4M9 16h6"/></svg><span>Resumen y noticias</span></a>
-          <a class="nav-link" href="#nuevo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M6 17V7l6-3 6 3v10M9 17v-4h6v4M9 8h.01M12 8h.01M15 8h.01"/></svg><span>Información financiera detallada</span></a>
-          <a class="nav-link" href="#valoracion"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19 9 4l6 9 5-5"/><path d="M4 19h16"/></svg><span>Valoración</span></a>
-          <a class="nav-link" href="#valoracion"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9 11h5a2 2 0 1 1 0 4H9"/></svg><span>Modelo de empresa</span></a>
-          <a class="nav-link" href="#estimaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 16 5-5 3 3 6-7"/><path d="M16 7h3v3"/></svg><span>Estimaciones de analistas</span></a>
-          <a class="nav-link" href="#transcripciones"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="2.5"/><path d="M3.5 18c.5-3 2-4.5 4.5-4.5s4 1.5 4.5 4.5M14 7h6M14 11h6M14 15h4"/></svg><span>Transcripciones de conferencia</span></a>
-          <a class="nav-link" href="#presentaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h6"/></svg><span>Presentaciones públicas</span></a>
-          <a class="nav-link" href="#accionariado"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/></svg><span>Accionariado</span></a>
-        </div>
-      </nav>
-
-      <div class="sidebar-footer">
-        <div class="account-card" id="account-card">
-          <span class="avatar" id="account-avatar">?</span>
-          <div class="account-copy">
-            <strong id="account-name">Invitado</strong>
-            <small id="account-plan">Beta privada</small>
+          <div class="processing-panel" id="processing-panel" hidden>
+            <div class="processing-head"><div><span class="section-index">ANÁLISIS EN CURSO</span><h3 id="processing-title">Leyendo tu informe...</h3></div><span class="processing-time" id="processing-time">00:01</span></div>
+            <div class="agent-list">
+              <div class="agent-row" data-agent="origin"><span class="agent-number">01</span><div><strong>Verificador de origen</strong><span>¿La empresa es de EE. UU.?</span></div><span class="agent-state">En espera</span></div>
+              <div class="agent-row" data-agent="sector"><span class="agent-number">02</span><div><strong>Verificador de sector</strong><span>¿Es consumo defensivo?</span></div><span class="agent-state">En espera</span></div>
+              <div class="agent-row" data-agent="analyst"><span class="agent-number">03</span><div><strong>Analista principal</strong><span>Extrayendo señales financieras</span></div><span class="agent-state">En espera</span></div>
+            </div>
+            <div class="progress-track"><span id="progress-bar"></span></div>
+            <p class="analysis-error" id="analysis-error" hidden></p>
+            <button class="secondary-button retry-button" id="retry-analysis" type="button" hidden>Reintentar</button>
+            <p class="demo-disclaimer" id="processing-note">El documento se verifica automáticamente antes de continuar.</p>
           </div>
-          <button class="account-action" id="account-action" type="button">Entrar</button>
+
+          <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3 id="result-title">Informe generado</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-report" id="report-body"></div><div class="result-actions"><button class="primary-button" id="report-download" type="button">Descargar PDF del análisis <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v9M8 10l4 4 4-4M6 18h12"/></svg></button><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button></div></div>
         </div>
+
+        <aside class="panel coverage-panel" id="metodologia"><div class="panel-heading compact"><div><span class="section-index">02 / PROCESO</span><h3>Qué ocurre después</h3></div><span class="method-icon">✦</span></div><p class="method-intro">Tres agentes revisan el documento en orden. Si no cumple el alcance, el análisis se detiene con una explicación clara.</p><div class="mini-pipeline"><div class="mini-step"><span class="mini-step-number">01</span><div><strong>Origen</strong><span>Estados Unidos</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step"><span class="mini-step-number">02</span><div><strong>Sector</strong><span>Consumo defensivo</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step final"><span class="mini-step-number">03</span><div><strong>Análisis</strong><span>Informe estructurado</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div></div><div class="method-note"><span>i</span><p>La IA ordena la información. La decisión final siempre es tuya.</p></div></aside>
       </div>
-    </aside>
+    </section>
 
-    <div class="backdrop" id="backdrop"></div>
+    <section class="history-panel" id="historial"><div class="section-title-row"><div><span class="eyebrow">ACTIVIDAD</span><h2>Últimos análisis</h2></div><a class="text-button" href="#historial">Ver histórico completo <span>→</span></a></div><div class="table-wrap"><table><thead><tr><th>Documento</th><th>Empresa</th><th>Periodo</th><th>Señal</th><th>Estado</th><th></th></tr></thead><tbody><tr><td><span class="table-file">PDF</span><strong>tap-q2-2025.pdf</strong></td><td>Molson Coors <span class="td-ticker">TAP</span></td><td>Q2 2025</td><td><span class="td-change up">+4,8 %</span></td><td><span class="table-status done"><i></i> Completado</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr><tr><td><span class="table-file">PDF</span><strong>ko-10q-2025.pdf</strong></td><td>Coca-Cola <span class="td-ticker">KO</span></td><td>Q1 2025</td><td><span class="td-change up">+2,1 %</span></td><td><span class="table-status done"><i></i> Completado</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr><tr><td><span class="table-file">PDF</span><strong>pep-10k-2024.pdf</strong></td><td>PepsiCo <span class="td-ticker">PEP</span></td><td>FY 2024</td><td><span class="td-change down">−1,2 %</span></td><td><span class="table-status warning"><i></i> Revisar</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr></tbody></table></div><div class="empty-hint">⌁ Tu histórico se asociará a tu usuario cuando activemos el registro.</div></section>
 
-    <main class="main-content" id="inicio">
-      <div class="content-wrap">
-        <section class="market-section" id="mercados">
-          <div class="section-title-row"><div><h2>Mercados de referencia</h2><p class="section-subtitle">Una vista rápida del contexto financiero</p></div><span class="updated-label"><i></i> Datos de demostración</span></div>
-          <div class="market-grid">
-            <article class="market-card"><div class="market-card-head"><span>S&amp;P 500 <b>(SPY)</b></span><small class="positive">+0,61%</small></div><strong>646,03</strong><svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 43 C13 42 17 36 29 40 S47 31 57 36 S76 22 91 29 S110 16 122 25 S139 20 151 18 S170 27 182 16 S200 18 211 8 S228 11 240 3"/></svg></article>
-            <article class="market-card"><div class="market-card-head"><span>NASDAQ <b>(QQQ)</b></span><small class="positive">+0,82%</small></div><strong>574,91</strong><svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 36 C16 39 23 30 35 34 S52 41 62 27 S82 32 92 22 S112 30 126 19 S145 25 156 16 S174 22 188 13 S210 17 221 7 S234 9 240 2"/></svg></article>
-            <article class="market-card"><div class="market-card-head"><span>Dow Jones <b>(DIA)</b></span><small class="negative">−0,14%</small></div><strong>440,12</strong><svg class="sparkline negative-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 17 C16 10 23 26 38 20 S54 29 68 19 S87 29 101 24 S120 37 136 26 S153 34 168 28 S184 42 197 31 S215 38 226 32 S237 42 240 39"/></svg></article>
-            <article class="market-card"><div class="market-card-head"><span>Russell 2000 <b>(IWM)</b></span><small class="positive">+1,05%</small></div><strong>228,74</strong><svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 42 C15 39 22 42 34 30 S51 36 65 31 S82 40 94 23 S112 28 126 20 S143 27 155 15 S172 20 184 12 S200 24 211 13 S225 18 240 5"/></svg></article>
-          </div>
-        </section>
+    <footer class="page-footer"><span>Cifra Terminal <b>·</b> beta 0.1</span><span>La IA ordena la información. Tú decides qué significa.</span></footer>
+  </main>
 
-        <section class="screener-section" id="screener">
-          <div class="section-title-row"><div><span class="eyebrow">CRIBADOR · DATOS SEC/EDGAR</span><h2>Cribador de resultados</h2><p class="section-subtitle">Busca una empresa y consulta sus resultados publicados en los informes 10-Q y 10-K.</p></div><span class="scope-badge">EE. UU. · FUENTE OFICIAL</span></div>
-          <div class="screener-search">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
-            <input id="screener-search-input" type="search" autocomplete="off" placeholder="Ticker o nombre: KO, Coca-Cola, PEP ..." aria-label="Buscar empresa para el cribador">
-            <button class="primary-button" id="screener-search-button" type="button">Consultar</button>
-          </div>
-          <p class="screener-error" id="screener-error" hidden></p>
-          <div class="screener-loading" id="screener-loading" hidden>Consultando EDGAR…</div>
-          <div class="screener-result" id="screener-result" hidden>
-            <div class="screener-company-head">
-              <div><span class="eyebrow">EMPRESA</span><h3 id="screener-company-name">—</h3><p class="section-subtitle" id="screener-company-meta">—</p></div>
-              <div class="screener-controls">
-                <span class="screener-currency">USD</span>
-                <div class="screener-period-toggle" role="group" aria-label="Periodo mostrado">
-                  <button type="button" data-series="annual">Anual</button>
-                  <button type="button" data-series="quarterly" class="active">Trimestral</button>
-                </div>
-              </div>
-            </div>
-            <div class="screener-tabs" role="tablist" aria-label="Estado financiero">
-              <button class="screener-tab active" type="button" role="tab" data-statement="income">Cuenta de resultados</button>
-              <button class="screener-tab" type="button" role="tab" data-statement="balance">Balance</button>
-              <button class="screener-tab" type="button" role="tab" data-statement="cashflow">Cash flow</button>
-              <button class="screener-tab screener-tab-disabled" type="button" aria-disabled="true">Ratios</button>
-              <button class="screener-tab screener-tab-disabled" type="button" aria-disabled="true">Segmentos</button>
-            </div>
-            <div class="screener-advice" id="screener-advice"><strong>◉ Consejo de Cifra</strong> Haz clic en cualquier fila para crear un gráfico de la métrica.<button type="button" class="screener-advice-close" aria-label="Cerrar consejo">×</button></div>
-            <div class="screener-block">
-              <div class="screener-toolbar"><span class="screener-units">USD · Millones</span><span class="screener-period-range" id="screener-period-range">—</span><div class="screener-tools" role="group" aria-label="Opciones de tabla"><button type="button" data-precision="0">0</button><button type="button" data-precision="1">.0</button><button type="button" data-precision="2" class="active">.00</button><button type="button" data-table-action="transpose" aria-label="Compactar tabla">↔</button><button type="button" data-table-action="empty" aria-label="Ocultar filas vacías">◉</button></div></div>
-              <div class="screener-table-title" id="screener-table-title" hidden>Cuenta de resultados | Cifra</div>
-              <div class="table-wrap"><table id="screener-statement-table"><thead></thead><tbody></tbody></table></div>
-            </div>
-            <div class="empty-hint">⌁ Datos oficiales de la SEC (EDGAR). El análisis con IA de cada periodo llegará en una fase posterior.</div>
-          </div>
-        </section>
-
-        <section class="analysis-section" id="nuevo">
-          <div class="section-title-row analysis-title"><div><span class="eyebrow">ANÁLISIS FUNDAMENTAL</span><h2>Sube un informe para empezar</h2><p class="section-subtitle">La beta acepta informes 10-Q y 10-K de empresas estadounidenses de consumo defensivo.</p></div><span class="scope-badge">FASE 1 · BETA</span></div>
-          <div class="analysis-layout">
-            <div class="panel upload-panel">
-              <div class="panel-heading"><div><span class="section-index">01 / DOCUMENTO</span><h3>Analizar 10-Q o 10-K</h3></div><span class="file-rule">PDF <span>·</span> máx. 25 MB</span></div>
-              <form id="upload-form">
-                <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Seleccionar informe PDF">
-                  <input id="file-input" type="file" accept="application/pdf,.pdf" hidden>
-                  <div class="upload-symbol" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M14 19V6M9.5 10.5 14 6l4.5 4.5M7 17.5v2A2.5 2.5 0 0 0 9.5 22h9a2.5 2.5 0 0 0 2.5-2.5v-2"/></svg></div>
-                  <h3>Arrastra tu PDF aquí</h3><p>o <button class="inline-link" id="select-file" type="button">selecciona un archivo</button> desde tu equipo</p><div class="dropzone-hint">⌁ Procesamiento privado en esta beta</div>
-                </div>
-                <div class="file-preview" id="file-preview" hidden><div class="pdf-badge">PDF</div><div class="file-details"><strong id="file-name">informe.pdf</strong><span id="file-size">0 MB</span></div><span class="file-ready"><span class="status-dot"></span> Listo</span><button class="remove-file" id="remove-file" type="button" aria-label="Quitar archivo">×</button></div>
-                <div class="form-footer"><p><span class="info-icon">i</span> El documento se comprobará antes de generar el informe.</p><button class="primary-button" id="analyze-button" type="submit" disabled>Analizar informe <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></div>
-              </form>
-
-              <div class="processing-panel" id="processing-panel" hidden>
-                <div class="processing-head"><div><span class="section-index">ANÁLISIS EN CURSO</span><h3 id="processing-title">Leyendo tu informe...</h3></div><span class="processing-time" id="processing-time">00:01</span></div>
-                <div class="agent-list">
-                  <div class="agent-row" data-agent="origin"><span class="agent-number">01</span><div><strong>Verificador de origen</strong><span>¿La empresa es de EE. UU.?</span></div><span class="agent-state">En espera</span></div>
-                  <div class="agent-row" data-agent="sector"><span class="agent-number">02</span><div><strong>Verificador de sector</strong><span>¿Es consumo defensivo?</span></div><span class="agent-state">En espera</span></div>
-                  <div class="agent-row" data-agent="analyst"><span class="agent-number">03</span><div><strong>Analista principal</strong><span>Extrayendo señales financieras</span></div><span class="agent-state">En espera</span></div>
-                </div>
-                <div class="progress-track"><span id="progress-bar"></span></div>
-                <p class="analysis-error" id="analysis-error" hidden></p>
-                <button class="secondary-button retry-button" id="retry-analysis" type="button" hidden>Reintentar</button>
-                <p class="demo-disclaimer" id="processing-note">El documento se verifica automáticamente antes de continuar.</p>
-              </div>
-
-              <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3 id="result-title">Informe generado</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-report" id="report-body"></div><div class="result-actions"><button class="primary-button" id="report-download" type="button">Descargar PDF del análisis <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v9M8 10l4 4 4-4M6 18h12"/></svg></button><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button></div></div>
-            </div>
-
-            <aside class="panel coverage-panel" id="metodologia"><div class="panel-heading compact"><div><span class="section-index">02 / PROCESO</span><h3>Qué ocurre después</h3></div><span class="method-icon">✦</span></div><p class="method-intro">Tres agentes revisan el documento en orden. Si no cumple el alcance, el análisis se detiene con una explicación clara.</p><div class="mini-pipeline"><div class="mini-step"><span class="mini-step-number">01</span><div><strong>Origen</strong><span>Estados Unidos</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step"><span class="mini-step-number">02</span><div><strong>Sector</strong><span>Consumo defensivo</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step final"><span class="mini-step-number">03</span><div><strong>Análisis</strong><span>Informe estructurado</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div></div><div class="method-note"><span>i</span><p>La IA ordena la información. La decisión final siempre es tuya.</p></div></aside>
-          </div>
-        </section>
-
-        <section class="history-panel" id="historial"><div class="section-title-row"><div><span class="eyebrow">ACTIVIDAD</span><h2>Últimos análisis</h2></div><a class="text-button" href="#historial">Ver histórico completo <span>→</span></a></div><div class="table-wrap"><table><thead><tr><th>Documento</th><th>Empresa</th><th>Periodo</th><th>Señal</th><th>Estado</th><th></th></tr></thead><tbody><tr><td><span class="table-file">PDF</span><strong>tap-q2-2025.pdf</strong></td><td>Molson Coors <span class="td-ticker">TAP</span></td><td>Q2 2025</td><td><span class="td-change up">+4,8 %</span></td><td><span class="table-status done"><i></i> Completado</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr><tr><td><span class="table-file">PDF</span><strong>ko-10q-2025.pdf</strong></td><td>Coca-Cola <span class="td-ticker">KO</span></td><td>Q1 2025</td><td><span class="td-change up">+2,1 %</span></td><td><span class="table-status done"><i></i> Completado</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr><tr><td><span class="table-file">PDF</span><strong>pep-10k-2024.pdf</strong></td><td>PepsiCo <span class="td-ticker">PEP</span></td><td>FY 2024</td><td><span class="td-change down">−1,2 %</span></td><td><span class="table-status warning"><i></i> Revisar</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr></tbody></table></div><div class="empty-hint">⌁ Tu histórico se asociará a tu usuario cuando activemos el registro.</div></section>
-
-        <footer class="page-footer"><span>Cifra Terminal <b>·</b> beta 0.1</span><span>La IA ordena la información. Tú decides qué significa.</span></footer>
-      </div>
-    </main>
-  </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <div class="modal-backdrop" id="modal-backdrop" hidden>
@@ -195,6 +251,26 @@
           <label class="auth-field"><span>Correo electrónico</span><input id="auth-email" type="email" autocomplete="off" required></label>
           <label class="auth-field"><span>Contraseña</span><input id="auth-password" type="password" autocomplete="off" required></label>
           <label class="auth-field" id="confirm-field" hidden><span>Repite la contraseña</span><input id="auth-confirm" type="password" autocomplete="off" required></label>
+          <p class="verify-actions forgot-row" id="forgot-row" hidden>
+            <button class="link-button" id="forgot-password" type="button">¿Olvidaste tu contraseña?</button>
+          </p>
+        </div>
+        <div id="auth-reset-request" hidden>
+          <p class="verify-hint">Te enviaremos un código de 6 dígitos a tu correo.</p>
+          <label class="auth-field"><span>Correo electrónico</span><input id="reset-email" type="email" autocomplete="off" required></label>
+          <p class="verify-actions">
+            <button class="link-button" id="reset-back" type="button">Volver a iniciar sesión</button>
+          </p>
+        </div>
+        <div id="auth-reset-code" hidden>
+          <p class="verify-hint" id="reset-hint">Te hemos enviado un código de 6 dígitos a tu correo.</p>
+          <label class="auth-field"><span>Código de verificación</span><input id="reset-code" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]*" autocomplete="off" placeholder="000000" required></label>
+          <label class="auth-field"><span>Nueva contraseña</span><input id="reset-password" type="password" autocomplete="off" required></label>
+          <label class="auth-field"><span>Repite la nueva contraseña</span><input id="reset-confirm" type="password" autocomplete="off" required></label>
+          <p class="verify-actions">
+            <button class="link-button" id="reset-resend" type="button">Reenviar código</button>
+            <button class="link-button" id="reset-back2" type="button">Volver</button>
+          </p>
         </div>
         <div id="auth-verify" hidden>
           <p class="verify-hint" id="verify-hint">Te hemos enviado un código de 6 dígitos a tu correo.</p>
@@ -211,7 +287,7 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
-  <script src="auth.js"></script>
+  <script src="/app.js?v=7"></script>
+  <script src="/auth.js?v=6"></script>
 </body>
 </html>

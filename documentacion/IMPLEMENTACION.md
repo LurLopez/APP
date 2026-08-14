@@ -83,24 +83,29 @@
 **Backend** (`src/`):
 
 - `services/auth.service.js`:
-  - `register({ email, password })`: normaliza email (minúsculas+trim), valida formato y contraseña ≥ 8, comprueba duplicado (409), hashea con bcrypt (10 rondas) y crea el usuario. Devuelve el usuario público (sin hash).
-  - `login({ email, password })`: busca por email, compara con bcrypt, errores genéricos 401 ("Correo o contraseña incorrectos" — no revela si el email existe).
-  - `AuthError` (mensaje + código HTTP) y `toPublicUser(user)` → `{ id, email, plan, created_at }`.
-- `api/routes/auth.routes.js`: `POST /register`, `POST /login`, `POST /logout`, `GET /me` (protegido).
-- `api/controllers/auth.controller.js`: firma el JWT `{ sub: userId }` con expiración 7 días y lo mete en cookie `token` (`httpOnly`, `SameSite=Lax`, `secure` solo en producción). `logout` borra la cookie.
+  - `register({ email, password })`: normaliza email (minúsculas+trim), valida formato y contraseña ≥ 8, comprueba duplicado (409), hashea con bcrypt (10 rondas) y crea el usuario con `email_verified = false`. **No inicia sesión**: genera un código de verificación de 6 dígitos (hash SHA-256, 15 min de validez, máx. 5 intentos) y lo envía por correo. Devuelve el usuario público (sin hash).
+  - `verifyEmail({ email, code })`: valida el código pendiente, marca `email_verified = true` y consume el código. Devuelve el usuario.
+  - `resendVerificationCode({ email })`: genera y envía un código nuevo.
+  - `login({ email, password })`: busca por email, compara con bcrypt, errores genéricos 401 ("Correo o contraseña incorrectos" — no revela si el email existe). **Si la cuenta no está verificada → 403 con `code: 'EMAIL_NOT_VERIFIED'`**.
+  - `AuthError` (mensaje + código HTTP + `code` opcional para el frontend) y `toPublicUser(user)` → `{ id, email, plan, email_verified, created_at }`.
+- `services/email.service.js` (nuevo): envía el código con **nodemailer** vía SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`). **Sin SMTP configurado el código se imprime por consola** (modo desarrollo).
+- `api/routes/auth.routes.js`: `POST /register`, `POST /verify`, `POST /resend-code`, `POST /login`, `POST /logout`, `GET /me` (protegido).
+- `api/controllers/auth.controller.js`: `register` responde 201 **sin cookie**; `verify` valida el código y **emite la sesión** (JWT `{ sub: userId }` 7 días en cookie `token`, `httpOnly`, `SameSite=Lax`, `secure` solo en producción). `logout` borra la cookie.
 - `middleware/auth.middleware.js` (`requireAuth`): lee la cookie, verifica el JWT, carga el usuario de la BD y lo adjunta a `req.user`; 401 en cualquier fallo.
-- `middleware/errorHandler.js`: errores siempre JSON `{ error }` con el código correcto; los 5xx se loguean por consola.
+- `middleware/errorHandler.js`: errores siempre JSON `{ error, code? }` con el código correcto; los 5xx se loguean por consola.
 - `utils/validate.js`: `normalizeEmail`, `isValidEmail`, `isValidPassword`.
+- Base de datos: columna `email_verified` en `users` (migración idempotente en `db/schema.sql`) y tabla `verification_codes` (user_id, code_hash, attempts, expires_at, created_at).
 
 **Frontend** (`public/`):
 
 - `auth.js`:
   - Estado de sesión (`state.user`), restaurado al cargar con `GET /api/auth/me`.
   - `renderAuth()`: alterna entre botones "Iniciar sesión / Crear cuenta" y el chip de usuario (avatar con iniciales + email + salir) en la topbar; en el sidebar, "Invitado/Beta privada + Entrar" ↔ "email + plan + Salir".
-  - Modal con pestañas login/registro, validación cliente (contraseñas iguales), errores del servidor mostrados en el modal, `Escape`/click fuera/× para cerrar.
+  - Modal con pestañas login/registro y **dos pasos**: credenciales (email, contraseña, repetir) y **verificación** (código de 6 dígitos, reenviar código, "usar otro correo"). Al registrarse (o al hacer login con `EMAIL_NOT_VERIFIED`) el modal pasa al paso de verificación.
+  - Validación cliente (contraseñas iguales, código de 6 dígitos), errores del servidor mostrados en el modal (el helper `api` propaga `error.code`), `Escape`/click fuera/× para cerrar.
   - `initials()`: avatar con las 2 primeras letras del email.
-- `index.html`: modal de autenticación, botones en la topbar, tarjeta de cuenta en el sidebar, carga de `auth.js` tras `app.js`.
-- `styles.css`: estilos del modal, `.ghost-button`, `.user-chip`, `.user-avatar`, `.account-action`. Incluye la regla global `[hidden] { display: none !important; }` (fix 2026-08-12: el CSS con `display` anulaba el atributo `hidden` y el modal no se cerraba).
+- `index.html`: modal de autenticación con los dos pasos (campos de credenciales + bloque `#auth-verify` con código, enlaces "Reenviar código" y "Usar otro correo"), botones en la topbar, tarjeta de cuenta en el sidebar, carga de `auth.js` tras `app.js`.
+- `styles.css`: estilos del modal, `.ghost-button`, `.user-chip`, `.user-avatar`, `.account-action`, `.verify-hint`, `.verify-actions .link-button`. Incluye la regla global `[hidden] { display: none !important; }` (fix 2026-08-12: el CSS con `display` anulaba el atributo `hidden` y el modal no se cerraba).
 
 ### 2.6. Sistema de agentes IA — Agente verificador de origen (pipeline)
 
@@ -128,16 +133,21 @@
 
 | # | Caso | Respuesta |
 |---|---|---|
-| 1 | Registro nuevo | 201 + usuario |
+| 1 | Registro nuevo | 201 + usuario (sin sesión; envía código de verificación) |
 | 2 | Email duplicado | 409 "Ya existe una cuenta con ese correo." |
-| 3 | Login correcto | 200 + usuario |
-| 4 | Login con contraseña mala | 401 |
-| 5 | `/me` con cookie | 200 + usuario |
-| 6 | `/me` sin cookie | 401 "Sesión no iniciada." |
-| 7 | Logout | 200 `{ok:true}` |
-| 8 | `/me` tras logout | 401 |
+| 3 | Login antes de verificar | 403 `EMAIL_NOT_VERIFIED` "Debes verificar tu correo antes de entrar." |
+| 4 | Código incorrecto | 400 "El código no es correcto." |
+| 5 | Verificación correcta | 200 + usuario (`email_verified: true`) + cookie de sesión |
+| 6 | Reenviar código | 200 `{ok:true}` y se envía un código nuevo |
+| 7 | Login tras verificar | 200 + usuario |
+| 8 | `/me` con cookie | 200 + usuario |
+| 9 | `/me` sin cookie | 401 "Sesión no iniciada." |
+| 10 | Logout | 200 `{ok:true}` |
+| 11 | `/me` tras logout | 401 |
 
-El usuario confirmó además el flujo desde el navegador (registro real de `lurlopez13@gmail.com` persistido en `users`). Fix posterior (21:21): `[hidden] { display: none !important; }` para que el modal se cierre correctamente tras login/registro.
+> Prueba 2026-08-14: flujo completo verificado contra la API (registro → login bloqueado → código erróneo → verificación → login OK; usuarios de prueba borrados después). En desarrollo, sin SMTP, el código se imprime por consola.
+>
+> Histórico: el usuario confirmó el flujo desde el navegador (registro real de `lurlopez13@gmail.com` persistido en `users`). Fix (2026-08-12, 21:21): `[hidden] { display: none !important; }` para que el modal se cierre correctamente tras login/registro.
 
 ### 2.5. Frontend (diseño "Terminal Cifra")
 

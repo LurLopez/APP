@@ -35,6 +35,19 @@ export async function resendCode(req, res) {
   res.json({ ok: true, message: 'Te hemos enviado un código nuevo.' });
 }
 
+export async function forgotPassword(req, res) {
+  await authService.requestPasswordReset(req.body);
+  res.json({
+    ok: true,
+    message: 'Si existe una cuenta con ese correo, te hemos enviado un código.',
+  });
+}
+
+export async function resetPassword(req, res) {
+  await authService.resetPassword(req.body);
+  res.json({ ok: true, message: 'Contraseña actualizada. Ya puedes iniciar sesión.' });
+}
+
 export async function login(req, res) {
   const user = await authService.login(req.body);
   setAuthCookie(res, user.id);

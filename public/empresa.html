@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#242424">
+  <meta name="description" content="Cifra: perfil y análisis fundamental de empresas.">
+  <title>Cifra Terminal | Empresa</title>
+  <link rel="stylesheet" href="/styles.css?v=9">
+</head>
+<body class="company-page">
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-area">
+        <a class="brand-lockup" href="/" aria-label="Cifra Terminal">
+          <span class="brand-mark" aria-hidden="true">▲</span>
+          <strong>Terminal Cifra</strong>
+        </a>
+        <button class="collapse-button" id="menu-toggle" type="button" aria-label="Contraer menú" aria-expanded="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h12v14H6zM10 5v14"/></svg>
+        </button>
+      </div>
+
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
+        <input id="ticker-search" type="search" autocomplete="off" placeholder="Busca acciones, páginas, secciones..." aria-label="Buscar empresas o tickers">
+        <span class="search-kbd">Ctrl K</span>
+        <div class="search-results" id="search-results" hidden></div>
+      </div>
+
+      <div class="topbar-actions">
+        <div class="auth-area" id="auth-area">
+          <button class="ghost-button" id="auth-login" type="button">Iniciar sesión</button>
+          <button class="promo-button" id="auth-register" type="button">Crear cuenta</button>
+        </div>
+        <div class="user-chip" id="user-chip" hidden>
+          <span class="user-avatar" id="user-avatar">?</span>
+          <span class="user-email" id="user-email">correo@ejemplo.com</span>
+          <button class="user-logout" id="user-logout" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">×</button>
+        </div>
+        <button class="settings-button" type="button" aria-label="Configuración">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V4a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2.9Z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <aside class="sidebar" id="sidebar">
+      <nav class="main-nav" aria-label="Navegación de la empresa">
+        <div class="nav-section">
+          <a class="nav-link" href="#" data-section="favoritos">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+            <span>Favoritos</span>
+          </a>
+          <a class="nav-link" href="#" data-section="alertas">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2.5h-15L6 16ZM10 20a2 2 0 0 0 4 0"/></svg>
+            <span>Alertas de precio</span><b class="new-badge">NUEVO</b>
+          </a>
+          <a class="nav-link" href="#" data-section="cartera">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+            <span>Cartera</span>
+          </a>
+        </div>
+
+        <div class="company-nav-head" id="sidebar-company-head" hidden>
+          <span class="company-nav-logo" id="sidebar-company-logo">—</span>
+          <div class="company-nav-copy">
+            <strong id="sidebar-company-name">—</strong>
+            <small id="sidebar-company-ticker">—</small>
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <a class="nav-link active" href="#" data-section="perfil">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4"/></svg>
+            <span>Perfil</span>
+          </a>
+          <a class="nav-link" href="#" data-section="informes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10v14H7zM9 8h6M9 12h6"/></svg>
+            <span>Informes trimestrales</span>
+          </a>
+          <a class="nav-link" href="#" data-section="valoracion">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4-8 4-8-4 8-4ZM4 12l8 4 8-4M4 17l8 4 8-4"/></svg>
+            <span>Valoración</span>
+          </a>
+          <a class="nav-link" href="#" data-section="datos">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/></svg>
+            <span>Datos financieros</span>
+          </a>
+          <a class="nav-link" href="#" data-section="accionariado">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="8" r="2.5"/><path d="M3.5 19c.5-3 2-4.5 4.5-4.5s4 1.5 4.5 4.5M11.5 19c.5-3 2-4.5 4.5-4.5s4 1.5 4.5 4.5"/></svg>
+            <span>Accionariado</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="account-card" id="account-card">
+          <span class="avatar" id="account-avatar">?</span>
+          <div class="account-copy">
+            <strong id="account-name">Invitado</strong>
+            <small id="account-plan">Beta privada</small>
+          </div>
+          <button class="account-action" id="account-action" type="button">Entrar</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="backdrop" id="backdrop"></div>
+
+    <main class="main-content">
+      <div class="content-wrap company-wrap">
+        <div class="company-loading" id="company-loading">Consultando EDGAR…</div>
+        <p class="screener-error" id="company-error" hidden></p>
+
+        <div id="company-body" hidden>
+          <section class="company-head-row">
+            <div class="panel company-head">
+              <span class="company-logo" id="company-logo">—</span>
+              <div class="company-head-copy">
+                <div class="company-title-row">
+                  <h1 id="company-name">—</h1>
+                  <span class="company-meta" id="company-meta">—</span>
+                </div>
+                <div class="company-chips">
+                  <span class="ticker-select" id="company-ticker-chip">🇺🇸 —</span>
+                  <button class="icon-chip" type="button" id="company-fav" aria-label="Añadir a favoritos">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+                  </button>
+                  <button class="icon-chip" type="button" id="company-filings-shortcut" aria-label="Ver informes">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10v14H7zM9 8h6M9 12h6"/></svg>
+                  </button>
+                  <button class="icon-chip" type="button" id="company-alert" aria-label="Crear alerta">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2.5h-15L6 16ZM10 20a2 2 0 0 0 4 0"/></svg>
+                    <b class="new-badge">NUEVO</b>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel company-quote">
+              <div class="company-quote-copy">
+                <strong id="quote-price" class="positive"><span class="quote-arrow" aria-hidden="true">▲</span> —</strong>
+                <small id="quote-change" class="positive">—</small>
+                <small class="home-card-updated" id="quote-updated">—</small>
+              </div>
+              <svg class="profile-sparkline quote-sparkline" id="quote-sparkline" viewBox="0 0 360 92" preserveAspectRatio="none" role="img" aria-label="Evolución de la cotización"><path class="profile-sparkline-area" id="quote-sparkline-area"></path><path class="profile-sparkline-line" id="quote-sparkline-line"></path></svg>
+            </div>
+          </section>
+
+          <section class="company-section" id="section-perfil">
+            <div class="profile-layout">
+              <article class="panel profile-card-block">
+                <h5>Informe <span class="profile-info-dot" title="Datos financieros de SEC EDGAR y mercado">i</span></h5>
+                <dl class="profile-list">
+                  <div><dt>Capitalización</dt><dd id="pf-market-cap">—</dd></div>
+                  <div><dt>Rango 52 sem.</dt><dd id="pf-week-range">—</dd></div>
+                  <div><dt>Beta (5Y)</dt><dd id="pf-beta">—</dd></div>
+                  <div><dt>Dividendo</dt><dd id="pf-dividend">—</dd></div>
+                  <div><dt>Próximos resultados</dt><dd id="pf-next-earnings">—</dd></div>
+                  <div><dt>Volumen diario</dt><dd id="pf-volume">—</dd></div>
+                  <div><dt>Ventas</dt><dd id="pf-revenue">—</dd></div>
+                  <div><dt>BPA</dt><dd id="pf-eps">—</dd></div>
+                  <div><dt>PER</dt><dd id="pf-pe">—</dd></div>
+                  <div><dt>Rango diario</dt><dd id="pf-day-range">—</dd></div>
+                  <div><dt>Nº acciones</dt><dd id="pf-shares">—</dd></div>
+                  <div><dt>Var. último año</dt><dd id="pf-year-change">—</dd></div>
+                  <div><dt>Cierre anterior</dt><dd id="pf-previous-close">—</dd></div>
+                  <div><dt>Fecha OPV</dt><dd id="pf-ipo-date">—</dd></div>
+                  <div><dt>Dirección</dt><dd id="pf-address">—</dd></div>
+                </dl>
+              </article>
+
+              <article class="panel chart-block">
+                <div class="chart-head">
+                  <h5>Precio</h5>
+                  <div class="chart-head-actions">
+                    <div class="chart-ranges" role="group" aria-label="Rango del gráfico">
+                      <button type="button" data-range="3m">3M</button>
+                      <button type="button" data-range="6m">6M</button>
+                      <button type="button" data-range="1y">1Y</button>
+                      <button type="button" data-range="3y">3Y</button>
+                      <button type="button" data-range="5y" class="active">5Y</button>
+                      <button type="button" data-range="10y">10Y</button>
+                      <button type="button" data-range="all">ALL</button>
+                    </div>
+                    <div class="chart-tools" role="group" aria-label="Opciones del gráfico">
+                      <button type="button" id="chart-ma-toggle" aria-pressed="false" title="Media móvil de 100 sesiones">MA 100</button>
+                      <button type="button" id="chart-fullscreen" class="chart-fs" aria-label="Pantalla completa" title="Pantalla completa">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="chart-body" id="chart-body">
+                  <div class="chart-message" id="chart-message" hidden></div>
+                  <svg id="price-chart" viewBox="0 0 720 300" preserveAspectRatio="none" role="img" aria-label="Gráfico de cotización"></svg>
+                  <div class="chart-tooltip" id="chart-tooltip" hidden></div>
+                </div>
+              </article>
+            </div>
+
+            <article class="panel profile-card-block profile-info-block">
+              <h5>Información <span class="profile-info-dot" title="Información corporativa de SEC EDGAR">i</span></h5>
+              <dl class="profile-list">
+                <div><dt>País</dt><dd id="pf-country">—</dd></div>
+                <div><dt>Sector</dt><dd id="pf-sector">—</dd></div>
+                <div><dt>Industria</dt><dd id="pf-industry">—</dd></div>
+                <div><dt>Bolsa</dt><dd id="pf-exchange">—</dd></div>
+                <div><dt>Rivales</dt><dd id="pf-rivals">—</dd></div>
+              </dl>
+            </article>
+
+            <article class="panel profile-card-block profile-desc-block">
+              <h5>Descripción <span class="profile-info-dot" title="Descripción construida con datos públicos de la SEC">i</span></h5>
+              <p id="pf-description">—</p>
+            </article>
+          </section>
+
+          <section class="company-section" id="section-informes" hidden>
+            <div class="filings-view">
+              <div class="filings-head"><span class="screener-units">10-Q · 10-K · Fuente: SEC EDGAR</span><span class="screener-period-range" id="filings-count">—</span></div>
+              <div class="table-wrap"><table class="filings-table" id="filings-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+          </section>
+
+          <section class="company-section" id="section-datos" hidden>
+            <div class="screener-company-head">
+              <div class="screener-controls">
+                <span class="screener-currency">USD</span>
+                <div class="screener-period-toggle" role="group" aria-label="Periodo mostrado">
+                  <button type="button" data-series="annual">Anual</button>
+                  <button type="button" data-series="quarterly" class="active">Trimestral</button>
+                </div>
+              </div>
+            </div>
+            <div class="screener-tabs" role="tablist" aria-label="Estado financiero">
+              <button class="screener-tab active" type="button" role="tab" data-statement="income">Cuenta de resultados</button>
+              <button class="screener-tab" type="button" role="tab" data-statement="balance">Balance</button>
+              <button class="screener-tab" type="button" role="tab" data-statement="cashflow">Cash flow</button>
+            </div>
+            <div class="screener-block">
+              <div class="screener-toolbar"><span class="screener-units">USD · Millones</span><span class="screener-period-range" id="screener-period-range">—</span><div class="screener-tools" role="group" aria-label="Opciones de tabla"><button type="button" data-precision="0">0</button><button type="button" data-precision="1">.0</button><button type="button" data-precision="2" class="active">.00</button><button type="button" data-table-action="transpose" aria-label="Compactar tabla">↔</button><button type="button" data-table-action="empty" aria-label="Ocultar filas vacías">◉</button></div></div>
+              <div class="screener-table-title" id="screener-table-title" hidden>Cuenta de resultados | Cifra</div>
+              <div class="table-wrap"><table id="screener-statement-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+          </section>
+
+          <section class="company-section" id="section-placeholder" hidden>
+            <div class="panel placeholder-block">
+              <strong id="placeholder-title">Sección</strong>
+              <p>Esta sección estará disponible en una fase posterior del proyecto.</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="filings-preview-backdrop" id="filings-preview-backdrop" hidden>
+    <div class="filings-preview" role="dialog" aria-modal="true" aria-labelledby="filings-preview-title">
+      <div class="filings-preview-head">
+        <strong id="filings-preview-title">Vista previa del informe</strong>
+        <div class="filings-preview-actions">
+          <a id="filings-preview-open" href="#" target="_blank" rel="noopener">Abrir en pestaña nueva ↗</a>
+          <button class="filings-preview-close" id="filings-preview-close" type="button" aria-label="Cerrar">×</button>
+        </div>
+      </div>
+      <div class="filings-preview-frame-wrap">
+        <div class="filings-preview-loading" id="filings-preview-loading"><span class="loading-spinner"></span> Cargando…</div>
+        <div class="filings-preview-pages" id="filings-preview-pages" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="modal-close" id="modal-close" type="button" aria-label="Cerrar">×</button>
+      <div class="modal-brand"><span class="cifra-symbol">▲</span> Terminal Cifra</div>
+      <h2 id="modal-title">Iniciar sesión</h2>
+      <p class="modal-subtitle" id="modal-subtitle">Accede para guardar tus análisis.</p>
+      <div class="modal-tabs" role="tablist">
+        <button class="modal-tab active" type="button" role="tab" data-tab="login">Iniciar sesión</button>
+        <button class="modal-tab" type="button" role="tab" data-tab="register">Crear cuenta</button>
+      </div>
+      <form id="auth-form" novalidate>
+        <div id="auth-credentials">
+          <label class="auth-field"><span>Correo electrónico</span><input id="auth-email" type="email" autocomplete="off" required></label>
+          <label class="auth-field"><span>Contraseña</span><input id="auth-password" type="password" autocomplete="off" required></label>
+          <label class="auth-field" id="confirm-field" hidden><span>Repite la contraseña</span><input id="auth-confirm" type="password" autocomplete="off" required></label>
+          <p class="verify-actions forgot-row" id="forgot-row" hidden>
+            <button class="link-button" id="forgot-password" type="button">¿Olvidaste tu contraseña?</button>
+          </p>
+        </div>
+        <div id="auth-reset-request" hidden>
+          <p class="verify-hint">Te enviaremos un código de 6 dígitos a tu correo.</p>
+          <label class="auth-field"><span>Correo electrónico</span><input id="reset-email" type="email" autocomplete="off" required></label>
+          <p class="verify-actions">
+            <button class="link-button" id="reset-back" type="button">Volver a iniciar sesión</button>
+          </p>
+        </div>
+        <div id="auth-reset-code" hidden>
+          <p class="verify-hint" id="reset-hint">Te hemos enviado un código de 6 dígitos a tu correo.</p>
+          <label class="auth-field"><span>Código de verificación</span><input id="reset-code" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]*" autocomplete="off" placeholder="000000" required></label>
+          <label class="auth-field"><span>Nueva contraseña</span><input id="reset-password" type="password" autocomplete="off" required></label>
+          <label class="auth-field"><span>Repite la nueva contraseña</span><input id="reset-confirm" type="password" autocomplete="off" required></label>
+          <p class="verify-actions">
+            <button class="link-button" id="reset-resend" type="button">Reenviar código</button>
+            <button class="link-button" id="reset-back2" type="button">Volver</button>
+          </p>
+        </div>
+        <div id="auth-verify" hidden>
+          <p class="verify-hint" id="verify-hint">Te hemos enviado un código de 6 dígitos a tu correo.</p>
+          <label class="auth-field"><span>Código de verificación</span><input id="auth-code" type="text" inputmode="numeric" maxlength="6" pattern="[0-9]*" autocomplete="off" placeholder="000000" required></label>
+          <p class="verify-actions">
+            <button class="link-button" id="resend-code" type="button">Reenviar código</button>
+            <button class="link-button" id="verify-back" type="button">Usar otro correo</button>
+          </p>
+        </div>
+        <p class="modal-error" id="modal-error" hidden></p>
+        <button class="primary-button auth-submit" id="auth-submit" type="submit">Entrar</button>
+      </form>
+      <p class="modal-note">Plan gratuito · Beta privada</p>
+    </div>
+  </div>
+
+  <script src="/empresa.js?v=8"></script>
+  <script src="/auth.js?v=6"></script>
+</body>
+</html>

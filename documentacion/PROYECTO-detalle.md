@@ -100,6 +100,7 @@ La arquitectura debe estar preparada desde el principio para:
 
 ### 6.1. Registro / Inicio de sesión
 - Los usuarios podrán **registrarse e iniciar sesión**.
+- Al registrarse se envía un **código de verificación de 6 dígitos por correo** (SMTP configurable; sin SMTP, en desarrollo se imprime por consola) que el usuario debe introducir para validar su cuenta. Hasta entonces no puede iniciar sesión (error `EMAIL_NOT_VERIFIED` y el frontend le lleva al paso de verificación). Código válido 15 min, máx. 5 intentos, reenviable (`POST /api/auth/resend-code`).
 - La app se usará localmente al principio, pero el modelo de datos y los flujos deben contemplar usuarios desde el día uno.
 
 ### 6.2. Suscripciones (plan gratuito / de pago)
@@ -139,7 +140,7 @@ La arquitectura debe estar preparada desde el principio para:
 | **0** | Documento de visión y requisitos (este documento) | ✅ En curso |
 | **1** | Subida manual de PDF → análisis (beta, EE. UU. + consumo defensivo) | 🔶 Frontend demo; backend pendiente (modelos IA, agentes, pipeline) |
 | **2** | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | 🔶 Buscador y cribador con datos reales de la SEC implementados; histórico de filings, ver PDF y botón "Analizar" pendientes |
-| **3** | Registro / inicio de sesión | 🔶 Implementado (backend + frontend); planes y asociación de análisis por usuario pendientes |
+| **3** | Registro / inicio de sesión | 🔶 Implementado (backend + frontend) con verificación por correo; planes y asociación de análisis por usuario pendientes |
 | **4** | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
 | **5** | Suscripciones y planes (modelos según plan, límites) | ⏳ Pendiente |
 | **6** | Nuevos países y sectores (más agentes) | ⏳ Pendiente |

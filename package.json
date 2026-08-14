@@ -8,7 +8,8 @@
     "start": "node --env-file=.env server.js",
     "dev": "node --env-file=.env --watch server.js",
     "db:migrate": "node --env-file=.env db/migrations.js",
-    "db:seed": "node --env-file=.env db/seed.js"
+    "db:seed": "node --env-file=.env db/seed.js",
+    "test:email": "node --env-file=.env scripts/test-email.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
