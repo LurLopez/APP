@@ -76,6 +76,21 @@ export const mockProvider = {
       .map((m) => m.content ?? '')
       .join('\n');
 
+    if (systemPrompt.includes('analista principal')) {
+      return JSON.stringify({
+        company: 'Empresa de ejemplo',
+        ticker: 'ABC',
+        periodTitle: 'Informe financiero — ABC',
+        horizons: [
+          {
+            label: 'ÚLTIMOS 3 MESES',
+            sales: { rows: [], notes: ['Modo de prueba: sin datos.'], shares: '—', eps: '—' },
+            cashFlow: { scenarios: [], rows: [], notes: [] },
+            capital: { rows: [], verification: '', notes: [] },
+          },
+        ],
+      });
+    }
     if (systemPrompt.includes('isDefensiveConsumer')) {
       return classifySector(text);
     }

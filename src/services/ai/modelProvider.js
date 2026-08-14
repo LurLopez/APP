@@ -1,9 +1,12 @@
 import { mockProvider } from './providers/mock.provider.js';
 import { deepseekProvider } from './providers/deepseek.provider.js';
+import { opencodeGoProvider } from './providers/opencode-go.provider.js';
 
 const registry = {
   mock: mockProvider,
   deepseek: deepseekProvider,
+  opencode: opencodeGoProvider,
+  'opencode-go': opencodeGoProvider,
 };
 
 function resolveActiveProvider() {

@@ -1,5 +1,5 @@
-const API_URL = 'https://api.deepseek.com/chat/completions';
-const MODEL = process.env.AI_MODEL || 'deepseek-chat';
+const API_URL = 'https://opencode.ai/zen/go/v1/chat/completions';
+const MODEL = process.env.OPENCODE_GO_MODEL || 'deepseek-v4-flash';
 
 function cleanResponse(raw) {
   const trimmed = raw.trim();
@@ -7,13 +7,13 @@ function cleanResponse(raw) {
   return match ? match[1].trim() : trimmed;
 }
 
-export const deepseekProvider = {
-  name: 'deepseek',
+export const opencodeGoProvider = {
+  name: 'opencode-go',
 
   async chat(messages) {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
+    const apiKey = process.env.OPENCODE_GO_API_KEY;
     if (!apiKey) {
-      throw new Error('Falta DEEPSEEK_API_KEY en el archivo .env');
+      throw new Error('Falta OPENCODE_GO_API_KEY en el archivo .env');
     }
 
     const response = await fetch(API_URL, {
@@ -32,13 +32,13 @@ export const deepseekProvider = {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(`DeepSeek API error ${response.status}: ${detail.slice(0, 300)}`);
+      throw new Error(`OpenCode Go API error ${response.status}: ${detail.slice(0, 300)}`);
     }
 
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content !== 'string') {
-      throw new Error('DeepSeek no devolvió contenido válido.');
+      throw new Error('OpenCode Go no devolvió contenido válido.');
     }
     return cleanResponse(content);
   },

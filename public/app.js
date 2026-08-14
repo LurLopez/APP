@@ -24,6 +24,83 @@ let selectedFile = null;
 let toastTimer;
 let analysisTimer;
 let lastAnalysisFailed = true;
+let currentPdfUrl = null;
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function renderNotes(notes) {
+  const list = (Array.isArray(notes) ? notes : []).filter(Boolean);
+  if (!list.length) return '';
+  return `<ul class="report-notes">${list.map((note) => `<li>${escapeHtml(note)}</li>`).join('')}</ul>`;
+}
+
+function renderTable(headers, rows) {
+  const thead = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('');
+  const tbody = rows
+    .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell ?? '—')}</td>`).join('')}</tr>`)
+    .join('');
+  return `<div class="table-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
+}
+
+function renderHorizon(horizon) {
+  const label = escapeHtml(horizon.label ?? 'Periodo');
+  let html = `<div class="report-block"><h5>${label}</h5>`;
+
+  const sales = horizon.sales ?? {};
+  if (Array.isArray(sales.rows) && sales.rows.length) {
+    html += `<p class="report-extras">1. VENTAS</p>`;
+    html += renderTable(
+      ['Métrica', 'Ajustado', 'Anterior Aj.', '% Aj.', 'Normal', 'Anterior N.', '% N.'],
+      sales.rows.map((row) => [row.name, row.adjusted, row.prevAdjusted, row.pctAdjusted, row.normal, row.prevNormal, row.pctNormal]),
+    );
+    const extras = [];
+    if (sales.shares) extras.push(`ACCIONES: ${escapeHtml(sales.shares)}`);
+    if (sales.eps) extras.push(`BPA: ${escapeHtml(sales.eps)}`);
+    if (extras.length) html += `<p class="report-extras">${extras.join(' · ')}</p>`;
+    html += renderNotes(sales.notes);
+  }
+
+  const cashFlow = horizon.cashFlow ?? {};
+  if (Array.isArray(cashFlow.rows) && cashFlow.rows.length) {
+    html += `<p class="report-extras">2. CASH FLOW</p>`;
+    const scenarios = Array.isArray(cashFlow.scenarios) && cashFlow.scenarios.length ? cashFlow.scenarios : ['Valor'];
+    html += renderTable(
+      ['Métrica', ...scenarios],
+      cashFlow.rows.map((row) => [row.name, ...(Array.isArray(row.values) && row.values.length ? row.values : [row.value])]),
+    );
+    html += renderNotes(cashFlow.notes);
+  }
+
+  const capital = horizon.capital ?? {};
+  if (Array.isArray(capital.rows) && capital.rows.length) {
+    html += `<p class="report-extras">3. ASIGNACIÓN DE CAPITAL</p>`;
+    html += renderTable(
+      ['Métrica', 'Valor'],
+      capital.rows.map((row) => [row.name, row.value]),
+    );
+    if (capital.verification) html += `<p class="report-extras">${escapeHtml(capital.verification)}</p>`;
+    html += renderNotes(capital.notes);
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function renderReport(report) {
+  const horizons = Array.isArray(report.horizons) ? report.horizons : [];
+  const titleParts = [report.ticker, report.periodTitle].filter(Boolean);
+  document.querySelector('#result-title').textContent = titleParts.length ? titleParts.join(' — ') : 'Informe generado';
+  document.querySelector('#report-body').innerHTML = `
+    ${horizons.map(renderHorizon).join('')}
+    <p class="report-hint">El PDF descargable incluye los bloques completos en los dos horizontes.</p>
+  `;
+}
 
 function showToast(message) {
   toast.textContent = message;
@@ -107,7 +184,9 @@ function showAnalysisError(message, failedAgent = 'origin') {
   document.querySelector('#processing-note').hidden = true;
   processingTitle.textContent = failedAgent === 'sector'
     ? 'La empresa no es de consumo defensivo'
-    : 'No se pudo verificar el documento';
+    : failedAgent === 'analyst'
+      ? 'No se pudo generar el análisis'
+      : 'No se pudo verificar el documento';
   progressBar.style.width = '100%';
   clearInterval(analysisTimer);
 }
@@ -141,21 +220,26 @@ async function runRealAnalysis() {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const failedAgent = data.code === 'NOT_DEFENSIVE_CONSUMER' ? 'sector' : 'origin';
+      const failedAgent = data.code === 'NOT_DEFENSIVE_CONSUMER' ? 'sector'
+        : data.code === 'INVALID_MODEL_RESPONSE' || data.code === 'INVALID_REPORT_STRUCTURE' ? 'analyst'
+          : 'origin';
       showAnalysisError(data.error || 'No se pudo analizar el documento. Inténtalo de nuevo.', failedAgent);
       return;
     }
 
     setAgentState('origin', 'done');
     setAgentState('sector', 'done');
+    setAgentState('analyst', 'done');
     lastAnalysisFailed = false;
-    progressBar.style.width = '60%';
-    processingTitle.textContent = `Documento verificado: ${data.formType} · Sector defensivo`;
+    progressBar.style.width = '100%';
+    processingTitle.textContent = 'Análisis completado: PDF generado';
     clearInterval(analysisTimer);
     const retryButton = document.querySelector('#retry-analysis');
     retryButton.textContent = 'Analizar otro informe';
     retryButton.hidden = false;
-    showToast(`Documento identificado como ${data.formType} de consumo defensivo. El informe del analista llegará pronto.`);
+    renderReport(data.report ?? {});
+    resultPreview.hidden = false;
+    showToast(`${data.formType} de consumo defensivo analizado. El PDF con los 3 bloques está listo para descargar.`);
   } catch {
     showAnalysisError('No se pudo conectar con el servidor. Comprueba que esté en marcha.');
   }
@@ -203,6 +287,11 @@ document.querySelector('#retry-analysis').addEventListener('click', () => {
   processingPanel.hidden = true;
   uploadForm.hidden = false;
   if (!lastAnalysisFailed) clearFile();
+});
+
+document.querySelector('#report-download').addEventListener('click', () => {
+  if (!currentPdfUrl) return;
+  window.open(currentPdfUrl, '_blank', 'noopener');
 });
 
 document.querySelector('#new-analysis').addEventListener('click', () => {
