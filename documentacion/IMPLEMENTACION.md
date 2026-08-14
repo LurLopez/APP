@@ -1,6 +1,6 @@
 # Implementación — Todo lo construido hasta ahora
 
-> Versión: 1.0 · Fecha: 2026-08-12 · Este documento es el registro detallado de todo lo implementado en el proyecto hasta la fecha. Se actualiza cuando se añade o cambia algo relevante.
+> Versión: 1.2 · Fecha: 2026-08-13 · Este documento es el registro detallado de todo lo implementado en el proyecto hasta la fecha. Se actualiza cuando se añade o cambia algo relevante.
 
 ---
 
@@ -17,7 +17,7 @@
 | Frontend (diseño Terminal Cifra) | ✅ Rediseñado, flujo demo funcional |
 | Subida de PDF real (`POST /api/upload`) | ✅ Funcional: extrae texto → originAgent → veredicto o error visible en pantalla |
 | Histórico real en el frontend (`GET /api/analyses`) | ⏳ Pendiente (la BD ya lo guarda) |
-| Buscador de empresas (Fase 2) | ⏳ Pendiente (buscador visual demo en la web) |
+| Buscador de empresas (Fase 2) | ✅ Búsqueda real en EDGAR/SEC + cribador de resultados (3 estados financieros, 53 partidas estándar TIKR, pestañas × periodos, tabla única estilo TIKR claro); ⏳ histórico de filings y puente "Analizar" |
 | Asociar análisis al usuario conectado | ⏳ Pendiente |
 | Suscripciones y planes (Fase 5) | ⏳ Pendiente (campo `plan` ya existe) |
 
@@ -165,6 +165,36 @@ El usuario confirmó además el flujo desde el navegador (registro real de `lurl
 - Sidebar: contraer en escritorio (clase `sidebar-collapsed`), drawer + backdrop en móvil.
 - Cierre de avisos (`.close-button`) y toasts.
 
+### 2.8. Cribador de resultados (screener) con datos de la SEC — EDGAR
+
+**Backend** (`src/`):
+
+- `services/edgar.service.js`: consulta la API oficial de la SEC con `fetch` nativo (sin dependencias nuevas):
+  - Carga y cachea la tabla ticker→CIK (`https://www.sec.gov/files/company_tickers.json`, TTL 24 h en memoria).
+  - `searchCompanies(query, limit=8)`: ordena coincidencia exacta de ticker → empieza por → contiene en nombre.
+  - Descarga `https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json` (caché 6 h por ticker) y construye series **anuales (últimos 10)** y **trimestrales (últimos 8)**.
+  - **Constante `STATEMENTS` rediseñada como clon de TIKR: 3 estados y 53 partidas**: `income` (15: ingresos con fallback ASC 606, coste de ventas, B. bruto, SG&A, I+D, otros ingresos (gastos), operativo, intereses, resultado antes de impuestos, impuesto, resultado de operaciones continuadas, neto, BPA diluido y básico en `perShare`, acciones diluidas en millones con formato `shares`), `balance` (24: caja, inversiones a corto plazo, cobrar, inventario, gastos anticipados, activo corriente, inmovilizado, goodwill, **intangibles combinados** = finite + indefinite, **activo no corriente**, activo, pagar, gastos devengados, ingresos diferidos, deuda a corto plazo, pasivo corriente, deuda LP, **pasivo no corriente**, pasivo, capital adicional, reservas, autocartera, minoritarios, fondos propios) y `cashflow` (14: neto, D&A, retribución en acciones, circulante, operativo, CAPEX con fallback `PaymentsToAcquireProductiveAssets`, adquisiciones, inversión, dividendos, recompra, emisión de deuda, amortización de deuda, financiación, variación neta de caja; todos con fallback `…ContinuingOperations`). Las **partidas de total llevan `emphasis: true`**, y `statements` exporta el catálogo como `{ key, label, format, emphasis }` (formatos `money`|`perShare`|`shares`).
+  - **Selector `pickConceptData`**: elige entre los tags candidatos el que tiene el dato más reciente (por frame); soporta **conceptos combinados** (`combine`: suma de dos tags por frame, p. ej. intangibles).
+  - **Alineación de periodos corregida (`buildSeries`)**: los valores con frame XBRL (`CYyyyy`, `CYyyyyQn`, `CYyyyyQnI`) se asignan a su fila; las partidas del 10-K con `fp=FY` se asocian además al año fiscal según su fecha de fin (`end`). Arregla: (a) balances de cierre fiscal de empresas con año fiscal distinto del calendario (PG cierra en junio) y (b) balances del 10-K sin frame (KO, 10-K reexpresado de 2025). Sustituye a la antigua heurística de "copiar del Q4".
+  - **Valores derivados** (cuando el tag directo no existe): `grossProfit` = ingresos − coste de ventas, `liabilities` = activo − fondos propios, `assetsNoncurrent` = activo − activo corriente y `liabilitiesNoncurrent` = pasivo − pasivo corriente.
+  - Cabecera `User-Agent` obligatoria (`Cifra contacto@cifra.local`), timeout de 20 s por petición.
+  - Errores con código: `COMPANY_NOT_FOUND` y `EDGAR_UNAVAILABLE`.
+- `api/routes/screener.routes.js` (montado en `server.js` como `/api/screener`):
+  - `GET /api/screener/search?q=` → `{ ok, companies: [{ cik, ticker, name }] }` (400 si falta `q`).
+  - `GET /api/screener/company/:ticker` → `{ ok, company: { ticker, name, cik }, currency: 'USD', statements: { income, balance, cashflow }, annual, quarterly }` (400 ticker inválido, 404 `COMPANY_NOT_FOUND`, 502 `EDGAR_UNAVAILABLE`). `statements` trae el catálogo de partidas `{ key, label, format, emphasis }` para que el frontend pinte la tabla genéricamente.
+
+**Frontend** (`public/`):
+
+- Nueva sección `#screener` en `index.html`: buscador propio (ticker o nombre), cabecera de empresa (**nombre + chip naranja con el ticker**, meta `CIK · USD · SEC EDGAR`), chip "USD", conmutador **Anual/Trimestral** y, en lugar de 3 tablas, **3 pestañas** ("Cuenta de resultados", "Balance", "Cash flow") que repintan **una sola tabla** `#screener-statement-table` **estilo TIKR claro**: partidas como filas, periodos como columnas, en millones $ (BPA en $, 2 decimales; acciones en millones), **negativos entre paréntesis**, columnas de valores a la derecha, **filas de total en crema** (`.emphasis-row`, `#fff7e8`, negrita, marcadas por `emphasis: true` del backend), columna "Partida" **fija** (`position: sticky`), scroll horizontal (`.table-wrap`), hover `#fafafa`, tipografía tabular (`font-variant-numeric`) y "—" para datos ausentes. La tabla se pinta genéricamente desde `statements`.
+- **Paleta extraída de las capturas de referencia del usuario con PIL**: blanco `#ffffff`, texto `#333333`, naranja `#ff9900`, crema `#fff7e8` (255,251,237), gris `#777`, bordes `#ddd`/`#e0e0e0`/`#f0f0f0`.
+- El buscador del topbar (`#ticker-search`) ahora busca **de verdad** en EDGAR (antes lista estática): debounce de 250 ms, panel de resultados con nombre + ticker, mensaje "Sin resultados en EDGAR…", y al elegir empresa carga el cribador.
+- `app.js`: `searchCompanies`, `loadCompanyToScreener`, `renderScreener`, `renderScreenerTables`, `renderStatementTable` (repinta la tabla única desde `statements`), `submitScreenerSearch`, formateadores `formatMoneyUsd`/`formatEps`/`formatShares`/`formatScreenerValue`/`periodLabel`, estado `screenerSeries='annual'` y `screenerStatement='income'`. Pestañas y conmutador re-renderizan sin nueva petición.
+- `styles.css`: estilos bajo el comentario "Cribador (screener)"; pestañas con subrayado naranja en la activa, tabla única con sticky col y filas emphasis, alineación derecha de valores y scroll horizontal.
+
+**Pruebas reales**: KO FY2025 (ingresos 47.941 M$, B. neto 13.107 M$, BPA 3,04 $, activo 104.816 M$, pretax 15.998 M$, reservas 80.382 M$, autocartera 56.423 M$, variación neta de caja −478 M$, pasivo derivado 72.647 M$, activo no corriente derivado 73.772 M$, pasivo no corriente derivado 51.366 M$), PG (cierre fiscal junio alineado por fecha de fin; intangibles 21.737 M$ vía tag agregado), PEP (intangibles 15.066 M$ = finite + indefinite sumados; CAPEX vía `PaymentsToAcquireProductiveAssets`), TAP (pérdida neta FY2025 de −2.139,6 M$, pretax −2.518 M$, acciones diluidas 199,1 M en formato `shares`; ingresos vía tag ASC 606), ticker inexistente → 404, búsqueda sin `q` → 400.
+
+**Pendiente**: puente "Analizar" desde el cribador hacia el pipeline de IA y el histórico de filings (lista de 10-Q/10-K con ver PDF).
+
 ---
 
 ## 3. Cómo se ejecuta
@@ -190,6 +220,8 @@ Endpoints disponibles:
 | POST | `/api/auth/logout` | Borra la cookie |
 | GET | `/api/auth/me` | Usuario actual (requiere cookie) |
 | POST | `/api/upload` | PDF (campo `file`) → 200 `{ok, origin, formType}` o 422 `{error, code}` |
+| GET | `/api/screener/search?q=` | Búsqueda de empresas en EDGAR → `{ok, companies}` (400 sin `q`) |
+| GET | `/api/screener/company/:ticker` | Series anual/trimestral + 3 estados (`statements`) de la empresa → 200 · 400 · 404 · 502 |
 
 ---
 
@@ -217,7 +249,7 @@ Endpoints disponibles:
 5. **Capa de modelos IA**: ✅ `modelProvider.js` + `deepseekProvider` (sin key falla con error visible; `AI_PROVIDER=mock` para desarrollo); falta probar con key real.
 6. **Pipeline**: ✅ `analysis.service.js` con origin + sector conectados; ⏳ encadenar analista y guardar en `analyses`.
 7. **Definir formato del informe** final con los informes de referencia del usuario.
-8. **Fase 2**: buscador real de empresas (API EDGAR/SEC), histórico de filings, ver PDF, analizar desde el buscador.
+8. **Fase 2**: ✅ buscador real de empresas (API EDGAR/SEC) + cribador de resultados (series anual/trimestral); ⏳ histórico de filings, ver PDF y botón "Analizar" desde el cribador.
 9. **Fase 5**: suscripciones y planes (campo `plan` ya existe; límites por plan).
 10. **Fase 4/6**: análisis multi-periodo, más países y sectores.
 
@@ -242,8 +274,10 @@ app/
 ├── src/
 │   ├── api/
 │   │   ├── routes/auth.routes.js # /api/auth/*
+│   │   ├── routes/screener.routes.js # /api/screener/search y /api/screener/company/:ticker
 │   │   └── controllers/auth.controller.js
 │   ├── services/auth.service.js  # Lógica de registro/login
+│   ├── services/edgar.service.js # Datos de la SEC (EDGAR): ticker→CIK, companyfacts, 3 estados (53 partidas TIKR con emphasis), series
 │   ├── services/pdf.service.js   # Extracción de texto de PDFs (pdf-parse)
 │   ├── services/analysis.service.js  # Pipeline: PDF → agentes → resultado
 │   ├── services/ai/              # Capa de modelos IA
@@ -268,8 +302,10 @@ app/
 ├── documentacion/                # PROYECTO*.md, ARQUITECTURA.md, IMPLEMENTACION.md
 │   ├── backend/funcionalidades/register/            # Doc backend de registro/login
 │   ├── backend/funcionalidades/verificacion-informe/ # Doc backend: subida + verificación 10-Q/10-K
+│   ├── backend/funcionalidades/screener/            # Doc backend: cribador con datos de EDGAR/SEC
 │   ├── frontend/funcionalidades/register/           # Doc frontend de registro/login
 │   ├── frontend/funcionalidades/verificacion-informe/ # Doc frontend: subida + verificación
+│   ├── frontend/funcionalidades/screener/           # Doc frontend: sección cribador + buscador real
 │   └── diario/YYYY/MM/YYYY-MM-DD.md           # Registro diario de cambios
 ├── agentes/ → ~/.config/opencode/agent/   (enlace, no versionado)
 └── PROYECTO.md → documentacion/PROYECTO.md (enlace, no versionado)

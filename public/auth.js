@@ -1,4 +1,4 @@
-const state = { user: null, tab: 'login' };
+const state = { user: null, tab: 'login', step: 'credentials', verifyingEmail: null };
 
 const authArea = document.querySelector('#auth-area');
 const userChip = document.querySelector('#user-chip');
@@ -15,10 +15,16 @@ const modalTitle = document.querySelector('#modal-title');
 const modalSubtitle = document.querySelector('#modal-subtitle');
 const modalTabs = document.querySelectorAll('.modal-tab');
 const authForm = document.querySelector('#auth-form');
+const authCredentials = document.querySelector('#auth-credentials');
+const authVerify = document.querySelector('#auth-verify');
 const authEmail = document.querySelector('#auth-email');
 const authPassword = document.querySelector('#auth-password');
 const authConfirmField = document.querySelector('#confirm-field');
 const authConfirm = document.querySelector('#auth-confirm');
+const authCode = document.querySelector('#auth-code');
+const verifyHint = document.querySelector('#verify-hint');
+const resendCodeBtn = document.querySelector('#resend-code');
+const verifyBackBtn = document.querySelector('#verify-back');
 const authSubmit = document.querySelector('#auth-submit');
 const modalError = document.querySelector('#modal-error');
 
@@ -67,6 +73,8 @@ function renderAuth() {
     accountPlan.textContent = 'Beta privada';
     accountAction.textContent = 'Entrar';
   }
+
+  window.dispatchEvent(new CustomEvent('auth:change', { detail: { user: state.user } }));
 }
 
 function openModal(tab = 'login') {
@@ -81,6 +89,37 @@ function closeModal() {
   document.body.style.overflow = '';
   authForm.reset();
   modalError.hidden = true;
+  state.step = 'credentials';
+  state.verifyingEmail = null;
+  renderStep();
+}
+
+function renderStep() {
+  const verifying = state.step === 'verify';
+
+  authCredentials.hidden = verifying;
+  authVerify.hidden = !verifying;
+  modalTabs.forEach((tab) => {
+    tab.disabled = verifying;
+    tab.classList.toggle('active', !verifying && tab.dataset.tab === state.tab);
+  });
+
+  if (verifying) {
+    modalTitle.textContent = 'Verifica tu correo';
+    modalSubtitle.textContent = 'Solo nos queda confirmar que el correo es tuyo.';
+    verifyHint.textContent = `Te hemos enviado un código de 6 dígitos a ${state.verifyingEmail}.`;
+    authSubmit.textContent = 'Verificar código';
+    authCode.required = true;
+  } else {
+    setTab(state.tab);
+  }
+}
+
+function showVerifyStep(email) {
+  state.step = 'verify';
+  state.verifyingEmail = email;
+  renderStep();
+  authCode.focus();
 }
 
 function setTab(tab) {
@@ -125,6 +164,12 @@ async function handleSubmit(event) {
   const email = authEmail.value.trim();
   const password = authPassword.value;
   const isRegister = state.tab === 'register';
+  const verifying = state.step === 'verify';
+
+  if (verifying) {
+    await submitVerification(email);
+    return;
+  }
 
   if (isRegister && password !== authConfirm.value) {
     showModalError('Las contraseñas no coinciden.');
@@ -139,16 +184,84 @@ async function handleSubmit(event) {
       method: 'POST',
       body: { email, password },
     });
-    state.user = user;
-    renderAuth();
-    closeModal();
-    showToast(isRegister ? `Cuenta creada. Bienvenido, ${email}` : `Bienvenido de nuevo, ${email}`);
+    if (isRegister) {
+      showVerifyStep(email);
+    } else {
+      state.user = user;
+      renderAuth();
+      closeModal();
+      showToast(`Bienvenido de nuevo, ${email}`);
+    }
   } catch (error) {
-    showModalError(error.message);
+    if (error.code === 'EMAIL_NOT_VERIFIED') {
+      showVerifyStep(email);
+    } else {
+      showModalError(error.message);
+    }
   } finally {
     authSubmit.disabled = false;
     authSubmit.textContent = isRegister ? 'Crear cuenta' : 'Entrar';
   }
+}
+
+async function submitVerification(email) {
+  const code = authCode.value.trim();
+
+  if (!/^\d{6}$/.test(code)) {
+    showModalError('El código debe tener 6 dígitos.');
+    return;
+  }
+
+  authSubmit.disabled = true;
+  authSubmit.textContent = 'Verificando...';
+
+  try {
+    const { user } = await api('/api/auth/verify', {
+      method: 'POST',
+      body: { email, code },
+    });
+    state.user = user;
+    renderAuth();
+    closeModal();
+    showToast(`Cuenta verificada. Bienvenido, ${email}`);
+  } catch (error) {
+    showModalError(error.message);
+    if (error.code === 'CODE_EXPIRED') {
+      authCode.value = '';
+      authCode.focus();
+    }
+  } finally {
+    authSubmit.disabled = false;
+    authSubmit.textContent = 'Verificar código';
+  }
+}
+
+async function handleResendCode() {
+  if (!state.verifyingEmail) return;
+
+  resendCodeBtn.disabled = true;
+  resendCodeBtn.textContent = 'Enviando...';
+
+  try {
+    const { message } = await api('/api/auth/resend-code', {
+      method: 'POST',
+      body: { email: state.verifyingEmail },
+    });
+    authCode.value = '';
+    modalError.hidden = true;
+    showToast(message || 'Te hemos enviado un código nuevo.');
+  } catch (error) {
+    showModalError(error.message);
+  } finally {
+    resendCodeBtn.disabled = false;
+    resendCodeBtn.textContent = 'Reenviar código';
+  }
+}
+
+function handleVerifyBack() {
+  state.step = 'credentials';
+  renderStep();
+  authPassword.focus();
 }
 
 document.querySelector('#auth-login').addEventListener('click', () => openModal('login'));
@@ -172,6 +285,9 @@ document.addEventListener('keydown', (event) => {
 modalTabs.forEach((tabButton) => {
   tabButton.addEventListener('click', () => setTab(tabButton.dataset.tab));
 });
+
+resendCodeBtn.addEventListener('click', handleResendCode);
+verifyBackBtn.addEventListener('click', handleVerifyBack);
 
 authForm.addEventListener('submit', handleSubmit);
 

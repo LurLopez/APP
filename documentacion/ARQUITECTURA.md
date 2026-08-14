@@ -1,6 +1,6 @@
 # Arquitectura — Analizador de Resultados Financieros
 
-> Versión: 1.3 · Fecha: 2026-08-12 · Stack: Node.js + Express + PostgreSQL + Frontend puro (migrable a React)
+> Versión: 1.5 · Fecha: 2026-08-13 · Stack: Node.js + Express + PostgreSQL + Frontend puro (migrable a React)
 
 ---
 
@@ -33,8 +33,8 @@
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────┐   │
 │  │ API Layer  │→ │ Services   │→ │ Sistema de Agentes   │   │
 │  │ (routes/   │  │ (analysis, │  │ (registro + runner)  │   │
-│  │ controllers│  │  pdf, auth │  │  Origin → Sector →   │   │
-│  │            │  │  filing…)  │  │  Analyst             │   │
+│  │ controllers│  │  pdf, auth,│  │  Origin → Sector →   │   │
+│  │            │  │  edgar)    │  │  Analyst             │   │
 │  └────────────┘  └─────┬──────┘  └──────────┬───────────┘   │
 │                        │                    │               │
 │                        ▼                    ▼               │
@@ -79,12 +79,14 @@ app/
 │   │   ├── routes/
 │   │   │   ├── auth.routes.js       # POST /api/auth/register|login|logout, GET /me
 │   │   │   ├── analysis.routes.js   # POST /api/upload (multer, memoria)
+│   │   │   ├── screener.routes.js   # GET /api/screener/search, GET /api/screener/company/:ticker
 │   │   │   └── analyses.routes.js   # (futuro) GET /api/analyses, GET /api/analyses/:id
 │   │   └── controllers/
 │   │       └── auth.controller.js   # Firma JWT y gestiona la cookie de sesión
 │   ├── services/              # Lógica de negocio
 │   │   ├── auth.service.js         # Registro/login (bcrypt, validaciones, AuthError)
 │   │   ├── analysis.service.js     # Orquesta: PDF → agentes → resultado
+│   │   ├── edgar.service.js        # API SEC (EDGAR): ticker→CIK, companyfacts XBRL, 3 estados (53 partidas TIKR con emphasis), series
 │   │   ├── pdf.service.js          # Extracción de texto del PDF (pdf-parse)
 │   │   ├── ai/                     # Capa de modelos IA
 │   │   │   ├── modelProvider.js        # chat(messages) → proveedor activo
@@ -110,10 +112,12 @@ app/
 ├── documentacion/             # PROYECTO*.md, ARQUITECTURA.md, IMPLEMENTACION.md
 │   ├── backend/funcionalidades/<nombre>/    # Doc por funcionalidad (capa backend)
 │   │   ├── register/                        # ✅ Registro/login
-│   │   └── verificacion-informe/            # ✅ Verificación 10-Q/10-K
+│   │   ├── verificacion-informe/            # ✅ Verificación 10-Q/10-K
+│   │   └── screener/                        # ✅ Cribador (API EDGAR/SEC)
 │   ├── frontend/funcionalidades/<nombre>/   # Doc por funcionalidad (capa frontend)
 │   │   ├── register/                        # ✅ Registro/login
-│   │   └── verificacion-informe/            # ✅ Verificación 10-Q/10-K
+│   │   ├── verificacion-informe/            # ✅ Verificación 10-Q/10-K
+│   │   └── screener/                        # ✅ Cribador (sección + buscador topbar)
 │   └── diario/YYYY/MM/YYYY-MM-DD.md         # Registro diario de cambios
 ├── agentes/                   # ENLACE → ~/.config/opencode/agent/ (tus agentes de opencode)
 └── PROYECTO.md                # ENLACE → documentacion/PROYECTO.md (resumen inyectado)
@@ -296,12 +300,16 @@ Respuesta JSON al frontend → el panel muestra veredicto o error
 | `POST` | `/api/upload` | Sube PDF y verifica origen/tipo (multipart) | ✅ Implementado |
 | `GET` | `/api/analyses` | Lista de análisis realizados (histórico) | ⏳ Pendiente |
 | `GET` | `/api/analyses/:id` | Detalle de un análisis (incluye report JSONB) | ⏳ Pendiente |
+| `GET` | `/api/screener/search?q=` | Busca empresas por ticker/nombre en EDGAR | ✅ Implementado (Fase 2) |
+| `GET` | `/api/screener/company/:ticker` | Series anuales/trimestrales + 3 estados (`statements: income, balance, cashflow`) de la empresa (EDGAR) | ✅ Implementado (Fase 2) |
 | `POST` | `/api/auth/register` | Registro de usuario (email + contraseña ≥ 8) → cookie de sesión | ✅ Implementado |
 | `POST` | `/api/auth/login` | Inicio de sesión → cookie de sesión | ✅ Implementado |
 | `POST` | `/api/auth/logout` | Cierra la sesión (borra la cookie) | ✅ Implementado |
 | `GET` | `/api/auth/me` | Usuario actual (requiere cookie válida) | ✅ Implementado |
 
-*(Fase 2 añadirá: `GET /api/companies?q=TAP`, `GET /api/companies/:ticker/filings`, `GET /api/filings/:id/analyze`)*
+> **Contrato del cribador**: la respuesta de `GET /api/screener/company/:ticker` incluye `statements` (catálogo de partidas `{ key, label, format, emphasis }` de los 3 estados —53 partidas estándar TIKR—, con formatos `money`|`perShare`|`shares` y `emphasis: true` en las partidas de total) junto a `annual` y `quarterly` (`{ period, values }`), de modo que el frontend pinta la tabla genéricamente sin conocer las partidas. Los periodos se alinean por **frame XBRL** y por **fecha de fin** (`fp=FY` → año de `end`), lo que coloca correctamente los balances de cierre fiscal de años no naturales (p. ej. PG, cierre en junio) y los 10-K reexpresados sin frame (p. ej. KO). Los valores ausentes se derivan cuando es posible (beneficio bruto, total pasivo, activo/pasivo no corriente).
+
+*(Fase 2 añadirá además: `GET /api/companies/:ticker/filings` —histórico de filings— y el puente "Analizar" desde el cribador hacia el pipeline)*
 
 ### Autenticación (Fase 3, implementada)
 

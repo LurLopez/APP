@@ -5,5 +5,8 @@ export function errorHandler(err, _req, res, _next) {
     console.error('[errorHandler]', err);
   }
 
-  res.status(status).json({ error: err.message || 'Error interno del servidor.' });
+  res.status(status).json({
+    error: err.message || 'Error interno del servidor.',
+    code: err.code || undefined,
+  });
 }

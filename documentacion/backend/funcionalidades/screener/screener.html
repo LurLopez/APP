@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cribador de resultados (screener) — Backend | Cifra</title>
+<style>
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
+  .wrap { max-width:960px; margin:0 auto; padding:38px 20px 60px; }
+  header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
+  .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  h1 { margin:0 0 8px; font-size:28px; }
+  .sub { color:var(--muted); margin:0; font-size:14px; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
+  h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
+  p { margin:8px 0; }
+  ul { margin:8px 0; padding-left:22px; }
+  code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
+  table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
+  th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; }
+  .em { display:inline-block; margin-left:6px; padding:1px 7px; border-radius:3px; background:#fff7e8; border:1px solid #f0c488; color:#a95f00; font-size:10px; font-weight:700; white-space:nowrap; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:#fff7e8; font-size:13px; }
+  .note.blue { border-left-color:#4a90d9; background:#eaf3fd; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / backend / funcionalidades / screener</div>
+    <h1>Cribador de resultados (screener) — Backend</h1>
+    <p class="sub">API que consulta la SEC (EDGAR): búsqueda de empresas por ticker/nombre y series financieras anuales y trimestrales de 3 estados con las 53 partidas estándar de TIKR.</p>
+    <span class="badge">✓ Implementado y probado con datos reales de la SEC · 2026-08-13</span>
+    <span class="badge wip">⏳ Histórico de filings y puente "Analizar" pendientes</span>
+  </header>
+
+  <h2>Qué hace</h2>
+  <p>Consulta la <strong>API oficial de la SEC (EDGAR)</strong> y devuelve dos cosas: (1) la lista de empresas que coinciden con una búsqueda por ticker o nombre, y (2) los <strong>resultados financieros publicados</strong> de una empresa como series <strong>anuales (últimos 10) y trimestrales (últimos 8)</strong>, con <strong>3 estados financieros completos</strong> (cuenta de resultados, balance y cash flow) y el <strong>catálogo estándar de TIKR: 53 partidas us-gaap</strong> con su clave <code>statements</code>, que incluye el marcador <code>emphasis</code> en las partidas de total para que el frontend las destaque.</p>
+
+  <h2>Endpoints</h2>
+  <table>
+    <tr><th>Método</th><th>Ruta</th><th>Parámetro</th><th>Respuestas</th></tr>
+    <tr><td>GET</td><td><code>/api/screener/search</code></td><td><code>q</code> (ticker o nombre, obligatorio)</td><td>200 · 400 · 502</td></tr>
+    <tr><td>GET</td><td><code>/api/screener/company/:ticker</code></td><td><code>ticker</code> (1–10 caracteres A-Z0-9.-)</td><td>200 · 400 · 404 · 502</td></tr>
+  </table>
+
+  <pre><code># Búsqueda
+GET /api/screener/search?q=ko
+{ "ok": true, "companies": [ { "cik": 21344, "ticker": "KO", "name": "COCA COLA CO" } ] }
+
+# Series de una empresa (respuesta 200 con `statements`)
+GET /api/screener/company/KO
+{
+  "ok": true,
+  "company": { "ticker": "KO", "name": "COCA COLA CO", "cik": 21344 },
+  "currency": "USD",
+  "statements": {
+    "income":   [ { "key": "revenue", "label": "Ingresos", "format": "money", "emphasis": false },
+                  { "key": "grossProfit", "label": "Beneficio bruto", "format": "money", "emphasis": true },
+                  { "key": "epsDiluted", "label": "BPA diluido", "format": "perShare", "emphasis": false },
+                  { "key": "weightedSharesDiluted", "label": "Acciones diluidas (millones)", "format": "shares", "emphasis": false } ],
+    "balance":  [ { "key": "cash", "label": "Caja y equivalentes", "format": "money", "emphasis": false },
+                  { "key": "assets", "label": "Total activo", "format": "money", "emphasis": true } ],
+    "cashflow": [ { "key": "cfo", "label": "Cash flow operativo", "format": "money", "emphasis": true } ]
+  },
+  "annual":    [ { "period": "2025", "values": { "revenue": 47941000000, "netIncome": 13107000000, "assets": 104816000000, "liabilities": 72647000000, "assetsNoncurrent": 73772000000, "liabilitiesNoncurrent": 51366000000, ... } } ],
+  "quarterly": [ { "period": "2025-Q4", "values": { ... } } ]
+}</code></pre>
+  <p><code>statements</code> describe el catálogo de partidas con <code>{ key, label, format, emphasis }</code> (formatos <code>money</code>|<code>perShare</code>|<code>shares</code>; formato por defecto <code>money</code>) para que el frontend pinte la tabla genéricamente; los valores de cada periodo viven en <code>values</code> de <code>annual</code>/<code>quarterly</code>.</p>
+
+  <h2>Cómo funciona</h2>
+  <ol>
+    <li><strong>Mapa ticker→CIK</strong>: se descarga <code>company_tickers.json</code> de la SEC y se cachea <strong>24 h</strong> en memoria.</li>
+    <li><strong>Company facts XBRL</strong>: para cada empresa se descarga <code>companyfacts/CIK##########.json</code> (caché <strong>6 h</strong> por ticker).</li>
+    <li><strong>Clasificación por frames</strong>: <code>CY2025</code> → anual, <code>CY2025Q3</code> → trimestral, <code>CY2025Q4I</code> → instantáneo (cierre de trimestre).</li>
+    <li><strong>Selector por dato más reciente</strong>: entre los tags candidatos de cada partida se elige el que tenga el frame más reciente; los conceptos <strong>combinados</strong> suman dos tags por frame (ej. intangibles finite + indefinite).</li>
+    <li><strong>Alineación por fecha de fin</strong>: las entradas <code>fp=FY</code> del 10-K se asignan al año natural de su fecha de fin (<code>end</code>), lo que coloca bien los balances de cierre fiscal de años no naturales (PG cierra en junio) y los de 10-K reexpresados sin frame (KO).</li>
+    <li><strong>Valores derivados</strong> (si faltan): beneficio bruto = ingresos − coste de ventas; total pasivo = activo − fondos propios; <strong>activo no corriente = total activo − activo corriente</strong>; <strong>pasivo no corriente = total pasivo − pasivo corriente</strong>.</li>
+  </ol>
+
+  <h2>Los 3 estados y sus partidas (53, estándar TIKR)</h2>
+  <p>Cada partida tiene <strong>clave</strong>, <strong>etiqueta en español</strong> y <strong>formato</strong> (<code>money</code> en USD, <code>perShare</code> en USD/shares o <code>shares</code> en millones de acciones). Los tags se prueban en orden de fallback. <span class="em">EMPHASIS</span> marca las partidas de total, que el frontend pinta como filas destacadas en crema.</p>
+
+  <h3>Cuenta de resultados (income) — 15 partidas</h3>
+  <table>
+    <tr><th>Partida</th><th>Tags probados en orden</th></tr>
+    <tr><td>Ingresos</td><td><code>RevenueFromContractWithCustomerExcludingAssessedTax</code> → <code>...IncludingAssessedTax</code> → <code>Revenues</code> → <code>SalesRevenueNet</code> → <code>RevenueFromContractWithCustomer</code></td></tr>
+    <tr><td>Coste de ventas</td><td><code>CostOfRevenue</code> → <code>CostOfGoodsAndServicesSold</code> → <code>CostOfGoodsSold</code></td></tr>
+    <tr><td>Beneficio bruto <span class="em">EMPHASIS</span></td><td><code>GrossProfit</code>; si no existe, se <strong>deriva</strong> (ingresos − coste de ventas)</td></tr>
+    <tr><td>Gastos de venta, generales y administrativos</td><td><code>SellingGeneralAndAdministrativeExpense</code></td></tr>
+    <tr><td>Investigación y desarrollo</td><td><code>ResearchAndDevelopmentExpense</code></td></tr>
+    <tr><td>Otros ingresos (gastos)</td><td><code>NonoperatingIncomeExpense</code> → <code>OtherNonoperatingIncomeExpense</code></td></tr>
+    <tr><td>Resultado operativo <span class="em">EMPHASIS</span></td><td><code>OperatingIncomeLoss</code></td></tr>
+    <tr><td>Gastos por intereses</td><td><code>InterestExpense</code> → <code>InterestExpenseNonoperating</code></td></tr>
+    <tr><td>Resultado antes de impuestos</td><td><code>IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest</code> → <code>...MinorityInterestAndIncomeLossFromEquityMethodInvestments</code></td></tr>
+    <tr><td>Impuesto sobre beneficios</td><td><code>IncomeTaxExpenseBenefit</code></td></tr>
+    <tr><td>Resultado de operaciones continuadas</td><td><code>IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest</code> → <code>IncomeLossFromContinuingOperations</code></td></tr>
+    <tr><td>Beneficio neto <span class="em">EMPHASIS</span></td><td><code>NetIncomeLoss</code> → <code>ProfitLoss</code></td></tr>
+    <tr><td>BPA diluido <em>(perShare)</em></td><td><code>EarningsPerShareDiluted</code></td></tr>
+    <tr><td>BPA básico <em>(perShare)</em></td><td><code>EarningsPerShareBasic</code></td></tr>
+    <tr><td>Acciones diluidas (millones) <em>(shares)</em></td><td><code>WeightedAverageNumberOfDilutedSharesOutstanding</code></td></tr>
+  </table>
+
+  <h3>Balance (balance) — 24 partidas</h3>
+  <table>
+    <tr><th>Partida</th><th>Tags probados en orden</th></tr>
+    <tr><td>Caja y equivalentes</td><td><code>CashAndCashEquivalentsAtCarryingValue</code></td></tr>
+    <tr><td>Inversiones a corto plazo</td><td><code>ShortTermInvestments</code> → <code>AvailableForSaleSecuritiesDebtSecuritiesCurrent</code></td></tr>
+    <tr><td>Cuentas por cobrar</td><td><code>AccountsReceivableNetCurrent</code></td></tr>
+    <tr><td>Inventario</td><td><code>InventoryNet</code></td></tr>
+    <tr><td>Gastos anticipados</td><td><code>PrepaidExpenseAndOtherAssetsCurrent</code></td></tr>
+    <tr><td>Activo corriente <span class="em">EMPHASIS</span></td><td><code>AssetsCurrent</code></td></tr>
+    <tr><td>Inmovilizado material</td><td><code>PropertyPlantAndEquipmentNet</code></td></tr>
+    <tr><td>Fondo de comercio</td><td><code>Goodwill</code></td></tr>
+    <tr><td>Activos intangibles</td><td><strong>Combinado</strong>: suma por frame de <code>FiniteLivedIntangibleAssetsNet</code> + <code>IndefiniteLivedIntangibleAssetsExcludingGoodwill</code>. Fallbacks: <code>IntangibleAssetsNetExcludingGoodwill</code> → <code>FiniteLivedIntangibleAssetsNet</code> → <code>IndefiniteLivedTrademarks</code></td></tr>
+    <tr><td>Activo no corriente</td><td><code>AssetsNoncurrent</code>; si no existe, se <strong>deriva</strong> (total activo − activo corriente)</td></tr>
+    <tr><td>Total activo <span class="em">EMPHASIS</span></td><td><code>Assets</code></td></tr>
+    <tr><td>Cuentas por pagar</td><td><code>AccountsPayableCurrent</code> → <code>AccountsPayableTradeCurrent</code> → <code>AccountsPayableAndAccruedLiabilitiesCurrent</code></td></tr>
+    <tr><td>Gastos devengados</td><td><code>AccruedLiabilitiesCurrent</code></td></tr>
+    <tr><td>Ingresos diferidos</td><td><code>ContractWithCustomerLiabilityCurrent</code> → <code>DeferredRevenueCurrent</code></td></tr>
+    <tr><td>Deuda a corto plazo</td><td><code>LongTermDebtCurrent</code> → <code>LongTermDebtAndCapitalLeaseObligationsCurrent</code></td></tr>
+    <tr><td>Pasivo corriente <span class="em">EMPHASIS</span></td><td><code>LiabilitiesCurrent</code></td></tr>
+    <tr><td>Deuda a largo plazo</td><td><code>LongTermDebtNoncurrent</code> → <code>LongTermDebtAndCapitalLeaseObligations</code> → <code>LongTermDebt</code></td></tr>
+    <tr><td>Pasivo no corriente</td><td><code>LiabilitiesNoncurrent</code>; si no existe, se <strong>deriva</strong> (total pasivo − pasivo corriente)</td></tr>
+    <tr><td>Total pasivo <span class="em">EMPHASIS</span></td><td><code>Liabilities</code>; si no existe, se <strong>deriva</strong> (activo − fondos propios)</td></tr>
+    <tr><td>Capital adicional</td><td><code>AdditionalPaidInCapital</code></td></tr>
+    <tr><td>Reservas (ganancias retenidas)</td><td><code>RetainedEarningsAccumulatedDeficit</code></td></tr>
+    <tr><td>Autocartera</td><td><code>TreasuryStockValue</code> (publicada con signo negativo; se muestra entre paréntesis)</td></tr>
+    <tr><td>Intereses minoritarios</td><td><code>MinorityInterest</code></td></tr>
+    <tr><td>Fondos propios <span class="em">EMPHASIS</span></td><td><code>StockholdersEquity</code> → <code>StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest</code></td></tr>
+  </table>
+
+  <h3>Cash flow (cashflow) — 14 partidas</h3>
+  <table>
+    <tr><th>Partida</th><th>Tags probados en orden</th></tr>
+    <tr><td>Beneficio neto</td><td><code>NetIncomeLoss</code> → <code>ProfitLoss</code></td></tr>
+    <tr><td>Depreciación y amortización</td><td><code>DepreciationDepletionAndAmortization</code> → <code>DepreciationAmortizationAndAccretionNet</code></td></tr>
+    <tr><td>Retribución en acciones</td><td><code>ShareBasedCompensation</code></td></tr>
+    <tr><td>Cambios en el capital circulante</td><td><code>IncreaseDecreaseInOperatingCapital</code></td></tr>
+    <tr><td>Cash flow operativo <span class="em">EMPHASIS</span></td><td><code>NetCashProvidedByUsedInOperatingActivities</code> → <code>...ContinuingOperations</code></td></tr>
+    <tr><td>Inversiones en inmovilizado (CAPEX)</td><td><code>PaymentsToAcquirePropertyPlantAndEquipment</code> → <code>PaymentsToAcquireProductiveAssets</code></td></tr>
+    <tr><td>Adquisiciones</td><td><code>PaymentsToAcquireBusinessesNetOfCashAcquired</code></td></tr>
+    <tr><td>Cash flow de inversión <span class="em">EMPHASIS</span></td><td><code>NetCashProvidedByUsedInInvestingActivities</code> → <code>...ContinuingOperations</code></td></tr>
+    <tr><td>Dividendos pagados</td><td><code>PaymentsOfDividends</code> → <code>PaymentsOfDividendsCommonStock</code></td></tr>
+    <tr><td>Recompra de acciones</td><td><code>PaymentsForRepurchaseOfCommonStock</code></td></tr>
+    <tr><td>Emisión de deuda</td><td><code>ProceedsFromIssuanceOfLongTermDebt</code> → <code>ProceedsFromIssuanceOfDebt</code></td></tr>
+    <tr><td>Amortización de deuda</td><td><code>RepaymentsOfLongTermDebt</code> → <code>RepaymentsOfDebt</code> → <code>RepaymentsOfLongTermDebtAndCapitalSecurities</code> → <code>RepaymentsOfDebtAndDebtIssuanceCosts</code></td></tr>
+    <tr><td>Cash flow de financiación <span class="em">EMPHASIS</span></td><td><code>NetCashProvidedByUsedInFinancingActivities</code> → <code>...ContinuingOperations</code></td></tr>
+    <tr><td>Variación neta de caja <span class="em">EMPHASIS</span></td><td><code>CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect</code> → <code>CashAndCashEquivalentsPeriodIncreaseDecrease</code></td></tr>
+  </table>
+
+  <div class="note blue"><strong>Alineación de periodos (corregida):</strong> los valores con frame XBRL (<code>CYyyyy</code>, <code>CYyyyyQn</code>, <code>CYyyyyQnI</code>) se asignan a su fila; las partidas del 10-K con <code>fp=FY</code> se asocian además al año fiscal según su fecha de fin (<code>end</code>). Esto arregla dos casos que fallaban con la antigua heurística de "copiar del Q4": balances de cierre fiscal de empresas con año fiscal distinto del calendario (PG cierra en junio) y balances de 10-K reexpresados sin frame (KO 2025).</div>
+
+  <h2>Errores</h2>
+  <table>
+    <tr><th>Situación</th><th>Respuesta</th></tr>
+    <tr><td>Falta <code>q</code> en la búsqueda</td><td class="err">400 "Falta el parámetro de búsqueda \"q\"."</td></tr>
+    <tr><td>Ticker inválido (caracteres o longitud)</td><td class="err">400 "Ticker no válido."</td></tr>
+    <tr><td>Ticker no existe en EDGAR</td><td class="err">404 <code>COMPANY_NOT_FOUND</code></td></tr>
+    <tr><td>SEC caída, timeout (20 s) o error HTTP</td><td class="err">502 <code>EDGAR_UNAVAILABLE</code></td></tr>
+  </table>
+
+  <h2>Límites y reglas de la SEC</h2>
+  <ul>
+    <li>Cabecera <strong><code>User-Agent</code> obligatoria</strong>: <code>Cifra contacto@cifra.local</code> (la SEC rechaza peticiones sin identificar).</li>
+    <li>Límite de la API: <strong>10 peticiones/segundo</strong> por IP. Las cachés (24 h el mapa de tickers, 6 h los facts) mantienen el tráfico muy por debajo.</li>
+    <li>Timeout propio de 20 s por petición a EDGAR.</li>
+  </ul>
+
+  <h2>Qué incluye / excluye</h2>
+  <p><strong>Incluye:</strong> búsqueda por ticker/nombre, series anual/trimestral de 3 estados (<strong>53 partidas estándar TIKR</strong>) con catálogo en <code>statements</code> (<code>{ key, label, format, emphasis }</code>), fallbacks de tags, conceptos combinados, valores derivados (incluidos activo y pasivo no corrientes), alineación por frame y por fecha de fin, cachés y errores con código.</p>
+  <p><strong>Excluye (pendiente):</strong> histórico de filings (lista de 10-Q/10-K con PDF), puente "Analizar" hacia el pipeline de IA, guardado en la tabla <code>filings</code>.</p>
+
+  <h2>Pruebas con datos reales</h2>
+  <ul>
+    <li>Búsqueda <code>ko</code>/<code>coca</code> → resultados reales de EDGAR ✓</li>
+    <li><strong>KO</strong> FY2025: ingresos 47.941 M$, B. neto 13.107 M$, BPA 3,04 $, activo 104.816 M$; resultado antes de impuestos 15.998 M$, reservas 80.382 M$, autocartera 56.423 M$, variación neta de caja −478 M$. Derivados: pasivo 72.647 M$ (= activo − fondos propios, 10-K reexpresado sin frame), activo no corriente 73.772 M$ (= activo − corriente) y pasivo no corriente 51.366 M$ (= pasivo − corriente) ✓</li>
+    <li><strong>PG</strong> (cierre fiscal junio): balance colocado en el año correcto por fecha de fin; intangibles 21.737 M$ vía tag agregado ✓</li>
+    <li><strong>PEP</strong>: intangibles 15.066 M$ como suma finite + indefinite (concepto combinado); CAPEX vía <code>PaymentsToAcquireProductiveAssets</code> ✓</li>
+    <li><strong>TAP</strong>: pérdida neta FY2025 de −2.139,6 M$ y resultado antes de impuestos −2.518 M$; acciones diluidas 199,1 M (formato <code>shares</code>); ingresos vía tag ASC 606 ✓</li>
+    <li>Ticker inexistente → 404 ✓ · búsqueda sin <code>q</code> → 400 ✓</li>
+  </ul>
+
+  <div class="note">Pendiente: histórico de filings (índice de submissions de EDGAR) y endpoint "Analizar" que envíe el filing elegido al mismo pipeline que la subida manual (origin → sector → analista).</div>
+</div>
+</body>
+</html>

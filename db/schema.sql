@@ -1,11 +1,25 @@
 CREATE TABLE IF NOT EXISTS users (
-    id            SERIAL PRIMARY KEY,
-    email         TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    plan          TEXT NOT NULL DEFAULT 'free'
-                  CHECK (plan IN ('free', 'premium')),
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    id             SERIAL PRIMARY KEY,
+    email          TEXT UNIQUE NOT NULL,
+    password_hash  TEXT NOT NULL,
+    plan           TEXT NOT NULL DEFAULT 'free'
+                   CHECK (plan IN ('free', 'premium')),
+    email_verified BOOLEAN NOT NULL DEFAULT false,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS verification_codes (
+    id         SERIAL PRIMARY KEY,
+    user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash  TEXT NOT NULL,
+    attempts   INT NOT NULL DEFAULT 0,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_verification_codes_user ON verification_codes (user_id);
 
 CREATE TABLE IF NOT EXISTS analyses (
     id           SERIAL PRIMARY KEY,

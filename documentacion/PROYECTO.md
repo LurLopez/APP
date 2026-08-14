@@ -32,7 +32,7 @@ Web que analiza con IA informes financieros de EE. UU. (10-Q trimestral, 10-K an
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Subida manual de PDF → análisis (beta) | 🔶 Frontend demo; backend pendiente (modelos IA, agentes, pipeline) |
-| 2 | Buscador de empresas (ticker) + histórico de filings | ⏳ Pendiente |
+| 2 | Buscador de empresas (ticker) + histórico de filings | 🔶 Buscador y cribador con datos reales de la SEC implementados; histórico de filings y botón "Analizar" pendientes |
 | 3 | Registro / inicio de sesión | 🔶 Implementado (backend + frontend); planes y asociación de análisis por usuario pendientes |
 | 4 | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
 | 5 | Suscripciones y planes | ⏳ Pendiente |

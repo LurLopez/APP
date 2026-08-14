@@ -18,8 +18,21 @@ function setAuthCookie(res, userId) {
 
 export async function register(req, res) {
   const user = await authService.register(req.body);
+  res.status(201).json({
+    user,
+    message: 'Revisa tu correo: te hemos enviado un código de verificación.',
+  });
+}
+
+export async function verify(req, res) {
+  const user = await authService.verifyEmail(req.body);
   setAuthCookie(res, user.id);
-  res.status(201).json({ user });
+  res.json({ user });
+}
+
+export async function resendCode(req, res) {
+  await authService.resendVerificationCode(req.body);
+  res.json({ ok: true, message: 'Te hemos enviado un código nuevo.' });
 }
 
 export async function login(req, res) {

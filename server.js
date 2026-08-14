@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import config from './config/index.js';
 import authRoutes from './src/api/routes/auth.routes.js';
 import analysisRoutes from './src/api/routes/analysis.routes.js';
+import screenerRoutes from './src/api/routes/screener.routes.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +17,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api', analysisRoutes);
+app.use('/api/screener', screenerRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'cifra-api', phase: 1 });

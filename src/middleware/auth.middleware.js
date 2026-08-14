@@ -22,3 +22,14 @@ export async function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'La sesión no es válida o ha expirado.' });
   }
 }
+
+export async function resolveUser(req) {
+  try {
+    const token = req.cookies?.token;
+    if (!token) return null;
+    const payload = jwt.verify(token, config.jwtSecret);
+    return await findUserById(payload.sub);
+  } catch {
+    return null;
+  }
+}

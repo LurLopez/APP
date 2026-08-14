@@ -40,6 +40,8 @@ Existen **2 formas de llegar al mismo análisis**, y ambas deben ejecutar **exac
 
 > **Regla fundamental:** cargar el Q2 2025 de TAP manualmente, o buscarlo y pulsar analizar, debe producir **el mismo resultado**.
 
+> **Estado actual (2026-08-13):** el buscador por ticker/nombre ya funciona con datos reales de la SEC (`/api/screener/search`) y el cribador muestra las series anuales/trimestrales de cada empresa (`/api/screener/company/:ticker`). Quedan pendientes el histórico de filings (lista de 10-Q/10-K con ver PDF) y el botón "Analizar" desde el cribador. Detalle en `documentacion/backend/funcionalidades/screener/` y `documentacion/frontend/funcionalidades/screener/`.
+
 ## 4. Alcance de la beta
 
 La primera versión estará limitada a:
@@ -136,7 +138,7 @@ La arquitectura debe estar preparada desde el principio para:
 |---|---|---|
 | **0** | Documento de visión y requisitos (este documento) | ✅ En curso |
 | **1** | Subida manual de PDF → análisis (beta, EE. UU. + consumo defensivo) | 🔶 Frontend demo; backend pendiente (modelos IA, agentes, pipeline) |
-| **2** | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | ⏳ Pendiente (buscador visual demo en la web) |
+| **2** | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | 🔶 Buscador y cribador con datos reales de la SEC implementados; histórico de filings, ver PDF y botón "Analizar" pendientes |
 | **3** | Registro / inicio de sesión | 🔶 Implementado (backend + frontend); planes y asociación de análisis por usuario pendientes |
 | **4** | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
 | **5** | Suscripciones y planes (modelos según plan, límites) | ⏳ Pendiente |
