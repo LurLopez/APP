@@ -1,6 +1,6 @@
 # Arquitectura — Analizador de Resultados Financieros
 
-> Versión: 1.2 · Fecha: 2026-08-12 · Stack: Node.js + Express + PostgreSQL + Frontend puro (migrable a React)
+> Versión: 1.3 · Fecha: 2026-08-12 · Stack: Node.js + Express + PostgreSQL + Frontend puro (migrable a React)
 
 ---
 
@@ -78,28 +78,24 @@ app/
 │   ├── api/                   # Capa HTTP
 │   │   ├── routes/
 │   │   │   ├── auth.routes.js       # POST /api/auth/register|login|logout, GET /me
-│   │   │   ├── upload.routes.js     # (futuro) POST /api/upload
+│   │   │   ├── analysis.routes.js   # POST /api/upload (multer, memoria)
 │   │   │   └── analyses.routes.js   # (futuro) GET /api/analyses, GET /api/analyses/:id
 │   │   └── controllers/
-│   │       ├── auth.controller.js   # Firma JWT y gestiona la cookie de sesión
-│   │       ├── upload.controller.js # (futuro)
-│   │       └── analyses.controller.js # (futuro)
+│   │       └── auth.controller.js   # Firma JWT y gestiona la cookie de sesión
 │   ├── services/              # Lógica de negocio
 │   │   ├── auth.service.js         # Registro/login (bcrypt, validaciones, AuthError)
-│   │   ├── analysis.service.js     # (futuro) Orquesta: PDF → agentes → guardar
-│   │   ├── pdf.service.js          # (futuro) Extracción de texto del PDF
+│   │   ├── analysis.service.js     # Orquesta: PDF → agentes → resultado
+│   │   ├── pdf.service.js          # Extracción de texto del PDF (pdf-parse)
+│   │   ├── ai/                     # Capa de modelos IA
+│   │   │   ├── modelProvider.js        # chat(messages) → proveedor activo
+│   │   │   └── providers/
+│   │   │       ├── mock.provider.js       # Heurística local (solo AI_PROVIDER=mock)
+│   │   │       └── deepseek.provider.js   # API real de DeepSeek
 │   │   └── (futuro) filing, subscription
-│   ├── agents/                # (futuro) Sistema de agentes
-│   │   ├── agentRegistry.js        # Registro y orden de ejecución
-│   │   ├── baseAgent.js            # Interfaz/plantilla de agente
-│   │   └── agents/
-│   │       ├── originAgent.js      # ¿Es de EE. UU.? (beta)
-│   │       ├── sectorAgent.js      # ¿Es consumo defensivo? (beta)
-│   │       └── analystAgent.js     # Análisis principal (beta)
-│   ├── models/                # (futuro) Capa de abstracción IA
-│   │   ├── modelProvider.js        # Interfaz común: generate(messages)
-│   │   ├── deepseekProvider.js
-│   │   └── openaiProvider.js
+│   ├── agents/                # Sistema de agentes
+│   │   ├── baseAgent.js           # BaseAgent + AgentError
+│   │   ├── agentRegistry.js       # Registro por nombre (origin registrado)
+│   │   └── originAgent.js         # ¿Financiero + 10-Q/10-K + EE. UU.? (implementado)
 │   ├── middleware/
 │   │   ├── auth.middleware.js  # requireAuth: valida JWT de la cookie y carga req.user
 │   │   └── errorHandler.js     # Errores uniformes JSON { error }
@@ -108,12 +104,16 @@ app/
 ├── public/                    # Frontend (beta, JS puro)
 │   ├── index.html             # Web "Terminal Cifra" (topbar + sidebar + secciones)
 │   ├── styles.css             # Diseño clon TIKR (claro)
-│   ├── app.js                 # Dropzone, demo del pipeline, menú, buscador demo
+│   ├── app.js                 # Subida real → /api/upload, estados de agentes, errores
 │   └── auth.js                # Modal login/registro, estado de sesión, logout
-├── uploads/                   # PDFs subidos (filesystem local)
+├── uploads/                   # PDFs subidos (pendiente: guardarlos aquí)
 ├── documentacion/             # PROYECTO*.md, ARQUITECTURA.md, IMPLEMENTACION.md
 │   ├── backend/funcionalidades/<nombre>/    # Doc por funcionalidad (capa backend)
+│   │   ├── register/                        # ✅ Registro/login
+│   │   └── verificacion-informe/            # ✅ Verificación 10-Q/10-K
 │   ├── frontend/funcionalidades/<nombre>/   # Doc por funcionalidad (capa frontend)
+│   │   ├── register/                        # ✅ Registro/login
+│   │   └── verificacion-informe/            # ✅ Verificación 10-Q/10-K
 │   └── diario/YYYY/MM/YYYY-MM-DD.md         # Registro diario de cambios
 ├── agentes/                   # ENLACE → ~/.config/opencode/agent/ (tus agentes de opencode)
 └── PROYECTO.md                # ENLACE → documentacion/PROYECTO.md (resumen inyectado)
@@ -182,105 +182,124 @@ CREATE INDEX idx_analyses_user ON analyses (user_id);
 
 ## 5. Sistema de agentes
 
-### Interfaz de agente (`baseAgent.js`)
+### Interfaz de agente (`src/agents/baseAgent.js`)
 
 ```js
-class BaseAgent {
-  constructor(id, name) {
-    this.id = id;      // ej. 'origin'
-    this.name = name;  // ej. 'Verificador de origen'
+export class BaseAgent {
+  constructor({ name, description }) {
+    this.name = name;         // ej. 'origin'
+    this.description = description;
   }
-  async run({ pdfText, metadata }) {
-    throw new Error('Debe implementarse');
-  }
+  async run(_input) { throw new Error(`El agente ${this.name} no implementa run().`); }
+}
+
+export class AgentError extends Error {
+  constructor(message, code = 'AGENT_ERROR') { super(message); this.code = code; }
 }
 ```
 
-### Registro y orden (`agentRegistry.js`)
+### Registro (`agentRegistry.js`)
 
 ```js
-// El orden del array = orden de ejecución del pipeline
-const pipeline = [
-  new OriginAgent(),     // 1. ¿Es de EE. UU.?
-  new SectorAgent(),     // 2. ¿Es consumo defensivo?
-  new AnalystAgent(),    // 3. Análisis principal
-];
+const agents = new Map();
+registerAgent(agent);   // agents.set(agent.name, agent)
+getAgent(name);         // → agente o null
+listAgents();           // → array de agentes
 ```
 
+### Agentes actuales y futuros
+
+| Agente | Archivo | Estado |
+|---|---|---|
+| `origin` (verificador de origen) | `src/agents/originAgent.js` | ✅ Implementado y probado |
+| `sector` (verificador de sector) | `src/agents/sectorAgent.js` | ⏳ Pendiente |
+| `analyst` (analista principal) | `src/agents/analystAgent.js` | ⏳ Pendiente |
+
 ### Comportamiento del pipeline
-- Los agentes verificadores (`origin`, `sector`) devuelven `{ ok: true }` o lanzan `AgentError` con mensaje claro.
-- Si un agente falla → **el pipeline se detiene** y el error se guarda en `analyses.error` (ej. `"Este informe no es de una empresa de EE. UU."`).
-- El último agente (`analyst`) genera el informe y lo devuelve para guardarlo en `report`.
+
+- El agente `origin` devuelve `{ origin: 'US', formType: '10-Q' | '10-K' }` o lanza `AgentError` con mensaje claro (códigos: `EMPTY_DOCUMENT`, `INVALID_MODEL_RESPONSE`, `NOT_FINANCIAL`, `NOT_USA`, `NOT_10Q_10K`).
+- Si un agente falla → **el pipeline se detiene** y el error llega al frontend (y en el futuro a `analyses.error`).
 - **Extensión futura**: para añadir Canadá se registra `OriginAgentCA`; para añadir tecnología, `SectorAgentTech` + `AnalystAgentTech`. El runner no cambia.
 
 ---
 
 ## 6. Capa de abstracción de modelos IA
 
-### Interfaz común (`modelProvider.js`)
+### Interfaz común (`src/services/ai/modelProvider.js`)
 
 ```js
 // Todos los proveedores implementan esta misma firma.
 // Los agentes llaman SOLO a esta capa, nunca a la API de un proveedor.
-class ModelProvider {
-  async generate({ system, messages, maxTokens }) {
-    // returns string
-    throw new Error('Debe implementarse');
-  }
-}
+export function chat(messages) { return getProvider().chat(messages); }
+// messages: [{ role: 'system'|'user', content }] → string
 ```
 
-### Implementaciones
-- `deepseekProvider.js` — candidato A (por comparar)
-- `openaiProvider.js` — candidato B (por comparar)
+### Implementaciones (`src/services/ai/providers/`)
 
-### Selección del proveedor (`config/index.js`)
-- En beta: variable de entorno `AI_PROVIDER=deepseek|openai` + `AI_API_KEY` + `AI_MODEL`.
+| Proveedor | Cuándo se usa | Notas |
+|---|---|---|
+| `deepseek.provider.js` | Por defecto (o `AI_PROVIDER=deepseek`) | `POST api.deepseek.com/chat/completions` con fetch nativo; modelo `deepseek-chat` (o `AI_MODEL`), `temperature: 0`, `max_tokens: 400`; sin `DEEPSEEK_API_KEY` → error visible |
+| `mock.provider.js` | Solo con `AI_PROVIDER=mock` | Heurística por patrones (SEC, FORM 10-Q/10-K, estados financieros); sin coste, para desarrollo |
+| `openai.provider.js` | ⏳ Futuro (candidato GPT) | Misma interfaz |
+
+### Selección del proveedor
+
+- El proveedor activo se resuelve al arrancar: `AI_PROVIDER` si está definido; si no, `deepseek`.
+- La única configuración del usuario es `DEEPSEEK_API_KEY` en `.env` (y `AI_MODEL` opcional).
 - En Fase 5 (suscripciones): el proveedor se elegirá **según el plan del usuario** (free → modelo base, premium → modelo mejor). Mismo código, solo cambia quién elige el provider.
 
 ### Garantía clave
-Los agentes **nunca** importan `deepseek` ni `openai` directamente. Solo usan `modelProvider.get()` que devuelve la implementación activa. Así, cambiar de modelo es editar `.env`, no código de agentes.
+
+Los agentes **nunca** importan `deepseek` ni `mock` directamente. Solo usan `modelProvider.chat()`. Así, cambiar de modelo es editar `.env`, no código de agentes.
 
 ---
 
 ## 7. Flujo completo de un análisis (Fase 1)
 
+### Estado actual (implementado)
+
 ```
 Usuario → sube PDF (multipart) a POST /api/upload
     │
     ▼
-Express recibe archivo → se guarda en uploads/ con nombre único
+Express + multer recibe el archivo en memoria (≤ 25 MB)     [no PDF → 422]
     │
     ▼
-pdf.service extrae el texto del PDF (pdf-parse)
+pdf.service extrae el texto del PDF (pdf-parse 2.4.5)
     │
     ▼
-analysis.service crea registro en analyses (status=processing)
+analysis.service → Pipeline de agentes (por ahora solo origin):
+    OriginAgent → ¿financiero? → No → 422 NOT_FINANCIAL
+                → ¿EE. UU.?    → No → 422 NOT_USA
+                → ¿10-Q/10-K?  → No → 422 NOT_10Q_10K
+                → Sí → { origin: 'US', formType }
     │
     ▼
-Pipeline de agentes:
-    OriginAgent  → ¿EE. UU.?  → No → error guardado, status=error
-    SectorAgent  → ¿Consumo defensivo? → No → error guardado, status=error
-    AnalystAgent → genera informe (usa la capa de modelos)
-    │
-    ▼
-Se guarda report + status=done en analyses
-    │
-    ▼
-Respuesta JSON al frontend → resultado.html muestra el informe
+Respuesta JSON al frontend → el panel muestra veredicto o error
+```
+
+### Queda pendiente en el flujo
+
+```
+[Pendiente] guardar el PDF en uploads/ con nombre único
+[Pendiente] crear registro en analyses (status=processing) al empezar
+[Pendiente] SectorAgent → ¿consumo defensivo? → No → error guardado, status=error
+[Pendiente] AnalystAgent → genera informe (usa la capa de modelos)
+[Pendiente] guardar report + status=done en analyses
+[Pendiente] GET /api/analyses para el histórico real
 ```
 
 ### Endpoints API (beta)
 
-| Método | Ruta | Función |
-|---|---|---|
-| `POST` | `/api/upload` | Sube PDF y lanza el análisis (multipart) |
-| `GET` | `/api/analyses` | Lista de análisis realizados (histórico) |
-| `GET` | `/api/analyses/:id` | Detalle de un análisis (incluye report JSONB) |
-| `POST` | `/api/auth/register` | Registro de usuario (email + contraseña ≥ 8) → cookie de sesión |
-| `POST` | `/api/auth/login` | Inicio de sesión → cookie de sesión |
-| `POST` | `/api/auth/logout` | Cierra la sesión (borra la cookie) |
-| `GET` | `/api/auth/me` | Usuario actual (requiere cookie válida) |
+| Método | Ruta | Función | Estado |
+|---|---|---|---|
+| `POST` | `/api/upload` | Sube PDF y verifica origen/tipo (multipart) | ✅ Implementado |
+| `GET` | `/api/analyses` | Lista de análisis realizados (histórico) | ⏳ Pendiente |
+| `GET` | `/api/analyses/:id` | Detalle de un análisis (incluye report JSONB) | ⏳ Pendiente |
+| `POST` | `/api/auth/register` | Registro de usuario (email + contraseña ≥ 8) → cookie de sesión | ✅ Implementado |
+| `POST` | `/api/auth/login` | Inicio de sesión → cookie de sesión | ✅ Implementado |
+| `POST` | `/api/auth/logout` | Cierra la sesión (borra la cookie) | ✅ Implementado |
+| `GET` | `/api/auth/me` | Usuario actual (requiere cookie válida) | ✅ Implementado |
 
 *(Fase 2 añadirá: `GET /api/companies?q=TAP`, `GET /api/companies/:ticker/filings`, `GET /api/filings/:id/analyze`)*
 
@@ -301,11 +320,11 @@ Respuesta JSON al frontend → resultado.html muestra el informe
 |---|---|---|
 | 1 | **Scaffolding**: Express, `config/`, `server.js` con `/api/health` | ✅ Hecho |
 | 2 | **PostgreSQL**: `db/pool.js`, `db/schema.sql`, tablas `users` y `analyses` | ✅ Hecho (+ repositorios y seed) |
-| 3 | **Capa de modelos IA**: `modelProvider.js` + proveedor (mock primero) | ⏳ Pendiente |
-| 4 | **Sistema de agentes**: `baseAgent.js`, `agentRegistry.js`, 3 agentes beta | ⏳ Pendiente |
-| 5 | **PDF**: `pdf.service.js` (pdf-parse) + `POST /api/upload` | ⏳ Pendiente |
-| 6 | **Pipeline**: `analysis.service.js` conectando todo + guardado en BD | ⏳ Pendiente |
-| 7 | **Frontend puro**: `public/index.html` + resultados + `js/main.js` | ✅ Hecho (rediseño "Terminal Cifra"; demo, pendiente conectar API) |
+| 3 | **Capa de modelos IA**: `modelProvider.js` + proveedores (`deepseek` real, `mock` heurístico) | ✅ Hecho (falta probar con key real) |
+| 4 | **Sistema de agentes**: `baseAgent.js`, `agentRegistry.js`, `originAgent` | ✅ Hecho y probado; `sectorAgent` y `analystAgent` ⏳ |
+| 5 | **PDF**: `pdf.service.js` (pdf-parse 2.4.5) + `POST /api/upload` | ✅ Hecho y probado |
+| 6 | **Pipeline**: `analysis.service.js` con origin conectado; guardado en BD y resto de agentes ⏳ | 🔶 Parcial |
+| 7 | **Frontend puro**: `public/` + subida real conectada a la API | ✅ Hecho (estados de agentes + errores en pantalla) |
 | 8 | **Histórico**: `GET /api/analyses` + vista de historial | 🔶 Repositorio listo; endpoint y vista pendientes |
 | 9 | **Formato del informe** con los informes de referencia del usuario | ⏳ Pendiente |
 | 10 | **Autenticación** (registro/login, bcrypt, sesión JWT en cookie) | ✅ Hecho y probado |
@@ -317,10 +336,10 @@ Respuesta JSON al frontend → resultado.html muestra el informe
 ## 9. Decisiones de arquitectura pendientes
 
 | Decisión | Impacto |
-|---|---|
+|---|---|---|
 | **Formato exacto del report JSONB** | Define el prompt del AnalystAgent y la vista de resultados. Se fija cuando el usuario aporte sus informes de referencia |
-| **Librería de PDF concreta** | `pdf-parse` (sencilla) vs `pdfjs-dist` (más completa). Decidir en el paso 5 |
-| **Modelo concreto (DeepSeek vs GPT)** | No bloquea: la capa de abstracción permite empezar con cualquiera |
+| **Librería de PDF** | ✅ Decidida: `pdf-parse` 2.4.5 (API `PDFParse`/`getText()`, compatible ESM) |
+| **Modelo concreto (DeepSeek vs GPT)** | 🔶 En prueba: provider DeepSeek implementado (falta key real); GPT como proveedor futuro con la misma interfaz |
 | **Límites del plan free** | Afecta solo a Fase 5, pero el campo `plan` ya existe |
 
 ---

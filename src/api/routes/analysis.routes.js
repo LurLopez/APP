@@ -23,7 +23,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
     }
 
     const result = await analyzePdf(req.file.buffer);
-    res.json({ ok: true, origin: result.origin, formType: result.formType });
+    res.json({ ok: true, origin: result.origin, formType: result.formType, sector: result.sector });
   } catch (error) {
     if (error instanceof multer.MulterError) {
       const message = error.code === 'LIMIT_FILE_SIZE'

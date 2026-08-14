@@ -1,4 +1,5 @@
 import { OriginAgent } from './originAgent.js';
+import { SectorAgent } from './sectorAgent.js';
 
 const agents = new Map();
 
@@ -15,3 +16,4 @@ export function listAgents() {
 }
 
 registerAgent(new OriginAgent());
+registerAgent(new SectorAgent());

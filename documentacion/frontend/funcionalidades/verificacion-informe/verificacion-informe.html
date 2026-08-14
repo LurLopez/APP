@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verificación del informe (10-Q / 10-K) — Frontend | Cifra</title>
+<style>
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
+  .wrap { max-width:900px; margin:0 auto; padding:38px 20px 60px; }
+  header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
+  .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  h1 { margin:0 0 8px; font-size:28px; }
+  .sub { color:var(--muted); margin:0; font-size:14px; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  h2 { margin:34px 0 10px; font-size:20px; }
+  p { margin:8px 0; }
+  ul { margin:8px 0; padding-left:22px; }
+  code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
+  table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
+  th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:#fff7e8; font-size:13px; }
+  .states td:first-child { font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / frontend / funcionalidades / verificacion-informe</div>
+    <h1>Verificación del informe (10-Q / 10-K) — Frontend</h1>
+    <p class="sub">Subida del PDF y verificación real contra la API: estados de los agentes, errores en pantalla y botones de acción.</p>
+    <span class="badge">✓ Implementado y conectado a la API real · 2026-08-12</span>
+  </header>
+
+  <h2>Qué hace</h2>
+  <p>El usuario sube un PDF (arrastrando o seleccionándolo), pulsa <strong>"Analizar informe"</strong> y el documento se envía a <code>POST /api/upload</code>. En pantalla se ve el agente <strong>Verificador de origen</strong> procesando; al terminar: <strong>✓ Completado</strong> con el tipo detectado (10-Q / 10-K) o <strong>✕ Error</strong> con el mensaje del servidor.</p>
+
+  <h2>Flujo</h2>
+  <ol>
+    <li>Seleccionar PDF → validación cliente (tipo y ≤ 25 MB) → preview con nombre, tamaño y botón de quitar.</li>
+    <li>"Analizar informe" → panel de análisis visible, agente origin en <em>Procesando</em>, contador en marcha.</li>
+    <li><code>fetch POST /api/upload</code> con el PDF.</li>
+    <li><strong>Éxito</strong> → "Documento verificado: 10-Q" + toast + botón "Analizar otro informe".</li>
+    <li><strong>Error</strong> → caja roja con el mensaje exacto del servidor + botón "Reintentar" (conserva el archivo).</li>
+  </ol>
+
+  <h2>Estados del panel</h2>
+  <table class="states">
+    <tr><th>Elemento</th><th>En curso</th><th>Éxito</th><th>Error</th></tr>
+    <tr><td>Título</td><td>Verificando el documento...</td><td>Documento verificado: 10-Q</td><td>No se pudo verificar el documento</td></tr>
+    <tr><td>Agente origin</td><td>Procesando (naranja)</td><td>✓ Completado (verde)</td><td>✕ Error (rojo)</td></tr>
+    <tr><td>Sector y analista</td><td colspan="3">En espera (pendientes del pipeline)</td></tr>
+    <tr><td>Caja de error</td><td>oculta</td><td>oculta</td><td class="err">visible</td></tr>
+    <tr><td>Botón</td><td>oculto</td><td>Analizar otro informe</td><td>Reintentar</td></tr>
+    <tr><td>Barra de progreso</td><td>20 %</td><td>34 %</td><td>100 %</td></tr>
+  </table>
+
+  <h2>Errores que se ven en pantalla</h2>
+  <table>
+    <tr><th>Situación</th><th>Mensaje en pantalla</th></tr>
+    <tr><td>PDF no financiero</td><td class="err">"Este documento no es un informe financiero (10-Q / 10-K)."</td></tr>
+    <tr><td>No es de EE. UU.</td><td class="err">"Este informe no es de una empresa de EE. UU."</td></tr>
+    <tr><td>No es 10-Q ni 10-K</td><td class="err">"El documento no es un FORM 10-Q ni un FORM 10-K."</td></tr>
+    <tr><td>Archivo no PDF</td><td class="err">"Solo se admiten archivos PDF."</td></tr>
+    <tr><td>Falta la API key de DeepSeek</td><td class="err">"Falta DEEPSEEK_API_KEY en el archivo .env"</td></tr>
+    <tr><td>Servidor apagado</td><td class="err">"No se pudo conectar con el servidor. Comprueba que esté en marcha."</td></tr>
+  </table>
+
+  <h2>Qué incluye / excluye</h2>
+  <p><strong>Incluye:</strong> dropzone con arrastrar y soltar, validación cliente, preview del archivo, llamada real a la API, estados por agente (espera/procesando/completado/error), errores del servidor en pantalla, reintentar, analizar otro informe.</p>
+  <p><strong>Excluye (pendiente):</strong> ejecución visual de los agentes de sector y analista, informe final, histórico real del usuario.</p>
+
+  <h2>Archivos implicados</h2>
+  <table>
+    <tr><th>Archivo</th><th>Función</th></tr>
+    <tr><td><code>public/index.html</code></td><td>Dropzone, formulario, panel de procesamiento (3 agentes, error, retry) y preview de resultado.</td></tr>
+    <tr><td><code>public/app.js</code></td><td>Validación, <code>runRealAnalysis()</code> (fetch), estados de agentes, <code>showAnalysisError()</code>.</td></tr>
+    <tr><td><code>public/styles.css</code></td><td>Estilos de estados (activo/✓/✕), caja de error roja, botón de reintentar.</td></tr>
+  </table>
+
+  <div class="note">La demo simulada del pipeline se eliminó: el flujo ahora es real. Cuando el pipeline implemente sector y analista, sus filas pasarán de "En espera" a estados reales.</div>
+</div>
+</body>
+</html>

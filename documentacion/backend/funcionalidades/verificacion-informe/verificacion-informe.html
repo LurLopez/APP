@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verificación del informe (10-Q / 10-K) — Backend | Cifra</title>
+<style>
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
+  .wrap { max-width:900px; margin:0 auto; padding:38px 20px 60px; }
+  header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
+  .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  h1 { margin:0 0 8px; font-size:28px; }
+  .sub { color:var(--muted); margin:0; font-size:14px; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
+  h2 { margin:34px 0 10px; font-size:20px; }
+  p { margin:8px 0; }
+  ul { margin:8px 0; padding-left:22px; }
+  code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
+  table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
+  th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:#fff7e8; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / backend / funcionalidades / verificacion-informe</div>
+    <h1>Verificación del informe (10-Q / 10-K) — Backend</h1>
+    <p class="sub">API de subida y verificación: ¿el PDF es un informe financiero 10-Q o 10-K de una empresa de EE. UU.?</p>
+    <span class="badge">✓ Verificación de origen implementada y probada · 2026-08-12</span>
+    <span class="badge wip">⏳ Sector y analista pendientes</span>
+  </header>
+
+  <h2>Qué hace</h2>
+  <p>Recibe el PDF subido por el usuario, extrae su texto y lo pasa por el <strong>agente verificador de origen</strong>, que decide si es un informe financiero <strong>10-Q o 10-K de una empresa de EE. UU.</strong> Si no lo es, devuelve un error claro que se muestra en pantalla.</p>
+
+  <h2>Endpoint</h2>
+  <table>
+    <tr><th>Método</th><th>Ruta</th><th>Qué hace</th><th>Respuestas</th></tr>
+    <tr><td>POST</td><td><code>/api/upload</code></td><td>Sube el PDF (multipart, campo <code>file</code>, ≤ 25 MB) y lo verifica</td><td>200 · 400 · 422 · 500</td></tr>
+  </table>
+
+  <pre><code># Éxito
+{ "ok": true, "origin": "US", "formType": "10-Q" }
+
+# Error (422, AgentError)
+{ "error": "Este documento no es un informe financiero (10-Q / 10-K).", "code": "NOT_FINANCIAL" }</code></pre>
+
+  <h2>Cómo funciona</h2>
+  <ol>
+    <li><strong>Multer</strong> recibe el archivo en memoria (máx. 25 MB) y se comprueba que sea PDF (mimetype o extensión).</li>
+    <li><strong>pdf-parse</strong> extrae el texto del PDF (<code>pdf.service.js</code>).</li>
+    <li><strong>originAgent</strong> envía el texto (truncado a 80.000 caracteres) a la <strong>capa de modelos IA</strong> y espera <code>{"isFinancial": bool, "isUsa": bool, "formType": ...}</code>.</li>
+    <li>Si algo falla se devuelve un <code>AgentError</code> con mensaje en español; si todo pasa, <code>{ origin: 'US', formType }</code>.</li>
+  </ol>
+
+  <h2>Modelos IA (capa de abstracción)</h2>
+  <p>El agente nunca llama a la API de un proveedor: habla con <code>modelProvider.chat(messages)</code>.</p>
+  <table>
+    <tr><th>Proveedor</th><th>Cuándo</th><th>Qué hace</th></tr>
+    <tr><td><strong>deepseek</strong></td><td>Por defecto</td><td>Llamada real a <code>api.deepseek.com</code> (modelo <code>deepseek-chat</code>, <code>temperature: 0</code>). Sin <code>DEEPSEEK_API_KEY</code> → error visible.</td></tr>
+    <tr><td><strong>mock</strong></td><td>Solo con <code>AI_PROVIDER=mock</code></td><td>Heurística local con patrones (SEC, FORM 10-Q/10-K, estados financieros). Sin coste, para desarrollo.</td></tr>
+  </table>
+
+  <h2>Errores visibles en pantalla</h2>
+  <table>
+    <tr><th>Situación</th><th>Respuesta</th></tr>
+    <tr><td>PDF no financiero</td><td class="err">422 "Este documento no es un informe financiero (10-Q / 10-K)."</td></tr>
+    <tr><td>Financiero de otro país</td><td class="err">422 "Este informe no es de una empresa de EE. UU."</td></tr>
+    <tr><td>Sin FORM 10-Q/10-K</td><td class="err">422 "El documento no es un FORM 10-Q ni un FORM 10-K."</td></tr>
+    <tr><td>Archivo no PDF</td><td class="err">422 "Solo se admiten archivos PDF."</td></tr>
+    <tr><td>PDF sin texto extraíble</td><td class="err">422 "No se pudo leer el contenido del documento."</td></tr>
+    <tr><td>Sin <code>DEEPSEEK_API_KEY</code></td><td class="err">500 "Falta DEEPSEEK_API_KEY en el archivo .env"</td></tr>
+  </table>
+
+  <h2>Qué incluye / excluye</h2>
+  <p><strong>Incluye:</strong> subida multipart, extracción de texto, verificación financiero + EE. UU. + 10-Q/10-K, capa de modelos (deepseek/mock), errores con código.</p>
+  <p><strong>Excluye (pendiente):</strong> verificación de sector, analista principal, guardado en BD (<code>analyses</code>), guardado del PDF en <code>uploads/</code>, asociación al usuario.</p>
+
+  <h2>Pruebas</h2>
+  <p>10 casos verificados: 5 del agente con texto (10-Q ✓, 10-K ✓, no financiero ✗, no EE. UU. ✗, sin FORM ✗) y 5 del endpoint con curl (PDF normal 422, PDF 10-Q 200, sin archivo 400, .txt 422, sin key 500).</p>
+
+  <h2>Configuración (solo API key)</h2>
+  <pre><code># .env
+DEEPSEEK_API_KEY=sk-...   # sin ella el análisis no funciona
+# AI_MODEL=deepseek-chat  # opcional</code></pre>
+
+  <div class="note">Pendiente: probar con una key real de DeepSeek; encadenar sectorAgent y analystAgent; guardar el análisis en el histórico.</div>
+</div>
+</body>
+</html>

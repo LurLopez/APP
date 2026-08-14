@@ -94,9 +94,10 @@ function resetAgentStates() {
   });
 }
 
-function showAnalysisError(message) {
+function showAnalysisError(message, failedAgent = 'origin') {
   lastAnalysisFailed = true;
-  setAgentState('origin', 'error');
+  if (failedAgent === 'sector') setAgentState('origin', 'done');
+  setAgentState(failedAgent, 'error');
   const errorBox = document.querySelector('#analysis-error');
   errorBox.textContent = message;
   errorBox.hidden = false;
@@ -104,7 +105,9 @@ function showAnalysisError(message) {
   retryButton.textContent = 'Reintentar';
   retryButton.hidden = false;
   document.querySelector('#processing-note').hidden = true;
-  processingTitle.textContent = 'No se pudo verificar el documento';
+  processingTitle.textContent = failedAgent === 'sector'
+    ? 'La empresa no es de consumo defensivo'
+    : 'No se pudo verificar el documento';
   progressBar.style.width = '100%';
   clearInterval(analysisTimer);
 }
@@ -138,19 +141,21 @@ async function runRealAnalysis() {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      showAnalysisError(data.error || 'No se pudo analizar el documento. Inténtalo de nuevo.');
+      const failedAgent = data.code === 'NOT_DEFENSIVE_CONSUMER' ? 'sector' : 'origin';
+      showAnalysisError(data.error || 'No se pudo analizar el documento. Inténtalo de nuevo.', failedAgent);
       return;
     }
 
     setAgentState('origin', 'done');
+    setAgentState('sector', 'done');
     lastAnalysisFailed = false;
-    progressBar.style.width = '34%';
-    processingTitle.textContent = `Documento verificado: ${data.formType}`;
+    progressBar.style.width = '60%';
+    processingTitle.textContent = `Documento verificado: ${data.formType} · Sector defensivo`;
     clearInterval(analysisTimer);
     const retryButton = document.querySelector('#retry-analysis');
     retryButton.textContent = 'Analizar otro informe';
     retryButton.hidden = false;
-    showToast(`Documento identificado como ${data.formType}. El resto del pipeline llegará pronto.`);
+    showToast(`Documento identificado como ${data.formType} de consumo defensivo. El informe del analista llegará pronto.`);
   } catch {
     showAnalysisError('No se pudo conectar con el servidor. Comprueba que esté en marcha.');
   }

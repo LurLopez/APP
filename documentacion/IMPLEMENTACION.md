@@ -13,7 +13,7 @@
 | Base de datos PostgreSQL | ✅ Tablas creadas + datos demo + probada |
 | Capa de datos (repositorios) | ✅ `analysisRepository` + `userRepository` |
 | Autenticación (backend + frontend) | ✅ Probada 8/8 |
-| Pipeline de análisis IA (agentes) | 🔶 `originAgent` (verificador 10-Q/10-K EE. UU.) implementado y probado; `sectorAgent` y `analystAgent` pendientes |
+| Pipeline de análisis IA (agentes) | 🔶 `originAgent` + `sectorAgent` implementados y probados (mock); `analystAgent` pendiente |
 | Frontend (diseño Terminal Cifra) | ✅ Rediseñado, flujo demo funcional |
 | Subida de PDF real (`POST /api/upload`) | ✅ Funcional: extrae texto → originAgent → veredicto o error visible en pantalla |
 | Histórico real en el frontend (`GET /api/analyses`) | ⏳ Pendiente (la BD ya lo guarda) |
@@ -110,8 +110,9 @@
 - **Sistema de agentes** (`src/agents/`):
   - `baseAgent.js`: clase `BaseAgent` (nombre, descripción, `run()`) + `AgentError` (mensaje + código) para errores controlados del agente.
   - `originAgent.js`: recibe `{ text }`, envía prompt (system) + documento (máx. 80.000 caracteres) a la capa de modelos, valida el JSON de respuesta y devuelve `{ origin: 'US', formType: '10-Q'|'10-K' }`. Errores con mensajes claros en español: `EMPTY_DOCUMENT`, `INVALID_MODEL_RESPONSE`, `NOT_FINANCIAL` ("Este documento no es un informe financiero (10-Q / 10-K)."), `NOT_USA` ("Este informe no es de una empresa de EE. UU."), `NOT_10Q_10K`.
-  - `agentRegistry.js`: registro de agentes por nombre (`registerAgent`, `getAgent`, `listAgents`); el agente origin queda registrado al importar.
-- **Pruebas**: 5/5 casos correctos (10-Q válido, 10-K válido, no financiero, no estadounidense, sin FORM 10-Q/10-K).
+  - `sectorAgent.js`: verifica consumo defensivo (bebidas, alimentos, tabaco, hogar, cuidado personal, retail de alimentación; contraejemplos listados en el prompt; sin evidencia → rechazo). Devuelve `{ sector: 'defensive_consumer' }` o `NOT_DEFENSIVE_CONSUMER` ("Este informe no corresponde al sector de consumo defensivo.").
+  - `agentRegistry.js`: registro de agentes por nombre (`registerAgent`, `getAgent`, `listAgents`); origin y sector quedan registrados al importar.
+- **Pruebas**: 5/5 casos de origen (10-Q válido, 10-K válido, no financiero, no estadounidense, sin FORM 10-Q/10-K) + sector probado vía endpoint (Molson Coors ✓, Apple ✗).
 
 ### 2.7. Subida real de PDF conectada al pipeline (POST /api/upload)
 
@@ -212,9 +213,9 @@ Endpoints disponibles:
 1. **Asociar análisis al usuario**: al crear análisis, usar `req.user.id` de `requireAuth`; filtrar `listAnalyses` por usuario.
 2. **`GET /api/analyses` + `GET /api/analyses/:id`**: endpoints + historial real en el frontend (sustituir la tabla estática).
 3. **Subida de PDF real**: ✅ `POST /api/upload` + `pdf.service.js` (pdf-parse) + originAgent conectado; ⏳ guardar el PDF en `uploads/` y el análisis en `analyses`.
-4. **Sistema de agentes**: ✅ `baseAgent.js`, `agentRegistry.js` y `originAgent` (mock) listos y probados; ⏳ `sectorAgent` y `analystAgent`.
+4. **Sistema de agentes**: ✅ `baseAgent.js`, `agentRegistry.js`, `originAgent` y `sectorAgent` (mock) listos y probados; ⏳ `analystAgent`.
 5. **Capa de modelos IA**: ✅ `modelProvider.js` + `deepseekProvider` (sin key falla con error visible; `AI_PROVIDER=mock` para desarrollo); falta probar con key real.
-6. **Pipeline**: ✅ `analysis.service.js` con origin conectado; ⏳ encadenar sector/analista y guardar en `analyses`.
+6. **Pipeline**: ✅ `analysis.service.js` con origin + sector conectados; ⏳ encadenar analista y guardar en `analyses`.
 7. **Definir formato del informe** final con los informes de referencia del usuario.
 8. **Fase 2**: buscador real de empresas (API EDGAR/SEC), histórico de filings, ver PDF, analizar desde el buscador.
 9. **Fase 5**: suscripciones y planes (campo `plan` ya existe; límites por plan).
@@ -252,6 +253,7 @@ app/
 │   ├── agents/                   # Sistema de agentes IA
 │   │   ├── baseAgent.js          # BaseAgent + AgentError
 │   │   ├── originAgent.js        # Verificador: financiero + 10-Q/10-K + EE. UU.
+│   │   ├── sectorAgent.js        # Verificador: consumo defensivo
 │   │   └── agentRegistry.js      # Registro de agentes por nombre
 │   ├── middleware/
 │   │   ├── auth.middleware.js    # requireAuth (JWT)
@@ -264,8 +266,10 @@ app/
 │   └── auth.js                   # Modal login/registro y sesión
 ├── uploads/                      # PDFs (vacío por ahora)
 ├── documentacion/                # PROYECTO*.md, ARQUITECTURA.md, IMPLEMENTACION.md
-│   ├── backend/funcionalidades/register/      # Doc backend de registro/login
-│   ├── frontend/funcionalidades/register/     # Doc frontend de registro/login
+│   ├── backend/funcionalidades/register/            # Doc backend de registro/login
+│   ├── backend/funcionalidades/verificacion-informe/ # Doc backend: subida + verificación 10-Q/10-K
+│   ├── frontend/funcionalidades/register/           # Doc frontend de registro/login
+│   ├── frontend/funcionalidades/verificacion-informe/ # Doc frontend: subida + verificación
 │   └── diario/YYYY/MM/YYYY-MM-DD.md           # Registro diario de cambios
 ├── agentes/ → ~/.config/opencode/agent/   (enlace, no versionado)
 └── PROYECTO.md → documentacion/PROYECTO.md (enlace, no versionado)
