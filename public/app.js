@@ -23,6 +23,7 @@ const searchResults = document.querySelector('#search-results');
 let selectedFile = null;
 let toastTimer;
 let analysisTimer;
+let lastAnalysisFailed = true;
 
 function showToast(message) {
   toast.textContent = message;
@@ -69,7 +70,7 @@ function setAgentState(agent, state) {
   const row = document.querySelector(`[data-agent="${agent}"]`);
   if (!row) return;
 
-  row.classList.remove('active', 'done');
+  row.classList.remove('active', 'done', 'error');
   const stateLabel = row.querySelector('.agent-state');
   if (state === 'active') {
     row.classList.add('active');
@@ -79,54 +80,80 @@ function setAgentState(agent, state) {
     row.classList.add('done');
     stateLabel.textContent = 'Completado';
   }
+  if (state === 'error') {
+    row.classList.add('error');
+    stateLabel.textContent = 'Error';
+  }
 }
 
 function resetAgentStates() {
   ['origin', 'sector', 'analyst'].forEach((agent) => {
     const row = document.querySelector(`[data-agent="${agent}"]`);
-    row.classList.remove('active', 'done');
+    row.classList.remove('active', 'done', 'error');
     row.querySelector('.agent-state').textContent = 'En espera';
   });
 }
 
-function runDemoAnalysis() {
+function showAnalysisError(message) {
+  lastAnalysisFailed = true;
+  setAgentState('origin', 'error');
+  const errorBox = document.querySelector('#analysis-error');
+  errorBox.textContent = message;
+  errorBox.hidden = false;
+  const retryButton = document.querySelector('#retry-analysis');
+  retryButton.textContent = 'Reintentar';
+  retryButton.hidden = false;
+  document.querySelector('#processing-note').hidden = true;
+  processingTitle.textContent = 'No se pudo verificar el documento';
+  progressBar.style.width = '100%';
+  clearInterval(analysisTimer);
+}
+
+async function runRealAnalysis() {
   clearInterval(analysisTimer);
   let seconds = 1;
-  let step = 0;
-  const agents = ['origin', 'sector', 'analyst'];
-  const titles = ['Comprobando el origen...', 'Validando el sector...', 'Construyendo el informe...'];
 
   processingPanel.hidden = false;
   resultPreview.hidden = true;
   uploadForm.hidden = true;
   resetAgentStates();
-  progressBar.style.width = '4%';
-  processingTitle.textContent = titles[0];
+  document.querySelector('#analysis-error').hidden = true;
+  document.querySelector('#retry-analysis').hidden = true;
+  document.querySelector('#processing-note').hidden = false;
+  progressBar.style.width = '20%';
+  processingTitle.textContent = 'Verificando el documento...';
   processingTime.textContent = '00:01';
-  setAgentState(agents[0], 'active');
+  setAgentState('origin', 'active');
 
   analysisTimer = setInterval(() => {
     seconds += 1;
     processingTime.textContent = `00:${String(seconds).padStart(2, '0')}`;
+  }, 1000);
 
-    if (step < agents.length - 1) {
-      setAgentState(agents[step], 'done');
-      step += 1;
-      setAgentState(agents[step], 'active');
-      processingTitle.textContent = titles[step];
-      progressBar.style.width = `${(step + 1) * 30 + 4}%`;
-    } else {
-      setAgentState(agents[step], 'done');
-      progressBar.style.width = '100%';
-      processingTitle.textContent = 'Análisis completado';
-      clearInterval(analysisTimer);
-      setTimeout(() => {
-        processingPanel.hidden = true;
-        resultPreview.hidden = false;
-        showToast('El análisis de demostración está listo.');
-      }, 650);
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    const response = await fetch('/api/upload', { method: 'POST', body: formData });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      showAnalysisError(data.error || 'No se pudo analizar el documento. Inténtalo de nuevo.');
+      return;
     }
-  }, 1050);
+
+    setAgentState('origin', 'done');
+    lastAnalysisFailed = false;
+    progressBar.style.width = '34%';
+    processingTitle.textContent = `Documento verificado: ${data.formType}`;
+    clearInterval(analysisTimer);
+    const retryButton = document.querySelector('#retry-analysis');
+    retryButton.textContent = 'Analizar otro informe';
+    retryButton.hidden = false;
+    showToast(`Documento identificado como ${data.formType}. El resto del pipeline llegará pronto.`);
+  } catch {
+    showAnalysisError('No se pudo conectar con el servidor. Comprueba que esté en marcha.');
+  }
 }
 
 selectFileButton.addEventListener('click', (event) => {
@@ -164,7 +191,13 @@ dropzone.addEventListener('drop', (event) => setFile(event.dataTransfer.files[0]
 uploadForm.addEventListener('submit', (event) => {
   event.preventDefault();
   if (!selectedFile) return;
-  runDemoAnalysis();
+  runRealAnalysis();
+});
+
+document.querySelector('#retry-analysis').addEventListener('click', () => {
+  processingPanel.hidden = true;
+  uploadForm.hidden = false;
+  if (!lastAnalysisFailed) clearFile();
 });
 
 document.querySelector('#new-analysis').addEventListener('click', () => {

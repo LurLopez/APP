@@ -245,6 +245,11 @@ h1, h2, h3, p { margin-top: 0; }
 .agent-row.done { border-color: #bde0c1; }
 .agent-row.done .agent-number, .agent-row.done .agent-state { color: var(--green); }
 .agent-row.done .agent-state::before { content: "✓ "; }
+.agent-row.error { border-color: var(--red); background: #fdf3f3; }
+.agent-row.error .agent-number, .agent-row.error .agent-state { color: var(--red); }
+.agent-row.error .agent-state::before { content: "✕ "; }
+.analysis-error { margin: 12px 0 0; padding: 9px 11px; border: 1px solid var(--red); border-radius: 4px; background: #fdf3f3; color: var(--red); font-size: 11px; line-height: 1.45; }
+.retry-button { margin-top: 10px; }
 .progress-track { height: 3px; margin-top: 15px; overflow: hidden; border-radius: 4px; background: #e5e5e5; }
 .progress-track span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--orange); transition: width .7s ease; }
 .demo-disclaimer { margin: 12px 0 0; color: #999; font-size: 9px; }

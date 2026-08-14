@@ -153,7 +153,18 @@
                 <div class="form-footer"><p><span class="info-icon">i</span> El documento se comprobará antes de generar el informe.</p><button class="primary-button" id="analyze-button" type="submit" disabled>Analizar informe <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></div>
               </form>
 
-              <div class="processing-panel" id="processing-panel" hidden><div class="processing-head"><div><span class="section-index">ANÁLISIS EN CURSO</span><h3 id="processing-title">Leyendo tu informe...</h3></div><span class="processing-time" id="processing-time">00:01</span></div><div class="agent-list"><div class="agent-row" data-agent="origin"><span class="agent-number">01</span><div><strong>Verificador de origen</strong><span>¿La empresa es de EE. UU.?</span></div><span class="agent-state">En espera</span></div><div class="agent-row" data-agent="sector"><span class="agent-number">02</span><div><strong>Verificador de sector</strong><span>¿Es consumo defensivo?</span></div><span class="agent-state">En espera</span></div><div class="agent-row" data-agent="analyst"><span class="agent-number">03</span><div><strong>Analista principal</strong><span>Extrayendo señales financieras</span></div><span class="agent-state">En espera</span></div></div><div class="progress-track"><span id="progress-bar"></span></div><p class="demo-disclaimer">Vista de demostración: el pipeline real se conectará a <code>POST /api/upload</code>.</p></div>
+              <div class="processing-panel" id="processing-panel" hidden>
+                <div class="processing-head"><div><span class="section-index">ANÁLISIS EN CURSO</span><h3 id="processing-title">Leyendo tu informe...</h3></div><span class="processing-time" id="processing-time">00:01</span></div>
+                <div class="agent-list">
+                  <div class="agent-row" data-agent="origin"><span class="agent-number">01</span><div><strong>Verificador de origen</strong><span>¿La empresa es de EE. UU.?</span></div><span class="agent-state">En espera</span></div>
+                  <div class="agent-row" data-agent="sector"><span class="agent-number">02</span><div><strong>Verificador de sector</strong><span>¿Es consumo defensivo?</span></div><span class="agent-state">En espera</span></div>
+                  <div class="agent-row" data-agent="analyst"><span class="agent-number">03</span><div><strong>Analista principal</strong><span>Extrayendo señales financieras</span></div><span class="agent-state">En espera</span></div>
+                </div>
+                <div class="progress-track"><span id="progress-bar"></span></div>
+                <p class="analysis-error" id="analysis-error" hidden></p>
+                <button class="secondary-button retry-button" id="retry-analysis" type="button" hidden>Reintentar</button>
+                <p class="demo-disclaimer" id="processing-note">El documento se verifica automáticamente antes de continuar.</p>
+              </div>
 
               <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3>La lectura preliminar está lista</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-grid"><div class="result-score"><span class="score-label">Señal general</span><strong class="up">Positiva</strong><span class="score-bar"><i></i></span></div><div class="result-metric"><span>Ingresos interanuales</span><strong class="up">+4,8 %</strong><small>Mejora moderada</small></div><div class="result-metric"><span>Margen operativo</span><strong>18,2 %</strong><small>Estable</small></div></div><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button></div>
             </div>

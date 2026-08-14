@@ -12,10 +12,10 @@
 | Scaffolding Node/Express | ✅ Completado |
 | Base de datos PostgreSQL | ✅ Tablas creadas + datos demo + probada |
 | Capa de datos (repositorios) | ✅ `analysisRepository` + `userRepository` |
-| Registro / Inicio de sesión | ✅ Backend + frontend, probado 8/8 |
+| Autenticación (backend + frontend) | ✅ Probada 8/8 |
+| Pipeline de análisis IA (agentes) | 🔶 `originAgent` (verificador 10-Q/10-K EE. UU.) implementado y probado; `sectorAgent` y `analystAgent` pendientes |
 | Frontend (diseño Terminal Cifra) | ✅ Rediseñado, flujo demo funcional |
-| Pipeline de análisis IA (agentes) | ⏳ Pendiente |
-| Subida de PDF real (`POST /api/upload`) | ⏳ Pendiente |
+| Subida de PDF real (`POST /api/upload`) | ✅ Funcional: extrae texto → originAgent → veredicto o error visible en pantalla |
 | Histórico real en el frontend (`GET /api/analyses`) | ⏳ Pendiente (la BD ya lo guarda) |
 | Buscador de empresas (Fase 2) | ⏳ Pendiente (buscador visual demo en la web) |
 | Asociar análisis al usuario conectado | ⏳ Pendiente |
@@ -102,6 +102,27 @@
 - `index.html`: modal de autenticación, botones en la topbar, tarjeta de cuenta en el sidebar, carga de `auth.js` tras `app.js`.
 - `styles.css`: estilos del modal, `.ghost-button`, `.user-chip`, `.user-avatar`, `.account-action`. Incluye la regla global `[hidden] { display: none !important; }` (fix 2026-08-12: el CSS con `display` anulaba el atributo `hidden` y el modal no se cerraba).
 
+### 2.6. Sistema de agentes IA — Agente verificador de origen (pipeline)
+
+- **Capa de modelos IA** (`src/services/ai/modelProvider.js`): los agentes solo hablan con esta capa. Proveedor activo por defecto: `deepseek`. **Sin `DEEPSEEK_API_KEY` el análisis falla con error visible** ("Falta DEEPSEEK_API_KEY en el archivo .env"). El `mock` solo se usa si se fuerza con `AI_PROVIDER=mock` (desarrollo interno).
+- **Provider mock** (`src/services/ai/providers/mock.provider.js`): heurística por patrones sobre el texto del documento (SEC/Washington para EE. UU., `FORM 10-Q`/`FORM 10-K`, estados financieros). Devuelve JSON igual que lo haría un modelo real. Sin coste.
+- **Provider DeepSeek** (`src/services/ai/providers/deepseek.provider.js`): llama a `https://api.deepseek.com/chat/completions` con fetch nativo, modelo `deepseek-chat` (o `AI_MODEL`), `temperature: 0`, `max_tokens: 400`. Limpia respuestas envueltas en ```json```.
+- **Sistema de agentes** (`src/agents/`):
+  - `baseAgent.js`: clase `BaseAgent` (nombre, descripción, `run()`) + `AgentError` (mensaje + código) para errores controlados del agente.
+  - `originAgent.js`: recibe `{ text }`, envía prompt (system) + documento (máx. 80.000 caracteres) a la capa de modelos, valida el JSON de respuesta y devuelve `{ origin: 'US', formType: '10-Q'|'10-K' }`. Errores con mensajes claros en español: `EMPTY_DOCUMENT`, `INVALID_MODEL_RESPONSE`, `NOT_FINANCIAL` ("Este documento no es un informe financiero (10-Q / 10-K)."), `NOT_USA` ("Este informe no es de una empresa de EE. UU."), `NOT_10Q_10K`.
+  - `agentRegistry.js`: registro de agentes por nombre (`registerAgent`, `getAgent`, `listAgents`); el agente origin queda registrado al importar.
+- **Pruebas**: 5/5 casos correctos (10-Q válido, 10-K válido, no financiero, no estadounidense, sin FORM 10-Q/10-K).
+
+### 2.7. Subida real de PDF conectada al pipeline (POST /api/upload)
+
+- **Dependencias nuevas**: `multer` (multipart) y `pdf-parse` 2.4.5 (API `PDFParse` + `getText()`, texto en `result.text`).
+- `src/services/pdf.service.js`: `extractTextFromPdf(buffer)` (destruye el parser en `finally`).
+- `src/services/analysis.service.js`: `analyzePdf(buffer)` → texto → `originAgent.run({ text })` → `{ text, origin, formType }`. Los siguientes agentes se encadenarán aquí.
+- `src/api/routes/analysis.routes.js`: `POST /api/upload` (campo `file`, memoria, máx. 25 MB). Respuestas: 200 `{ ok, origin, formType }`; 400 sin archivo o `LIMIT_FILE_SIZE`; 422 `{ error, code }` para `AgentError` (`NOT_PDF`, `NOT_FINANCIAL`, `NOT_USA`, `NOT_10Q_10K`, ...). Montada en `server.js`.
+- **Frontend**: el botón "Analizar informe" hace `fetch('/api/upload')` con `FormData`. Estados del agente: Procesando → Completado / Error (✕ rojo). Panel de error con el mensaje del servidor + "Reintentar"; tras éxito, "Documento verificado: 10-Q", toast informativo y botón "Analizar otro informe". Se eliminó la demo simulada del pipeline.
+- **Pruebas reales**: PDF normal → 422 `NOT_FINANCIAL`; PDF 10-Q → 200 `{ origin: 'US', formType: '10-Q' }`; sin archivo → 400; no-PDF → 422 `NOT_PDF`. HTML/CSS/JS servidos con 200.
+- **Nota**: el mock exige ≥ 2 patrones financieros para `isFinancial`; el texto enviado al agente se trunca a 80.000 caracteres.
+
 **Pruebas reales con curl** (8/8 correctas):
 
 | # | Caso | Respuesta |
@@ -167,6 +188,7 @@ Endpoints disponibles:
 | POST | `/api/auth/login` | `{ email, password }` → 200 + cookie |
 | POST | `/api/auth/logout` | Borra la cookie |
 | GET | `/api/auth/me` | Usuario actual (requiere cookie) |
+| POST | `/api/upload` | PDF (campo `file`) → 200 `{ok, origin, formType}` o 422 `{error, code}` |
 
 ---
 
@@ -189,10 +211,10 @@ Endpoints disponibles:
 
 1. **Asociar análisis al usuario**: al crear análisis, usar `req.user.id` de `requireAuth`; filtrar `listAnalyses` por usuario.
 2. **`GET /api/analyses` + `GET /api/analyses/:id`**: endpoints + historial real en el frontend (sustituir la tabla estática).
-3. **Subida de PDF real**: `POST /api/upload` (multipart) + `pdf.service.js` (pdf-parse) + guardado en `uploads/`.
-4. **Sistema de agentes**: `baseAgent.js`, `agentRegistry.js`, `originAgent`, `sectorAgent`, `analystAgent` (mock primero).
-5. **Capa de modelos IA**: `modelProvider.js` + `deepseekProvider.js`/`openaiProvider.js`.
-6. **Pipeline**: `analysis.service.js` conectando PDF → agentes → guardado en `analyses`.
+3. **Subida de PDF real**: ✅ `POST /api/upload` + `pdf.service.js` (pdf-parse) + originAgent conectado; ⏳ guardar el PDF en `uploads/` y el análisis en `analyses`.
+4. **Sistema de agentes**: ✅ `baseAgent.js`, `agentRegistry.js` y `originAgent` (mock) listos y probados; ⏳ `sectorAgent` y `analystAgent`.
+5. **Capa de modelos IA**: ✅ `modelProvider.js` + `deepseekProvider` (sin key falla con error visible; `AI_PROVIDER=mock` para desarrollo); falta probar con key real.
+6. **Pipeline**: ✅ `analysis.service.js` con origin conectado; ⏳ encadenar sector/analista y guardar en `analyses`.
 7. **Definir formato del informe** final con los informes de referencia del usuario.
 8. **Fase 2**: buscador real de empresas (API EDGAR/SEC), histórico de filings, ver PDF, analizar desde el buscador.
 9. **Fase 5**: suscripciones y planes (campo `plan` ya existe; límites por plan).
@@ -221,6 +243,16 @@ app/
 │   │   ├── routes/auth.routes.js # /api/auth/*
 │   │   └── controllers/auth.controller.js
 │   ├── services/auth.service.js  # Lógica de registro/login
+│   ├── services/pdf.service.js   # Extracción de texto de PDFs (pdf-parse)
+│   ├── services/analysis.service.js  # Pipeline: PDF → agentes → resultado
+│   ├── services/ai/              # Capa de modelos IA
+│   │   ├── modelProvider.js      # Abstracción (autodetecta key DeepSeek, si no mock)
+│   │   ├── providers/mock.provider.js  # Heurística local (sin coste)
+│   │   └── providers/deepseek.provider.js  # API real de DeepSeek
+│   ├── agents/                   # Sistema de agentes IA
+│   │   ├── baseAgent.js          # BaseAgent + AgentError
+│   │   ├── originAgent.js        # Verificador: financiero + 10-Q/10-K + EE. UU.
+│   │   └── agentRegistry.js      # Registro de agentes por nombre
 │   ├── middleware/
 │   │   ├── auth.middleware.js    # requireAuth (JWT)
 │   │   └── errorHandler.js       # Errores JSON
@@ -228,7 +260,7 @@ app/
 ├── public/
 │   ├── index.html                # Web "Terminal Cifra"
 │   ├── styles.css                # Diseño clon TIKR (claro)
-│   ├── app.js                    # Interacción principal (dropzone, demo, menú)
+│   ├── app.js                    # Interacción: subida real, agentes, errores
 │   └── auth.js                   # Modal login/registro y sesión
 ├── uploads/                      # PDFs (vacío por ahora)
 ├── documentacion/                # PROYECTO*.md, ARQUITECTURA.md, IMPLEMENTACION.md
