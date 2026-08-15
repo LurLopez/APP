@@ -26,3 +26,18 @@ export function getProvider() {
 export function chat(messages) {
   return getProvider().chat(messages);
 }
+
+const MAX_ATTEMPTS = 2;
+
+export async function chatJson(messages, attempts = MAX_ATTEMPTS) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const raw = await chat(messages);
+      return JSON.parse(raw);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error('El modelo no devolvió una respuesta JSON válida.');
+}

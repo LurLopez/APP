@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#242424">
   <meta name="description" content="Cifra: análisis fundamental de informes financieros 10-Q y 10-K.">
   <title>Cifra Terminal | Inicio</title>
-  <link rel="stylesheet" href="/styles.css?v=9">
+  <link rel="stylesheet" href="/styles.css?v=14">
 </head>
 <body class="home-page">
   <header class="topbar home-topbar">
@@ -56,6 +56,14 @@
         <span class="search-kbd">Ctrl K</span>
         <div class="search-results" id="search-results" hidden></div>
       </div>
+    </section>
+
+    <section class="home-grid-section" id="favoritos" hidden aria-label="Tus acciones favoritas">
+      <div class="section-title-row">
+        <div><span class="eyebrow">TUS ACCIONES</span><h2>Acciones favoritas</h2><p class="section-subtitle">Las empresas que has marcado con el corazón.</p></div>
+        <span class="scope-badge" id="favorites-count">0</span>
+      </div>
+      <div class="favorites-table-wrap" id="favorites-table"></div>
     </section>
 
     <section class="home-grid-section" aria-label="Empresas destacadas">
@@ -229,7 +237,7 @@
       </div>
     </section>
 
-    <section class="history-panel" id="historial"><div class="section-title-row"><div><span class="eyebrow">ACTIVIDAD</span><h2>Últimos análisis</h2></div><a class="text-button" href="#historial">Ver histórico completo <span>→</span></a></div><div class="table-wrap"><table><thead><tr><th>Documento</th><th>Empresa</th><th>Periodo</th><th>Señal</th><th>Estado</th><th></th></tr></thead><tbody><tr><td><span class="table-file">PDF</span><strong>tap-q2-2025.pdf</strong></td><td>Molson Coors <span class="td-ticker">TAP</span></td><td>Q2 2025</td><td><span class="td-change up">+4,8 %</span></td><td><span class="table-status done"><i></i> Completado</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr><tr><td><span class="table-file">PDF</span><strong>ko-10q-2025.pdf</strong></td><td>Coca-Cola <span class="td-ticker">KO</span></td><td>Q1 2025</td><td><span class="td-change up">+2,1 %</span></td><td><span class="table-status done"><i></i> Completado</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr><tr><td><span class="table-file">PDF</span><strong>pep-10k-2024.pdf</strong></td><td>PepsiCo <span class="td-ticker">PEP</span></td><td>FY 2024</td><td><span class="td-change down">−1,2 %</span></td><td><span class="table-status warning"><i></i> Revisar</span></td><td><button class="row-action" type="button" aria-label="Abrir análisis">↗</button></td></tr></tbody></table></div><div class="empty-hint">⌁ Tu histórico se asociará a tu usuario cuando activemos el registro.</div></section>
+    <section class="history-panel" id="historial"><div class="section-title-row"><div><span class="eyebrow">ACTIVIDAD</span><h2>Mis análisis</h2><p class="section-subtitle">Los análisis completados se guardan en tu cuenta y quedan aquí listos para consultar.</p></div><button class="text-button" id="history-refresh" type="button">Actualizar <span>↻</span></button></div><div class="history-filters" id="history-filters" hidden><label class="history-filter history-company"><span>Empresa</span><input id="history-company" type="text" placeholder="Ticker o nombre, ej. KO" autocomplete="off"></label><fieldset class="history-filter history-date-type"><legend>Fecha</legend><label class="history-date-option"><input type="radio" name="history-date-type" value="period" checked><span>De los resultados</span></label><label class="history-date-option"><input type="radio" name="history-date-type" value="created"><span>Del análisis</span></label></fieldset><label class="history-filter history-date"><span>Desde</span><input id="history-from" type="date"></label><label class="history-filter history-date"><span>Hasta</span><input id="history-to" type="date"></label><button class="secondary-button history-clear" id="history-clear" type="button">Limpiar</button></div><div class="table-wrap"><table id="history-table"><thead><tr><th>Documento</th><th>Empresa</th><th>Periodo</th><th>Fecha resultados</th><th>Fecha análisis</th><th>Estado</th><th></th></tr></thead><tbody id="history-body"></tbody></table></div><div class="history-empty" id="history-empty" hidden><p id="history-empty-text"></p><button class="primary-button" id="history-login" type="button" hidden>Iniciar sesión</button></div></section>
 
     <footer class="page-footer"><span>Cifra Terminal <b>·</b> beta 0.1</span><span>La IA ordena la información. Tú decides qué significa.</span></footer>
   </main>
@@ -287,7 +295,7 @@
     </div>
   </div>
 
-  <script src="/app.js?v=7"></script>
+  <script src="/app.js?v=12"></script>
   <script src="/auth.js?v=6"></script>
 </body>
 </html>

@@ -86,7 +86,7 @@ app/
 │   ├── services/              # Lógica de negocio
 │   │   ├── auth.service.js         # Registro/login (bcrypt, validaciones, AuthError)
 │   │   ├── analysis.service.js     # Orquesta: PDF → agentes → resultado
-│   │   ├── edgar.service.js        # API SEC (EDGAR): ticker→CIK, companyfacts XBRL, 3 estados (53 partidas TIKR con emphasis), series
+│   │   ├── edgar.service.js        # API SEC (EDGAR): ticker→CIK, companyfacts XBRL, 3 estados alineados con TIKR, series
 │   │   ├── pdf.service.js          # Extracción de texto del PDF (pdf-parse)
 │   │   ├── ai/                     # Capa de modelos IA
 │   │   │   ├── modelProvider.js        # chat(messages) → proveedor activo
@@ -307,7 +307,7 @@ Respuesta JSON al frontend → el panel muestra veredicto o error
 | `POST` | `/api/auth/logout` | Cierra la sesión (borra la cookie) | ✅ Implementado |
 | `GET` | `/api/auth/me` | Usuario actual (requiere cookie válida) | ✅ Implementado |
 
-> **Contrato del cribador**: la respuesta de `GET /api/screener/company/:ticker` incluye `statements` (catálogo de partidas `{ key, label, format, emphasis }` de los 3 estados —53 partidas estándar TIKR—, con formatos `money`|`perShare`|`shares` y `emphasis: true` en las partidas de total) junto a `annual` y `quarterly` (`{ period, values }`), de modo que el frontend pinta la tabla genéricamente sin conocer las partidas. Los periodos se alinean por **frame XBRL** y por **fecha de fin** (`fp=FY` → año de `end`), lo que coloca correctamente los balances de cierre fiscal de años no naturales (p. ej. PG, cierre en junio) y los 10-K reexpresados sin frame (p. ej. KO). Los valores ausentes se derivan cuando es posible (beneficio bruto, total pasivo, activo/pasivo no corriente).
+> **Contrato del cribador**: la respuesta de `GET /api/screener/company/:ticker` incluye `statements` (catálogo y orden de filas de las capturas TIKR, con `{ key, label, format, emphasis, kind }` para los 3 estados y formatos `money`|`perShare`|`shares`|`count`) junto a `annual` y `quarterly` (`{ period, values }`), de modo que el frontend pinta la tabla genéricamente sin conocer las partidas. Los periodos se alinean por **frame XBRL** y por **fecha de fin** (`fp=FY` → año de `end`), lo que coloca correctamente los balances de cierre fiscal de años no naturales (p. ej. PG, cierre en junio) y los 10-K reexpresados sin frame (p. ej. KO). Los valores ausentes se derivan cuando es posible (agregados de resultados, balance, deuda y flujo de caja libre).
 
 *(Fase 2 añadirá además: `GET /api/companies/:ticker/filings` —histórico de filings— y el puente "Analizar" desde el cribador hacia el pipeline)*
 

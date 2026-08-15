@@ -6,7 +6,7 @@
 
 ## 1. Objetivo
 
-Consultar la **API oficial de la SEC (EDGAR)** para: (1) buscar empresas por ticker o nombre, y (2) obtener sus resultados financieros publicados (10-Q / 10-K) como series anuales y trimestrales de **3 estados financieros completos** (cuenta de resultados, balance y cash flow) con las **53 partidas estándar de TIKR**. Es el motor de datos del "Cribador de resultados" de la web y de la búsqueda del topbar.
+Consultar la **API oficial de la SEC (EDGAR)** para: (1) buscar empresas por ticker o nombre, y (2) obtener sus resultados financieros publicados (10-Q / 10-K) como series anuales y trimestrales de **3 estados financieros completos** (cuenta de resultados, balance y cash flow) con el mismo catálogo y orden de líneas de las capturas de TIKR. Es el motor de datos del "Cribador de resultados" de la web y de la búsqueda del topbar.
 
 ## 2. Alcance
 
@@ -14,7 +14,7 @@ Consultar la **API oficial de la SEC (EDGAR)** para: (1) buscar empresas por tic
 - `GET /api/screener/search?q=` — búsqueda de empresas por ticker o nombre (máx. 8 resultados).
 - `GET /api/screener/company/:ticker` — series financieras anuales (últimos 10) y trimestrales (últimos 8) de una empresa, con el catálogo de partidas en `statements` (`{ key, label, format, emphasis }`).
 - Caché en memoria de la tabla ticker→CIK (24 h) y de los `companyfacts` XBRL (6 h).
-- 3 estados us-gaap con **53 partidas** (`STATEMENTS`, catálogo estándar TIKR): fallbacks de tags, conceptos combinados (`combine`), valores derivados y marcado **`emphasis: true` en las partidas de total**.
+- 3 estados con el catálogo ampliado de las capturas (`STATEMENTS`): fallbacks de tags, conceptos combinados (`combine`), valores derivados y marcado **`emphasis: true` en las partidas de total**.
 - Alineación de periodos por **frame XBRL** y por **fecha de fin** (`fp=FY`), válida para años fiscales no naturales y 10-K reexpresados sin frame.
 - Errores controlados con código: `COMPANY_NOT_FOUND` (404) y `EDGAR_UNAVAILABLE` (502).
 
@@ -51,14 +51,13 @@ GET /api/screener/company/KO
   "company": { "ticker": "KO", "name": "COCA COLA CO", "cik": 21344 },
   "currency": "USD",
   "statements": {
-    "income":   [ { "key": "revenue", "label": "Ingresos", "format": "money", "emphasis": false },
-                  { "key": "grossProfit", "label": "Beneficio bruto", "format": "money", "emphasis": true },
-                  { "key": "epsDiluted", "label": "BPA diluido", "format": "perShare", "emphasis": false },
-                  { "key": "weightedSharesDiluted", "label": "Acciones diluidas (millones)", "format": "shares", "emphasis": false }, ... ],
-    "balance":  [ { "key": "cash", "label": "Caja y equivalentes", "format": "money", "emphasis": false },
-                  { "key": "assets", "label": "Total activo", "format": "money", "emphasis": true }, ... ],
-    "cashflow": [ { "key": "cfo", "label": "Cash flow operativo", "format": "money", "emphasis": true },
-                  { "key": "netChangeInCash", "label": "Variación neta de caja", "format": "money", "emphasis": true }, ... ]
+     "income":   [ { "key": "revenue", "label": "Ingresos totales", "format": "money", "emphasis": true },
+                   { "key": "ebtIncludingUnusual", "label": "EBT incl. Artículos extraordinarios", "format": "money", "emphasis": true },
+                   { "key": "epsDiluted", "label": "BPA diluido sin extraordinarios", "format": "perShare", "emphasis": false }, ... ],
+     "balance":  [ { "key": "cashAndShortTermInvestments", "label": "Efectivo total e inversiones a corto plazo", "format": "money", "emphasis": true },
+                   { "key": "tangibleBookValuePerShare", "label": "Tangible Book Value / Share", "format": "perShare", "emphasis": false }, ... ],
+     "cashflow": [ { "key": "cfo", "label": "Efectivo de Operaciones", "format": "money", "emphasis": true },
+                   { "key": "freeCashFlow", "label": "Flujo de caja libre", "format": "money", "emphasis": true }, ... ]
   },
   "annual": [
     { "period": "2025", "values": { "revenue": 47941000000, "netIncome": 13107000000, "epsDiluted": 3.04, "assets": 104816000000, "liabilities": 72647000000, "assetsNoncurrent": 73772000000, "liabilitiesNoncurrent": 51366000000, ... } },
@@ -110,15 +109,16 @@ Siempre JSON `{ "error": "<mensaje en español>", "code": "<CODIGO>" }`:
 
 1. Resuelve la empresa por ticker (si no existe → `COMPANY_NOT_FOUND`).
 2. Descarga `companyfacts` (con caché).
-3. `buildSeries` recorre las **53 partidas de `STATEMENTS`** (3 estados) y alinea los datos por **frame XBRL**:
+3. `buildSeries` recorre el catálogo ampliado de `STATEMENTS` (3 estados) y alinea los datos por **frame XBRL**:
    - `CY2025` → fila anual; `CY2025Q3` → fila trimestral; `CY2025Q4I` → fila trimestral (instante de cierre, típico de balances).
    - **Alineación por fecha de fin**: las entradas con `fp = 'FY'` se asocian además a la fila anual del año de su fecha de fin (`end`). Esto coloca bien (a) los balances de cierre fiscal de empresas con **año fiscal distinto del calendario** (p. ej. PG cierra en junio) y (b) los balances de **10-K reexpresados que vienen sin frame** (p. ej. KO, 10-K de 2025).
 4. Devuelve **10 periodos anuales** y **8 trimestrales** (los más recientes por `sortKey`).
 5. **Valores derivados** por fila (si el tag directo no existe):
-   - `grossProfit` = ingresos − coste de ventas;
-   - `liabilities` = activo − fondos propios;
-   - `assetsNoncurrent` = total activo − activo corriente;
-   - `liabilitiesNoncurrent` = total pasivo − pasivo corriente.
+   - resultados: beneficio bruto, gastos operativos, EBT incl. extraordinarios, operaciones continuadas, neto a acciones comunes, EBITDA y EBITDAR;
+   - balance: efectivo e inversiones a corto plazo, cuentas por cobrar, inmovilizado neto, pasivo/fondos propios, valor contable, valor contable tangible, deuda total y deuda neta;
+   - cash flow: efectivo de inversión/financiación, variación neta, flujo de caja libre, saldos inicial/final y flujo por acción.
+
+Las definiciones de presentación pueden incluir `tone: 'negative'` para marcar por naturaleza los costes, gastos, salidas de caja y partidas contra fondos propios; además, los conceptos con `negative: true` se normalizan como importes negativos para que el valor y el color coincidan con TIKR. Los conceptos de ganancias que se restan en la conciliación de caja usan `invertSign: true`.
 
 ### Selector de conceptos (`pickConceptData`)
 
@@ -128,75 +128,13 @@ Siempre JSON `{ "error": "<mensaje en español>", "code": "<CODIGO>" }`:
 
 ### Los 3 estados y sus partidas (`STATEMENTS`)
 
-Unidad por defecto **USD**; las BPA en **USD/shares** (formato `perShare`) y las acciones en **millones de acciones** (formato `shares`). Las **partidas de total** llevan `emphasis: true`: el frontend las pinta como filas destacadas (fondo crema, negrita) estilo TIKR.
+Unidad por defecto **USD**; las BPA y métricas por acción usan `USD/shares` (`perShare`), las acciones usan `shares` y el número de empleados usa `count`. El catálogo público conserva también filas de sección, cambio interanual, margen y nota para reproducir el orden visible en TIKR.
 
-#### `income` — Cuenta de resultados (15 partidas)
+- **`income`**: ingresos, coste y beneficio bruto, gastos operativos totales, beneficio operativo, intereses e inversiones, divisas, EBT antes y después de extraordinarios, reestructuraciones, deterioros, ventas de activos/inversiones, impuestos, operaciones continuadas/discontinuadas, beneficio atribuible, BPA, dividendos, EBITDA, EBITDAR, ventas/marketing y tasa efectiva.
+- **`balance`**: efectivo e inversiones a corto plazo, cuentas por cobrar, circulante, inmovilizado bruto/depreciación/neto, inversiones e intangibles a largo plazo, impuestos diferidos, deuda y arrendamientos, pensiones, pasivos, acciones comunes, reservas, autocartera, resultado integral, fondos propios, valor contable, deuda neta, inversiones por participación y activos físicos.
+- **`cashflow`**: beneficio, depreciación/amortización, ajustes no monetarios y de circulante, efectivo operativo, CAPEX y ventas de activos, adquisiciones/desinversiones, inversiones y préstamos, efectivo de inversión, deuda, acciones, dividendos, recompra, efectivo de financiación, divisas, variación de caja, flujo de caja libre, saldos inicial/final, intereses/impuestos pagados y flujo por acción.
 
-| Clave | Etiqueta | Tags (en orden de fallback) |
-|---|---|---|
-| `revenue` | Ingresos | `RevenueFromContractWithCustomerExcludingAssessedTax` → `...IncludingAssessedTax` → `Revenues` → `SalesRevenueNet` → `RevenueFromContractWithCustomer` |
-| `costOfRevenue` | Coste de ventas | `CostOfRevenue` → `CostOfGoodsAndServicesSold` → `CostOfGoodsSold` |
-| `grossProfit` | Beneficio bruto **(emphasis)** | `GrossProfit`; si no existe, **derivado** = ingresos − coste de ventas |
-| `sellingGeneralAdmin` | Gastos de venta, generales y administrativos | `SellingGeneralAndAdministrativeExpense` |
-| `researchDevelopment` | Investigación y desarrollo | `ResearchAndDevelopmentExpense` |
-| `otherIncome` | Otros ingresos (gastos) | `NonoperatingIncomeExpense` → `OtherNonoperatingIncomeExpense` |
-| `operatingIncome` | Resultado operativo **(emphasis)** | `OperatingIncomeLoss` |
-| `interestExpense` | Gastos por intereses | `InterestExpense` → `InterestExpenseNonoperating` |
-| `pretaxIncome` | Resultado antes de impuestos | `IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest` → `...MinorityInterestAndIncomeLossFromEquityMethodInvestments` |
-| `incomeTax` | Impuesto sobre beneficios | `IncomeTaxExpenseBenefit` |
-| `incomeFromContinuingOps` | Resultado de operaciones continuadas | `IncomeLossFromContinuingOperationsIncludingPortionAttributableToNoncontrollingInterest` → `IncomeLossFromContinuingOperations` |
-| `netIncome` | Beneficio neto **(emphasis)** | `NetIncomeLoss` → `ProfitLoss` |
-| `epsDiluted` | BPA diluido | `EarningsPerShareDiluted` (`perShare`) |
-| `epsBasic` | BPA básico | `EarningsPerShareBasic` (`perShare`) |
-| `weightedSharesDiluted` | Acciones diluidas (millones) | `WeightedAverageNumberOfDilutedSharesOutstanding` (`shares`) |
-
-#### `balance` — Balance (24 partidas)
-
-| Clave | Etiqueta | Tags (en orden de fallback) |
-|---|---|---|
-| `cash` | Caja y equivalentes | `CashAndCashEquivalentsAtCarryingValue` |
-| `shortTermInvestments` | Inversiones a corto plazo | `ShortTermInvestments` → `AvailableForSaleSecuritiesDebtSecuritiesCurrent` |
-| `receivables` | Cuentas por cobrar | `AccountsReceivableNetCurrent` |
-| `inventory` | Inventario | `InventoryNet` |
-| `prepaidExpenses` | Gastos anticipados | `PrepaidExpenseAndOtherAssetsCurrent` |
-| `currentAssets` | Activo corriente **(emphasis)** | `AssetsCurrent` |
-| `propertyPlantEquipment` | Inmovilizado material | `PropertyPlantAndEquipmentNet` |
-| `goodwill` | Fondo de comercio | `Goodwill` |
-| `intangibleAssets` | Activos intangibles | **Combinado** (suma por frame): `FiniteLivedIntangibleAssetsNet` + `IndefiniteLivedIntangibleAssetsExcludingGoodwill`. Tags de fallback: `IntangibleAssetsNetExcludingGoodwill` → `FiniteLivedIntangibleAssetsNet` → `IndefiniteLivedTrademarks` |
-| `assetsNoncurrent` | Activo no corriente | `AssetsNoncurrent`; si no existe, **derivado** = total activo − activo corriente |
-| `assets` | Total activo **(emphasis)** | `Assets` |
-| `payables` | Cuentas por pagar | `AccountsPayableCurrent` → `AccountsPayableTradeCurrent` → `AccountsPayableAndAccruedLiabilitiesCurrent` |
-| `accruedLiabilities` | Gastos devengados | `AccruedLiabilitiesCurrent` |
-| `deferredRevenue` | Ingresos diferidos | `ContractWithCustomerLiabilityCurrent` → `DeferredRevenueCurrent` |
-| `longTermDebtCurrent` | Deuda a corto plazo | `LongTermDebtCurrent` → `LongTermDebtAndCapitalLeaseObligationsCurrent` |
-| `currentLiabilities` | Pasivo corriente **(emphasis)** | `LiabilitiesCurrent` |
-| `longTermDebt` | Deuda a largo plazo | `LongTermDebtNoncurrent` → `LongTermDebtAndCapitalLeaseObligations` → `LongTermDebt` |
-| `liabilitiesNoncurrent` | Pasivo no corriente | `LiabilitiesNoncurrent`; si no existe, **derivado** = total pasivo − pasivo corriente |
-| `liabilities` | Total pasivo **(emphasis)** | `Liabilities`; si no existe, **derivado** = activo − fondos propios |
-| `additionalPaidInCapital` | Capital adicional | `AdditionalPaidInCapital` |
-| `retainedEarnings` | Reservas (ganancias retenidas) | `RetainedEarningsAccumulatedDeficit` |
-| `treasuryStock` | Autocartera | `TreasuryStockValue` |
-| `minorityInterest` | Intereses minoritarios | `MinorityInterest` |
-| `equity` | Fondos propios **(emphasis)** | `StockholdersEquity` → `StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest` |
-
-#### `cashflow` — Cash flow (14 partidas)
-
-| Clave | Etiqueta | Tags (en orden de fallback) |
-|---|---|---|
-| `netIncome` | Beneficio neto | `NetIncomeLoss` → `ProfitLoss` |
-| `depreciationAmortization` | Depreciación y amortización | `DepreciationDepletionAndAmortization` → `DepreciationAmortizationAndAccretionNet` |
-| `stockCompensation` | Retribución en acciones | `ShareBasedCompensation` |
-| `workingCapitalChange` | Cambios en el capital circulante | `IncreaseDecreaseInOperatingCapital` |
-| `cfo` | Cash flow operativo **(emphasis)** | `NetCashProvidedByUsedInOperatingActivities` → `...ContinuingOperations` |
-| `capex` | Inversiones en inmovilizado (CAPEX) | `PaymentsToAcquirePropertyPlantAndEquipment` → `PaymentsToAcquireProductiveAssets` |
-| `acquisitions` | Adquisiciones | `PaymentsToAcquireBusinessesNetOfCashAcquired` |
-| `cfi` | Cash flow de inversión **(emphasis)** | `NetCashProvidedByUsedInInvestingActivities` → `...ContinuingOperations` |
-| `dividendsPaid` | Dividendos pagados | `PaymentsOfDividends` → `PaymentsOfDividendsCommonStock` |
-| `buybacks` | Recompra de acciones | `PaymentsForRepurchaseOfCommonStock` |
-| `debtIssued` | Emisión de deuda | `ProceedsFromIssuanceOfLongTermDebt` → `ProceedsFromIssuanceOfDebt` |
-| `debtPaid` | Amortización de deuda | `RepaymentsOfLongTermDebt` → `RepaymentsOfDebt` → `RepaymentsOfLongTermDebtAndCapitalSecurities` → `RepaymentsOfDebtAndDebtIssuanceCosts` |
-| `cff` | Cash flow de financiación **(emphasis)** | `NetCashProvidedByUsedInFinancingActivities` → `...ContinuingOperations` |
-| `netChangeInCash` | Variación neta de caja **(emphasis)** | `CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect` → `CashAndCashEquivalentsPeriodIncreaseDecrease` |
+Las etiquetas y el orden de esas filas están definidos en `DISPLAY_STATEMENTS`; `STATEMENTS` contiene los tags XBRL y los conceptos derivados que las alimentan. Las **partidas de total** llevan `emphasis: true`: el frontend las pinta como filas destacadas (fondo crema, negrita) estilo TIKR.
 
 ## 5. Frames XBRL soportados
 
@@ -227,7 +165,7 @@ Cualquier otro frame (duraciones custom, `Q2YTD`, etc.) se ignora en la clasific
 | Intangibles publicados agregados (ej. PG) | Resuelto por el fallback `IntangibleAssetsNetExcludingGoodwill` |
 | CAPEX con tag alternativo (ej. PEP) | Resuelto por el fallback `PaymentsToAcquireProductiveAssets` |
 | Empresa con pérdidas (ej. TAP) | Los importes negativos se devuelven tal cual: beneficio neto −2.139,6 M$ y resultado antes de impuestos −2.518 M$ en FY2025 |
-| Sin tag de beneficio bruto o de pasivo | **Valores derivados**: ingresos − coste de ventas; activo − fondos propios |
+| Sin tag de beneficio bruto o de pasivo | **Valores derivados**: ingresos + coste normalizado; activo − fondos propios |
 | Sin tag de activo/pasivo no corriente | **Valores derivados**: total activo − activo corriente; total pasivo − pasivo corriente |
 | Autocartera (`TreasuryStockValue`) publicada con signo negativo (contra-fondos propios) | Se devuelve tal cual de XBRL; el frontend la muestra entre paréntesis |
 
@@ -235,7 +173,7 @@ Cualquier otro frame (duraciones custom, `Q2YTD`, etc.) se ignora en la clasific
 
 | Archivo | Función |
 |---|---|
-| `src/services/edgar.service.js` | Toda la lógica EDGAR: ticker map, facts, `STATEMENTS` (3 estados, 53 partidas con `emphasis`), selector de conceptos (fallbacks + combinados + derivados), alineación de periodos por frame y fecha de fin, series y errores con código. |
+| `src/services/edgar.service.js` | Toda la lógica EDGAR: ticker map, facts, `STATEMENTS` alineado con las capturas TIKR, selector de conceptos (fallbacks + combinados + derivados), normalización de signos, alineación de periodos por frame y fecha de fin, series y errores con código. |
 | `src/api/routes/screener.routes.js` | Router `express` con los 2 endpoints; validación de `q` y `ticker`; mapeo de códigos a 404/502. |
 | `server.js` | Monta el router en `/api/screener`. |
 
@@ -245,9 +183,9 @@ Sin dependencias npm nuevas (usa `fetch` nativo de Node).
 
 | Decisión | Motivo |
 |---|---|
-| **Catálogo TIKR (53 partidas)** | El rediseño replica las partidas estándar de la terminal TIKR (15 de resultados, 24 de balance, 14 de cash flow) para que el cribador sea comparable con la herramienta de referencia del usuario. |
+| **Catálogo TIKR ampliado** | El catálogo replica las filas visibles en las capturas de resultados, balance y cash flow, incluyendo los bloques de datos adicionales y el orden exacto de presentación. |
 | **`emphasis` en las partidas de total** | El frontend necesita distinguir los totales (beneficio bruto, operativo, neto, activo/pasivo corriente, totales, cash flows) para pintarlos como filas destacadas sin conocer el contenido de cada estado. |
-| **Formato `shares`** | Las acciones diluidas se expresan en millones de acciones, una unidad distinta del dinero y del BPA; el frontend las formatea como número (1 decimal máx.) sin sufijo monetario. |
+| **Formatos `shares`/`count`** | Las acciones se expresan en millones, los empleados como recuento y ambos se separan del dinero y del BPA; el frontend los formatea sin sufijo monetario. |
 | **Derivados de no corriente** | Muchas empresas no publican `AssetsNoncurrent`/`LiabilitiesNoncurrent`; derivarlos de los totales y de los corrientes completa el balance estilo TIKR sin huecos. |
 | **`companyfacts` en vez del índice de submissions** | Da los datos financieros ya estructurados por frame; suficiente para el cribador sin parsear PDFs. El histórico de filings (10-Q/10-K individuales) necesitará el endpoint de submissions en la fase siguiente. |
 | **Fallbacks por concepto** | Las empresas usan tags distintos según el periodo y la normativa contable (ASC 605 vs 606); sin fallbacks aparecerían huecos falsos. |

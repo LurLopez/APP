@@ -1,5 +1,5 @@
 import { BaseAgent, AgentError } from './baseAgent.js';
-import { chat } from '../services/ai/modelProvider.js';
+import { chatJson } from '../services/ai/modelProvider.js';
 
 const PROMPT = `Eres el verificador de sector de un analizador financiero. Analiza el documento siguiente y determina si la empresa pertenece al sector de consumo defensivo (Consumer Staples).
 
@@ -27,14 +27,12 @@ export class SectorAgent extends BaseAgent {
       throw new AgentError('No se pudo leer el contenido del documento.', 'EMPTY_DOCUMENT');
     }
 
-    const raw = await chat([
-      { role: 'system', content: PROMPT },
-      { role: 'user', content: input.text.slice(0, MAX_CHARS) },
-    ]);
-
     let result;
     try {
-      result = JSON.parse(raw);
+      result = await chatJson([
+        { role: 'system', content: PROMPT },
+        { role: 'user', content: input.text.slice(0, MAX_CHARS) },
+      ]);
     } catch {
       throw new AgentError('El modelo no devolvió una respuesta válida al verificar el sector.', 'INVALID_MODEL_RESPONSE');
     }

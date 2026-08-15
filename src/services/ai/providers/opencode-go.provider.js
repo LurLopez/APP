@@ -1,5 +1,6 @@
 const API_URL = 'https://opencode.ai/zen/go/v1/chat/completions';
 const MODEL = process.env.OPENCODE_GO_MODEL || 'deepseek-v4-flash';
+const REQUEST_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS || 180000);
 
 function cleanResponse(raw) {
   const trimmed = raw.trim();
@@ -16,19 +17,28 @@ export const opencodeGoProvider = {
       throw new Error('Falta OPENCODE_GO_API_KEY en el archivo .env');
     }
 
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages,
-        max_tokens: Number(process.env.AI_MAX_TOKENS || 8000),
-        temperature: 0,
-      }),
-    });
+    let response;
+    try {
+      response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages,
+          max_tokens: Number(process.env.AI_MAX_TOKENS || 16000),
+          temperature: 0,
+        }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+        throw new Error(`La API de IA tardó más de ${REQUEST_TIMEOUT_MS / 1000} s en responder.`);
+      }
+      throw error;
+    }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
@@ -40,6 +50,10 @@ export const opencodeGoProvider = {
     if (typeof content !== 'string') {
       throw new Error('OpenCode Go no devolvió contenido válido.');
     }
-    return cleanResponse(content);
+    const cleaned = cleanResponse(content);
+    if (!cleaned.trim()) {
+      throw new Error('OpenCode Go devolvió una respuesta vacía.');
+    }
+    return cleaned;
   },
 };

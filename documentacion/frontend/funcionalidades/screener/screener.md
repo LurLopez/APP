@@ -6,14 +6,14 @@
 
 ## 1. Objetivo
 
-Que el usuario busque una empresa por **ticker o nombre** (desde el topbar o desde la propia sección) y vea sus **resultados publicados** (10-Q / 10-K) en una **única tabla estilo TIKR claro** con **3 pestañas** —**Cuenta de resultados**, **Balance** y **Cash flow**—, con las **partidas como filas y los periodos como columnas**, en **millones de $** (BPA en $, acciones en millones), conmutando entre series **Anual** (últimos 10) y **Trimestral** (últimos 8).
+Que el usuario busque una empresa por **ticker o nombre** (desde el topbar o desde la propia sección) y vea sus **resultados publicados** (10-Q / 10-K) en una **única tabla estilo TIKR claro** con **3 pestañas** —**Cuenta de resultados**, **Balance** y **Estado de Flujo de Efectivo**—, con las **partidas como filas y los periodos como columnas**, en **millones de $** (BPA en $, acciones en millones), conmutando entre series **Anual** (últimos 10) y **Trimestral** (últimos 8).
 
 ## 2. Alcance
 
 **Incluido:**
 - Sección `#screener` ("Cribador de resultados") con buscador propio, cabecera de empresa (nombre + chip naranja con el ticker, meta `CIK · Moneda USD · Fuente: SEC EDGAR`) y conmutador Anual/Trimestral con chip "USD".
 - **3 pestañas** (`.screener-tab`, `data-statement="income|balance|cashflow"`) con la activa subrayada en naranja, y **una sola tabla** (`#screener-statement-table`) que se **repinta** según la pestaña (estado JS `screenerStatement`) y la serie (estado `screenerSeries`).
-- **Tabla estilo TIKR claro**: filas de total con clase `emphasis-row` (fondo crema `#fff7e8`, negrita), primera columna "Partida" **fija** (`position: sticky` a la izquierda), valores en millones alineados a la derecha con separador es-ES (máx. 1 decimal), BPA en $ con 2 decimales, acciones diluidas en millones, **negativos entre paréntesis**, "—" para datos ausentes, hover `#fafafa`, scroll horizontal y tipografía tabular (`font-variant-numeric: tabular-nums`).
+- **Tabla estilo TIKR claro**: filas de total con clase `emphasis-row` (fondo crema `#fff7e8`, negrita), primera columna "Partida" **fija** (`position: sticky` a la izquierda), valores en millones alineados a la derecha con separador es-ES, BPA y métricas por acción en $ con 2 decimales, acciones en millones, empleados como recuento, **negativos entre paréntesis**, "—" para datos ausentes, hover `#fafafa`, scroll horizontal y tipografía tabular (`font-variant-numeric: tabular-nums`).
 - Etiquetas de periodo (`2025 (FY)`, `Q4 2025`).
 - **Búsqueda real en el topbar** (`#ticker-search`) contra `GET /api/screener/search` (antes lista estática): debounce de 250 ms, panel de resultados, mensaje "Sin resultados en EDGAR..." y carga del cribador al elegir empresa.
 - Estados de carga (`Consultando EDGAR…`), error (mensaje del servidor o de conexión) y vacío.
@@ -75,7 +75,7 @@ Ambos cambios son solo re-renderizado local; NO hay nueva llamada a la API.
 
 ## 5. Tabla única y formato de valores
 
-- **Pintado genérico**: `renderScreenerTables` lee `screenerData.statements[estado activo]` (arrays `{ key, label, format, emphasis }`) y genera la tabla con `renderStatementTable`, que repinta `thead` (cabeceras de periodos) y `tbody` (una fila por partida).
+- **Pintado genérico**: `renderScreenerTables` lee `screenerData.statements[estado activo]` (arrays `{ key, label, format, emphasis, tone, kind }`) y genera la tabla con `renderStatementTable`, que repinta `thead` (cabeceras de periodos) y `tbody` (una fila por partida). `tone: 'negative'` marca en rojo los costes, gastos, salidas de caja y partidas contra fondos propios aunque su valor sea positivo; las demás filas solo se marcan en rojo cuando el valor es negativo.
 - **Orientación TIKR**: la primera columna es "Partida" (etiquetas de `statements`) y cada periodo es una columna a la derecha (`2025 (FY)`, `Q4 2025`…). No hay bloques por estado: solo cambia la pestaña activa.
 - **Columna "Partida" fija**: `th.sticky-col` / `td.sticky-col` con `position: sticky; left: 0`, fondo blanco, `z-index` 2 (3 en la cabecera) y ancho 230 px, para que al hacer scroll horizontal siga visible.
 - **Filas de total (`emphasis`)**: si `item.emphasis === true`, la fila lleva la clase `emphasis-row`: fondo crema `#fff7e8`, texto `#111` y negrita (hover `#fff2da`). Son los totales marcados por el backend (beneficio bruto, operativo, neto, activo/pasivo corriente, totales, cash flows y variación de caja).
@@ -83,6 +83,8 @@ Ambos cambios son solo re-renderizado local; NO hay nueva llamada a la API.
   - `money` → `formatMoneyUsd`: divide entre 1.000.000 y formatea con `Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 })`; **los negativos van entre paréntesis**, p. ej. `(478,0)`.
   - `perShare` (BPA) → `formatEps`: `Intl.NumberFormat('es-ES')` con 2 decimales + sufijo `$`.
   - `shares` (acciones diluidas) → `formatShares`: divide entre 1.000.000, es-ES máx. 1 decimal, sin sufijo.
+  - `count` (empleados) → `formatCount`: recuento sin conversión a millones.
+- Las filas `change`, `margin` y `ratio` se calculan en el frontend a partir de las filas base y se muestran en cursiva como en las capturas.
 - Valor ausente (`null`/`undefined`/`NaN`) → guion `—`.
 - `periodLabel`: `2025` → `2025 (FY)`; `2025-Q2` → `Q2 2025`.
 - Estilo de celda: valores **alineados a la derecha**, `font-variant-numeric: tabular-nums`, `white-space: nowrap`, bordes `#e0e0e0` (cabecera) / `#f0f0f0` (filas), hover `#fafafa`, y **scroll horizontal** (`.table-wrap`) para que quepan los 8 periodos trimestrales.

@@ -23,14 +23,17 @@ let chartMaPoints = [];
 let chartShowMA = false;
 let chartScale = null;
 
-let screenerSeries = 'quarterly';
+let screenerSeries = 'annual';
 let screenerStatement = 'income';
 let screenerPrecision = 2;
 let screenerHideEmpty = false;
 let screenerFilings = null;
 let screenerFilingsLoading = false;
 
-const SECTION_PLACEHOLDERS = ['favoritos', 'alertas', 'cartera', 'valoracion', 'accionariado'];
+let favoriteTickers = new Set();
+let favoritesList = [];
+
+const SECTION_PLACEHOLDERS = ['alertas', 'cartera', 'valoracion', 'accionariado'];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -109,6 +112,12 @@ function formatShares(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
   const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: screenerPrecision, maximumFractionDigits: screenerPrecision });
   return formatter.format(Number(value) / 1e6);
+}
+
+function formatCount(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+  const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: screenerPrecision });
+  return formatter.format(Number(value));
 }
 
 function formatPercentage(value) {
@@ -449,7 +458,13 @@ document.querySelectorAll('.chart-ranges button').forEach((button) => {
 /* ── Datos financieros (tablas) ─────────────────────────────── */
 
 function derivedScreenerValue(item, row, rowIndex, rows) {
-  if (item.kind !== 'change' && item.kind !== 'margin') return row.values?.[item.key];
+  if (item.kind !== 'change' && item.kind !== 'margin' && item.kind !== 'ratio') return row.values?.[item.key];
+  if (item.kind === 'ratio') {
+    const numerator = Number(row.values?.[item.numeratorKey]);
+    const denominator = Number(row.values?.[item.denominatorKey]);
+    if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) return null;
+    return ((item.absoluteNumerator ? Math.abs(numerator) : numerator) / denominator) * 100;
+  }
   const value = row.values?.[item.baseKey];
   if (item.kind === 'margin') {
     const revenue = row.values?.revenue;
@@ -461,9 +476,10 @@ function derivedScreenerValue(item, row, rowIndex, rows) {
 }
 
 function formatScreenerValue(value, format, kind) {
-  if (kind === 'change' || kind === 'margin') return formatPercentage(value);
+  if (kind === 'change' || kind === 'margin' || kind === 'ratio') return formatPercentage(value);
   if (format === 'perShare') return formatEps(value);
   if (format === 'shares') return formatShares(value);
+  if (format === 'count') return formatCount(value);
   return formatMoneyUsd(value);
 }
 
@@ -476,6 +492,13 @@ function renderProCell() {
   return '<span class="pro-pill"><i aria-hidden="true"></i>PRO</span>';
 }
 
+function shouldRenderScreenerValueRed(value, item) {
+  if (value === null || value === undefined || value === '') return false;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return false;
+  return item.tone === 'negative' || number < 0;
+}
+
 function renderStatementTable(rows, items) {
   const table = document.querySelector('#screener-statement-table');
   const title = document.querySelector('#screener-table-title').textContent;
@@ -483,11 +506,17 @@ function renderStatementTable(rows, items) {
   table.querySelector('tbody').innerHTML = items.map((item) => {
     if (item.kind === 'section') return `<tr class="section-row"><td class="sticky-col" colspan="${rows.length + 1}">${escapeHtml(item.label)}</td></tr>`;
     if (item.kind === 'note') return `<tr class="note-row"><td class="sticky-col" colspan="${rows.length + 1}">${escapeHtml(item.label)}</td></tr>`;
-    const cells = rows.map((row, rowIndex) => isLockedPeriod(rowIndex, rows)
-      ? renderProCell()
-      : formatScreenerValue(derivedScreenerValue(item, row, rowIndex, rows), item.format, item.kind));
-    const rowClass = [item.emphasis ? 'emphasis-row' : '', item.kind === 'change' || item.kind === 'margin' ? 'derived-row' : ''].filter(Boolean).join(' ');
-    return `<tr${rowClass ? ` class="${rowClass}"` : ''} data-metric="${escapeHtml(item.label)}"><td class="sticky-col">${escapeHtml(item.label)}</td>${cells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`;
+    const cells = rows.map((row, rowIndex) => {
+      if (isLockedPeriod(rowIndex, rows)) return `<td>${renderProCell()}</td>`;
+      const value = derivedScreenerValue(item, row, rowIndex, rows);
+      const className = shouldRenderScreenerValueRed(value, item) ? ' class="negative"' : '';
+      return `<td${className}>${formatScreenerValue(value, item.format, item.kind)}</td>`;
+    });
+    const rowClass = [
+      item.emphasis ? 'emphasis-row' : '',
+      item.kind === 'change' || item.kind === 'margin' || item.kind === 'ratio' || item.italic ? 'derived-row' : '',
+    ].filter(Boolean).join(' ');
+    return `<tr${rowClass ? ` class="${rowClass}"` : ''} data-metric="${escapeHtml(item.label)}"><td class="sticky-col">${escapeHtml(item.label)}</td>${cells.join('')}</tr>`;
   }).join('');
   table.querySelectorAll('tbody tr[data-metric]').forEach((row) => row.addEventListener('click', () => showToast(`Gráfico de ${row.dataset.metric}: disponible próximamente.`)));
 }
@@ -574,11 +603,18 @@ function renderFilingsTable() {
       <td class="filing-actions">
         <button type="button" class="filing-action" data-action="preview" data-doc="${escapeHtml(documentUrl)}" data-name="${escapeHtml(filing.documentName)}">Vista previa</button>
         <a class="filing-action filing-action-download" href="${escapeHtml(documentUrl)}?download=1" download>Descargar</a>
+        <button type="button" class="filing-action filing-action-analyze" data-action="analyze" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}">Analizar con IA</button>
       </td>
     </tr>`;
   }).join('');
   table.querySelectorAll('button[data-action="preview"]').forEach((button) => {
     button.addEventListener('click', () => openFilingsPreview(button.dataset.doc, button.dataset.name));
+  });
+  table.querySelectorAll('button[data-action="analyze"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const params = new URLSearchParams({ analizar: button.dataset.ticker, accession: button.dataset.accession });
+      window.location.href = `/?${params.toString()}`;
+    });
   });
 }
 
@@ -656,11 +692,239 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !document.querySelector('#filings-preview-backdrop').hidden) closeFilingsPreview();
 });
 
+/* ── Acciones favoritas ─────────────────────────────────────── */
+
+function favoriteNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatFavoriteNumber(value, digits = 2) {
+  const number = favoriteNumber(value);
+  if (number === null) return '—';
+  return new Intl.NumberFormat('es-ES', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(number);
+}
+
+function formatFavoriteSigned(value) {
+  const number = favoriteNumber(value);
+  if (number === null) return '—';
+  const sign = number > 0 ? '+' : number < 0 ? '−' : '';
+  return `${sign}${formatFavoriteNumber(Math.abs(number))}`;
+}
+
+function formatFavoritePercent(value) {
+  const number = favoriteNumber(value);
+  if (number === null) return '—';
+  return `${formatFavoriteSigned(number)} %`;
+}
+
+function formatFavoriteVolume(value) {
+  const number = favoriteNumber(value);
+  if (number === null) return '—';
+  const absolute = Math.abs(number);
+  const [unit, suffix] = absolute >= 1e9 ? [1e9, 'B']
+    : absolute >= 1e6 ? [1e6, 'M']
+      : absolute >= 1e3 ? [1e3, 'K']
+        : [1, ''];
+  return `${new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(number / unit)}${suffix}`;
+}
+
+function formatFavoriteTime(timestamp) {
+  const number = favoriteNumber(timestamp);
+  if (number === null || number <= 0) return '—';
+  return new Intl.DateTimeFormat('es-ES', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date(number * 1000));
+}
+
+function favoriteChangeClass(value) {
+  const number = favoriteNumber(value);
+  return number === null ? '' : number >= 0 ? 'positive' : 'negative';
+}
+
+function requireLogin() {
+  if (companyAuthenticated) return true;
+  showToast('Inicia sesión para guardar acciones favoritas.');
+  window.openModal?.('login');
+  return false;
+}
+
+async function fetchFavorites() {
+  if (!companyAuthenticated) {
+    favoriteTickers = new Set();
+    favoritesList = [];
+    renderCompanyFavState();
+    renderFavoritesList();
+    return;
+  }
+  try {
+    const response = await fetch('/api/favorites');
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return;
+    favoritesList = Array.isArray(data.favorites) ? data.favorites : [];
+    favoriteTickers = new Set(favoritesList.map((favorite) => String(favorite.ticker).toUpperCase()));
+    renderCompanyFavState();
+    renderFavoritesList();
+  } catch {
+    favoriteTickers = new Set();
+    favoritesList = [];
+    renderCompanyFavState();
+    renderFavoritesList();
+  }
+}
+
+function renderCompanyFavState() {
+  const button = document.querySelector('#company-fav');
+  if (!button || !companyTicker) return;
+  const isFavorite = favoriteTickers.has(companyTicker);
+  button.classList.toggle('active', isFavorite);
+  button.setAttribute('aria-label', isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos');
+}
+
+async function removeFavorite(ticker) {
+  ticker = String(ticker).toUpperCase();
+  try {
+    const response = await fetch(`/api/favorites/${encodeURIComponent(ticker)}`, { method: 'DELETE' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'No se pudo quitar el favorito.');
+    favoriteTickers.delete(ticker);
+    favoritesList = favoritesList.filter((favorite) => String(favorite.ticker).toUpperCase() !== ticker);
+    renderCompanyFavState();
+    renderFavoritesList();
+    showToast(`${ticker} eliminada de tus favoritas.`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+async function toggleCompanyFavorite() {
+  if (!requireLogin()) return;
+  if (favoriteTickers.has(companyTicker)) {
+    await removeFavorite(companyTicker);
+    return;
+  }
+  const button = document.querySelector('#company-fav');
+  favoriteTickers.add(companyTicker);
+  button.classList.toggle('active', true);
+  try {
+    const response = await fetch('/api/favorites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker: companyTicker, companyName: companyData?.company?.name }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'No se pudo añadir el favorito.');
+    showToast(`${companyTicker} añadida a tus favoritas.`);
+    fetchFavorites();
+  } catch (error) {
+    favoriteTickers.delete(companyTicker);
+    button.classList.toggle('active', false);
+    showToast(error.message);
+  }
+}
+
+function renderFavoriteTable(favorites) {
+  return `
+    <table class="favorites-market-table">
+      <thead>
+        <tr>
+          <th scope="col">Nombre</th>
+          <th scope="col">Símbolo</th>
+          <th scope="col">Último</th>
+          <th scope="col">Apertura</th>
+          <th scope="col">Máximo</th>
+          <th scope="col">Mínimo</th>
+          <th scope="col">Var.</th>
+          <th scope="col">% var.</th>
+          <th scope="col">Vol.</th>
+          <th scope="col">Fecha/Hora</th>
+          <th scope="col" aria-label="Acciones"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${favorites.map((favorite) => {
+          const ticker = String(favorite.ticker ?? '').toUpperCase();
+          const name = String(favorite.companyName || ticker);
+          const quote = favorite.quote ?? {};
+          const changeClass = favoriteChangeClass(quote.change);
+          const time = formatFavoriteTime(quote.marketTimestamp);
+          const statusClass = quote.marketState === 'REGULAR' ? 'open'
+            : quote.marketState ? 'closed' : 'unknown';
+          return `
+            <tr data-ticker="${escapeHtml(ticker)}" tabindex="0">
+              <td class="favorite-name-cell">
+                <span class="favorite-flag" aria-hidden="true">🇺🇸</span>
+                <a class="favorite-company-link" href="/empresa/${encodeURIComponent(ticker)}">${escapeHtml(name)}</a>
+              </td>
+              <td><a class="favorite-symbol-link" href="/empresa/${encodeURIComponent(ticker)}">${escapeHtml(ticker)}</a></td>
+              <td class="favorite-last ${changeClass}">${formatFavoriteNumber(quote.price)}</td>
+              <td>${formatFavoriteNumber(quote.open)}</td>
+              <td>${formatFavoriteNumber(quote.dayHigh)}</td>
+              <td>${formatFavoriteNumber(quote.dayLow)}</td>
+              <td class="${changeClass}">${formatFavoriteSigned(quote.change)}</td>
+              <td class="${changeClass}">${formatFavoritePercent(quote.changePercent)}</td>
+              <td>${formatFavoriteVolume(quote.volume)}</td>
+              <td><span class="favorite-time"><i class="favorite-market-dot ${statusClass}"></i>${time}</span></td>
+              <td>
+                <button class="favorite-table-fav active" type="button" data-ticker="${escapeHtml(ticker)}" aria-label="Quitar ${escapeHtml(name)} de favoritos" title="Quitar de favoritos">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderFavoritesList() {
+  const list = document.querySelector('#favorites-list');
+  const empty = document.querySelector('#favorites-empty');
+  const count = document.querySelector('#favorites-count');
+  if (!list) return;
+  if (!companyAuthenticated) {
+    list.innerHTML = '';
+    empty.hidden = false;
+    empty.textContent = 'Inicia sesión para guardar y ver tus acciones favoritas.';
+    count.textContent = 'Inicia sesión';
+    return;
+  }
+  empty.textContent = 'Aún no tienes acciones favoritas. Toca el corazón de una empresa para añadirla.';
+  empty.hidden = favoritesList.length > 0;
+  count.textContent = favoritesList.length ? `${favoritesList.length} ${favoritesList.length === 1 ? 'acción' : 'acciones'}` : '—';
+  list.innerHTML = renderFavoriteTable(favoritesList);
+  list.querySelectorAll('tbody tr[data-ticker]').forEach((row) => {
+    row.addEventListener('click', (event) => {
+      if (event.target.closest('a, button')) return;
+      goToCompany(row.dataset.ticker);
+    });
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.target.closest('a, button')) goToCompany(row.dataset.ticker);
+    });
+  });
+  list.querySelectorAll('.favorite-table-fav').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      removeFavorite(button.closest('tr[data-ticker]').dataset.ticker);
+    });
+  });
+}
+
 /* ── Secciones del menú lateral ─────────────────────────────── */
 
 function showSection(key) {
   const sections = {
     perfil: document.querySelector('#section-perfil'),
+    favoritos: document.querySelector('#section-favoritos'),
     informes: document.querySelector('#section-informes'),
     datos: document.querySelector('#section-datos'),
     placeholder: document.querySelector('#section-placeholder'),
@@ -668,6 +932,11 @@ function showSection(key) {
 
   Object.values(sections).forEach((section) => { section.hidden = true; });
 
+  if (key === 'favoritos') {
+    sections.favoritos.hidden = false;
+    renderFavoritesList();
+    return;
+  }
   if (key === 'informes') {
     sections.informes.hidden = false;
     if (!screenerFilings && !screenerFilingsLoading) loadFilings();
@@ -699,7 +968,7 @@ document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
 
 /* ── Cabecera de empresa: acciones ──────────────────────────── */
 
-document.querySelector('#company-fav').addEventListener('click', () => showToast('Los favoritos estarán disponibles próximamente.'));
+document.querySelector('#company-fav').addEventListener('click', toggleCompanyFavorite);
 document.querySelector('#company-alert').addEventListener('click', () => showToast('Las alertas de precio estarán disponibles próximamente.'));
 document.querySelector('#company-filings-shortcut').addEventListener('click', () => {
   document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'informes'));
@@ -808,6 +1077,7 @@ document.addEventListener('click', (event) => {
 window.addEventListener('auth:change', (event) => {
   companyAuthenticated = Boolean(event.detail?.user);
   if (companyData && !document.querySelector('#section-datos').hidden) renderScreenerTables();
+  fetchFavorites();
 });
 
 async function loadCompany() {
@@ -825,6 +1095,7 @@ async function loadCompany() {
     }
     renderCompany(data);
     companyBody.hidden = false;
+    renderCompanyFavState();
     renderPriceChart();
     loadChart(chartRange);
   } catch {

@@ -102,6 +102,8 @@ function openModal(tab = 'login') {
   authEmail.focus();
 }
 
+window.openModal = openModal;
+
 function closeModal() {
   if (!modalBackdrop) return;
   modalBackdrop.hidden = true;

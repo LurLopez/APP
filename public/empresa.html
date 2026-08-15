@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#242424">
   <meta name="description" content="Cifra: perfil y análisis fundamental de empresas.">
   <title>Cifra Terminal | Empresa</title>
-  <link rel="stylesheet" href="/styles.css?v=9">
+  <link rel="stylesheet" href="/styles.css?v=14">
 </head>
 <body class="company-page">
   <div class="app-shell">
@@ -216,6 +216,14 @@
             </article>
           </section>
 
+          <section class="company-section" id="section-favoritos" hidden>
+            <div class="filings-view">
+              <div class="filings-head"><span class="screener-units">TUS ACCIONES FAVORITAS</span><span class="screener-period-range" id="favorites-count">—</span></div>
+              <div class="favorites-table-wrap" id="favorites-list"></div>
+              <div class="favorites-empty" id="favorites-empty" hidden>Aún no tienes acciones favoritas. Toca el corazón de una empresa para añadirla.</div>
+            </div>
+          </section>
+
           <section class="company-section" id="section-informes" hidden>
             <div class="filings-view">
               <div class="filings-head"><span class="screener-units">10-Q · 10-K · Fuente: SEC EDGAR</span><span class="screener-period-range" id="filings-count">—</span></div>
@@ -228,15 +236,15 @@
               <div class="screener-controls">
                 <span class="screener-currency">USD</span>
                 <div class="screener-period-toggle" role="group" aria-label="Periodo mostrado">
-                  <button type="button" data-series="annual">Anual</button>
-                  <button type="button" data-series="quarterly" class="active">Trimestral</button>
+                  <button type="button" data-series="annual" class="active">Anual</button>
+                  <button type="button" data-series="quarterly">Trimestral</button>
                 </div>
               </div>
             </div>
             <div class="screener-tabs" role="tablist" aria-label="Estado financiero">
               <button class="screener-tab active" type="button" role="tab" data-statement="income">Cuenta de resultados</button>
               <button class="screener-tab" type="button" role="tab" data-statement="balance">Balance</button>
-              <button class="screener-tab" type="button" role="tab" data-statement="cashflow">Cash flow</button>
+              <button class="screener-tab" type="button" role="tab" data-statement="cashflow">Estado de Flujo de Efectivo</button>
             </div>
             <div class="screener-block">
               <div class="screener-toolbar"><span class="screener-units">USD · Millones</span><span class="screener-period-range" id="screener-period-range">—</span><div class="screener-tools" role="group" aria-label="Opciones de tabla"><button type="button" data-precision="0">0</button><button type="button" data-precision="1">.0</button><button type="button" data-precision="2" class="active">.00</button><button type="button" data-table-action="transpose" aria-label="Compactar tabla">↔</button><button type="button" data-table-action="empty" aria-label="Ocultar filas vacías">◉</button></div></div>
@@ -325,7 +333,7 @@
     </div>
   </div>
 
-  <script src="/empresa.js?v=8"></script>
+  <script src="/empresa.js?v=14"></script>
   <script src="/auth.js?v=6"></script>
 </body>
 </html>

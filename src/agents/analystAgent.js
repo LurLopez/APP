@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { BaseAgent, AgentError } from './baseAgent.js';
-import { chat } from '../services/ai/modelProvider.js';
+import { chatJson } from '../services/ai/modelProvider.js';
 
 const MAX_CHARS = 80000;
 const PROMPTS_DIR = new URL('./prompts/', import.meta.url);
@@ -94,6 +94,7 @@ const OUTPUT_SCHEMA = `{
   "company": "Nombre de la empresa",
   "ticker": "KHC",
   "periodTitle": "2025 Q3 results — KHC",
+  "reportingPeriod": "2025-09-27",
   "horizons": [
     {
       "label": "ÚLTIMOS 3 MESES",
@@ -152,6 +153,7 @@ Responde ÚNICAMENTE con un JSON válido con esta forma exacta (sin texto fuera 
 
 Instrucciones:
 - IMPORTANTE: los valores del esquema de ejemplo son de OTRA empresa y otro periodo. Usa EXCLUSIVAMENTE los datos del JSON de extracción recibido. Nunca copies los valores del ejemplo.
+- "company", "ticker", "periodTitle" y "reportingPeriod" (fecha de fin del periodo en formato AAAA-MM-DD) se copian tal cual del JSON de extracción.
 - Dos horizontes: el trimestre más reciente y el acumulado del año en curso (usa "EN TODO EL AÑO (X MESES)" con los meses indicados). Si solo hay datos de un horizonte, usa uno solo.
 - Calcula las variaciones porcentuales con los datos extraídos ("prev" es el periodo anterior). No inventes cifras: si falta un dato usa "—".
 - "sales.rows" en orden: Ventas, Beneficio Bruto, Beneficio Operativo, EBT, Beneficio Neto.
@@ -183,14 +185,12 @@ export class AnalystAgent extends BaseAgent {
     }
 
     const extractionPrompt = EXTRACTION_PROMPT.replace('{SCHEMA}', EXTRACTION_SCHEMA.trim());
-    const rawExtraction = await chat([
-      { role: 'system', content: extractionPrompt },
-      { role: 'user', content: buildAnalysisText(input.text) },
-    ]);
-
     let extracted;
     try {
-      extracted = JSON.parse(rawExtraction);
+      extracted = await chatJson([
+        { role: 'system', content: extractionPrompt },
+        { role: 'user', content: buildAnalysisText(input.text) },
+      ]);
     } catch {
       throw new AgentError('No se pudieron extraer los datos del informe.', 'INVALID_MODEL_RESPONSE');
     }
@@ -199,14 +199,12 @@ export class AnalystAgent extends BaseAgent {
       .replace('{REGLAS}', rules.trim())
       .replace('{SCHEMA}', OUTPUT_SCHEMA.trim());
 
-    const raw = await chat([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: JSON.stringify(extracted, null, 2) },
-    ]);
-
     let result;
     try {
-      result = JSON.parse(raw);
+      result = await chatJson([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: JSON.stringify(extracted, null, 2) },
+      ]);
     } catch {
       throw new AgentError('El modelo no devolvió un análisis válido.', 'INVALID_MODEL_RESPONSE');
     }

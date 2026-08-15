@@ -6,7 +6,10 @@ import {
   getCompanyFilings,
   getFilingDocumentStream,
   getFilingPreview,
+  getFilingContentBuffer,
 } from '../../services/edgar.service.js';
+import { analyzePdf, analyzeText, htmlToText } from '../../services/analysis.service.js';
+import { AgentError } from '../../agents/baseAgent.js';
 import { getChartSeries } from '../../services/market.service.js';
 import { resolveUser } from '../../middleware/auth.middleware.js';
 
@@ -119,6 +122,45 @@ router.get('/company/:ticker/filings/:accession/document', async (req, res, next
     });
     stream.pipe(res);
   } catch (error) {
+    handleEdgarError(error, res, next);
+  }
+});
+
+router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next) => {
+  try {
+    const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
+    const accession = String(req.params.accession ?? '');
+    if (!TICKER_PATTERN.test(ticker) || !ACCESSION_PATTERN.test(accession)) {
+      res.status(400).json({ error: 'Parámetros no válidos.' });
+      return;
+    }
+    const content = await getFilingContentBuffer(ticker, accession);
+    if (!content) {
+      res.status(404).json({ error: 'Informe no encontrado.', code: 'FILING_NOT_FOUND' });
+      return;
+    }
+    const user = await resolveUser(req);
+    const options = {
+      userId: user?.id ?? null,
+      filename: `${ticker}-${accession}.pdf`,
+    };
+    const result = content.kind === 'pdf'
+      ? await analyzePdf(content.buffer, options)
+      : await analyzeText(htmlToText(content.buffer.toString('utf8')), options);
+    res.json({
+      ok: true,
+      origin: result.origin,
+      formType: result.formType,
+      sector: result.sector,
+      report: result.report,
+      pdfUrl: result.pdfUrl,
+      saved: Boolean(user),
+    });
+  } catch (error) {
+    if (error instanceof AgentError) {
+      res.status(422).json({ error: error.message, code: error.code });
+      return;
+    }
     handleEdgarError(error, res, next);
   }
 });

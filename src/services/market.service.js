@@ -1,10 +1,12 @@
 const YAHOO_CHART_URL = 'https://query1.finance.yahoo.com/v8/finance/chart';
 const MARKET_TTL = 5 * 60 * 1000;
+const QUOTE_TTL = 60 * 1000;
 const MARKET_TIMEOUT = 8000;
 const marketCache = new Map();
+const quoteCache = new Map();
 
-async function fetchChart(ticker) {
-  const url = `${YAHOO_CHART_URL}/${encodeURIComponent(ticker)}?range=5y&interval=1d&events=div%2Csplits`;
+async function fetchChart(ticker, range = '5y', interval = '1d') {
+  const url = `${YAHOO_CHART_URL}/${encodeURIComponent(ticker)}?range=${range}&interval=${interval}&events=div%2Csplits`;
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'Cifra contacto@cifra.local',
@@ -175,6 +177,60 @@ export async function getChartSeries(ticker, rangeKey = '5y', withMovingAverage 
   }
 
   return out;
+}
+
+export async function getMarketQuote(ticker) {
+  const normalizedTicker = String(ticker).trim().toUpperCase();
+  const cached = quoteCache.get(normalizedTicker);
+  if (cached && Date.now() - cached.at < QUOTE_TTL) return cached.data;
+
+  const chart = await fetchChart(normalizedTicker, '5d', '1d');
+  const meta = chart?.meta ?? {};
+  const series = extractSeries(chart);
+  const latestSeriesClose = series.at(-1)?.close ?? null;
+  const previousSeriesClose = series.at(-2)?.close ?? null;
+  const numberOrNull = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+  const price = numberOrNull(meta.regularMarketPrice) ?? latestSeriesClose;
+  const previousClose = numberOrNull(meta.regularMarketPreviousClose) ?? previousSeriesClose;
+  const change = numberOrNull(meta.regularMarketChange)
+    ?? (price !== null && previousClose !== null ? price - previousClose : null);
+  const changePercent = numberOrNull(meta.regularMarketChangePercent)
+    ?? (change !== null && previousClose ? (change / previousClose) * 100 : null);
+  const latestQuoteValue = (key) => {
+    const values = chart?.indicators?.quote?.[0]?.[key] ?? [];
+    for (let index = values.length - 1; index >= 0; index -= 1) {
+      const value = numberOrNull(values[index]);
+      if (value !== null) return value;
+    }
+    return null;
+  };
+  const regularPeriod = meta.currentTradingPeriod?.regular;
+  const marketTimestamp = numberOrNull(meta.regularMarketTime);
+  const marketState = meta.marketState
+    ?? (marketTimestamp !== null && regularPeriod
+      ? marketTimestamp >= Number(regularPeriod.start) && marketTimestamp < Number(regularPeriod.end) ? 'REGULAR' : 'CLOSED'
+      : null);
+  const quote = {
+    currency: meta.currency ?? 'USD',
+    exchange: meta.fullExchangeName ?? meta.exchangeName ?? null,
+    price,
+    open: numberOrNull(meta.regularMarketOpen) ?? latestQuoteValue('open'),
+    dayHigh: numberOrNull(meta.regularMarketDayHigh) ?? latestQuoteValue('high'),
+    dayLow: numberOrNull(meta.regularMarketDayLow) ?? latestQuoteValue('low'),
+    previousClose,
+    change,
+    changePercent,
+    volume: numberOrNull(meta.regularMarketVolume) ?? latestQuoteValue('volume'),
+    marketTimestamp,
+    marketState,
+    source: 'Yahoo Finance',
+  };
+  quoteCache.set(normalizedTicker, { data: quote, at: Date.now() });
+  return quote;
 }
 
 export async function getMarketProfile(ticker) {

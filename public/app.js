@@ -23,6 +23,32 @@ let lastAnalysisFailed = true;
 let currentPdfUrl = null;
 let currentPdfName = 'analisis-cifra.pdf';
 let searchDebounceTimer;
+let pendingFiling = null;
+let currentUser = null;
+let favoriteTickers = new Set();
+
+let processingHintTimer;
+
+function formatElapsed(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function startProcessingHints() {
+  clearTimeout(processingHintTimer);
+  const hints = [
+    [45000, 'El análisis sigue en curso. Suele tardar entre 1 y 4 minutos.'],
+    [240000, 'Esto está tardando más de lo habitual. Si no responde pronto, verás un mensaje de error claro para reintentar.'],
+  ];
+  hints.forEach(([delay, message]) => {
+    processingHintTimer = setTimeout(() => {
+      if (processingPanel.hidden) return;
+      if (!document.querySelector('#analysis-error').hidden) return;
+      document.querySelector('#processing-note').textContent = message;
+    }, delay);
+  });
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -175,7 +201,12 @@ function resetAgentStates() {
 
 function showAnalysisError(message, failedAgent = 'origin') {
   lastAnalysisFailed = true;
+  clearTimeout(processingHintTimer);
   if (failedAgent === 'sector') setAgentState('origin', 'done');
+  if (failedAgent === 'analyst') {
+    setAgentState('origin', 'done');
+    setAgentState('sector', 'done');
+  }
   setAgentState(failedAgent, 'error');
   const errorBox = document.querySelector('#analysis-error');
   errorBox.textContent = message;
@@ -193,8 +224,9 @@ function showAnalysisError(message, failedAgent = 'origin') {
   clearInterval(analysisTimer);
 }
 
-async function runRealAnalysis() {
+function startAnalysisUi(title) {
   clearInterval(analysisTimer);
+  clearTimeout(processingHintTimer);
   let seconds = 1;
 
   processingPanel.hidden = false;
@@ -204,15 +236,51 @@ async function runRealAnalysis() {
   document.querySelector('#analysis-error').hidden = true;
   document.querySelector('#retry-analysis').hidden = true;
   document.querySelector('#processing-note').hidden = false;
+  document.querySelector('#processing-note').textContent = 'El documento se verifica automáticamente antes de continuar.';
   progressBar.style.width = '20%';
-  processingTitle.textContent = 'Verificando el documento...';
+  processingTitle.textContent = title;
   processingTime.textContent = '00:01';
   setAgentState('origin', 'active');
 
   analysisTimer = setInterval(() => {
     seconds += 1;
-    processingTime.textContent = `00:${String(seconds).padStart(2, '0')}`;
+    processingTime.textContent = formatElapsed(seconds);
   }, 1000);
+}
+
+function failAnalysis(data) {
+  const failedAgent = data.code === 'NOT_DEFENSIVE_CONSUMER' ? 'sector'
+    : data.code === 'INVALID_MODEL_RESPONSE' || data.code === 'INVALID_REPORT_STRUCTURE' ? 'analyst'
+      : 'origin';
+  showAnalysisError(data.error || 'No se pudo analizar el documento. Inténtalo de nuevo.', failedAgent);
+}
+
+function finishAnalysis(data) {
+  clearTimeout(processingHintTimer);
+  setAgentState('origin', 'done');
+  setAgentState('sector', 'done');
+  setAgentState('analyst', 'done');
+  lastAnalysisFailed = false;
+  progressBar.style.width = '100%';
+  processingTitle.textContent = 'Análisis completado: PDF generado';
+  clearInterval(analysisTimer);
+  const retryButton = document.querySelector('#retry-analysis');
+  retryButton.textContent = 'Analizar otro informe';
+  retryButton.hidden = false;
+  currentPdfUrl = data.pdfUrl ?? null;
+  const ticker = data.report?.ticker;
+  currentPdfName = `${ticker ? `${String(ticker).toLowerCase()}-` : ''}analisis-cifra.pdf`;
+  renderReport(data.report ?? {});
+  resultPreview.hidden = false;
+  const saved = data.saved && currentUser;
+  showToast(`${saved ? 'Análisis guardado en tu histórico. ' : ''}${data.formType} de consumo defensivo analizado. El PDF con los 3 bloques está listo para descargar.`);
+  if (saved) fetchAnalyses();
+}
+
+async function runRealAnalysis() {
+  pendingFiling = null;
+  startAnalysisUi('Verificando el documento...');
+  startProcessingHints();
 
   const formData = new FormData();
   formData.append('file', selectedFile);
@@ -222,29 +290,35 @@ async function runRealAnalysis() {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const failedAgent = data.code === 'NOT_DEFENSIVE_CONSUMER' ? 'sector'
-        : data.code === 'INVALID_MODEL_RESPONSE' || data.code === 'INVALID_REPORT_STRUCTURE' ? 'analyst'
-          : 'origin';
-      showAnalysisError(data.error || 'No se pudo analizar el documento. Inténtalo de nuevo.', failedAgent);
+      failAnalysis(data);
       return;
     }
 
-    setAgentState('origin', 'done');
-    setAgentState('sector', 'done');
-    setAgentState('analyst', 'done');
-    lastAnalysisFailed = false;
-    progressBar.style.width = '100%';
-    processingTitle.textContent = 'Análisis completado: PDF generado';
-    clearInterval(analysisTimer);
-    const retryButton = document.querySelector('#retry-analysis');
-    retryButton.textContent = 'Analizar otro informe';
-    retryButton.hidden = false;
-    currentPdfUrl = data.pdfUrl ?? null;
-    const ticker = data.report?.ticker;
-    currentPdfName = `${ticker ? `${String(ticker).toLowerCase()}-` : ''}analisis-cifra.pdf`;
-    renderReport(data.report ?? {});
-    resultPreview.hidden = false;
-    showToast(`${data.formType} de consumo defensivo analizado. El PDF con los 3 bloques está listo para descargar.`);
+    finishAnalysis(data);
+  } catch {
+    showAnalysisError('No se pudo conectar con el servidor. Comprueba que esté en marcha.');
+  }
+}
+
+async function runFilingAnalysis(ticker, accession) {
+  pendingFiling = { ticker, accession };
+  startAnalysisUi(`Analizando el informe de ${ticker}…`);
+  document.querySelector('#processing-note').textContent = 'Informe de la sección de informes de SEC EDGAR. Mismo proceso de verificación que en la subida manual.';
+  startProcessingHints();
+
+  try {
+    const response = await fetch(
+      `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/analyze`,
+      { method: 'POST' },
+    );
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      failAnalysis(data);
+      return;
+    }
+
+    finishAnalysis(data);
   } catch {
     showAnalysisError('No se pudo conectar con el servidor. Comprueba que esté en marcha.');
   }
@@ -291,6 +365,10 @@ uploadForm.addEventListener('submit', (event) => {
 document.querySelector('#retry-analysis').addEventListener('click', () => {
   processingPanel.hidden = true;
   uploadForm.hidden = false;
+  if (pendingFiling) {
+    runFilingAnalysis(pendingFiling.ticker, pendingFiling.accession);
+    return;
+  }
   if (!lastAnalysisFailed) clearFile();
 });
 
@@ -311,27 +389,403 @@ document.querySelector('#new-analysis').addEventListener('click', () => {
   document.querySelector('#nuevo').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
-document.querySelectorAll('.row-action').forEach((button) => {
-  button.addEventListener('click', () => showToast('La vista de detalle se conectará al histórico de análisis.'));
+/* ── Historial de análisis ─────────────────────────────────── */
+
+const historyBody = document.querySelector('#history-body');
+const historyFilters = document.querySelector('#history-filters');
+const historyCompanyInput = document.querySelector('#history-company');
+const historyFromInput = document.querySelector('#history-from');
+const historyToInput = document.querySelector('#history-to');
+const historyEmpty = document.querySelector('#history-empty');
+const historyEmptyText = document.querySelector('#history-empty-text');
+const historyLoginButton = document.querySelector('#history-login');
+let historyDebounceTimer;
+
+function formatHistoryDate(value) {
+  if (!value) return '—';
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+}
+
+function historyQuery() {
+  const dateType = document.querySelector('input[name="history-date-type"]:checked')?.value ?? 'period';
+  const params = new URLSearchParams();
+  const ticker = historyCompanyInput.value.trim();
+  if (ticker) params.set('ticker', ticker);
+  if (historyFromInput.value) params.set(dateType === 'period' ? 'periodFrom' : 'createdFrom', historyFromInput.value);
+  if (historyToInput.value) params.set(dateType === 'period' ? 'periodTo' : 'createdTo', historyToInput.value);
+  return params;
+}
+
+function renderHistory(analyses) {
+  const list = Array.isArray(analyses) ? analyses : [];
+
+  if (!currentUser) {
+    historyFilters.hidden = true;
+    historyBody.innerHTML = '';
+    historyEmpty.hidden = false;
+    historyEmptyText.textContent = 'Inicia sesión para guardar tus análisis y consultarlos aquí.';
+    historyLoginButton.hidden = false;
+    return;
+  }
+
+  historyLoginButton.hidden = true;
+  historyFilters.hidden = false;
+
+  if (!list.length) {
+    historyBody.innerHTML = '';
+    historyEmpty.hidden = false;
+    historyEmptyText.textContent = historyCompanyInput.value || historyFromInput.value || historyToInput.value
+      ? 'No hay análisis que coincidan con los filtros.'
+      : 'Aún no tienes análisis guardados. Sube un 10-Q o 10-K y aparecerá aquí.';
+    return;
+  }
+
+  historyEmpty.hidden = true;
+  historyBody.innerHTML = list.map((analysis) => {
+    const ticker = String(analysis.ticker ?? '').toUpperCase();
+    const company = analysis.companyName || ticker || '—';
+    const periodTitle = analysis.periodTitle || '—';
+    const status = analysis.status === 'done'
+      ? '<span class="table-status done"><i></i> Completado</span>'
+      : `<span class="table-status warning"><i></i> ${escapeHtml(analysis.status === 'processing' ? 'Procesando' : 'Error')}</span>`;
+    return `
+      <tr data-pdf-url="${escapeHtml(analysis.pdf_url ?? '')}" tabindex="0">
+        <td><span class="table-file">PDF</span><strong>${escapeHtml(analysis.filename ?? 'informe.pdf')}</strong></td>
+        <td>${escapeHtml(company)} ${ticker ? `<span class="td-ticker">${escapeHtml(ticker)}</span>` : ''}</td>
+        <td>${escapeHtml(periodTitle)}</td>
+        <td>${formatHistoryDate(analysis.period_end)}</td>
+        <td>${formatHistoryDate(analysis.created_at)}</td>
+        <td>${status}</td>
+        <td>${analysis.pdf_url ? '<button class="row-action" type="button" aria-label="Abrir análisis" title="Abrir PDF del análisis">↗</button>' : ''}</td>
+      </tr>
+    `;
+  }).join('');
+
+  historyBody.querySelectorAll('tr[data-pdf-url]').forEach((row) => {
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.target.closest('button')) openHistoryPdf(row);
+    });
+  });
+}
+
+function openHistoryPdf(row) {
+  const url = row?.dataset?.pdfUrl;
+  if (!url) return;
+  window.open(url, '_blank', 'noopener');
+}
+
+async function fetchAnalyses() {
+  if (!currentUser) {
+    renderHistory([]);
+    return;
+  }
+  try {
+    const response = await fetch(`/api/analyses?${historyQuery().toString()}`);
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) renderHistory(data.analyses ?? []);
+  } catch {
+    renderHistory([]);
+  }
+}
+
+document.addEventListener('click', (event) => {
+  const row = event.target.closest('tr[data-pdf-url]');
+  if (row && !event.target.closest('button')) {
+    openHistoryPdf(row);
+    return;
+  }
+  const rowAction = event.target.closest('tr[data-pdf-url] .row-action');
+  if (rowAction) {
+    event.preventDefault();
+    event.stopPropagation();
+    openHistoryPdf(rowAction.closest('tr'));
+  }
+});
+
+historyCompanyInput.addEventListener('input', () => {
+  clearTimeout(historyDebounceTimer);
+  historyDebounceTimer = setTimeout(fetchAnalyses, 300);
+});
+
+[historyFromInput, historyToInput].forEach((input) => {
+  input.addEventListener('change', fetchAnalyses);
+});
+
+document.querySelectorAll('input[name="history-date-type"]').forEach((radio) => {
+  radio.addEventListener('change', fetchAnalyses);
+});
+
+document.querySelector('#history-clear').addEventListener('click', () => {
+  historyCompanyInput.value = '';
+  historyFromInput.value = '';
+  historyToInput.value = '';
+  document.querySelector('input[name="history-date-type"][value="period"]').checked = true;
+  fetchAnalyses();
+});
+
+document.querySelector('#history-refresh').addEventListener('click', fetchAnalyses);
+historyLoginButton.addEventListener('click', () => window.openModal?.('login'));
+
+document.querySelectorAll('.home-card').forEach((card) => {
+  card.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') goToCompany(card.dataset.ticker);
+  });
 });
 
 document.querySelectorAll('.home-top-link').forEach((button) => {
-  button.addEventListener('click', () => showToast(`${button.dataset.soon}: disponible próximamente.`));
-});
-
-document.querySelectorAll('.home-card').forEach((card) => {
-  const open = () => goToCompany(card.dataset.ticker);
-  card.addEventListener('click', (event) => {
-    if (event.target.closest('.home-card-fav')) return;
-    open();
-  });
-  card.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') open();
+  button.addEventListener('click', () => {
+    if (button.dataset.soon === 'Favoritos') {
+      openFavoritesSection();
+      return;
+    }
+    showToast(`${button.dataset.soon}: disponible próximamente.`);
   });
 });
 
-document.querySelectorAll('.home-card-fav').forEach((button) => {
-  button.addEventListener('click', () => showToast('Los favoritos estarán disponibles próximamente.'));
+/* ── Acciones favoritas ─────────────────────────────────────── */
+
+function favoriteNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatFavoriteNumber(value, digits = 2) {
+  const number = favoriteNumber(value);
+  if (number === null) return '—';
+  return new Intl.NumberFormat('es-ES', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(number);
+}
+
+function formatFavoriteSigned(value) {
+  const number = favoriteNumber(value);
+  if (number === null) return '—';
+  const sign = number > 0 ? '+' : number < 0 ? '−' : '';
+  return `${sign}${formatFavoriteNumber(Math.abs(number))}`;
+}
+
+function formatFavoritePercent(value) {
+  const number = favoriteNumber(value);
+  if (number === null) return '—';
+  return `${formatFavoriteSigned(number)} %`;
+}
+
+function formatFavoriteVolume(value) {
+  const number = favoriteNumber(value);
+  if (number === null) return '—';
+  const absolute = Math.abs(number);
+  const [unit, suffix] = absolute >= 1e9 ? [1e9, 'B']
+    : absolute >= 1e6 ? [1e6, 'M']
+      : absolute >= 1e3 ? [1e3, 'K']
+        : [1, ''];
+  return `${new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(number / unit)}${suffix}`;
+}
+
+function formatFavoriteTime(timestamp) {
+  const number = favoriteNumber(timestamp);
+  if (number === null || number <= 0) return '—';
+  return new Intl.DateTimeFormat('es-ES', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date(number * 1000));
+}
+
+function favoriteChangeClass(value) {
+  const number = favoriteNumber(value);
+  return number === null ? '' : number >= 0 ? 'positive' : 'negative';
+}
+
+function requireLogin() {
+  if (currentUser) return true;
+  showToast('Inicia sesión para guardar acciones favoritas.');
+  window.openModal?.('login');
+  return false;
+}
+
+async function toggleFavorite(button, ticker, companyName) {
+  if (!requireLogin()) return;
+  ticker = String(ticker).toUpperCase();
+  const wasFavorite = favoriteTickers.has(ticker);
+
+  favoriteTickers[wasFavorite ? 'delete' : 'add'](ticker);
+  button.classList.toggle('active', !wasFavorite);
+
+  try {
+    const response = await fetch('/api/favorites', {
+      method: wasFavorite ? 'DELETE' : 'POST',
+      headers: wasFavorite ? undefined : { 'Content-Type': 'application/json' },
+      body: wasFavorite ? undefined : JSON.stringify({ ticker, companyName }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'No se pudo actualizar el favorito.');
+    }
+    showToast(wasFavorite
+      ? `${ticker} eliminada de tus favoritas.`
+      : `${ticker} añadida a tus favoritas.`);
+    fetchFavorites();
+  } catch (error) {
+    favoriteTickers[wasFavorite ? 'add' : 'delete'](ticker);
+    button.classList.toggle('active', wasFavorite);
+    showToast(error.message);
+  }
+}
+
+function renderFavoriteTable(favorites) {
+  return `
+    <table class="favorites-market-table">
+      <thead>
+        <tr>
+          <th scope="col">Nombre</th>
+          <th scope="col">Símbolo</th>
+          <th scope="col">Último</th>
+          <th scope="col">Apertura</th>
+          <th scope="col">Máximo</th>
+          <th scope="col">Mínimo</th>
+          <th scope="col">Var.</th>
+          <th scope="col">% var.</th>
+          <th scope="col">Vol.</th>
+          <th scope="col">Fecha/Hora</th>
+          <th scope="col" aria-label="Acciones"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${favorites.map((favorite) => {
+          const ticker = String(favorite.ticker ?? '').toUpperCase();
+          const name = String(favorite.companyName || ticker);
+          const quote = favorite.quote ?? {};
+          const changeClass = favoriteChangeClass(quote.change);
+          const time = formatFavoriteTime(quote.marketTimestamp);
+          const statusClass = quote.marketState === 'REGULAR' ? 'open'
+            : quote.marketState ? 'closed' : 'unknown';
+          return `
+            <tr data-ticker="${escapeHtml(ticker)}" tabindex="0">
+              <td class="favorite-name-cell">
+                <span class="favorite-flag" aria-hidden="true">🇺🇸</span>
+                <a class="favorite-company-link" href="/empresa/${encodeURIComponent(ticker)}">${escapeHtml(name)}</a>
+              </td>
+              <td><a class="favorite-symbol-link" href="/empresa/${encodeURIComponent(ticker)}">${escapeHtml(ticker)}</a></td>
+              <td class="favorite-last ${changeClass}">${formatFavoriteNumber(quote.price)}</td>
+              <td>${formatFavoriteNumber(quote.open)}</td>
+              <td>${formatFavoriteNumber(quote.dayHigh)}</td>
+              <td>${formatFavoriteNumber(quote.dayLow)}</td>
+              <td class="${changeClass}">${formatFavoriteSigned(quote.change)}</td>
+              <td class="${changeClass}">${formatFavoritePercent(quote.changePercent)}</td>
+              <td>${formatFavoriteVolume(quote.volume)}</td>
+              <td><span class="favorite-time"><i class="favorite-market-dot ${statusClass}"></i>${time}</span></td>
+              <td>
+                <button class="favorite-table-fav active" type="button" data-ticker="${escapeHtml(ticker)}" aria-label="Quitar ${escapeHtml(name)} de favoritos" title="Quitar de favoritos">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderFavorites(favorites) {
+  const section = document.querySelector('#favoritos');
+  const table = document.querySelector('#favorites-table');
+  const list = Array.isArray(favorites) ? favorites : [];
+  favoriteTickers = new Set(list.map((favorite) => String(favorite.ticker).toUpperCase()));
+  updateFavoriteButtons();
+
+  if (!currentUser || !list.length) {
+    section.hidden = true;
+    table.innerHTML = '';
+    return;
+  }
+  document.querySelector('#favorites-count').textContent = `${list.length} ${list.length === 1 ? 'acción' : 'acciones'}`;
+  table.innerHTML = renderFavoriteTable(list);
+  section.hidden = false;
+  table.querySelectorAll('tbody tr[data-ticker]').forEach((row) => {
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.target.closest('a, button')) {
+        goToCompany(row.dataset.ticker);
+      }
+    });
+  });
+}
+
+function updateFavoriteButtons() {
+  document.querySelectorAll('.home-card[data-ticker]').forEach((card) => {
+    const button = card.querySelector('.home-card-fav');
+    if (!button) return;
+    const ticker = String(card.dataset.ticker).toUpperCase();
+    const name = card.querySelector('.home-card-copy strong')?.textContent ?? ticker;
+    const isFavorite = favoriteTickers.has(ticker);
+    button.classList.toggle('active', isFavorite);
+    button.setAttribute('aria-label', isFavorite
+      ? `Quitar ${name} de favoritos`
+      : `Añadir ${name} a favoritos`);
+  });
+}
+
+async function fetchFavorites() {
+  if (!currentUser) {
+    renderFavorites([]);
+    return;
+  }
+  try {
+    const response = await fetch('/api/favorites');
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) renderFavorites(data.favorites ?? []);
+  } catch {
+    renderFavorites([]);
+  }
+}
+
+function openFavoritesSection() {
+  if (!requireLogin()) return;
+  const section = document.querySelector('#favoritos');
+  if (section.hidden) {
+    showToast('Aún no tienes acciones favoritas. Toca el corazón de una empresa para añadirla.');
+    return;
+  }
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+window.addEventListener('auth:change', (event) => {
+  currentUser = Boolean(event.detail?.user);
+  fetchFavorites();
+  fetchAnalyses();
+});
+
+document.addEventListener('click', (event) => {
+  const tableFavoriteButton = event.target.closest('.favorite-table-fav');
+  if (tableFavoriteButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    const row = tableFavoriteButton.closest('tr[data-ticker]');
+    const name = row?.querySelector('.favorite-company-link')?.textContent ?? row?.dataset.ticker;
+    if (row) toggleFavorite(tableFavoriteButton, row.dataset.ticker, name);
+    return;
+  }
+  const favoriteRow = event.target.closest('.favorites-market-table tbody tr[data-ticker]');
+  if (favoriteRow && !event.target.closest('a, button')) {
+    goToCompany(favoriteRow.dataset.ticker);
+    return;
+  }
+  const favButton = event.target.closest('.home-card-fav');
+  if (favButton) {
+    event.stopPropagation();
+    const card = favButton.closest('.home-card[data-ticker]');
+    if (!card) return;
+    const name = card.querySelector('.home-card-copy strong')?.textContent ?? card.dataset.ticker;
+    toggleFavorite(favButton, card.dataset.ticker, name);
+    return;
+  }
+  const card = event.target.closest('.home-card[data-ticker]');
+  if (card) goToCompany(card.dataset.ticker);
 });
 
 async function searchCompanies(query) {
@@ -406,3 +860,12 @@ tickerSearch.addEventListener('keydown', async (event) => {
 document.addEventListener('click', (event) => {
   if (!event.target.closest('.search-wrap')) searchResults.hidden = true;
 });
+
+const urlParams = new URLSearchParams(window.location.search);
+const pendingTicker = (urlParams.get('analizar') ?? '').trim().toUpperCase();
+const pendingAccession = urlParams.get('accession') ?? '';
+if (/^[A-Z0-9.-]{1,10}$/.test(pendingTicker) && /^\d{10}-\d{2}-\d{6}$/.test(pendingAccession)) {
+  history.replaceState(null, '', window.location.pathname);
+  document.querySelector('#nuevo').scrollIntoView({ behavior: 'auto', block: 'start' });
+  runFilingAnalysis(pendingTicker, pendingAccession);
+}
