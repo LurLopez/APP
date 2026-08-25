@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cartera de inversión (portfolio) — Frontend | Cifra</title>
+<style>
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
+  header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
+  .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  h1 { margin:0 0 8px; font-size:28px; }
+  .sub { color:var(--muted); margin:0; font-size:14px; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
+  h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
+  p { margin:8px 0; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
+  code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
+  table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
+  th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / frontend / funcionalidades / cartera</div>
+    <h1>Cartera de inversión (portfolio) — Frontend</h1>
+    <p class="sub">Resumen, posiciones con rentabilidad (con y sin dividendos), donuts por empresa/sector, historial de operaciones y formulario de compra/venta con autocompletar.</p>
+    <span class="badge">✓ Implementado y probado · 2026-08-17</span>
+  </header>
+
+  <h2>Qué hace</h2>
+  <p>El usuario gestiona su cartera desde la sección <strong>Cartera</strong> de Inicio: ve <strong>6 tarjetas de resumen</strong> (valor, invertido, plusvalía/pérdida, dividendos acumulados, anuales previstos y yield), una <strong>tabla de posiciones</strong> con las 6 columnas de rentabilidad, <strong>dos gráficos circulares</strong> (por empresa y por sector), el <strong>historial de operaciones</strong> con su ganancia FIFO y un <strong>formulario</strong> para registrar compras y ventas. En la página de empresa hay un <strong>panel con la posición</strong> de esa empresa y el mismo formulario prefijado.</p>
+
+  <h2>Resumen (6 tarjetas)</h2>
+  <table>
+    <tr><th>Tarjeta</th><th>Muestra</th></tr>
+    <tr><td>Valor de cartera</td><td>Total valorado a mercado</td></tr>
+    <tr><td>Invertido</td><td>Coste de las posiciones en cartera</td></tr>
+    <tr><td>Plusvalía o pérdida</td><td>Rentabilidad total + % sobre el coste</td></tr>
+    <tr><td>Dividendos acumulados (est.)</td><td>Estimados con fechas de pago reales</td></tr>
+    <tr><td>Dividendos anuales previstos</td><td>TTM por acción × acciones</td></tr>
+    <tr><td>Rentabilidad por dividendo</td><td>Previstos / valor de cartera</td></tr>
+  </table>
+
+  <h2>Tabla de posiciones</h2>
+  <ul>
+    <li>Columnas: Empresa (nombre + ticker · sector), Acciones, Coste medio, Precio, Valor, <strong>No realizada</strong>, <strong>No real. + div.</strong>, <strong>Realizada</strong>, <strong>Real. + div. ventas</strong>, <strong>Real. + div. totales</strong>, <strong>Total</strong> y <strong>%</strong> del valor total.</li>
+    <li>Valores con prefijo +/− y color verde/rojo; fila de totales; clic en una fila → perfil de la empresa.</li>
+    <li>Cada cabecera tiene un tooltip explicativo (p. ej. "Ganancia no realizada + dividendos acumulados de las acciones en posesión").</li>
+  </ul>
+
+  <h2>Distribución (donuts)</h2>
+  <ul>
+    <li>Dos <strong>donuts SVG</strong> dibujados con <code>stroke-dasharray</code>: <strong>Por empresa</strong> y <strong>Por sector</strong>.</li>
+    <li>Leyenda con color, nombre, % y valor; 14 colores fijos; sector desconocido → "Otros".</li>
+  </ul>
+
+  <h2>Historial de operaciones</h2>
+  <ul>
+    <li>Fecha, badge Compra/Venta, Empresa + ticker, Acciones, Precio, Importe, <strong>Ganancia</strong> (FIFO, solo ventas) y borrado (× con confirmación).</li>
+    <li>Si el borrado rompería la consistencia FIFO, el toast muestra el error 400 del servidor.</li>
+  </ul>
+
+  <h2>Formulario de operación</h2>
+  <ul>
+    <li><strong>Ticker con autocompletar</strong>: debounce 250 ms contra <code>/api/screener/search</code>; al elegir una empresa se guarda su nombre en un campo oculto.</li>
+    <li>Tipo (Compra/Venta), Cantidad (&gt; 0), Precio (≥ 0) y Fecha (máx. hoy, por defecto hoy).</li>
+    <li>Validación cliente + nota de error para errores del servidor (p. ej. vender más acciones de las que tienes).</li>
+    <li>En Empresa el formulario va <strong>prefijado</strong> (ticker readonly) para operar esa empresa directamente.</li>
+  </ul>
+
+  <h2>Panel de Empresa</h2>
+  <ul>
+    <li>"Tu posición en KO": Acciones, Coste medio, Precio actual, Valor, No realizada, Dividendos acumulados (est.), Anuales previstos y Rentabilidad total.</li>
+    <li>Enlace "Ver cartera completa ↗" → <code>/?cartera=1</code> (Inicio abre la sección y hace scroll).</li>
+    <li>Sin posición: "Aún no tienes acciones de esta empresa en tu cartera."</li>
+  </ul>
+
+  <h2>Pestañas y grupos</h2>
+  <p>La cartera se organiza en tres niveles: <strong>PESTAÑA</strong> → <strong>GRUPO</strong> → <strong>MIEMBROS</strong> (acciones completas y/o sublíneas sueltas). En el panel <strong>Valores</strong> la <strong>tabla de acciones</strong> (con el selector Actual/Vendido/Todo) va arriba y, debajo, la <strong>sección de grupos</strong>:</p>
+  <ul>
+    <li><strong>Combobox de pestañas</strong>: Sector, Tipo, País, Región + las pestañas personalizadas. Al cambiarlo se selecciona automáticamente el primer grupo y se muestra su tabla.</li>
+    <li><strong>Pills de grupos</strong>: en pestañas predefinidas aparecen los nombres de los valores (ej. "Consumo defensivo") con contador; en personalizadas, los grupos del usuario con contador y botones ✎/×.</li>
+    <li><strong>Tabla de grupos</strong>: la misma tabla y las mismas columnas que la de acciones (Valor, Acciones, Coste, Ganancia, Gan. + div., Peso cartera, Div. %, Div. YoC, Div. cobrados, Grupos), con los miembros del grupo seleccionado; cada sublínea muestra su acción (logo + ticker + fecha del lote).</li>
+    <li><strong>Pestañas predefinidas</strong> (no editables): Sector, Tipo, País, Región. Al pulsar un valor (ej. "Consumo defensivo") aparecen las sublíneas de cada acción que pertenece a ese valor.</li>
+    <li><strong>Pestañas personalizadas</strong>: CRUD completo (crear, renombrar, recolorear, eliminar) con "＋ Nueva pestaña" y los botones ✎/× de la cabecera de la sección; dentro de ellas se crean los grupos con "＋ Crear grupo".</li>
+    <li><strong>Grupos</strong>: se crean con nombre + color y checkboxes de acciones/sublíneas. Marcar <strong>"toda la acción"</strong> = regla a nivel de ticker (las operaciones futuras de esa acción entran solas); marcar <strong>sublíneas</strong> = solo ese lote concreto.</li>
+    <li>Una línea/sublínea puede pertenecer a <strong>varios grupos</strong>; la pertenencia se edita después con un <strong>popover de checkboxes</strong> en la columna "Grupos" de la tabla de acciones (en las sublíneas, las pertenencias por regla salen marcadas y deshabilitadas).</li>
+    <li>Contenido de la tabla de grupos: grupo con regla de ticker muestra la fila de la acción y sus sublíneas; grupo con sublíneas sueltas solo las sublíneas.</li>
+  </ul>
+
+  <h2>Estados</h2>
+  <table>
+    <tr><th>Caso</th><th>Comportamiento</th></tr>
+    <tr><td>Sin sesión</td><td>CTA de login; abrir cartera desde Empresa abre el modal</td></tr>
+    <tr><td>Cargando</td><td>"Cargando tu cartera…"</td></tr>
+    <tr><td>Sin operaciones</td><td>Estado vacío + botón "Añadir operación"</td></tr>
+    <tr><td>Fallo de cotización</td><td>"—" en precio/valor sin romper el resto</td></tr>
+  </table>
+
+  <h2>Archivos</h2>
+  <table>
+    <tr><th>Archivo</th><th>Función</th></tr>
+    <tr><td><code>public/portfolio.js</code></td><td>Módulo <code>Portfolio</code>: estado, sección, panel de empresa, formulario, donuts, formatos + pestañas/grupos (<code>gruposSectionHtml</code>, <code>groupMembersTableHtml</code>, <code>gruposTabOptions</code>, <code>tabOptionValue</code>, <code>selectedTabValue</code>, <code>groupPillsForActiveTab</code>, <code>buildGroupMemberRows</code>, <code>gruposTableHtml</code>, <code>groupPillHtml</code>, <code>groupPillsHtml</code>, <code>groupsCellHtml</code>, <code>renderGroupPopover</code>, <code>wireGroupFeatures</code>; <code>wrapPositionsTable</code> con <code>tableClass</code>)</td></tr>
+    <tr><td><code>public/index.html</code> / <code>app.js</code></td><td>Sección <code>#cartera</code>, botón topbar, parámetro <code>?cartera=1</code> (styles <code>?v=48</code>, portfolio <code>?v=33</code>, app <code>?v=19</code>)</td></tr>
+    <tr><td><code>public/empresa.html</code> / <code>empresa.js</code></td><td>Panel <code>#section-cartera</code> (styles <code>?v=43</code>, portfolio <code>?v=19</code>)</td></tr>
+    <tr><td><code>public/styles.css</code></td><td>Tarjetas, tablas, donuts, formulario, sección de grupos <code>.pf-groups-*</code> (section/head/title/hint/controls/pills/empty), pills <code>.pf-g-pill-*</code>, popover y tabla de grupos <code>.pf-g-members-table</code></td></tr>
+  </table>
+
+  <h2>Pruebas</h2>
+  <ul>
+    <li>Ejemplo TAP del usuario replicado en pantalla (realizada 200 $; dividendos 28,8 $ + 19,2 $).</li>
+    <li>FIFO multi-lote (AAPL), borrado con protección, alocaciones al 100 %.</li>
+    <li>Flujo completo con usuario temporal (comprar/vender, ver posiciones, borrar). <code>node --check</code> OK.</li>
+    <li><strong>Cambio de layout (2026-08-17)</strong>: sustituida la tira de pestañas superior y la barra de gestión por la sección de grupos debajo de la tabla de acciones (combobox + pills + tabla de grupos con las mismas columnas que la de acciones).</li>
+  </ul>
+
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Registro histórico de ganancias al vender (roadmap) y dividendos reales declarados.</li>
+  </ul>
+</div>
+</body>
+</html>

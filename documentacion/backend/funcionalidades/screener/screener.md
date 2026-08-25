@@ -1,76 +1,44 @@
 # Funcionalidad: Cribador de resultados (screener) — Backend
 
-> Capa: **backend** · Fecha: 2026-08-13 · Estado: **implementado y probado con datos reales de la SEC**
+> Capa: **backend** · Fecha: 2026-08-13 (base) · Actualizado: 2026-08-15 · Estado: **implementado y probado con datos reales de la SEC**
 
 ---
 
 ## 1. Objetivo
 
-Consultar la **API oficial de la SEC (EDGAR)** para: (1) buscar empresas por ticker o nombre, y (2) obtener sus resultados financieros publicados (10-Q / 10-K) como series anuales y trimestrales de **3 estados financieros completos** (cuenta de resultados, balance y cash flow) con el mismo catálogo y orden de líneas de las capturas de TIKR. Es el motor de datos del "Cribador de resultados" de la web y de la búsqueda del topbar.
+Consultar la **API oficial de la SEC (EDGAR)** y Yahoo Finance para: (1) buscar empresas por ticker o nombre, (2) obtener sus resultados financieros (10-Q / 10-K) como series anuales y trimestrales de **3 estados financieros completos** con el catálogo de líneas de TIKR, (3) construir el **perfil de la empresa** (cotización, métricas, información), (4) el **gráfico de cotización** con media móvil, y (5) el **histórico de filings** (10-Q/10-K) con documento, vista previa por páginas y análisis con IA. Es el motor de datos del "Cribador de resultados", de la página de empresa y de la búsqueda del topbar.
 
 ## 2. Alcance
 
 **Incluido:**
 - `GET /api/screener/search?q=` — búsqueda de empresas por ticker o nombre (máx. 8 resultados).
-- `GET /api/screener/company/:ticker` — series financieras anuales (últimos 10) y trimestrales (últimos 8) de una empresa, con el catálogo de partidas en `statements` (`{ key, label, format, emphasis }`).
-- Caché en memoria de la tabla ticker→CIK (24 h) y de los `companyfacts` XBRL (6 h).
-- 3 estados con el catálogo ampliado de las capturas (`STATEMENTS`): fallbacks de tags, conceptos combinados (`combine`), valores derivados y marcado **`emphasis: true` en las partidas de total**.
-- Alineación de periodos por **frame XBRL** y por **fecha de fin** (`fp=FY`), válida para años fiscales no naturales y 10-K reexpresados sin frame.
-- Errores controlados con código: `COMPANY_NOT_FOUND` (404) y `EDGAR_UNAVAILABLE` (502).
+- `GET /api/screener/company/:ticker` — series financieras anuales (10) y trimestrales (8) con catálogo `statements` y **perfil** (`profile` con market, metrics, info, description).
+- `GET /api/screener/company/:ticker/chart?range=&ma=` — serie de precios de Yahoo (3M/6M/1Y/3Y/5Y/10Y/ALL) con media móvil de 100 sesiones opcional.
+- `GET /api/screener/company/:ticker/filings` — histórico de 10-Q/10-K (submissions de EDGAR, límite 40).
+- `GET .../filings/:accession/document` — documento (PDF real de la SEC, PDF generado con Chrome o HTML original) con `?download=1`.
+- `GET .../filings/:accession/preview` y `.../preview/pages/:page` — vista previa por imágenes (pdftoppm, 100 DPI).
+- `POST .../filings/:accession/analyze` — analiza el filing con el pipeline de IA (misma regla que la subida manual).
+- **Rescate de datos faltantes**: instancias XBRL de los filings (`*_htm.xml`) para tags de extensión y conceptos que `companyfacts` no expone; re-derivación de cash; reintentos ante 429.
+- **Bloqueo PRO sin sesión**: `getCompanyResults({ authenticated })` marca `authenticated` y el frontend bloquea columnas antiguas.
 
 **Excluido (pendiente):**
-- Histórico de filings (lista de 10-Q/10-K publicados con enlace al PDF). El servicio trabaja solo con `companyfacts` agregados, no con el índice de submissions.
-- Puerto "Analizar" desde el cribador hacia el pipeline de IA (no depende de este módulo, se conectará en la fase siguiente).
-- Guardado de los datos en la tabla `filings` (sigue preparada y vacía).
+- Guardado de filings en la tabla `filings` (sigue preparada y vacía; el histórico se consulta al vuelo).
+- Análisis multi-periodo (Fase 4).
 
 ## 3. Endpoints
 
 | Método | Ruta | Parámetro | Respuestas |
 |---|---|---|---|
-| `GET` | `/api/screener/search` | query `q` (ticker o nombre, obligatorio) | 200 `{ ok, companies }` · 400 sin `q` · 502 EDGAR caído |
-| `GET` | `/api/screener/company/:ticker` | path `ticker` (1–10 caracteres `A-Z0-9.-`) | 200 `{ ok, company, currency, statements, annual, quarterly }` · 400 ticker inválido · 404 no encontrado · 502 EDGAR caído |
+| `GET` | `/api/screener/search` | `q` (obligatorio) | 200 · 400 · 502 |
+| `GET` | `/api/screener/company/:ticker` | — | 200 `{ ok, authenticated, company, currency, statements, annual, quarterly, profile }` · 400 · 404 · 502 |
+| `GET` | `/api/screener/company/:ticker/chart` | `range` (3m/6m/1y/3y/5y/10y/all), `ma` (1) | 200 `{ ok, range, currency, points, maPoints?, source }` · 400 · 502 |
+| `GET` | `/api/screener/company/:ticker/filings` | — | 200 `{ ok, company, filings }` · 400 · 404 · 502 |
+| `GET` | `.../filings/:accession/document` | `download=1` (adjunto) | 200 (stream PDF/HTML) · 400 · 404 `FILING_NOT_FOUND` · 502 |
+| `GET` | `.../filings/:accession/preview` | — | 200 `{ ok, filename, pages }` · 400 · 404 · 502 `PREVIEW_UNAVAILABLE` |
+| `GET` | `.../filings/:accession/preview/pages/:page` | — | 200 `image/png` · 400 · 404 `PAGE_NOT_FOUND` |
+| `POST` | `.../filings/:accession/analyze` | — | 200 (mismo JSON que `/api/upload`) · 400 · 404 · 422 · 502 |
 
-### Ejemplos
-
-```bash
-# Búsqueda por ticker o nombre
-GET /api/screener/search?q=ko
-→ 200
-{
-  "ok": true,
-  "companies": [
-    { "cik": 21344, "ticker": "KO", "name": "COCA COLA CO" }
-  ]
-}
-
-# Series de una empresa
-GET /api/screener/company/KO
-→ 200
-{
-  "ok": true,
-  "company": { "ticker": "KO", "name": "COCA COLA CO", "cik": 21344 },
-  "currency": "USD",
-  "statements": {
-     "income":   [ { "key": "revenue", "label": "Ingresos totales", "format": "money", "emphasis": true },
-                   { "key": "ebtIncludingUnusual", "label": "EBT incl. Artículos extraordinarios", "format": "money", "emphasis": true },
-                   { "key": "epsDiluted", "label": "BPA diluido sin extraordinarios", "format": "perShare", "emphasis": false }, ... ],
-     "balance":  [ { "key": "cashAndShortTermInvestments", "label": "Efectivo total e inversiones a corto plazo", "format": "money", "emphasis": true },
-                   { "key": "tangibleBookValuePerShare", "label": "Tangible Book Value / Share", "format": "perShare", "emphasis": false }, ... ],
-     "cashflow": [ { "key": "cfo", "label": "Efectivo de Operaciones", "format": "money", "emphasis": true },
-                   { "key": "freeCashFlow", "label": "Flujo de caja libre", "format": "money", "emphasis": true }, ... ]
-  },
-  "annual": [
-    { "period": "2025", "values": { "revenue": 47941000000, "netIncome": 13107000000, "epsDiluted": 3.04, "assets": 104816000000, "liabilities": 72647000000, "assetsNoncurrent": 73772000000, "liabilitiesNoncurrent": 51366000000, ... } },
-    ...
-  ],
-  "quarterly": [
-    { "period": "2025-Q4", "values": { ... } },
-    ...
-  ]
-}
-```
-
-`statements` describe el catálogo de partidas (clave, etiqueta, formato `money`|`perShare`|`shares` y marcador `emphasis` para las filas de total) para que el frontend pinte la tabla de forma genérica; los valores de cada periodo viven en `values` de `annual`/`quarterly`. `publicStatements()` exporta el catálogo con formato por defecto `money` y `emphasis` siempre booleano.
+Validaciones: ticker `^[A-Z0-9.-]{1,10}$`, accession `^\d{10}-\d{2}-\d{6}$`, página `^\d{1,4}$`. `/company/:ticker` resuelve la sesión con `resolveUser` (autenticación opcional) y devuelve `authenticated`.
 
 ### Errores
 
@@ -78,152 +46,179 @@ Siempre JSON `{ "error": "<mensaje en español>", "code": "<CODIGO>" }`:
 
 | Código | HTTP | Mensaje |
 |---|---|---|
-| — | 400 | "Falta el parámetro de búsqueda \"q\"." |
-| — | 400 | "Ticker no válido." |
+| — | 400 | "Falta el parámetro de búsqueda \"q\"." / "Ticker no válido." / "Parámetros no válidos." |
 | `COMPANY_NOT_FOUND` | 404 | "No se encontró la empresa \"<ticker>\" en EDGAR." |
-| `EDGAR_UNAVAILABLE` | 502 | "No se pudo consultar EDGAR: <detalle>" (timeout, HTTP ≠ 200, red) |
-| — | 500 | Error interno no controlado (lo captura el `errorHandler` global) |
+| `FILING_NOT_FOUND` | 404 | "Informe no encontrado." |
+| `PAGE_NOT_FOUND` | 404 | "Página no encontrada." |
+| `EDGAR_UNAVAILABLE` | 502 | "No se pudo consultar EDGAR: <detalle>" |
+| `PREVIEW_UNAVAILABLE` | 502 | "No se pudo generar la vista previa: <detalle>" |
+| — | 500 | Error interno no controlado |
 
 ## 4. Servicio EDGAR (`src/services/edgar.service.js`)
 
-### Fuentes de datos de la SEC
+### Fuentes de datos
 
 | Fuente | Uso | Caché (memoria) |
 |---|---|---|
-| `https://www.sec.gov/files/company_tickers.json` | Tabla ticker → `{ cik, ticker, name }` | 24 h (`TICKER_MAP_TTL`) |
-| `https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json` | Facts XBRL (conceptos us-gaap por periodo) | 6 h por ticker (`FACTS_TTL`) |
+| `company_tickers.json` | Tabla ticker → `{ cik, ticker, name }` | 24 h |
+| `companyfacts/CIK##########.json` | Facts XBRL us-gaap/dei por periodo | 6 h |
+| `submissions/CIK##########.json` | Perfil (SIC, dirección, bolsa) + filings recientes | 6 h |
+| Instancias `*_htm.xml` de los filings | Tags de extensión y conceptos que companyfacts no expone | 24 h |
+| `index.json` de cada filing | Resolver el PDF real | 24 h |
 
 ### Reglas de acceso a la SEC
 
-- **Cabecera `User-Agent` obligatoria**: `Cifra contacto@cifra.local` (la SEC rechaza peticiones sin User-Agent identificativo).
-- `Accept: application/json` y timeout de **20 s** (`AbortSignal.timeout`).
-- **Límite de la SEC: 10 peticiones/segundo** por IP. Las cachés de 24 h/6 h mantienen el tráfico real muy por debajo del límite; si se disparara el número de tickers consultados en un día, la caché de facts (6 h) es la primera barrera.
+- **User-Agent obligatorio**: `Cifra contacto@cifra.local` (también en la generación de PDF con Chrome: la SEC bloqueaba `HeadlessChrome/...`).
+- `Accept: application/json`, timeouts de 20–45 s; **reintento ante 429** (2 reintentos, 3–4 s de espera) en `fetchSecJson`/`fetchSecText`.
+- Límite de la SEC: 10 peticiones/s por IP; las cachés y la concurrencia de 5 en el rescate XBRL lo mantienen controlado.
 
 ### Búsqueda (`searchCompanies(query, limit = 8)`)
 
-1. Normaliza a mayúsculas + trim; si queda vacío → `[]`.
-2. Orden de resultados: **coincidencia exacta de ticker** → **empieza por la consulta** (alfabético) → **contiene en el nombre** (alfabético).
-3. Recorta a `limit` (8 por defecto).
+Normaliza, ordena: **coincidencia exacta de ticker** → **empieza por la consulta** → **contiene en el nombre**; recorta a 8.
 
-### Series financieras (`getCompanyResults(ticker)`)
+### Series financieras (`getCompanyResults(ticker, { authenticated })`)
 
-1. Resuelve la empresa por ticker (si no existe → `COMPANY_NOT_FOUND`).
-2. Descarga `companyfacts` (con caché).
-3. `buildSeries` recorre el catálogo ampliado de `STATEMENTS` (3 estados) y alinea los datos por **frame XBRL**:
-   - `CY2025` → fila anual; `CY2025Q3` → fila trimestral; `CY2025Q4I` → fila trimestral (instante de cierre, típico de balances).
-   - **Alineación por fecha de fin**: las entradas con `fp = 'FY'` se asocian además a la fila anual del año de su fecha de fin (`end`). Esto coloca bien (a) los balances de cierre fiscal de empresas con **año fiscal distinto del calendario** (p. ej. PG cierra en junio) y (b) los balances de **10-K reexpresados que vienen sin frame** (p. ej. KO, 10-K de 2025).
-4. Devuelve **10 periodos anuales** y **8 trimestrales** (los más recientes por `sortKey`).
-5. **Valores derivados** por fila (si el tag directo no existe):
-   - resultados: beneficio bruto, gastos operativos, EBT incl. extraordinarios, operaciones continuadas, neto a acciones comunes, EBITDA y EBITDAR;
-   - balance: efectivo e inversiones a corto plazo, cuentas por cobrar, inmovilizado neto, pasivo/fondos propios, valor contable, valor contable tangible, deuda total y deuda neta;
-   - cash flow: efectivo de inversión/financiación, variación neta, flujo de caja libre, saldos inicial/final y flujo por acción.
+1. Resuelve la empresa; 2. descarga `companyfacts`; 3. `buildSeries`; 4. añade `profile`; 5. devuelve 10 anuales y 8 trimestrales.
 
-Las definiciones de presentación pueden incluir `tone: 'negative'` para marcar por naturaleza los costes, gastos, salidas de caja y partidas contra fondos propios; además, los conceptos con `negative: true` se normalizan como importes negativos para que el valor y el color coincidan con TIKR. Los conceptos de ganancias que se restan en la conciliación de caja usan `invertSign: true`.
+### Construcción de series (`buildSeries`) — fases (revisado 2026-08-15)
+
+1. **Filas desde frames**: `CYyyyy` → anual; `CYyyyyQn` → trimestral; `CYyyyyQnI` → trimestral (instante).
+2. **Fallback anual**: entradas sin frame con `fp=FY` y duración ≥ 300 días (excluye los Q4-only, que son trimestres de 3 meses reportados con `fp=FY` en los 10-K); se mapean a la fila anual existente por `periodEnd` igual (evita filas duplicadas en ejercicios fiscales no calendario) o se crean con el año fiscal (año del fin, −1 si enero/febrero).
+3. **Conceptos instantáneos a las filas anuales**: frames `CYxxxxQxI` y hechos sin frame con `fp=FY`, emparejados por `periodEnd` (resuelve balance anual y cash sin "—").
+4. **Conceptos `dei`** (acciones, empleados): fila anual cuyo `periodEnd` es el más reciente no posterior a la fecha del dato.
+5. **`periodEnd` = moda** entre conceptos (no el máximo): evita que un concepto raro ensucie la etiqueta de la fila.
+6. **Derivación de Q4 trimestral**: si el Q4 fiscal no tiene valor → Q4 = anual − (Q1+Q2+Q3) para flujos (excluye instantáneos, dei y formatos por acción); si los trimestres son acumulados (YTD) → Q4 = anual − Q3; instantáneos → Q4 = anual.
+7. **Respaldo de `cashBeginning`**: si no hay tag, se usa el `cashEnding` del periodo anterior.
 
 ### Selector de conceptos (`pickConceptData`)
 
-- Para cada partida, entre sus tags candidatos se elige el que tenga el **dato más reciente** (frame clasificable con mayor `sortKey`), no simplemente el primero con datos.
-- **Conceptos combinados** (`combine`): si la partida lo define, se suma por frame el valor de dos tags (p. ej. intangibles = `FiniteLivedIntangibleAssetsNet` + `IndefiniteLivedIntangibleAssetsExcludingGoodwill`). Si existen a la vez suma combinada y tags individuales, gana la que tenga el frame más reciente.
-- Una partida sin datos para ningún tag **no aparece** en `values` de ese periodo (el frontend muestra "—").
+- **Fusión por frame**: entre tags candidatos se queda con el dato más recientemente presentado **por frame** y **fusiona** todos los tags (antes elegía uno solo, perdiendo años de tags antiguos cuando la empresa migra, ej. KHC 2012→2016).
+- **Conceptos combinados** (`combine`): suma por frame dos tags (ej. intangibles finite + indefinite), deduplicando restatement por frame.
+- Sin datos para ningún tag → la partida no aparece (el frontend pinta "—").
 
-### Los 3 estados y sus partidas (`STATEMENTS`)
+### Rescate generalizado de datos desde las instancias XBRL
 
-Unidad por defecto **USD**; las BPA y métricas por acción usan `USD/shares` (`perShare`), las acciones usan `shares` y el número de empleados usa `count`. El catálogo público conserva también filas de sección, cambio interanual, margen y nota para reproducir el orden visible en TIKR.
+`companyfacts` **excluye los namespaces de extensión** (tags propios de la compañía, ej. KO) y omite algunos conceptos. Para cubrir huecos ("—"):
 
-- **`income`**: ingresos, coste y beneficio bruto, gastos operativos totales, beneficio operativo, intereses e inversiones, divisas, EBT antes y después de extraordinarios, reestructuraciones, deterioros, ventas de activos/inversiones, impuestos, operaciones continuadas/discontinuadas, beneficio atribuible, BPA, dividendos, EBITDA, EBITDAR, ventas/marketing y tasa efectiva.
-- **`balance`**: efectivo e inversiones a corto plazo, cuentas por cobrar, circulante, inmovilizado bruto/depreciación/neto, inversiones e intangibles a largo plazo, impuestos diferidos, deuda y arrendamientos, pensiones, pasivos, acciones comunes, reservas, autocartera, resultado integral, fondos propios, valor contable, deuda neta, inversiones por participación y activos físicos.
-- **`cashflow`**: beneficio, depreciación/amortización, ajustes no monetarios y de circulante, efectivo operativo, CAPEX y ventas de activos, adquisiciones/desinversiones, inversiones y préstamos, efectivo de inversión, deuda, acciones, dividendos, recompra, efectivo de financiación, divisas, variación de caja, flujo de caja libre, saldos inicial/final, intereses/impuestos pagados y flujo por acción.
+- `getExtensionFacts` descarga las instancias `*_htm.xml` de los últimos 8 10-K y 8 10-Q (5 en paralelo, reintento 429, caché 24 h) y `mergeInstanceFacts` rellena los conceptos que falten:
+  - **Tag exacto** (`conceptByTag`); **tags solo-instancia** (`INSTANCE_ONLY_TAGS`, ej. cash con restricted); **patrones semánticos** (`CONCEPT_EXTENSION`, ej. adquisiciones/desinversiones/inversiones) con exclusión de ruido (`EXTENSION_EXCLUDED`: disposalgroup, stepacquisition, OCI, captive...).
+  - Anual = duración ≥ 300 días; trimestral = hecho corto directo (≤ 110 días) o acumulado YTD − acumulado del fin anterior del mismo año fiscal (≤ 370 días).
+- `aggregateSegmentedInstants`: suma hechos instantáneos por segmentos (excluyendo Total/All y los que tienen versión consolidada) — KO pensiones 785M = 681+104.
+- `rederiveCashValues`: recalcula cashEnding/cashBeginning/cashAndShortTermInvestments/netDebt tras el rescate.
+- El rescate **solo se dispara si el tag estándar no aporta valor** (evita peticiones extra en empresas normales).
 
-Las etiquetas y el orden de esas filas están definidos en `DISPLAY_STATEMENTS`; `STATEMENTS` contiene los tags XBRL y los conceptos derivados que las alimentan. Las **partidas de total** llevan `emphasis: true`: el frontend las pinta como filas destacadas (fondo crema, negrita) estilo TIKR.
+### Valores derivados por fila
 
-## 5. Frames XBRL soportados
+Resultados: beneficio bruto, gastos operativos, EBT incl. extraordinarios, EBITDA/EBITDAR, neto a acciones comunes. Balance: efectivo e inversiones a CP, cuentas por cobrar, inmovilizado neto, pasivo/fondos propios, valor contable (tangible), deuda total/neto. Cash flow: CFI/CFF, variación neta, FCF, saldos, flujo por acción. Normalización de signos (`negative: true`, `tone: 'negative'`, `invertSign: true` para ganancias que se restan en la conciliación; `IncreaseDecreaseInOperatingCapital` invertido).
 
-| Patrón | Significado | Serie |
-|---|---|---|
-| `CYyyyy` | Acumulado anual completo | anual |
-| `CYyyyyQn` | Acumulado/periodo trimestral | trimestral |
-| `CYyyyyQnI` | Valor instantáneo a cierre de trimestre (balance) | trimestral |
-| `fp=FY` (sin frame) | Dato anual del 10-K; se asigna al año natural de su fecha de fin (`end`) | anual |
+### Catálogo `STATEMENTS` (alineado con las capturas de TIKR)
 
-Cualquier otro frame (duraciones custom, `Q2YTD`, etc.) se ignora en la clasificación.
+- **`income`**: ~53 filas (ingresos, desglose de gastos, intereses/inversiones, extraordinarios, beneficio atribuible, BPA, dividendos, EBITDA/EBITDAR, tasa efectiva...).
+- **`balance`**: ~58 filas (circulante detallado, inmovilizado bruto/depreciación/neto, impuestos diferidos, deuda/arrendamientos, patrimonio, valor contable, deuda neta, datos físicos...).
+- **`cashflow`**: ~46 filas (ajustes operativos, detalle de inversión/financiación, divisas, FCF, saldos de caja, métricas por acción...).
+- Partidas de total con `emphasis: true`; formatos `money`/`perShare`/`shares`/`count`; `tone: 'negative'` en costes, gastos, salidas de caja y partidas contra fondos propios. `publicStatements()` exporta el catálogo.
 
-> **Nota de cambio**: antes existía una heurística de "copiar el cierre Q4 a la fila anual" para balances. Fallaba en empresas con año fiscal distinto del calendario y en 10-K sin frames; se sustituyó por la alineación por fecha de fin (`fp=FY` → año de `end`).
+### Perfil de empresa (`buildCompanyProfile`)
+
+Combina EDGAR + Yahoo (`getMarketProfile`):
+- **market**: cotización, variación diaria/anual, rango 52 semanas, volumen, dividendo por acción y yield, beta, fecha OPV, sparkline.
+- **metrics**: marketCap (precio × acciones reportadas), week52, beta, dividendos, revenue, BPA, PER (si BPA > 0), acciones, yearChange, ipoDate.
+- **info**: país (submissions), **sector** (SIC → español), industria traducida, bolsa, fin de ejercicio fiscal, dirección, último filing (formType + periodo + fecha).
+- **description**: frase generada (cotización en bolsa, clasificación SEC, domicilio).
+- **`getCompanySector(ticker)`**: SIC → sector amplio en español (consumo defensivo, alimentación y bebidas, tabaco, química y farmacéutica, resto por decenas SIC) — usado también por la cartera.
+
+### Filings (`getCompanyFilings`)
+
+- `submissions.filings.recent` normalizado (formato columnar de la SEC → array de objetos), filtrado a 10-Q/10-K con accession y documento primario, límite 40.
+- Por filing: `formType`, `period` (reportDate), `periodLabel` (Q2 2026 / FY 2025), `filedAt`, `accession`, `documentUrl` (SEC), `documentName` (`tap-q-2026.pdf` / `tap-q-2026.htm`).
+
+### Documento (`getFilingDocumentStream` / `getFilingPdfPath` / `getFilingContentBuffer`)
+
+1. Busca un **PDF real** en el filing vía `index.json` (empareja por nombre del documento primario; fallback al PDF más largo).
+2. Si no existe (los 10-Q/10-K modernos son HTML/XBRL), **genera el PDF con `google-chrome --headless --print-to-pdf`** (binario `CHROME_BIN`, con `--user-agent="Cifra contacto@cifra.local"`), guardado en `uploads/generated/filings/` con caché permanente.
+3. Fallback: sirve el HTML original (`text/html`).
+- `getFilingContentBuffer` devuelve `{ filing, buffer, kind: 'pdf' | 'html' }` para el analizador.
+- El streaming cancela el timeout al recibir cabeceras (fix: antes abortaba a mitad y tumbaba el proceso Node) y maneja errores del stream (502 o corte limpio).
+
+### Vista previa (`getFilingPreview`)
+
+- Renderiza el PDF a PNG por página con **`pdftoppm`** (100 DPI configurable con `PREVIEW_DPI`), caché permanente en `uploads/generated/filings/previews/{accession}/`. Devuelve `{ filename, pages }`; errores → `PREVIEW_UNAVAILABLE`.
+
+## 5. Servicio de mercado (`src/services/market.service.js`)
+
+- `getChartSeries(ticker, range, withMovingAverage)`: rangos 3M/6M (1d), 1Y (1d), 3Y/5Y (1wk), 10Y/ALL (1mo); caché 5 min. **MA 100**: se pide la serie **diaria** para el mismo rango y se calcula la media de 100 cierres diarios (la serie semanal/mensual promediaba 100 semanas/meses — corregido); ante fallo devuelve `maPoints: []`.
+- `getMarketQuote(ticker)`: último precio, apertura, máx/mín, var., %, volumen, hora y estado de mercado (caché 60 s; recupera de las velas lo que falte en meta).
+- `getMarketProfile(ticker)`: perfil completo con beta (vs SPY, ajustado), dividendo TTM, rango 52 semanas, OPV, sparkline (caché 5 min).
+- `getDividendHistory(ticker, { from })`: eventos de dividendos por **tramos de 5 años** (Yahoo trunca con `range=max`), caché 24 h (usado por la cartera).
+- Timeouts de 8 s y User-Agent declarado.
 
 ## 6. Errores y casos límite
 
 | Caso | Respuesta |
 |---|---|
-| `q` vacío o ausente en `/search` | 400 "Falta el parámetro de búsqueda \"q\"." |
-| Ticker con caracteres inválidos o > 10 | 400 "Ticker no válido." |
+| `q` vacío / ticker inválido / parámetros inválidos | 400 |
 | Ticker inexistente en EDGAR | 404 `COMPANY_NOT_FOUND` |
-| SEC caída, timeout (20 s) o respuesta ≠ 200 | 502 `EDGAR_UNAVAILABLE` con el detalle del fallo |
-| Empresa sin conceptos en un periodo | La fila aparece con solo algunos valores; el resto queda `undefined` |
-| Empresa con tag solo en ASC 606 (ej. TAP) | Resuelto por el fallback de `revenue` |
-| Año fiscal ≠ año natural (ej. PG cierra en junio) | El balance de cierre fiscal se coloca en el año natural correcto por la fecha de fin (`fp=FY`) |
-| 10-K reexpresado sin frames de balance (ej. KO 2025) | Los balances anuales se completan con las entradas `fp=FY` por fecha de fin |
-| Intangibles publicados por separado (finite + indefinite, ej. PEP) | Resuelto por el concepto **combinado** (suma por frame) |
-| Intangibles publicados agregados (ej. PG) | Resuelto por el fallback `IntangibleAssetsNetExcludingGoodwill` |
-| CAPEX con tag alternativo (ej. PEP) | Resuelto por el fallback `PaymentsToAcquireProductiveAssets` |
-| Empresa con pérdidas (ej. TAP) | Los importes negativos se devuelven tal cual: beneficio neto −2.139,6 M$ y resultado antes de impuestos −2.518 M$ en FY2025 |
-| Sin tag de beneficio bruto o de pasivo | **Valores derivados**: ingresos + coste normalizado; activo − fondos propios |
-| Sin tag de activo/pasivo no corriente | **Valores derivados**: total activo − activo corriente; total pasivo − pasivo corriente |
-| Autocartera (`TreasuryStockValue`) publicada con signo negativo (contra-fondos propios) | Se devuelve tal cual de XBRL; el frontend la muestra entre paréntesis |
+| Filing/accession inexistente | 404 `FILING_NOT_FOUND` |
+| Página de preview inexistente | 404 `PAGE_NOT_FOUND` |
+| SEC caída, timeout, 429 agotado | 502 `EDGAR_UNAVAILABLE` |
+| pdftoppm falla | 502 `PREVIEW_UNAVAILABLE` |
+| Empresa sin conceptos en un periodo | Fila con huecos → "—" en el frontend |
+| Tag de extensión de la compañía (KO) | Rescatado desde la instancia XBRL (adquisiciones, desinversiones, pensiones...) |
+| Año fiscal ≠ año natural (PG cierra en junio) | Alineación por fecha de fin y `periodEnd` |
+| 10-K reexpresado sin frames (KO 2025) | Completado con entradas `fp=FY` por fecha de fin |
+| Q4 sin frame de la SEC (KHC 2025-Q4) | Derivado: anual − Q1−Q2−Q3 |
+| `cashBeginning` sin tag | Respaldo con el `cashEnding` del periodo anterior |
+| Intangibles finite + indefinite (PEP) | Concepto combinado |
+| CAPEX con tag alternativo (PEP) | Fallback `PaymentsToAcquireProductiveAssets` |
+| Pérdidas (TAP) | Negativos tal cual; el frontend los pinta en rojo/paréntesis |
+| Bloqueo PRO sin sesión | La API devuelve siempre 10 años/8 trimestres + `authenticated`; el frontend bloquea las columnas antiguas |
 
 ## 7. Archivos del backend implicados
 
 | Archivo | Función |
 |---|---|
-| `src/services/edgar.service.js` | Toda la lógica EDGAR: ticker map, facts, `STATEMENTS` alineado con las capturas TIKR, selector de conceptos (fallbacks + combinados + derivados), normalización de signos, alineación de periodos por frame y fecha de fin, series y errores con código. |
-| `src/api/routes/screener.routes.js` | Router `express` con los 2 endpoints; validación de `q` y `ticker`; mapeo de códigos a 404/502. |
-| `server.js` | Monta el router en `/api/screener`. |
+| `src/services/edgar.service.js` | Toda la lógica EDGAR: búsqueda, facts, series (buildSeries), rescate XBRL, perfil, sector, filings, documento/preview, errores con código. |
+| `src/services/market.service.js` | Yahoo Finance: chart con MA100, quote, profile, dividendos. |
+| `src/api/routes/screener.routes.js` | 8 endpoints con validaciones y mapeo de errores; streaming del documento; preview por páginas; `POST .../analyze`. |
+| `src/middleware/auth.middleware.js` | `resolveUser` (opcional) para `authenticated`. |
+| `server.js` | Monta el router en `/api/screener` y la ruta `GET /empresa/:ticker` (página de empresa). |
 
-Sin dependencias npm nuevas (usa `fetch` nativo de Node).
+Sin dependencias npm nuevas (fetch nativo; Chrome y pdftoppm como binarios externos).
 
 ## 8. Decisiones y motivos
 
 | Decisión | Motivo |
 |---|---|
-| **Catálogo TIKR ampliado** | El catálogo replica las filas visibles en las capturas de resultados, balance y cash flow, incluyendo los bloques de datos adicionales y el orden exacto de presentación. |
-| **`emphasis` en las partidas de total** | El frontend necesita distinguir los totales (beneficio bruto, operativo, neto, activo/pasivo corriente, totales, cash flows) para pintarlos como filas destacadas sin conocer el contenido de cada estado. |
-| **Formatos `shares`/`count`** | Las acciones se expresan en millones, los empleados como recuento y ambos se separan del dinero y del BPA; el frontend los formatea sin sufijo monetario. |
-| **Derivados de no corriente** | Muchas empresas no publican `AssetsNoncurrent`/`LiabilitiesNoncurrent`; derivarlos de los totales y de los corrientes completa el balance estilo TIKR sin huecos. |
-| **`companyfacts` en vez del índice de submissions** | Da los datos financieros ya estructurados por frame; suficiente para el cribador sin parsear PDFs. El histórico de filings (10-Q/10-K individuales) necesitará el endpoint de submissions en la fase siguiente. |
-| **Fallbacks por concepto** | Las empresas usan tags distintos según el periodo y la normativa contable (ASC 605 vs 606); sin fallbacks aparecerían huecos falsos. |
-| **Selector por dato más reciente (`pickConceptData`)** | Entre tags candidatos gana el de frame más reciente, no el primero con datos; evita rellenar con series antiguas cuando la empresa migra de tag. |
-| **Conceptos combinados (`combine`)** | Muchas empresas publican los intangibles en dos tags (finite + indefinite); sin la suma por frame quedarían incompletos. |
-| **Alineación por fecha de fin (`fp=FY`)** | Los balances anuales llegan de dos formas: frame instantáneo de cierre o entrada `fp=FY` sin frame. La heurística anterior (copiar Q4 → anual) fallaba con años fiscales no naturales y 10-K reexpresados; asociar por `end` resuelve ambos casos. |
-| **Cachés 24 h / 6 h en memoria** | El mapa ticker→CIK cambia muy poco; los facts cambian por trimestre. Evita superar el límite de la SEC y acelera las respuestas. |
-| **Códigos de error estables** | El frontend y futuras fases pueden reaccionar por código (`COMPANY_NOT_FOUND`, `EDGAR_UNAVAILABLE`). |
-| **Sin guardado en BD en esta fase** | El cribador es de consulta al vuelo; `filings` se rellenará cuando se implemente el histórico de filings. |
+| **Catálogo TIKR ampliado** | Replica las filas visibles en las capturas del usuario (resultados, balance, cash flow). |
+| **`emphasis` / `tone` / formatos** | El frontend distingue totales (crema/negrita) y naturaleza (rojo) y formatea sin conocer el contenido. |
+| **Fusión de tags por frame (`pickConceptData`)** | Si la empresa cambia de tag, se conservan todos los años (antes desaparecían los del tag antiguo). |
+| **`buildSeries` en fases con `periodEnd` moda** | Elimina filas duplicadas, Q4 erróneos y etiquetas sucias en años fiscales no calendario. |
+| **Rescate desde instancias XBRL** | `companyfacts` no expone tags de extensión; sin esto, muchas líneas de KO y otras quedaban en "—" para siempre. Solo se dispara si falta algo (evita 36 peticiones extra por empresa). |
+| **PDF real o generado con Chrome (con UA)** | Los filings modernos no traen PDF; la SEC bloqueaba a Chrome headless sin User-Agent declarado. |
+| **Preview con pdftoppm** | El visor PDF de Chrome dentro de iframe no renderiza; las imágenes funcionan en cualquier navegador. |
+| **Timeout cancelado al recibir cabeceras** | Un fallo a mitad del streaming ya no tumba el proceso Node. |
+| **`authenticated` + bloqueo PRO en el frontend** | El límite de la beta se aplica en UI sin recortar los datos (la API devuelve todo). |
 
 ## 9. Pruebas realizadas (datos reales)
 
-| # | Caso | Resultado |
-|---|---|---|
-| 1 | `search?q=ko` | 200 con KO (COCA COLA CO, CIK 21344) entre los resultados |
-| 2 | `search?q=coca` | 200 con resultados por nombre |
-| 3 | `company/KO` | 200: FY2025 ingresos 47.941 M$, B. neto 13.107 M$, BPA 3,04 $, activo 104.816 M$; **resultado antes de impuestos 15.998 M$**, **reservas 80.382 M$**, **autocartera 56.423 M$**, **variación neta de caja −478 M$**. Derivados: **pasivo 72.647 M$** (= activo − fondos propios, 10-K reexpresado sin frame de balance), **activo no corriente 73.772 M$** (= activo − corriente) y **pasivo no corriente 51.366 M$** (= pasivo − corriente) |
-| 4 | `company/PG` | 200: balance de cierre fiscal (junio) colocado en el año correcto por fecha de fin; intangibles 21.737 M$ vía tag agregado (`IntangibleAssetsNetExcludingGoodwill`) |
-| 5 | `company/PEP` | 200: intangibles 15.066 M$ como suma de finite + indefinite (concepto combinado); CAPEX vía fallback `PaymentsToAcquireProductiveAssets` |
-| 6 | `company/TAP` | 200: pérdida neta FY2025 de −2.139,6 M$ y **resultado antes de impuestos −2.518 M$**; **acciones diluidas 199,1 M** (formato `shares`); ingresos resueltos vía tag ASC 606 (`RevenueFromContractWithCustomerExcludingAssessedTax`) |
-| 7 | `company/ZZZZ` (ticker inexistente) | 404 `COMPANY_NOT_FOUND` |
-| 8 | `search` sin `q` | 400 "Falta el parámetro de búsqueda \"q\"." |
+- Búsquedas `ko`/`coca`; 404 ticker inexistente; 400 sin `q`.
+- **KO**: FY2025 ingresos 47.941 M$, B. neto 13.107 M$, BPA 3,04 $, activo 104.816 M$, pretax 15.998 M$, reservas 80.382 M$, autocartera 56.423 M$, variación neta de caja −478 M$; cash anual 10,27B, cashBeginning 10,75B; **adquisiciones −461 M$ y desinversiones 3.567 M$ rescatadas del XBRL**; pensiones 785 M$ (segmentos); trimestral con resta YTD correcta.
+- **19 tickers de consumo defensivo** (KHC, WMT, KO, PG, PM, COST, TGT, CL, GIS, MDLZ, PEP, HRL, SYY, KR, MKC, SJM, CPB, HSY, MCD): 0 filas anuales con valores faltantes y 0 Q4 fiscales faltantes (excepto per-share no derivables, "—" a propósito). KHC 2019 revenue 24,9B (antes 6,5B); WMT sin filas duplicadas 2025/2026.
+- **PG** (cierre junio) e intangibles agregados; **PEP** combinado finite+indefinite y CAPEX; **TAP** pérdidas y acciones diluidas; TGT/KR sin fx porque sus 10-K no presentan la línea (correcto).
+- Perfil: TAP con cotización, capitalización, dividendo y sector; chart con MA100 validada numéricamente contra Yahoo (diferencia 0,0).
+- Filings TAP: 40 ordenados, documento PDF (200, application/pdf), preview con 74 páginas (páginas 1/2/74 → 200 image/png), `POST .../analyze` → 200 en 22,8 s con DeepSeek.
+- Bloqueo PRO: invitado 6 columnas anuales y 4 trimestrales; con sesión todo completo.
 
 ## 10. Relación con otros módulos
 
-- **Frontend**: `public/app.js` consume ambos endpoints y pinta una única tabla por estado mediante pestañas desde `statements` (ver `documentacion/frontend/funcionalidades/screener/`).
-- **Fase 2 del roadmap**: cubre el buscador con datos reales; quedan el histórico de filings (tabla `filings` ya definida en el esquema) y el puente "Analizar" hacia el pipeline (`analysis.service.js`).
-- **Pipeline de IA**: el puente futuro enviará el PDF del filing elegido al mismo flujo `originAgent → sectorAgent → analystAgent` que la subida manual (regla fundamental del proyecto).
+- **Frontend**: `empresa.js`/`app.js` consumen todos los endpoints (ver `documentacion/frontend/funcionalidades/screener/`).
+- **Análisis IA**: `POST .../analyze` conecta con `analysis.service.js` (regla fundamental).
+- **Cartera**: usa `getCompanySector`, `getMarketQuote` y `getDividendHistory`.
+- **Watchlists**: `getMarketQuote` para las tablas de listas.
+- **Histórico**: el análisis de un filing se guarda en `analyses`.
 
 ## 11. Pendientes
 
-- Histórico de filings por empresa (lista de 10-Q/10-K con accession number y enlace al PDF; requiere el índice de submissions de EDGAR).
-- Endpoint "Analizar" desde el cribador → pipeline de IA (mismo proceso que la subida manual).
-- Posible guardado en `filings` cuando llegue el histórico.
-
-## 12. Referencias
-
-- `documentacion/PROYECTO-detalle.md` — sección 3.2 (Forma 2: buscador por empresa) y roadmap (Fase 2).
-- `documentacion/ARQUITECTURA.md` — estructura de carpetas y tabla de endpoints.
-- `documentacion/IMPLEMENTACION.md` — cronología de lo implementado.
-- SEC: <https://www.sec.gov/files/company_tickers.json> y <https://data.sec.gov/api/xbrl/companyfacts/> (requieren User-Agent identificativo; 10 req/s por IP).
+- Guardado de filings en la tabla `filings` cuando se decida persistir el histórico.
+- Ratios y Segmentos (pestañas placeholder en el clon TIKR; sin fuente en EDGAR por ahora).
+- Análisis completo de empresa (Fase 4).

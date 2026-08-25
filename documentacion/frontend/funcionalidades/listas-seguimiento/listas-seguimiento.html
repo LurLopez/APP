@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Listas de seguimiento (watchlists) — Frontend | Cifra</title>
+<style>
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
+  header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
+  .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  h1 { margin:0 0 8px; font-size:28px; }
+  .sub { color:var(--muted); margin:0; font-size:14px; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
+  h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
+  p { margin:8px 0; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
+  code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
+  table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
+  th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / frontend / funcionalidades / listas-seguimiento</div>
+    <h1>Listas de seguimiento (watchlists) — Frontend</h1>
+    <p class="sub">Popover con checkmarks (ojo de seguimiento) y sección completa de listas con cotizaciones, en un módulo compartido entre Inicio y Empresa.</p>
+    <span class="badge">✓ Implementado y probado · 2026-08-15</span>
+  </header>
+
+  <h2>Qué hace</h2>
+  <p>El usuario pulsa el <strong>ojo de seguimiento</strong> de una empresa (en la cabecera de Empresa o en las tarjetas de Inicio) y se abre un <strong>popover</strong> con todas sus listas: marca la lista (✓) para añadir o quitar la acción, crea listas nuevas al momento o las borra con confirmación de dos pasos. La <strong>sección de listas</strong> (Inicio y lateral de Empresa) muestra chips por lista y una tabla estilo Investing con las cotizaciones de la lista seleccionada.</p>
+
+  <h2>El popover del ojo</h2>
+  <ul>
+    <li><strong>Fila por lista</strong>: checkmark ✓ si la acción está en esa lista, nombre, recuento ("3 acciones") y botón de borrar (dos pasos: "¿Eliminar?" durante 3 s; nunca en "Favoritos").</li>
+    <li><strong>Creación inline</strong>: input + botón "Crear" (habilitado solo con texto).</li>
+    <li><strong>Accesible</strong>: filas con <code>role="button"</code>, Enter/Espacio, Escape para cerrar.</li>
+    <li><strong>Cierre robusto</strong>: clic fuera, Escape y scroll de página cierran; el scroll interno de la lista NO cierra; al re-renderizar se conserva la posición de scroll.</li>
+    <li><strong>Anclado</strong> al ojo, con volteo arriba/abajo y límites de ventana.</li>
+    <li>Sin sesión → toast "Inicia sesión para guardar acciones en listas de seguimiento." + modal de login.</li>
+  </ul>
+
+  <h2>La sección de listas</h2>
+  <ul>
+    <li><strong>Chips</strong> por lista (nombre + recuento), activo con borde naranja; borrable con confirmación de dos pasos salvo la por defecto.</li>
+    <li><strong>Formulario de creación</strong> de listas inline.</li>
+    <li><strong>Tabla estilo Investing</strong> con la lista seleccionada: Nombre (🇺🇸 + enlace), Símbolo, Último, Apertura, Máximo, Mínimo, Var., % var., Vol., Fecha/Hora con punto de estado de mercado y ojo para quitar.</li>
+    <li>La petición de detalle se repite al cambiar de lista o tras cualquier cambio (siempre cotizaciones frescas).</li>
+    <li>Estados: sin sesión → CTA de login; sin listas → crear la primera; lista vacía → invita a usar el ojo.</li>
+  </ul>
+
+  <h2>Cómo funciona</h2>
+  <ol>
+    <li><code>Watchlists.setAuthenticated(true)</code> al iniciar sesión → <code>refresh()</code> → <code>GET /api/watchlists</code> → estado (listas, pertenencias) + evento <code>watchlists:change</code>.</li>
+    <li>Clic en el ojo → <code>Watchlists.open(anchor, ticker, companyName)</code> → popover con las listas y sus marcas.</li>
+    <li>Clic en una fila → <code>toggle(listId, ticker, companyName)</code> → optimista + POST/DELETE a la API + toast + refresh.</li>
+    <li>La sección (<code>mountSection</code>) se re-renderiza con cada <code>watchlists:change</code> y al cambiar de chip.</li>
+  </ol>
+
+  <h2>Integración</h2>
+  <table>
+    <tr><th>Página</th><th>Elementos</th></tr>
+    <tr><td>Inicio</td><td>Enlace "Seguimiento", sección "Acciones en seguimiento" (oculta si vacía), ojos en las tarjetas destacadas</td></tr>
+    <tr><td>Empresa</td><td>Ojo de seguimiento en la cabecera (estado activo si está en alguna lista), sección lateral "TUS LISTAS DE SEGUIMIENTO"</td></tr>
+  </table>
+
+  <h2>Archivos</h2>
+  <table>
+    <tr><th>Archivo</th><th>Función</th></tr>
+    <tr><td><code>public/watchlists.js</code></td><td>Módulo completo: estado, popover, sección, formatos (antes duplicados en app.js/empresa.js)</td></tr>
+    <tr><td><code>public/index.html</code> / <code>app.js</code></td><td>Sección de Inicio, ojos de tarjetas</td></tr>
+    <tr><td><code>public/empresa.html</code> / <code>empresa.js</code></td><td>Ojo de cabecera y sección lateral</td></tr>
+    <tr><td><code>public/styles.css</code></td><td>Popover, chips, tabla, ojos (<code>?v=24</code>/<code>?v=25</code>)</td></tr>
+  </table>
+
+  <h2>Bugs corregidos en esta iteración</h2>
+  <ul>
+    <li><strong>El desplegable se cerraba al hacer scroll</strong> con muchas listas (el listener con captura cerraba con cualquier scroll; ahora solo si el scroll es fuera del popover).</li>
+    <li><strong>El desplegable saltaba arriba al añadir</strong> (el re-render perdía el <code>scrollTop</code>; ahora se guarda y restaura).</li>
+  </ul>
+
+  <h2>Pruebas</h2>
+  <ul>
+    <li>Dos listas de usuario de prueba (Favoritos + "ETT") renderizadas en chips y tabla.</li>
+    <li>Marcar/desmarcar con scroll preservado; cierre con scroll de página; sin cierre con scroll interno.</li>
+    <li><code>node --check</code> OK y recursos estáticos 200.</li>
+  </ul>
+
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Renombrar listas desde la interfaz (la API ya lo soporta).</li>
+    <li>Alertas de precio basadas en las listas.</li>
+  </ul>
+</div>
+</body>
+</html>

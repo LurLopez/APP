@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verificación del informe (10-Q / 10-K) — Backend | Cifra</title>
+<title>Análisis del informe (10-Q / 10-K) — Backend | Cifra</title>
 <style>
-  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; }
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
-  .wrap { max-width:900px; margin:0 auto; padding:38px 20px 60px; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
   header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
   .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
   h1 { margin:0 0 8px; font-size:28px; }
@@ -16,8 +16,10 @@
   .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
   .badge.wip { background:#fff3e0; color:#b45309; }
   h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
   p { margin:8px 0; }
-  ul { margin:8px 0; padding-left:22px; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
   code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
   pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
   pre code { padding:0; background:none; color:inherit; }
@@ -26,74 +28,78 @@
   th { background:#f0f2f5; }
   .ok { color:var(--green); font-weight:700; }
   .err { color:var(--red); font-weight:700; }
-  .note { padding:11px 14px; border-left:4px solid var(--accent); background:#fff7e8; font-size:13px; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="crumb">documentacion / backend / funcionalidades / verificacion-informe</div>
-    <h1>Verificación del informe (10-Q / 10-K) — Backend</h1>
-    <p class="sub">API de subida y verificación: ¿el PDF es un informe financiero 10-Q o 10-K de una empresa de EE. UU.?</p>
-    <span class="badge">✓ Verificación de origen implementada y probada · 2026-08-12</span>
-    <span class="badge wip">⏳ Sector y analista pendientes</span>
+    <h1>Análisis del informe (10-Q / 10-K) — Backend</h1>
+    <p class="sub">Pipeline completo de 3 agentes (origen → sector → analista), generación de PDF y guardado por usuario. Idéntico para subida manual y para filings de la SEC.</p>
+    <span class="badge">✓ Implementado y probado · actualizado 2026-08-14</span>
   </header>
 
   <h2>Qué hace</h2>
-  <p>Recibe el PDF subido por el usuario, extrae su texto y lo pasa por el <strong>agente verificador de origen</strong>, que decide si es un informe financiero <strong>10-Q o 10-K de una empresa de EE. UU.</strong> Si no lo es, devuelve un error claro que se muestra en pantalla.</p>
+  <p>Recibe un informe financiero (PDF subido o filing de la SEC) y ejecuta el pipeline: el <strong>verificador de origen</strong> comprueba que sea financiero, de <strong>EE. UU.</strong> y un <strong>10-Q/10-K</strong>; el <strong>verificador de sector</strong> comprueba que sea de <strong>consumo defensivo</strong> (rechazo seguro sin evidencia); y el <strong>analista principal</strong> extrae las cifras y genera el <strong>informe estructurado</strong> (dos horizontes, bloques Ventas / Cash Flow / Asignación de Capital) con su <strong>PDF descargable</strong>. Si algo no cumple el alcance, devuelve un error claro con código.</p>
 
-  <h2>Endpoint</h2>
+  <h2>El pipeline</h2>
+  <ol>
+    <li><strong>Origen</strong> → financiero? EE. UU.? 10-Q/10-K? → <code>{ origin: 'US', formType }</code></li>
+    <li><strong>Sector</strong> → ¿consumo defensivo? → <code>{ sector: 'defensive_consumer' }</code></li>
+    <li><strong>Analista</strong> → fase 1: extracción de cifras (JSON) · fase 2: informe con las reglas de <code>prompts/consumo-defensivo.md</code></li>
+    <li><strong>PDF</strong> (pdfkit) → <code>pdfUrl</code> → <strong>guardado</strong> en <code>analyses</code> si hay sesión (<code>saved</code>)</li>
+  </ol>
+  <p class="note">Regla fundamental: la subida manual y el botón "Analizar con IA" de un filing ejecutan <strong>exactamente el mismo pipeline</strong> (PDF → texto, HTML → <code>htmlToText</code>).</p>
+
+  <h2>Endpoints</h2>
   <table>
     <tr><th>Método</th><th>Ruta</th><th>Qué hace</th><th>Respuestas</th></tr>
-    <tr><td>POST</td><td><code>/api/upload</code></td><td>Sube el PDF (multipart, campo <code>file</code>, ≤ 25 MB) y lo verifica</td><td>200 · 400 · 422 · 500</td></tr>
+    <tr><td>POST</td><td><code>/api/upload</code></td><td>Subir PDF (≤ 25 MB) y analizarlo</td><td>200 · 400 · 422 · 500</td></tr>
+    <tr><td>POST</td><td><code>/api/screener/company/:ticker/filings/:accession/analyze</code></td><td>Analizar un filing de la SEC</td><td>200 · 400 · 404 · 422 · 502</td></tr>
+    <tr><td>GET</td><td><code>/api/reports/:file</code></td><td>Descargar el PDF generado</td><td>200 · 400 · 404</td></tr>
   </table>
 
-  <pre><code># Éxito
-{ "ok": true, "origin": "US", "formType": "10-Q" }
-
-# Error (422, AgentError)
-{ "error": "Este documento no es un informe financiero (10-Q / 10-K).", "code": "NOT_FINANCIAL" }</code></pre>
-
-  <h2>Cómo funciona</h2>
-  <ol>
-    <li><strong>Multer</strong> recibe el archivo en memoria (máx. 25 MB) y se comprueba que sea PDF (mimetype o extensión).</li>
-    <li><strong>pdf-parse</strong> extrae el texto del PDF (<code>pdf.service.js</code>).</li>
-    <li><strong>originAgent</strong> envía el texto (truncado a 80.000 caracteres) a la <strong>capa de modelos IA</strong> y espera <code>{"isFinancial": bool, "isUsa": bool, "formType": ...}</code>.</li>
-    <li>Si algo falla se devuelve un <code>AgentError</code> con mensaje en español; si todo pasa, <code>{ origin: 'US', formType }</code>.</li>
-  </ol>
-
-  <h2>Modelos IA (capa de abstracción)</h2>
-  <p>El agente nunca llama a la API de un proveedor: habla con <code>modelProvider.chat(messages)</code>.</p>
+  <h2>Modelo de IA (configurable en .env)</h2>
   <table>
-    <tr><th>Proveedor</th><th>Cuándo</th><th>Qué hace</th></tr>
-    <tr><td><strong>deepseek</strong></td><td>Por defecto</td><td>Llamada real a <code>api.deepseek.com</code> (modelo <code>deepseek-chat</code>, <code>temperature: 0</code>). Sin <code>DEEPSEEK_API_KEY</code> → error visible.</td></tr>
-    <tr><td><strong>mock</strong></td><td>Solo con <code>AI_PROVIDER=mock</code></td><td>Heurística local con patrones (SEC, FORM 10-Q/10-K, estados financieros). Sin coste, para desarrollo.</td></tr>
+    <tr><th>Variable</th><th>Valor actual</th><th>Efecto</th></tr>
+    <tr><td><code>AI_PROVIDER</code></td><td><code>deepseek</code></td><td><code>deepseek</code> · <code>opencode</code> · <code>mock</code></td></tr>
+    <tr><td><code>AI_MAX_TOKENS</code></td><td><code>16000</code></td><td>El informe superaba 8000 tokens y el modelo devolvía vacío</td></tr>
+    <tr><td><code>AI_REQUEST_TIMEOUT_MS</code></td><td><code>180000</code></td><td>Timeout por llamada (nunca queda colgado)</td></tr>
   </table>
+  <ul>
+    <li><strong>DeepSeek directo</strong> es el proveedor activo: 22–23 s por análisis, 4/4 JSON válidos (vs OpenCode Go 145–247 s con fallos intermitentes — medida con el mismo informe).</li>
+    <li><code>chatJson</code> reintenta una vez ante respuesta vacía o JSON inválido; los 3 agentes lo usan.</li>
+    <li>Los agentes solo hablan con la capa <code>modelProvider</code>; cambiar de API es editar <code>.env</code>.</li>
+  </ul>
 
-  <h2>Errores visibles en pantalla</h2>
+  <h2>Errores posibles</h2>
   <table>
     <tr><th>Situación</th><th>Respuesta</th></tr>
-    <tr><td>PDF no financiero</td><td class="err">422 "Este documento no es un informe financiero (10-Q / 10-K)."</td></tr>
-    <tr><td>Financiero de otro país</td><td class="err">422 "Este informe no es de una empresa de EE. UU."</td></tr>
-    <tr><td>Sin FORM 10-Q/10-K</td><td class="err">422 "El documento no es un FORM 10-Q ni un FORM 10-K."</td></tr>
-    <tr><td>Archivo no PDF</td><td class="err">422 "Solo se admiten archivos PDF."</td></tr>
-    <tr><td>PDF sin texto extraíble</td><td class="err">422 "No se pudo leer el contenido del documento."</td></tr>
-    <tr><td>Sin <code>DEEPSEEK_API_KEY</code></td><td class="err">500 "Falta DEEPSEEK_API_KEY en el archivo .env"</td></tr>
+    <tr><td>No es un informe financiero</td><td class="err">422 NOT_FINANCIAL</td></tr>
+    <tr><td>No es de EE. UU.</td><td class="err">422 NOT_USA</td></tr>
+    <tr><td>No es 10-Q/10-K</td><td class="err">422 NOT_10Q_10K</td></tr>
+    <tr><td>Sector no defensivo</td><td class="err">422 NOT_DEFENSIVE_CONSUMER</td></tr>
+    <tr><td>PDF sin capa de texto</td><td class="err">422 EMPTY_DOCUMENT</td></tr>
+    <tr><td>Modelo no parseable / extracción fallida</td><td class="err">422 INVALID_MODEL_RESPONSE</td></tr>
+    <tr><td>Filing inexistente / SEC caída</td><td class="err">404 FILING_NOT_FOUND · 502 EDGAR_UNAVAILABLE</td></tr>
+    <tr><td>Sin DEEPSEEK_API_KEY</td><td class="err">500 "Falta DEEPSEEK_API_KEY en el archivo .env"</td></tr>
+    <tr><td>Timeout de la IA</td><td class="err">500 "La API de IA tardó más de X s en responder"</td></tr>
   </table>
 
-  <h2>Qué incluye / excluye</h2>
-  <p><strong>Incluye:</strong> subida multipart, extracción de texto, verificación financiero + EE. UU. + 10-Q/10-K, capa de modelos (deepseek/mock), errores con código.</p>
-  <p><strong>Excluye (pendiente):</strong> verificación de sector, analista principal, guardado en BD (<code>analyses</code>), guardado del PDF en <code>uploads/</code>, asociación al usuario.</p>
-
   <h2>Pruebas</h2>
-  <p>10 casos verificados: 5 del agente con texto (10-Q ✓, 10-K ✓, no financiero ✗, no EE. UU. ✗, sin FORM ✗) y 5 del endpoint con curl (PDF normal 422, PDF 10-Q 200, sin archivo 400, .txt 422, sin key 500).</p>
+  <ul>
+    <li>Verificadores: 5/5 casos de origen + sector (Molson Coors ✓, Apple ✗).</li>
+    <li>Pipeline completo con KHC 10-Q real: 200 ~21 s, informe con 2 horizontes y 3 bloques, PDF descargable.</li>
+    <li>Desde el botón del screener (TAP): 200 en 22,8 s con DeepSeek; <code>saved: true</code> con sesión.</li>
+    <li>Regla fundamental verificada: subida manual y endpoint del filing se comportan igual.</li>
+  </ul>
 
-  <h2>Configuración (solo API key)</h2>
-  <pre><code># .env
-DEEPSEEK_API_KEY=sk-...   # sin ella el análisis no funciona
-# AI_MODEL=deepseek-chat  # opcional</code></pre>
-
-  <div class="note">Pendiente: probar con una key real de DeepSeek; encadenar sectorAgent y analystAgent; guardar el análisis en el histórico.</div>
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Decidir el modelo final a medio plazo (hoy: DeepSeek directo).</li>
+    <li>Refinar el prompt con los informes de referencia del usuario; Fase 4 (empresa completa).</li>
+  </ul>
 </div>
 </body>
 </html>

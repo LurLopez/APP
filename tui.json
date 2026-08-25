@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/tui.json",
+  "keybinds": {
+    "input_newline": "ctrl+j,alt+return",
+    "session_list": "shift+tab",
+    "session_new": "alt+n",
+    "model_cycle_recent": "alt+m",
+    "agent_cycle_reverse": "none"
+  }
+}

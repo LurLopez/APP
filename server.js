@@ -6,7 +6,8 @@ import config from './config/index.js';
 import authRoutes from './src/api/routes/auth.routes.js';
 import analysisRoutes from './src/api/routes/analysis.routes.js';
 import screenerRoutes from './src/api/routes/screener.routes.js';
-import favoritesRoutes from './src/api/routes/favorites.routes.js';
+import watchlistsRoutes from './src/api/routes/watchlists.routes.js';
+import portfolioRoutes from './src/api/routes/portfolio.routes.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,7 +20,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', authRoutes);
 app.use('/api', analysisRoutes);
 app.use('/api/screener', screenerRoutes);
-app.use('/api/favorites', favoritesRoutes);
+app.use('/api/watchlists', watchlistsRoutes);
+app.use('/api/portfolio', portfolioRoutes);
 
 app.get('/empresa/:ticker', (req, res) => {
   const ticker = String(req.params.ticker ?? '').trim().toUpperCase();

@@ -1,123 +1,96 @@
-# Funcionalidad: Verificación del informe (10-Q / 10-K de EE. UU.) — Frontend
+# Funcionalidad: Análisis del informe (10-Q / 10-K) — Frontend
 
-> Capa: **frontend** · Fecha: 2026-08-12 · Estado: **implementado y conectado a la API real**
+> Capa: **frontend** · Fecha: 2026-08-12 (base) · Actualizado: 2026-08-14 (pipeline completo + botón desde SEC) · Estado: **implementado y probado**
 
 ---
 
 ## 1. Objetivo
 
-Que el usuario suba un PDF desde la web y, al pulsar "Analizar informe", el documento se verifique de verdad contra la API (`POST /api/upload`): si es un 10-Q/10-K de EE. UU. **de consumo defensivo** se confirma el tipo y el sector; si no, se muestra el error del servidor en pantalla en el agente correspondiente. Sustituye a la demo simulada del pipeline.
+Ofrecer la interfaz del **análisis con IA** de un informe 10-Q / 10-K: subir un PDF (arrastrar y soltar), ver el **pipeline de 3 agentes** en tiempo real con cronómetro, ver el **informe estructurado** (2 horizontes, 3 bloques), **descargar el PDF** y guardar el análisis en el histórico. También ejecuta el análisis **desde la página de empresa** (botón "Analizar con IA" de un filing), navegando a Inicio con `/?analizar=TICKER&accession=...`.
 
 ## 2. Alcance
 
 **Incluido:**
-- Dropzone de subida (clic, teclado, arrastrar y soltar), validación cliente (solo PDF, ≤ 25 MB) y preview del archivo con botón de quitar.
-- Llamada real a `POST /api/upload` con `FormData`.
-- Panel de análisis en curso con estados por agente: En espera → Procesando → Completado / Error.
-- Error del servidor mostrado en pantalla (caja roja) + botón "Reintentar", en la fila del agente que falló (origen o sector).
-- Éxito: "Documento verificado: 10-Q · Sector defensivo", toast y botón "Analizar otro informe".
-- Contador de tiempo mientras el servidor responde.
+- Dropzone de PDF (arrastrar/soltar, click, validación PDF ≤ 25 MB, preview con quitar).
+- Panel de procesamiento: estados de los 3 agentes (En espera → Procesando → Completado/Error), barra de progreso y **cronómetro mm:ss** con avisos progresivos (45 s: "suele tardar entre 1 y 4 minutos"; 240 s si sigue).
+- Resultado: informe real con bloques Ventas / Cash Flow / Asignación de Capital, botón "Descargar PDF del análisis" y "Analizar otro informe".
+- Errores: caja roja con mensaje + código del servidor y botón Reintentar.
+- Ejecución automática desde `/?analizar=TICKER&accession=...` (botón de Empresa), con limpieza de la URL (`history.replaceState`) y scroll a la sección.
+- Guardado automático con sesión: toast "Análisis guardado en tu histórico".
 
-**Excluido (pendiente):**
-- Estado del agente analista (el pipeline real solo ejecuta origin y sector por ahora).
-- Resultado final del análisis (informe del analista).
-- Guardado del análisis en el histórico real de la web.
+**Excluido:**
+- Vista de detalle del informe en web (se abre el PDF).
+- Análisis multi-periodo (Fase 4).
 
-## 3. Flujo de la interfaz
+## 3. Flujo
 
 ```
-Usuario → selecciona/arrastra PDF
-  → validación cliente: tipo PDF y ≤ 25 MB          [fallo → toast]
-  → preview con nombre, tamaño y botón "quitar"
+Usuario → sube PDF (dropzone) → POST /api/upload
+  → panel de agentes: Origen → Sector → Análisis (estados en vivo + cronómetro)
+  → 200 → resultado: informe (report-body) + botón descargar PDF
+  → 422 → caja roja con { error, code } + Reintentar (vuelve a subir el mismo archivo)
+  → 500 (sin key / timeout IA) → caja roja con el mensaje del servidor
 
-Usuario → pulsa "Analizar informe"
-  → uploadForm.hidden = true, processingPanel visible, origin = Procesando
-  → fetch POST /api/upload (FormData con 'file')
-      → 200 { ok, origin, formType, sector }
-          → origin = Completado ✓, sector = Completado ✓
-          → título "Documento verificado: 10-Q · Sector defensivo"
-          → toast "Documento identificado como 10-Q de consumo defensivo..."
-          → botón "Analizar otro informe" (limpia la selección)
-      → error 422 { error, code }
-          → code NOT_DEFENSIVE_CONSUMER
-              → origin ✓ + sector ✕
-              → título "La empresa no es de consumo defensivo"
-              → caja roja con el mensaje del servidor + "Reintentar"
-          → otros códigos (origin)
-              → origin ✕
-              → título "No se pudo verificar el documento" + caja roja + "Reintentar"
-      → red caída / servidor apagado
-          → "No se pudo conectar con el servidor. Comprueba que esté en marcha."
+Desde Empresa ("Analizar con IA" de un filing):
+  → navega a /?analizar=TICKER&accession=ACCESSION
+  → app.js consume los parámetros (limpia la URL), hace scroll a la sección de análisis
+  → ejecuta POST /api/screener/company/:ticker/filings/:accession/analyze
+     con la misma UI de agentes; "Reintentar" re-ejecuta el mismo filing (pendingFiling)
 ```
 
-## 4. Estados del panel de análisis
+## 4. Estados de los agentes
 
-| Elemento | En curso | Éxito | Error origen | Error sector |
-|---|---|---|---|---|
-| `#processing-title` | "Verificando el documento..." | "Documento verificado: 10-Q · Sector defensivo" | "No se pudo verificar el documento" | "La empresa no es de consumo defensivo" |
-| Agente origin | Procesando (activo, naranja) | Completado (✓ verde) | Error (✕ rojo) | Completado (✓ verde) |
-| Agente sector | En espera | Completado (✓ verde) | En espera | Error (✕ rojo) |
-| Agente analista | En espera | En espera | En espera | En espera |
-| `#analysis-error` | oculto | oculto | visible (caja roja) | visible (caja roja) |
-| `#retry-analysis` | oculto | "Analizar otro informe" | "Reintentar" | "Reintentar" |
-| `#progress-bar` | 20% (pulso) | 60% | 100% | 100% |
-| `#processing-time` | contador | parado | parado | parado |
+| Estado | Visual |
+|---|---|
+| En espera | Círculo gris |
+| Procesando | Spinner/animación |
+| Completado | ✓ verde |
+| Error | ✕ rojo (solo el agente que falló; los anteriores quedan Completado — fix 2026-08-14) |
 
-## 5. Archivos del frontend implicados
+## 5. Componentes de la sección (`#nuevo`)
+
+| Elemento | Función |
+|---|---|
+| Dropzone | `#upload-dropzone`: arrastrar/soltar, click, validación, preview + quitar |
+| Panel de proceso | `#processing-panel`: título dinámico ("Leyendo tu informe..."/"Verificando..."), cronómetro `#processing-time`, estados de agentes, barra de progreso |
+| Resultado | `#result-preview`: `#report-body` con los 3 bloques, `#report-download` (descarga con nombre `<ticker>-analisis-cifra.pdf`), `#new-analysis` |
+| Error | Caja roja con mensaje + Reintentar |
+| Metodología | Panel "Qué ocurre después" (mini-pipeline de 3 pasos) |
+
+## 6. Archivos del frontend implicados
 
 | Archivo | Función |
 |---|---|
-| `public/index.html` | Dropzone `#dropzone` + formulario `#upload-form` + botón `#analyze-button`; panel `#processing-panel` (3 agentes, `#progress-bar`, `#analysis-error`, `#retry-analysis`, `#processing-note`); `#result-preview` (demo, sin usar por ahora). |
-| `public/app.js` | `setFile`/`clearFile` (validación + preview), `setAgentState` (active/done/error), `runRealAnalysis()` (fetch a `/api/upload`), `showAnalysisError()`, listeners del form, retry y menús. |
-| `public/styles.css` | Estados `.agent-row.active/.done/.error`, `.analysis-error` (caja roja), `.retry-button`, `.progress-track`. |
+| `public/index.html` | Sección `#nuevo` (dropzone, procesamiento, resultado, metodología) y carga de scripts. |
+| `public/app.js` | `uploadFile`, estados de agentes, cronómetro, avisos, render del informe, descarga del PDF, parámetros `?analizar=`, `pendingFiling`, refresco del histórico al guardar. |
+| `public/empresa.js` | Botón "Analizar con IA" por filing → `/?analizar=TICKER&accession=...`. |
+| `public/styles.css` | Dropzone, estados, resultado, caja de error, avisos. |
 
-## 6. Comunicación con el backend
-
-| Llamada | Método | Uso |
-|---|---|---|
-| `/api/upload` | POST | `FormData` con el PDF (campo `file`). Respuesta JSON. |
-
-- La respuesta de error se lee siempre con `response.json().catch(() => ({}))` y se muestra `data.error`; si no hay mensaje, texto genérico.
-- El archivo se envía en memoria (el backend no guarda el PDF en disco aún).
-
-## 7. Validaciones cliente
+## 7. Casos límite
 
 | Caso | Comportamiento |
 |---|---|
-| Archivo no PDF | Toast "Selecciona un archivo PDF para continuar." (no se acepta) |
-| Archivo > 25 MB | Toast "El archivo supera el límite de 25 MB." (no se acepta) |
-| Pulsar "Analizar" sin archivo | No hace nada (botón deshabilitado) |
+| Archivo no PDF o > 25 MB | Error cliente antes de subir |
+| Servidor responde 422 (NOT_USA, NOT_DEFENSIVE_CONSUMER...) | Caja roja con el mensaje claro + Reintentar |
+| Sin `DEEPSEEK_API_KEY` / timeout IA | Mensaje del servidor (500) en la caja de error |
+| Análisis en curso + servidor --watch reinicia | Se corta la petición (nota de desarrollo: no editar archivos durante un análisis con `npm run dev`) |
+| Con sesión | Toast "Análisis guardado en tu histórico" y recarga del histórico |
+| Sin sesión | Resultado visible; aviso de iniciar sesión para guardar (`saved: false`) |
 
-## 8. Errores y casos límite
+## 8. Pruebas realizadas
 
-| Caso | Comportamiento |
-|---|---|
-| Servidor devuelve 422 `NOT_DEFENSIVE_CONSUMER` | Origin ✓ y sector ✕ (rojo); caja roja con el mensaje exacto del servidor + "Reintentar" |
-| Servidor devuelve 422 de origen (no financiero / no EE. UU. / no 10-Q/10-K) | Origin ✕; caja roja con el mensaje exacto + "Reintentar" |
-| Servidor apagado o red caída | "No se pudo conectar con el servidor. Comprueba que esté en marcha." |
-| Error 500 (p. ej. falta API key) | Se muestra el mensaje del servidor ("Falta DEEPSEEK_API_KEY...") |
-| Éxito | Panel de verificación completada (origen y sector ✓); el usuario pulsa "Analizar otro informe" para subir otro PDF |
+- Pipeline completo end-to-end (KHC 10-Q real): 200 ~21 s, informe con 2 horizontes y 3 bloques, PDF descargable.
+- Botón "Analizar con IA" (TAP): navega a `/`, consume parámetros, ejecuta el pipeline (200 en 22,8 s con DeepSeek), guardado con sesión.
+- Cronómetro mm:ss correcto (antes `00:99` se rompía); avisos a 45 s y 240 s.
+- Fallo del analista: origen y sector quedan "Completado" (fix).
 
-## 9. Responsive
+## 9. Relación con otros módulos
 
-- El panel de procesamiento usa los mismos contenedores que el resto del dashboard: en móvil los paneles se apilan a una columna (regla `@media (max-width: 900px)` existente).
-- El botón "Analizar informe" mantiene el tamaño táctil en pantallas pequeñas (comportamiento heredado de `.primary-button`).
+- **Backend**: `documentacion/backend/funcionalidades/verificacion-informe/` (pipeline y endpoints).
+- **Histórico**: al completar con sesión se guarda y se refresca "Mis análisis".
+- **Empresa/Screener**: botón "Analizar con IA" en los filings.
 
-## 10. Pruebas realizadas
+## 10. Pendientes
 
-- Verificación visual del flujo de subida (validación, preview, quitar archivo).
-- Llamada real probada vía curl equivalente al frontend: 10-Q defensivo → 200, 10-Q tech → 422 `NOT_DEFENSIVE_CONSUMER`, PDF normal → 422 `NOT_FINANCIAL`.
-- Estados de agente verificados con el backend en marcha (Procesando → Completado y Procesando → Error en origen y en sector).
-- **Eliminado**: la demo simulada (`runDemoAnalysis`) que completaba los 3 agentes en falso; el aviso "Vista de demostración" se sustituyó por "El documento se verifica automáticamente antes de continuar."
-
-## 11. Relación con otros módulos
-
-- **Backend**: consume `POST /api/upload` (ver `documentacion/backend/funcionalidades/verificacion-informe/`).
-- **Auth**: el endpoint aún no requiere sesión; cuando se proteja con `requireAuth`, la cookie se enviará sola (mismo origen).
-- **Histórico futuro**: el resultado verificado (origin + formType) podrá mostrarse en la tabla de "Últimos análisis" cuando exista `GET /api/analyses`.
-
-## 12. Pendientes
-
-- Mostrar el resultado final del analista (sector + informe) cuando el pipeline los implemente.
-- Histórico real del usuario en la tabla de análisis.
-- Indicador visual del modo (simulado vs API real) si se retoma `AI_PROVIDER=mock`.
+- Vista de detalle del análisis dentro de la web.
+- Reintentos automáticos ante fallos transitorios del modelo (hoy reintenta una vez vía `chatJson`; el UI ofrece Reintentar manual).

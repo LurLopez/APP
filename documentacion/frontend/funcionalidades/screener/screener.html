@@ -29,16 +29,6 @@
   .ok { color:var(--green); font-weight:700; }
   .err { color:var(--red); font-weight:700; }
   .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
-  .states td:first-child { font-weight:700; }
-  .mini td, .mini th { padding:7px 9px; font-size:12.5px; text-align:right; }
-  .mini td:first-child, .mini th:first-child { text-align:left; }
-  .mini tr.emphasis-row td { background:var(--cream); font-weight:700; }
-  .palette { display:flex; gap:8px; margin:10px 0 4px; }
-  .swatch { display:flex; flex:1; flex-direction:column; gap:6px; align-items:center; padding:10px 4px; border:1px solid var(--line); border-radius:6px; background:var(--panel); font-size:11px; text-align:center; }
-  .swatch i { display:block; width:100%; height:26px; border-radius:4px; border:1px solid var(--line); }
-  .tabs-demo { display:flex; gap:4px; margin:10px 0; border-bottom:2px solid #ddd; }
-  .tab-demo { padding:7px 16px; color:#777; font-size:12px; font-weight:700; }
-  .tab-demo.active { color:#333; box-shadow: inset 0 -2px 0 var(--accent); }
 </style>
 </head>
 <body>
@@ -46,122 +36,80 @@
   <header>
     <div class="crumb">documentacion / frontend / funcionalidades / screener</div>
     <h1>Cribador de resultados (screener) — Frontend</h1>
-    <p class="sub">Búsqueda real de empresas en la SEC (EDGAR), vista de empresa estilo TIKR claro con 3 pestañas y una única tabla de resultados, y conmutador Anual/Trimestral.</p>
-    <span class="badge">✓ Implementado y conectado a la API real · 2026-08-13</span>
-    <span class="badge wip">⏳ Botón "Analizar" e histórico de filings pendientes</span>
+    <p class="sub">Página de empresa: perfil con cotización y gráfico, informes trimestrales con preview/descarga/análisis, y datos financieros estilo TIKR con gráfico de métricas y CAGR.</p>
+    <span class="badge">✓ Implementado y conectado a la API real · actualizado 2026-08-15</span>
   </header>
 
   <h2>Qué hace</h2>
-  <p>El usuario busca una empresa por <strong>ticker o nombre</strong> —desde el buscador del topbar o desde la sección <em>Cribador de resultados</em>— y ve sus resultados publicados (10-Q / 10-K) en una <strong>vista estilo TIKR claro</strong>: la cabecera muestra el <strong>nombre de la empresa + chip naranja con el ticker</strong> y el meta (<code>CIK · USD · SEC EDGAR</code>), y bajo ella hay <strong>3 pestañas</strong> (Cuenta de resultados, Balance, Cash flow) que repintan <strong>una sola tabla</strong>, con las <strong>partidas como filas y los periodos como columnas</strong>, en millones de dólares (BPA en $). Puede alternar entre los <strong>últimos 10 años</strong> y los <strong>últimos 8 trimestres</strong> sin volver a consultar a la API.</p>
+  <p>El usuario busca una empresa (topbar o sección de Inicio) y abre su <strong>página de empresa</strong> (<code>/empresa/:ticker</code>): cabecera con <strong>cotización y ojo de seguimiento</strong>, <strong>perfil</strong> (métricas + gráfico de precios con MA 100 y pantalla completa + información), <strong>informes trimestrales</strong> (10-Q/10-K con vista previa por páginas, descarga y análisis con IA) y <strong>datos financieros</strong> estilo TIKR con 3 pestañas, control de historial por años y <strong>gráfico de métricas interactivo</strong> con CAGR.</p>
 
-  <h2>Las 3 pestañas y la tabla única</h2>
-  <div class="tabs-demo">
-    <span class="tab-demo active">Cuenta de resultados</span>
-    <span class="tab-demo">Balance</span>
-    <span class="tab-demo">Cash flow</span>
-  </div>
+  <h2>Página de empresa</h2>
   <ul>
-    <li>Botones <code>.screener-tab</code> con <code>data-statement="income|balance|cashflow"</code>; la pestaña activa se marca con <strong>subrayado naranja</strong> (<code>box-shadow: inset 0 -2px 0 #ff9900</code>) y texto <code>#333</code>.</li>
-    <li><strong>Una sola tabla</strong> <code>#screener-statement-table</code>: al cambiar de pestaña (estado JS <code>screenerStatement</code>) o de serie (<code>screenerSeries</code>) se repinta <code>thead</code> y <code>tbody</code> con <code>renderStatementTable</code> — no hay tres tablas simultáneas.</li>
-    <li>El pintado es <strong>genérico desde <code>statements</code></strong> (<code>{ key, label, format, emphasis }</code>): si el backend añade o reordena partidas, la tabla se adapta sola.</li>
+    <li><strong>Menú lateral</strong> en dos bloques: fijos (Favoritos, Alertas de precio, Cartera) → cabecera con logo + nombre + ticker → de empresa (Perfil, Informes trimestrales, Valoración, Datos financieros, Accionariado).</li>
+    <li><strong>Cabecera</strong>: logo real (fallback con la inicial), nombre, bolsa · sector, chip ticker, <strong>ojo de seguimiento</strong> (abre el popover de listas).</li>
+    <li><strong>Cotización</strong>: precio + variación + sparkline; <strong>clic → gráfico a pantalla completa</strong>.</li>
   </ul>
 
-  <p>Ejemplo ilustrativo (Cuenta de resultados, serie anual; valores verificados de KO en la columna 2025; filas destacadas = totales):</p>
-  <table class="mini">
-    <tr><th>Partida</th><th>2023 (FY)</th><th>2024 (FY)</th><th>2025 (FY)</th></tr>
-    <tr><td>Ingresos</td><td>…</td><td>…</td><td>47.941 M$</td></tr>
-    <tr class="emphasis-row"><td>Beneficio bruto</td><td>…</td><td>…</td><td>…</td></tr>
-    <tr><td>Resultado antes de impuestos</td><td>…</td><td>…</td><td>15.998 M$</td></tr>
-    <tr class="emphasis-row"><td>Beneficio neto</td><td>…</td><td>…</td><td>13.107 M$</td></tr>
-    <tr><td>BPA diluido</td><td>…</td><td>…</td><td>3,04 $</td></tr>
-    <tr><td>Acciones diluidas (millones)</td><td>…</td><td>…</td><td>…</td></tr>
-  </table>
-
-  <h3>Formato de valores</h3>
+  <h2>Perfil</h2>
   <ul>
-    <li><code>money</code> → <code>formatMoneyUsd</code>: millones con separador es-ES (máx. 1 decimal); <strong>los negativos van entre paréntesis</strong>, p. ej. <code>(478,0)</code>.</li>
-    <li><code>perShare</code> (BPA) → <code>formatEps</code>: 2 decimales + sufijo <code>$</code>.</li>
-    <li><code>shares</code> (acciones diluidas) → <code>formatShares</code>: millones, máx. 1 decimal, sin sufijo.</li>
-    <li>Valor ausente → guion <code>—</code>. Periodos: <code>2025 (FY)</code> en anual, <code>Q4 2025</code> en trimestral.</li>
+    <li><strong>Tarjeta Informe</strong>: capitalización, rango 52 semanas, beta, dividendo/yield, volumen, ingresos, BPA, PER, rango del día.</li>
+    <li><strong>Gráfico de precios</strong>: rangos 3M/6M/1Y/3Y/5Y/10Y/ALL, <strong>MA 100</strong> (media de 100 sesiones diarias reales), <strong>precio bajo el cursor</strong> con tooltip y <strong>pantalla completa</strong>.</li>
+    <li><strong>Información y Descripción</strong>: país, sector, industria, bolsa, cierre fiscal, último filing.</li>
   </ul>
 
-  <h3>Detalles de tabla estilo TIKR</h3>
+  <h2>Informes trimestrales</h2>
   <ul>
-    <li><strong>Columna "Partida" fija</strong>: <code>position: sticky; left: 0</code> con fondo blanco y 230 px de ancho; sigue visible al hacer scroll horizontal.</li>
-    <li><strong>Filas de total (<code>emphasis-row</code>)</strong>: fondo crema <code>#fff7e8</code>, texto <code>#111</code> y negrita (hover <code>#fff2da</code>). Las marca el backend con <code>emphasis: true</code>.</li>
-    <li>Valores <strong>alineados a la derecha</strong> con <code>font-variant-numeric: tabular-nums</code> y <code>white-space: nowrap</code>; hover de fila <code>#fafafa</code>; bordes <code>#e0e0e0</code> (cabecera) y <code>#f0f0f0</code> (filas); <strong>scroll horizontal</strong> (`.table-wrap`) para los 8 trimestres.</li>
-    <li>El conmutador <strong>Anual/Trimestral</strong> (con chip "USD" al lado) y las pestañas solo re-renderizan con los datos ya descargados (sin nueva llamada a la API).</li>
+    <li>Tabla con badge 10-Q/10-K, periodo (Q2 2026 / FY 2025), "Periodo que cubre", fecha de presentación.</li>
+    <li><strong>Vista previa</strong> en modal: imágenes de las páginas del PDF (funciona en cualquier navegador) + "Abrir en pestaña nueva".</li>
+    <li><strong>Descargar</strong> (PDF real o generado) y <strong>Analizar con IA</strong> (→ <code>/?analizar=...</code> ejecuta el pipeline).</li>
   </ul>
 
-  <h2>Paleta TIKR claro</h2>
-  <p>Colores extraídos de las capturas de referencia del usuario (análisis con PIL) y aplicados en <code>styles.css</code>:</p>
-  <div class="palette">
-    <div class="swatch"><i style="background:#ffffff"></i>Blanco <code>#ffffff</code></div>
-    <div class="swatch"><i style="background:#333333"></i>Texto <code>#333333</code></div>
-    <div class="swatch"><i style="background:#ff9900"></i>Naranja <code>#ff9900</code></div>
-    <div class="swatch"><i style="background:#fff7e8"></i>Crema <code>#fff7e8</code></div>
-    <div class="swatch"><i style="background:#777777"></i>Gris <code>#777777</code></div>
-    <div class="swatch"><i style="background:#e0e0e0"></i>Bordes <code>#ddd/#e0e0e0/#f0f0f0</code></div>
-    <div class="swatch"><i style="background:#fafafa"></i>Hover <code>#fafafa</code></div>
-  </div>
-
-  <h2>Flujo</h2>
-  <ol>
-    <li>Escribir en el topbar → <strong>debounce de 250 ms</strong> → búsqueda real en EDGAR → panel con nombre + ticker.</li>
-    <li>Elegir empresa (o escribir el ticker en el cribador y pulsar "Consultar"/Enter).</li>
-    <li><code>fetch GET /api/screener/company/:ticker</code> → "Consultando EDGAR…" mientras responde.</li>
-    <li><strong>Éxito</strong> → cabecera (nombre + chip ticker, meta CIK · USD · SEC EDGAR) + pestañas + tabla; scroll suave hasta la sección.</li>
-    <li><strong>Error</strong> → caja roja con el mensaje del servidor (404 de ticker inexistente, 502 de EDGAR caído) o "No se pudo conectar con el servidor…" si hay caída de red.</li>
-  </ol>
-
-  <h2>Estados de la sección</h2>
-  <table class="states">
-    <tr><th>Elemento</th><th>Cargando</th><th>Éxito</th><th>Error</th></tr>
-    <tr><td>Indicador de carga</td><td>"Consultando EDGAR…"</td><td>oculto</td><td>oculto</td></tr>
-    <tr><td>Resultado (cabecera + pestañas + tabla)</td><td>oculto</td><td>visible</td><td>oculto</td></tr>
-    <tr><td>Caja de error</td><td>oculta</td><td>oculta</td><td class="err">visible con el mensaje</td></tr>
-    <tr><td>Búsqueda sin coincidencias</td><td colspan="3">"Sin resultados en EDGAR para esta búsqueda."</td></tr>
-  </table>
-
-  <h2>Buscador del topbar (ahora real)</h2>
+  <h2>Datos financieros (estilo TIKR)</h2>
   <ul>
-    <li>Antes filtraba una lista local de 4 empresas; ahora consulta <code>GET /api/screener/search?q=</code>.</li>
-    <li><strong>Debounce 250 ms</strong> al escribir; query vacía → panel oculto.</li>
-    <li>Sin resultados → mensaje "Sin resultados en EDGAR para esta búsqueda.".</li>
-    <li>Al elegir una empresa: el input muestra el ticker y se carga directamente el cribador.</li>
+    <li><strong>3 pestañas</strong> (Cuenta de resultados, Balance, Cash flow) que repintan una sola tabla desde el catálogo del backend; serie Anual/Trimestral sin nueva petición.</li>
+    <li><strong>Control de historial</strong> por años (doble asa): filtra tabla y gráfico; los derivados se calculan sobre el historial completo.</li>
+    <li><strong>Tabla</strong>: columna "Partida" sticky, filas de total en crema, negativos en paréntesis y en rojo (también por naturaleza: gastos y salidas en rojo aunque sean positivos), "—" para datos ausentes.</li>
+    <li><strong>Bloqueo PRO</strong> sin sesión: 6 columnas anuales y 4 trimestrales antiguas; con sesión todo visible.</li>
+  </ul>
+
+  <h2>Gráfico de métricas</h2>
+  <ul>
+    <li><strong>Clic en una fila</strong> → se grafica: barras (dinero/acciones) y líneas de puntos (porcentajes, márgenes, ratios), con doble escala si se mezclan.</li>
+    <li>Leyenda con <strong>paleta de 16 colores</strong> fijos, badge de tipo y botón de quitar.</li>
+    <li><strong>CAGR</strong>: línea discontinua negra + caja "CAGR: x,x %" <strong>arrastrable</strong> sobre la línea; funciona con valores negativos y cambio de signo.</li>
   </ul>
 
   <h2>Errores que se ven en pantalla</h2>
   <table>
-    <tr><th>Situación</th><th>Mensaje en pantalla</th></tr>
-    <tr><td>Ticker inexistente</td><td class="err">"No se encontró la empresa \"ZZZZ\" en EDGAR." (mensaje del servidor)</td></tr>
-    <tr><td>EDGAR caído / timeout</td><td class="err">Mensaje 502 del servidor ("No se pudo consultar EDGAR: …")</td></tr>
-    <tr><td>Servidor apagado</td><td class="err">"No se pudo conectar con el servidor. Comprueba que esté en marcha."</td></tr>
-    <tr><td>Sin coincidencias</td><td class="err">"Sin resultados en EDGAR para esta búsqueda."</td></tr>
+    <tr><th>Situación</th><th>Mensaje</th></tr>
+    <tr><td>Empresa inexistente</td><td class="err">404 del servidor en caja roja</td></tr>
+    <tr><td>EDGAR caído</td><td class="err">502 del servidor</td></tr>
+    <tr><td>Servidor apagado</td><td class="err">"No se pudo conectar con el servidor…"</td></tr>
+    <tr><td>Sin resultados de búsqueda</td><td class="err">"Sin resultados en EDGAR para esta búsqueda."</td></tr>
   </table>
 
-  <h2>Pruebas verificadas</h2>
-  <ul>
-    <li><strong>KO</strong> FY2025: ingresos 47.941 M$, B. neto 13.107 M$, BPA 3,04 $, activo 104.816 M$, pretax 15.998 M$, reservas 80.382 M$ y autocartera 56.423 M$ (negativa, entre paréntesis); variación neta de caja −478 M$ entre paréntesis; activo no corriente 73.772 M$ y pasivo no corriente 51.366 M$ (derivados). Pestañas y filas crema (emphasis) verificadas ✓</li>
-    <li><strong>PG</strong> (cierre fiscal junio): balance en su columna correcta; intangibles 21.737 M$ vía tag agregado ✓</li>
-    <li><strong>PEP</strong>: intangibles 15.066 M$ (finite + indefinite) y CAPEX vía fallback ✓</li>
-    <li><strong>TAP</strong>: pérdida neta −2.139,6 M$ y pretax −2.518 M$ en paréntesis; acciones diluidas 199,1 M (formato <code>shares</code>) ✓</li>
-    <li>Ticker inexistente → caja roja 404 ✓ · búsqueda sin resultados → mensaje en topbar y cribador ✓</li>
-  </ul>
-
-  <h2>Qué incluye / excluye</h2>
-  <p><strong>Incluye:</strong> sección cribador con buscador propio, cabecera de empresa (nombre + chip ticker, CIK · USD · SEC EDGAR), chip "USD", conmutador Anual/Trimestral, 3 pestañas con tabla única repintada desde <code>statements</code> (partidas × periodos, filas emphasis en crema, columna Partida sticky, millones $, BPA en $, acciones en millones, negativos entre paréntesis, "—" para ausentes, scroll horizontal, paleta TIKR claro), búsqueda real del topbar con debounce, estados de carga/error/vacío y responsive.</p>
-  <p><strong>Excluye (pendiente):</strong> botón "Analizar" hacia el pipeline de IA, histórico de filings con ver PDF, gráficos o comparativas.</p>
-
-  <h2>Archivos implicados</h2>
+  <h2>Archivos</h2>
   <table>
     <tr><th>Archivo</th><th>Función</th></tr>
-    <tr><td><code>public/index.html</code></td><td>Sección <code>#screener</code>: buscador, error, carga, cabecera de empresa (nombre + chip <code>.ticker-chip</code>, meta), chip USD, conmutador, <strong>3 pestañas <code>.screener-tab</code></strong> y <strong>tabla única <code>#screener-statement-table</code></strong> en <code>.table-wrap</code>; panel <code>#search-results</code> del topbar.</td></tr>
-    <tr><td><code>public/app.js</code></td><td><code>searchCompanies()</code>, <code>loadCompanyToScreener()</code>, <code>renderScreener()</code>, <code>renderScreenerTables()</code>, <code>renderStatementTable()</code> (repinta la tabla única desde <code>statements</code>), formateadores (<code>formatScreenerValue</code>, <code>formatMoneyUsd</code>, <code>formatEps</code>, <code>formatShares</code>, <code>periodLabel</code>), estado <code>screenerSeries</code> y <code>screenerStatement</code>.</td></tr>
-    <tr><td><code>public/styles.css</code></td><td>Estilos bajo "Cribador (screener)": buscador, cabecera, chip USD, conmutador, pestañas (activa subrayada en naranja), tabla única (valores a la derecha, tabular-nums, columna sticky, filas <code>emphasis-row</code> en crema <code>#fff7e8</code>, hover <code>#fafafa</code>, bordes claros) y scroll horizontal.</td></tr>
+    <tr><td><code>public/empresa.html</code></td><td>Página de empresa completa (menú, cabecera, secciones, modal de preview)</td></tr>
+    <tr><td><code>public/empresa.js</code></td><td>Perfil, gráficos (precios y métricas), tabla financiera, filings, secciones</td></tr>
+    <tr><td><code>public/index.html</code> / <code>app.js</code></td><td>Buscador real, sección cribador, tarjetas, <code>?analizar=</code></td></tr>
+    <tr><td><code>public/styles.css</code></td><td>Todo el diseño (<code>?v=26</code>)</td></tr>
   </table>
 
-  <div class="note">El cribador muestra datos oficiales en consulta al vuelo; no guarda nada. El análisis con IA de cada periodo (botón "Analizar") y el histórico de filings llegan en la fase siguiente.</div>
+  <h2>Pruebas</h2>
+  <ul>
+    <li>KO/PG/PEP/TAP verificados en pantalla (cifras, pestañas, rojos por naturaleza, PRO).</li>
+    <li>MA100 validada (1.156 segmentos en 5Y); cotización clicable → fullscreen.</li>
+    <li>CAGR con caja arrastrable y casos negativos verificados.</li>
+    <li>Filings: preview 74 imágenes, descarga PDF, análisis 200 en 22,8 s.</li>
+  </ul>
+
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Ratios y Segmentos, Valoración y Accionariado (placeholders).</li>
+    <li>Fase 4: análisis completo de empresa.</li>
+  </ul>
 </div>
 </body>
 </html>

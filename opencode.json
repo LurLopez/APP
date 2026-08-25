@@ -2,5 +2,41 @@
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
     "documentacion/PROYECTO.md"
-  ]
+  ],
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "hf.co/empero-ai/Qwen3.8-9B-GGUF:Q4_K_M": {
+          "name": "Qwen3.8-9B (local)",
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": true
+        },
+        "dolphin3:8b": {
+          "name": "Dolphin3 8B (local)",
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          },
+          "tool_call": true
+        },
+        "qwen2.5-coder:3b": {
+          "name": "Qwen2.5 Coder 3B (local)",
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          },
+          "tool_call": true
+        }
+      }
+    }
+  }
 }

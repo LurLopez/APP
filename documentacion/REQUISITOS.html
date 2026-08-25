@@ -262,7 +262,8 @@
       <span class="badge b-blue">Solo EE. UU.</span>
       <span class="badge b-green">10-Q y 10-K</span>
       <span class="badge b-amber">Sector: consumo defensivo</span>
-      <span class="badge b-purple">IA: modelos intercambiables</span>
+      <span class="badge b-purple">IA: DeepSeek activo (intercambiable)</span>
+      <span class="badge b-green">Fases 1–3 implementadas</span>
     </div>
   </div>
 
@@ -298,19 +299,19 @@
 
     <div class="grid">
       <div class="card">
-        <span class="tag fase1">FASE 1 · Primera en implementarse</span>
+        <span class="tag fase1">FASE 1 · Implementada ✅</span>
         <h4>Subida manual del PDF</h4>
-        <p>El usuario descarga el informe (10-Q / 10-K) de la fuente que quiera y lo sube a la web (arrastrar / seleccionar archivo). La IA analiza el PDF y devuelve el informe.</p>
+        <p>El usuario descarga el informe (10-Q / 10-K) de la fuente que quiera y lo sube a la web (arrastrar / seleccionar archivo). La IA analiza el PDF y devuelve el informe con su PDF descargable. Pipeline completo (3 agentes) funcionando.</p>
       </div>
       <div class="card">
-        <span class="tag fase2">FASE 2 · Más adelante</span>
+        <span class="tag fase2">FASE 2 · Implementada ✅</span>
         <h4>Buscador por empresa</h4>
-        <p>El usuario busca por nombre o ticker (ej.: Molson Coors → <strong>TAP</strong>). Aparece el histórico de resultados publicados (todos los 10-Q y 10-K), puede <strong>ver el PDF original</strong> y pulsar <strong>"Analizar"</strong> sobre cualquiera de ellos.</p>
+        <p>El usuario busca por nombre o ticker (ej.: Molson Coors → <strong>TAP</strong>). Aparece el histórico de resultados publicados (todos los 10-Q y 10-K), puede <strong>ver el PDF original</strong> (vista previa por páginas) y pulsar <strong>"Analizar"</strong> sobre cualquiera de ellos.</p>
       </div>
     </div>
 
     <div class="callout blue" style="margin-top: 16px;">
-      <strong>Regla fundamental:</strong> cargar el Q2 2025 de TAP manualmente, o buscarlo y pulsar "Analizar", debe producir <strong>el mismo resultado exacto</strong>.
+      <strong>Regla fundamental — verificada:</strong> cargar el Q2 2025 de TAP manualmente, o buscarlo y pulsar "Analizar", produce <strong>el mismo resultado exacto</strong> (mismo pipeline en `analysis.service.js`).
     </div>
   </section>
 
@@ -354,16 +355,16 @@
       <div class="fnode fin">
         <span class="fnum">3</span>
         <strong>Agente analista principal</strong>
-        <small>Análisis financiero del informe</small>
+        <small>2 fases: extracción de cifras + informe estructurado + PDF</small>
       </div>
       <div class="farrow"></div>
       <div class="fnode fin" style="max-width: 400px;">
-        <strong>Informe final para el usuario</strong>
+        <strong>Informe final + PDF para el usuario</strong>
       </div>
     </div>
 
     <div class="callout green">
-      <strong>Futuro:</strong> agentes para más países (verificación por país) y más sectores (verificación y análisis por sector), sin tocar los existentes.
+      <strong>Estado:</strong> los 3 agentes están implementados y registrados; las reglas del sector viven en <code>src/agents/prompts/consumo-defensivo.md</code>. Futuro: agentes para más países y sectores, sin tocar los existentes.
     </div>
   </section>
 
@@ -373,7 +374,7 @@
     <p class="muted">La arquitectura debe estar preparada <strong>desde el principio</strong> para:</p>
 
     <h3>6.1 · Registro / Inicio de sesión</h3>
-    <p>Los usuarios podrán <strong>registrarse e iniciar sesión</strong>. La app se usará localmente al principio, pero el modelo de datos y los flujos deben contemplar usuarios desde el día uno.</p>
+    <p>Los usuarios pueden <strong>registrarse e iniciar sesión</strong>. Implementado con <strong>verificación por correo</strong> (código de 6 dígitos, SMTP o consola en desarrollo) y <strong>recuperación de contraseña</strong>.</p>
 
     <h3>6.2 · Suscripciones (gratuito / de pago)</h3>
     <p>Una vez registrado, existirá la opción de <strong>suscribirse</strong> con ventajas como:</p>
@@ -381,16 +382,16 @@
       <li>Análisis con <strong>modelos de IA mejores</strong>.</li>
       <li><strong>Sin límite de análisis</strong> (el plan gratuito tendrá límites).</li>
     </ul>
-    <p class="muted">No se implementa en la beta, pero la arquitectura debe soportarla: usuarios, roles/planes, límites de uso y selección de modelo por plan.</p>
+    <p class="muted">No se implementa todavía (Fase 5), pero la arquitectura ya lo soporta: campo <code>plan</code> en <code>users</code>, selección de modelo por plan y primer límite real (bloqueo PRO del cribador sin sesión).</p>
 
     <h3>6.3 · Capa de abstracción de modelos IA</h3>
-    <p>El modelo a usar <strong>aún no está decidido</strong> (candidatos: DeepSeek, GPT — requiere comparar). Se construirá una <strong>capa abstracta de modelos</strong> para cambiar de proveedor (o usar uno u otro según el plan del usuario) <strong>sin tocar el código de los agentes</strong>. Los agentes hablan con la capa de abstracción, nunca con la API de un proveedor concreto.</p>
+    <p>Implementada: los agentes hablan con <code>modelProvider.chat/chatJson</code>, nunca con una API concreta. Proveedores: <strong>DeepSeek</strong> (activo, 22–23 s por análisis y fiable), <strong>OpenCode Go</strong> (probado, intermitente) y <strong>mock</strong> (desarrollo). Cambiar de proveedor = editar <code>AI_PROVIDER</code> en <code>.env</code>.</p>
 
     <h3>6.4 · Sistema de agentes extensible</h3>
-    <p>Cada agente es una unidad independiente y registrable. Se añaden agentes nuevos por país y sector sin modificar los existentes.</p>
+    <p>Cada agente es una unidad independiente y registrable (<code>agentRegistry</code>). Se añaden agentes nuevos por país y sector sin modificar los existentes.</p>
 
     <h3>6.5 · Almacenamiento de resultados</h3>
-    <p>Los análisis realizados se deben poder <strong>guardar, listar y consultar por usuario</strong> (histórico de análisis).</p>
+    <p>Implementado: cada análisis con sesión se guarda en <code>analyses</code> y se puede <strong>listar y filtrar</strong> por empresa y por fecha (resultados o análisis) con <code>GET /api/analyses</code>; el PDF se abre desde el histórico.</p>
   </section>
 
   <!-- 7. FUTURO -->
@@ -400,22 +401,22 @@
       <div class="card">
         <span class="tag futura">FUTURO</span>
         <h4>Análisis completo de la empresa</h4>
-        <p>Botón <strong>"Analizar empresa completa"</strong>: leerá los resultados de los últimos trimestres/años y generará un <strong>informe completo</strong>, no de un único periodo. Requiere el histórico de filings (relacionado con el buscador).</p>
+        <p>Botón <strong>"Analizar empresa completa"</strong>: leerá los resultados de los últimos trimestres/años y generará un <strong>informe completo</strong>, no de un único periodo. El histórico de filings ya está implementado (Fase 4 pendiente).</p>
       </div>
       <div class="card">
         <span class="tag futura">FUTURO</span>
         <h4>Más países y sectores</h4>
-        <p>Extensión de los agentes verificadores y analistas a <strong>nuevos países</strong> y <strong>nuevos sectores</strong>.</p>
+        <p>Extensión de los agentes verificadores y analistas a <strong>nuevos países</strong> y <strong>nuevos sectores</strong> (el sistema de agentes ya lo permite).</p>
       </div>
       <div class="card">
         <span class="tag futura">FUTURO</span>
         <h4>Suscripciones y planes</h4>
-        <p>Monetización: plan gratuito limitado y plan de pago con <strong>mejores modelos</strong> y <strong>análisis ilimitados</strong>.</p>
+        <p>Monetización: plan gratuito limitado y plan de pago con <strong>mejores modelos</strong> y <strong>análisis ilimitados</strong> (campo <code>plan</code> ya existe).</p>
       </div>
       <div class="card">
-        <span class="tag futura">FUTURO</span>
+        <span class="tag hecho">HECHO ✅</span>
         <h4>Comparación de modelos IA</h4>
-        <p>Evaluar DeepSeek vs. GPT para elegir el modelo (o modelos por plan) que mejor analice documentos financieros.</p>
+        <p>Evaluados <strong>DeepSeek directo vs OpenCode Go</strong> con el mismo informe: DeepSeek 22–23 s y fiable; OpenCode Go intermitente. DeepSeek activo; decisión a medio plazo.</p>
       </div>
     </div>
   </section>
@@ -428,28 +429,28 @@
         <div class="rdot">✓</div>
         <div class="rbody">
           <strong>Fase 0 · Documento de visión y requisitos</strong>
-          <small>Este documento · En curso</small>
+          <small>Este documento · Completado</small>
         </div>
       </div>
-      <div class="rrow">
-        <div class="rdot">1</div>
+      <div class="rrow done">
+        <div class="rdot">✓</div>
         <div class="rbody">
           <strong>Fase 1 · Subida manual de PDF → análisis</strong>
-          <small>Beta: EE. UU. + consumo defensivo · Pendiente</small>
+          <small>Pipeline completo: 3 agentes + informe + PDF + guardado · Completado</small>
         </div>
       </div>
-      <div class="rrow">
-        <div class="rdot">2</div>
+      <div class="rrow done">
+        <div class="rdot">✓</div>
         <div class="rbody">
           <strong>Fase 2 · Buscador de empresas + histórico de filings</strong>
-          <small>Ticker → listado de 10-Q/10-K → ver PDF → analizar · Pendiente</small>
+          <small>Buscador, cribador sin huecos, perfil, gráfico, filings con ver PDF y botón "Analizar" · Completado</small>
         </div>
       </div>
-      <div class="rrow">
-        <div class="rdot">3</div>
+      <div class="rrow done">
+        <div class="rdot">✓</div>
         <div class="rbody">
           <strong>Fase 3 · Registro / inicio de sesión</strong>
-          <small>Pendiente</small>
+          <small>Verificación por correo + recuperación de contraseña · Completado</small>
         </div>
       </div>
       <div class="rrow">
@@ -463,7 +464,7 @@
         <div class="rdot">5</div>
         <div class="rbody">
           <strong>Fase 5 · Suscripciones y planes</strong>
-          <small>Modelos según plan, límites · Pendiente</small>
+          <small>Modelos según plan, límites · Pendiente (campo plan ya existe)</small>
         </div>
       </div>
       <div class="rrow pend">
@@ -474,6 +475,7 @@
         </div>
       </div>
     </div>
+    <p class="muted">Extras ya implementados: histórico de análisis con filtros · listas de seguimiento multi-lista · cartera de inversión (FIFO, dividendos, donuts).</p>
   </section>
 
   <!-- 9. DECISIONES PENDIENTES -->
@@ -483,21 +485,28 @@
       <div class="dot"></div>
       <div>
         <strong>Stack tecnológico</strong>
-        <p>Framework de frontend/backend, base de datos, hosting · Se elegirá teniendo en cuenta el perfil del desarrollador (sección 10) · Por decidir</p>
+        <p>Node.js + Express 5 + PostgreSQL 16 + frontend puro (migrable a React) · <strong>Decidido</strong></p>
       </div>
     </div>
     <div class="dec">
       <div class="dot"></div>
       <div>
         <strong>Modelo de IA</strong>
-        <p>Candidatos: DeepSeek, GPT — requiere comparación de modelos · Por decidir</p>
+        <p>DeepSeek vs OpenCode Go comparados · <strong>En uso: DeepSeek directo</strong> (22–23 s, fiable); confirmar a medio plazo</p>
       </div>
     </div>
     <div class="dec">
       <div class="dot"></div>
       <div>
         <strong>Formato del informe final</strong>
-        <p>El usuario ya tiene varios informes hechos que servirán de referencia · Se definirá en detalle con ejemplos reales</p>
+        <p>Base en producción (2 horizontes + Ventas/Cash Flow/Asignación de Capital, prompt <code>consumo-defensivo.md</code>) · Se refinará con los informes de referencia del usuario</p>
+      </div>
+    </div>
+    <div class="dec">
+      <div class="dot"></div>
+      <div>
+        <strong>Despliegue</strong>
+        <p>VPS vs PaaS · <strong>Pendiente</strong> (no bloquea; decidir cuando toque publicar)</p>
       </div>
     </div>
   </section>

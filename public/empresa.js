@@ -27,13 +27,12 @@ let screenerSeries = 'annual';
 let screenerStatement = 'income';
 let screenerPrecision = 2;
 let screenerHideEmpty = false;
+let screenerYearMin = null;
+let screenerYearMax = null;
 let screenerFilings = null;
 let screenerFilingsLoading = false;
 
-let favoriteTickers = new Set();
-let favoritesList = [];
-
-const SECTION_PLACEHOLDERS = ['alertas', 'cartera', 'valoracion', 'accionariado'];
+const SECTION_PLACEHOLDERS = ['alertas', 'valoracion', 'accionariado'];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -426,18 +425,37 @@ document.querySelector('#chart-ma-toggle').addEventListener('click', (event) => 
   renderPriceChart();
 });
 
-const chartBlock = document.querySelector('.chart-block');
-document.querySelector('#chart-fullscreen').addEventListener('click', () => {
-  if (document.fullscreenElement === chartBlock) {
+function toggleFullscreen(element) {
+  if (document.fullscreenElement === element) {
     if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
     return;
   }
-  if (!chartBlock.requestFullscreen) {
+  if (!element.requestFullscreen) {
     showToast('Pantalla completa no disponible en este navegador.');
     return;
   }
-  chartBlock.requestFullscreen().catch(() => showToast('No se pudo activar la pantalla completa.'));
+  element.requestFullscreen().catch(() => showToast('No se pudo activar la pantalla completa.'));
+}
+
+const chartBlock = document.querySelector('.chart-block');
+document.querySelector('#chart-fullscreen').addEventListener('click', () => {
+  toggleFullscreen(chartBlock);
 });
+
+const quotePanel = document.querySelector('.company-quote');
+function openChartFullscreen() {
+  document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'perfil'));
+  showSection('perfil');
+  toggleFullscreen(chartBlock);
+}
+quotePanel.addEventListener('click', openChartFullscreen);
+quotePanel.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    openChartFullscreen();
+  }
+});
+
 document.addEventListener('fullscreenchange', () => {
   renderPriceChart();
 });
@@ -499,14 +517,34 @@ function shouldRenderScreenerValueRed(value, item) {
   return item.tone === 'negative' || number < 0;
 }
 
-function renderStatementTable(rows, items) {
+function rowYear(row) {
+  const match = String(row?.period ?? '').match(/^(\d{4})/);
+  return match ? Number(match[1]) : null;
+}
+
+function screenerVisibleIndexes(rows) {
+  const years = rows.map(rowYear).filter((year) => year !== null);
+  if (!years.length) return rows.map((_, index) => index);
+  const min = screenerYearMin ?? Math.min(...years);
+  const max = screenerYearMax ?? Math.max(...years);
+  return rows
+    .map((row, index) => {
+      const year = rowYear(row);
+      return year !== null && year >= min && year <= max ? index : null;
+    })
+    .filter((index) => index !== null);
+}
+
+function renderStatementTable(rows, visibleIndexes, items) {
   const table = document.querySelector('#screener-statement-table');
   const title = document.querySelector('#screener-table-title').textContent;
-  table.querySelector('thead').innerHTML = `<tr><th class="sticky-col">${escapeHtml(title)}</th>${rows.map((row) => `<th>${periodDateLabel(row)}</th>`).join('')}</tr>`;
+  const colspan = visibleIndexes.length + 1;
+  table.querySelector('thead').innerHTML = `<tr><th class="sticky-col">${escapeHtml(title)}</th>${visibleIndexes.map((rowIndex) => `<th>${periodDateLabel(rows[rowIndex])}</th>`).join('')}</tr>`;
   table.querySelector('tbody').innerHTML = items.map((item) => {
-    if (item.kind === 'section') return `<tr class="section-row"><td class="sticky-col" colspan="${rows.length + 1}">${escapeHtml(item.label)}</td></tr>`;
-    if (item.kind === 'note') return `<tr class="note-row"><td class="sticky-col" colspan="${rows.length + 1}">${escapeHtml(item.label)}</td></tr>`;
-    const cells = rows.map((row, rowIndex) => {
+    if (item.kind === 'section') return `<tr class="section-row"><td class="sticky-col" colspan="${colspan}">${escapeHtml(item.label)}</td></tr>`;
+    if (item.kind === 'note') return `<tr class="note-row"><td class="sticky-col" colspan="${colspan}">${escapeHtml(item.label)}</td></tr>`;
+    const cells = visibleIndexes.map((rowIndex) => {
+      const row = rows[rowIndex];
       if (isLockedPeriod(rowIndex, rows)) return `<td>${renderProCell()}</td>`;
       const value = derivedScreenerValue(item, row, rowIndex, rows);
       const className = shouldRenderScreenerValueRed(value, item) ? ' class="negative"' : '';
@@ -515,21 +553,30 @@ function renderStatementTable(rows, items) {
     const rowClass = [
       item.emphasis ? 'emphasis-row' : '',
       item.kind === 'change' || item.kind === 'margin' || item.kind === 'ratio' || item.italic ? 'derived-row' : '',
+      chartMetrics.has(item.key) ? 'chart-selected' : '',
     ].filter(Boolean).join(' ');
-    return `<tr${rowClass ? ` class="${rowClass}"` : ''} data-metric="${escapeHtml(item.label)}"><td class="sticky-col">${escapeHtml(item.label)}</td>${cells.join('')}</tr>`;
+    const dot = chartMetrics.has(item.key) ? `<span class="metric-chart-dot" style="background:${chartMetrics.get(item.key).color}"></span>` : '';
+    return `<tr${rowClass ? ` class="${rowClass}"` : ''} data-metric="${escapeHtml(item.label)}" data-chart-key="${escapeHtml(item.key)}"><td class="sticky-col">${dot}${escapeHtml(item.label)}</td>${cells.join('')}</tr>`;
   }).join('');
-  table.querySelectorAll('tbody tr[data-metric]').forEach((row) => row.addEventListener('click', () => showToast(`Gráfico de ${row.dataset.metric}: disponible próximamente.`)));
+  table.querySelectorAll('tbody tr[data-chart-key]').forEach((row) => {
+    const item = items.find((candidate) => candidate.key === row.dataset.chartKey);
+    row.addEventListener('click', () => toggleChartMetric(item));
+  });
 }
 
 function renderScreenerTables() {
   if (!companyData) return;
   const rows = [...(companyData[screenerSeries] ?? [])].reverse();
+  const visibleIndexes = screenerVisibleIndexes(rows);
+  syncScreenerRange();
   const statements = companyData.statements ?? {};
   const title = document.querySelector('#screener-table-title');
   const statementNames = { income: 'Cuenta de resultados', balance: 'Balance de situación', cashflow: 'Estado de Flujo de Efectivo' };
   title.textContent = `${statementNames[screenerStatement] ?? 'Estado financiero'} | Cifra`;
   const range = document.querySelector('#screener-period-range');
-  range.textContent = rows.length ? `Datos financieros de ${periodDateLabel(rows[rows.length - 1])} a ${periodDateLabel(rows[0])}` : 'Sin periodos disponibles';
+  range.textContent = visibleIndexes.length
+    ? `Datos financieros de ${periodDateLabel(rows[visibleIndexes[visibleIndexes.length - 1]])} a ${periodDateLabel(rows[visibleIndexes[0]])}`
+    : 'Sin periodos visibles';
   const items = statements[screenerStatement] ?? [];
   const visibleItems = screenerHideEmpty
     ? items.filter((item) => item.kind || rows.some((row, rowIndex) => {
@@ -537,14 +584,62 @@ function renderScreenerTables() {
       return value !== null && value !== undefined;
     }))
     : items;
-  renderStatementTable(rows, visibleItems);
+  renderStatementTable(rows, visibleIndexes, visibleItems);
+  renderMetricsChart();
 }
+
+function syncScreenerRange() {
+  const control = document.querySelector('#screener-range');
+  const rows = metricsChartRows();
+  const years = rows.map(rowYear).filter((year) => year !== null);
+  if (years.length < 2) {
+    control.hidden = true;
+    return;
+  }
+  control.hidden = false;
+  const low = Math.min(...years);
+  const high = Math.max(...years);
+  const minInput = document.querySelector('#screener-range-min');
+  const maxInput = document.querySelector('#screener-range-max');
+  minInput.min = low;
+  minInput.max = high;
+  maxInput.min = low;
+  maxInput.max = high;
+  if (screenerYearMin === null) screenerYearMin = low;
+  if (screenerYearMax === null) screenerYearMax = high;
+  minInput.value = screenerYearMin;
+  maxInput.value = screenerYearMax;
+  document.querySelector('#screener-range-values').textContent = `${screenerYearMin} – ${screenerYearMax}`;
+  const pctMin = ((screenerYearMin - low) / (high - low)) * 100;
+  const pctMax = ((screenerYearMax - low) / (high - low)) * 100;
+  document.querySelector('#screener-range-track').style.background = `linear-gradient(to right, #e2e2e2 0%, #e2e2e2 ${pctMin}%, var(--orange) ${pctMin}%, var(--orange) ${pctMax}%, #e2e2e2 ${pctMax}%, #e2e2e2 100%)`;
+}
+
+document.querySelector('#screener-range-min').addEventListener('input', (event) => {
+  const minInput = event.currentTarget;
+  const maxInput = document.querySelector('#screener-range-max');
+  if (Number(minInput.value) > Number(maxInput.value)) maxInput.value = minInput.value;
+  screenerYearMin = Number(minInput.value);
+  screenerYearMax = Number(maxInput.value);
+  renderScreenerTables();
+});
+
+document.querySelector('#screener-range-max').addEventListener('input', (event) => {
+  const maxInput = event.currentTarget;
+  const minInput = document.querySelector('#screener-range-min');
+  if (Number(maxInput.value) < Number(minInput.value)) minInput.value = maxInput.value;
+  screenerYearMax = Number(maxInput.value);
+  screenerYearMin = Number(minInput.value);
+  renderScreenerTables();
+});
 
 document.querySelectorAll('.screener-period-toggle button').forEach((button) => {
   button.addEventListener('click', () => {
     document.querySelectorAll('.screener-period-toggle button').forEach((item) => item.classList.remove('active'));
     button.classList.add('active');
     screenerSeries = button.dataset.series;
+    screenerYearMin = null;
+    screenerYearMax = null;
     renderScreenerTables();
   });
 });
@@ -574,6 +669,408 @@ document.querySelector('[data-table-action="empty"]').addEventListener('click', 
   screenerHideEmpty = !screenerHideEmpty;
   event.currentTarget.classList.toggle('active');
   renderScreenerTables();
+});
+
+/* ── Gráfico de métricas (datos financieros) ────────────────── */
+
+const METRICS_CHART_COLORS = [
+  '#ff9900', '#3a7bd5', '#2e9e5b', '#d64545',
+  '#7b5cd6', '#009aa6', '#e06fb0', '#d96a2b',
+  '#6c3483', '#2874a6', '#1e8449', '#c0392b',
+  '#8a8a3a', '#5f6b7a', '#d4ac0d', '#34495e',
+];
+const chartMetrics = new Map();
+const metricsChartNumFormat = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 });
+let chartPendingColorKey = null;
+let metricsChartState = null;
+
+function metricChartType(metric) {
+  if (metric.kind === 'change' || metric.kind === 'margin' || metric.kind === 'ratio' || metric.format === 'perShare') return 'line';
+  return 'bar';
+}
+
+function toggleChartMetric(item) {
+  if (!item) return;
+  if (chartMetrics.has(item.key)) {
+    chartMetrics.delete(item.key);
+  } else {
+    const used = [...chartMetrics.values()].map((metric) => metric.color);
+    const color = METRICS_CHART_COLORS.find((candidate) => !used.includes(candidate))
+      ?? `hsl(${(chartMetrics.size * 47) % 360} 70% 45%)`;
+    chartMetrics.set(item.key, { ...item, color });
+  }
+  syncChartRowSelection();
+  renderMetricsChart();
+}
+
+function removeChartMetric(key) {
+  chartMetrics.delete(key);
+  syncChartRowSelection();
+  renderMetricsChart();
+}
+
+function syncChartRowSelection() {
+  document.querySelectorAll('#screener-statement-table tbody tr[data-chart-key]').forEach((row) => {
+    const metric = chartMetrics.get(row.dataset.chartKey);
+    row.classList.toggle('chart-selected', Boolean(metric));
+    const dot = row.querySelector('td:first-child .metric-chart-dot');
+    if (dot) dot.style.background = metric ? metric.color : '';
+  });
+}
+
+function metricsChartRows() {
+  return [...(companyData?.[screenerSeries] ?? [])].reverse();
+}
+
+function chartMetricSeries(metric) {
+  const rows = metricsChartRows();
+  const indexes = screenerVisibleIndexes(rows);
+  return indexes.map((rowIndex) => {
+    const row = rows[rowIndex];
+    return {
+      label: periodDateLabel(row),
+      short: chartPeriodShort(row),
+      year: rowYear(row),
+      value: isLockedPeriod(rowIndex, rows) ? null : derivedScreenerValue(metric, row, rowIndex, rows),
+    };
+  });
+}
+
+function chartPeriodShort(row) {
+  if (!row?.period) return '';
+  if (/^\d{4}$/.test(row.period)) return row.period;
+  const [year, quarter] = row.period.split('-Q');
+  return `Q${quarter} ${String(year).slice(2)}`;
+}
+
+function formatChartAxis(value, metric) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  if (metric.kind === 'change' || metric.kind === 'margin' || metric.kind === 'ratio') return `${metricsChartNumFormat.format(number)} %`;
+  if (metric.format === 'perShare') return `${metricsChartNumFormat.format(number)} $`;
+  if (metric.format === 'shares') return `${metricsChartNumFormat.format(number / 1e6)} M`;
+  if (metric.format === 'count') return metricsChartNumFormat.format(number);
+  return `${metricsChartNumFormat.format(number / 1e6)} M$`;
+}
+
+function metricScale(seriesList, includeZero) {
+  let min = Infinity;
+  let max = -Infinity;
+  seriesList.forEach((points) => points.forEach((point) => {
+    const value = Number(point.value);
+    if (!Number.isFinite(value)) return;
+    if (value < min) min = value;
+    if (value > max) max = value;
+  }));
+  if (!Number.isFinite(min)) return null;
+  if (includeZero && min > 0) min = 0;
+  if (includeZero && max < 0) max = 0;
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min;
+  return { min: min - span * 0.08, max: max + span * 0.08 };
+}
+
+function metricY(scale, margin, innerHeight) {
+  return (value) => margin.top + innerHeight - ((Number(value) - scale.min) / (scale.max - scale.min)) * innerHeight;
+}
+
+function renderMetricsChart() {
+  const block = document.querySelector('#metrics-chart-block');
+  const svg = document.querySelector('#metrics-chart');
+  const wrap = document.querySelector('#metrics-chart-body');
+  const legend = document.querySelector('#metrics-chart-legend');
+  const clearButton = document.querySelector('#metrics-chart-clear');
+  metricsChartState = null;
+
+  if (!chartMetrics.size) {
+    block.hidden = true;
+    svg.innerHTML = '';
+    return;
+  }
+  block.hidden = false;
+  clearButton.hidden = false;
+
+  const metrics = [...chartMetrics.values()];
+  const allRows = metricsChartRows();
+  const rows = screenerVisibleIndexes(allRows).map((index) => allRows[index]);
+  const width = Math.max(320, wrap.clientWidth || 720);
+  const height = 300;
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+  const barSeries = metrics.filter((metric) => metricChartType(metric) === 'bar');
+  const lineSeries = metrics.filter((metric) => metricChartType(metric) === 'line');
+  const series = metrics.map((metric) => ({ metric, points: chartMetricSeries(metric) }));
+
+  legend.innerHTML = metrics.map((metric) => `
+    <span class="metrics-legend-item">
+      <button type="button" class="metrics-swatch" data-color-key="${escapeHtml(metric.key)}" aria-label="Cambiar el color de ${escapeHtml(metric.label)}" style="background:${metric.color}"></button>
+      <span class="metrics-legend-label" title="${escapeHtml(metric.label)}">${escapeHtml(metric.label)}</span>
+      <span class="metrics-legend-type">${metricChartType(metric) === 'bar' ? 'barras' : 'puntos'}</span>
+      <button type="button" class="metrics-legend-remove" data-remove-key="${escapeHtml(metric.key)}" aria-label="Quitar ${escapeHtml(metric.label)} del gráfico">×</button>
+    </span>`).join('');
+
+  const barScale = barSeries.length ? metricScale(series.filter((entry) => metricChartType(entry.metric) === 'bar').map((entry) => entry.points), true) : null;
+  const lineScale = lineSeries.length ? metricScale(series.filter((entry) => metricChartType(entry.metric) === 'line').map((entry) => entry.points), false) : null;
+  const leftScale = barScale ?? lineScale;
+  const rightScale = barScale && lineScale ? lineScale : null;
+
+  const margin = { top: 14, right: rightScale ? 64 : 12, bottom: 26, left: 58 };
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+  const slotWidth = rows.length ? innerWidth / rows.length : innerWidth;
+  const centers = rows.map((_, index) => margin.left + slotWidth * (index + 0.5));
+  const yLeft = metricY(leftScale, margin, innerHeight);
+  const yRight = metricY(rightScale ?? leftScale, margin, innerHeight);
+
+  const xLabelStep = Math.max(1, Math.ceil(rows.length / 8));
+  const xLabels = rows.map((row, index) => (index % xLabelStep === 0
+    ? `<text x="${centers[index].toFixed(1)}" y="${height - 8}" class="chart-label chart-label-x">${escapeHtml(chartPeriodShort(row))}</text>`
+    : '')).join('');
+
+  const leftTicks = [0, 1, 2, 3].map((step) => leftScale.min + ((leftScale.max - leftScale.min) * step) / 3);
+  const rightTicks = rightScale ? [0, 1, 2, 3].map((step) => rightScale.min + ((rightScale.max - rightScale.min) * step) / 3) : [];
+  const leftAxis = leftTicks.map((value) => `
+    <text x="${margin.left - 8}" y="${yLeft(value) + 3}" class="chart-label" text-anchor="end">${formatChartAxis(value, barSeries[0] ?? lineSeries[0])}</text>
+    <line x1="${margin.left}" y1="${yLeft(value)}" x2="${width - margin.right}" y2="${yLeft(value)}" class="chart-grid"/>
+  `).join('');
+  const rightAxis = rightTicks.map((value) => `
+    <text x="${width - margin.right + 8}" y="${yRight(value) + 3}" class="chart-label" text-anchor="start">${formatChartAxis(value, lineSeries[0])}</text>
+  `).join('');
+
+  let barsSvg = '';
+  if (barScale) {
+    const groupWidth = slotWidth * 0.7;
+    const barWidth = Math.max(2, groupWidth / barSeries.length);
+    const baseY = yLeft(Math.max(0, barScale.min));
+    barSeries.forEach((metric, j) => {
+      const points = series.find((entry) => entry.metric.key === metric.key).points;
+      points.forEach((point, index) => {
+        const value = Number(point.value);
+        if (!Number.isFinite(value)) return;
+        const x0 = centers[index] - groupWidth / 2 + j * barWidth;
+        const yTop = yLeft(value);
+        barsSvg += `<rect x="${x0.toFixed(1)}" y="${Math.min(yTop, baseY).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(1, Math.abs(yTop - baseY)).toFixed(1)}" rx="1.5" class="metric-bar" style="fill:${metric.color}"/>`;
+      });
+    });
+  }
+
+  let linesSvg = '';
+  if (lineScale) {
+    const lineY = rightScale ? yRight : yLeft;
+    lineSeries.forEach((metric) => {
+      const points = series.find((entry) => entry.metric.key === metric.key).points;
+      let d = '';
+      points.forEach((point, index) => {
+        const value = Number(point.value);
+        if (!Number.isFinite(value)) return;
+        const x = centers[index];
+        const y = lineY(value);
+        d += `${d ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+      });
+      if (d) linesSvg += `<path d="${d}" class="metric-line" style="stroke:${metric.color}"/>`;
+      points.forEach((point, index) => {
+        const value = Number(point.value);
+        if (!Number.isFinite(value)) return;
+        linesSvg += `<circle cx="${centers[index].toFixed(1)}" cy="${lineY(value).toFixed(1)}" r="3.5" class="metric-dot" style="stroke:${metric.color}"/>`;
+      });
+    });
+  }
+
+  const body = document.querySelector('#metrics-chart-body');
+  body.querySelectorAll('.metric-cagr-label').forEach((el) => el.remove());
+
+  let cagrLinesSvg = '';
+  const cagrLabels = [];
+  series.forEach((entry) => {
+    const y = metricChartType(entry.metric) === 'bar' || !rightScale ? yLeft : yRight;
+    let first = null;
+    let last = null;
+    entry.points.forEach((point, index) => {
+      const value = Number(point.value);
+      if (!Number.isFinite(value)) return;
+      if (first === null) first = { index, value, year: point.year };
+      last = { index, value, year: point.year };
+    });
+    if (!first || !last || first.index === last.index) return;
+    const geometry = {
+      x1: centers[first.index],
+      y1: y(first.value),
+      x2: centers[last.index],
+      y2: y(last.value),
+      t: 0.5,
+    };
+    cagrLinesSvg += `<line x1="${geometry.x1.toFixed(1)}" y1="${geometry.y1.toFixed(1)}" x2="${geometry.x2.toFixed(1)}" y2="${geometry.y2.toFixed(1)}" class="metric-cagr-line"/>`;
+    let cagrText = 'CAGR: —';
+    if (first.year !== null && last.year !== null && last.year > first.year) {
+      const years = last.year - first.year;
+      const ratio = last.value / first.value;
+      if (Number.isFinite(ratio) && ratio > 0) {
+        const cagr = (ratio ** (1 / years)) - 1;
+        cagrText = `CAGR: ${cagr >= 0 ? '+' : '−'}${metricsChartNumFormat.format(Math.abs(cagr * 100))} %`;
+      } else if (first.value !== 0) {
+        const average = (((last.value - first.value) / Math.abs(first.value)) / years) * 100;
+        cagrText = `CAGR: ${average >= 0 ? '+' : '−'}${metricsChartNumFormat.format(Math.abs(average))} %`;
+      }
+    }
+    geometry.text = cagrText;
+    cagrLabels.push(geometry);
+  });
+
+  svg.innerHTML = `${leftAxis}${rightAxis}${barsSvg}${linesSvg}${cagrLinesSvg}${xLabels}
+    <g id="metrics-hover" hidden>
+      <line id="metrics-hover-line" x1="0" y1="0" x2="0" y2="0" class="chart-crosshair"/>
+      <g id="metrics-hover-dots"></g>
+    </g>`;
+
+  cagrLabels.forEach((geometry) => {
+    const el = document.createElement('div');
+    el.className = 'metric-cagr-label';
+    el.textContent = geometry.text;
+    body.appendChild(el);
+    geometry.el = el;
+    positionCagrLabel(geometry);
+    attachCagrDrag(geometry);
+  });
+
+  metricsChartState = { rows, series, centers, margin, height, width, rightScale, yLeft, yRight };
+}
+
+function positionCagrLabel(geometry) {
+  geometry.el.style.left = `${geometry.x1 + geometry.t * (geometry.x2 - geometry.x1)}px`;
+  geometry.el.style.top = `${geometry.y1 + geometry.t * (geometry.y2 - geometry.y1)}px`;
+}
+
+function attachCagrDrag(geometry) {
+  const el = geometry.el;
+  let dragging = false;
+  el.addEventListener('pointerdown', (event) => {
+    dragging = true;
+    el.setPointerCapture(event.pointerId);
+    el.classList.add('dragging');
+    event.preventDefault();
+  });
+  el.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const bodyRect = document.querySelector('#metrics-chart-body').getBoundingClientRect();
+    const x = event.clientX - bodyRect.left;
+    geometry.t = Math.max(0, Math.min(1, (x - geometry.x1) / (geometry.x2 - geometry.x1)));
+    positionCagrLabel(geometry);
+  });
+  const endDrag = () => {
+    dragging = false;
+    el.classList.remove('dragging');
+  };
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointercancel', endDrag);
+}
+
+function hideMetricsChartTooltip() {
+  document.querySelector('#metrics-chart-tooltip').hidden = true;
+  const hover = document.querySelector('#metrics-hover');
+  if (hover) hover.hidden = true;
+}
+
+function updateMetricsChartHover(event) {
+  if (!metricsChartState) return;
+  const svg = document.querySelector('#metrics-chart');
+  const rect = svg.getBoundingClientRect();
+  const cursorX = ((event.clientX - rect.left) / rect.width) * metricsChartState.width;
+  const centers = metricsChartState.centers;
+  let best = 0;
+  let bestDistance = Infinity;
+  centers.forEach((center, index) => {
+    const distance = Math.abs(cursorX - center);
+    if (distance < bestDistance) { bestDistance = distance; best = index; }
+  });
+
+  const { rows, series, margin, height, width, rightScale, yLeft, yRight } = metricsChartState;
+  const hover = svg.querySelector('#metrics-hover');
+  const line = svg.querySelector('#metrics-hover-line');
+  const dots = svg.querySelector('#metrics-hover-dots');
+  hover.hidden = false;
+  const cx = centers[best];
+  line.setAttribute('x1', cx.toFixed(1));
+  line.setAttribute('y1', margin.top.toFixed(1));
+  line.setAttribute('x2', cx.toFixed(1));
+  line.setAttribute('y2', (height - margin.bottom).toFixed(1));
+  dots.innerHTML = series.map((entry) => {
+    const value = Number(entry.points[best]?.value);
+    if (!Number.isFinite(value)) return '';
+    const y = metricChartType(entry.metric) === 'bar' || !rightScale ? yLeft(value) : yRight(value);
+    return `<circle cx="${cx.toFixed(1)}" cy="${y.toFixed(1)}" r="4" class="metric-dot" style="stroke:${entry.metric.color}"/>`;
+  }).join('');
+
+  const tooltip = document.querySelector('#metrics-chart-tooltip');
+  tooltip.innerHTML = `<strong>${escapeHtml(rows[best]?.period ?? '')}</strong>${series.map((entry) => `
+    <div class="metrics-chart-tooltip-row">
+      <span class="metric-legend-dot" style="background:${entry.metric.color}"></span>
+      <span>${escapeHtml(entry.metric.label)}</span>
+      <b>${formatChartAxis(entry.points[best]?.value, entry.metric)}</b>
+    </div>`).join('')}`;
+  tooltip.hidden = false;
+  const tooltipWidth = tooltip.offsetWidth;
+  const flip = cx + tooltipWidth + 16 > width;
+  tooltip.style.left = `${flip ? cx - tooltipWidth - 14 : cx + 14}px`;
+  tooltip.style.top = `${Math.max(4, margin.top)}px`;
+}
+
+document.querySelector('#metrics-chart').addEventListener('mousemove', updateMetricsChartHover);
+document.querySelector('#metrics-chart').addEventListener('mouseleave', hideMetricsChartTooltip);
+
+document.querySelector('#metrics-chart-legend').addEventListener('click', (event) => {
+  const swatch = event.target.closest('.metrics-swatch');
+  if (swatch) {
+    const metric = chartMetrics.get(swatch.dataset.colorKey);
+    if (!metric) return;
+    const palette = document.querySelector('#metrics-palette');
+    if (!palette.hidden && chartPendingColorKey === metric.key) {
+      palette.hidden = true;
+      chartPendingColorKey = null;
+      return;
+    }
+    openMetricsPalette(swatch, metric);
+    return;
+  }
+  const remove = event.target.closest('.metrics-legend-remove');
+  if (remove) removeChartMetric(remove.dataset.removeKey);
+});
+
+function openMetricsPalette(swatch, metric) {
+  chartPendingColorKey = metric.key;
+  const palette = document.querySelector('#metrics-palette');
+  palette.innerHTML = METRICS_CHART_COLORS.map((color) => `
+    <button type="button" class="metrics-palette-color${color === metric.color ? ' active' : ''}" style="background:${color}" data-color="${color}" aria-label="Usar el color ${color}"></button>`).join('');
+  const blockRect = document.querySelector('#metrics-chart-block').getBoundingClientRect();
+  const swatchRect = swatch.getBoundingClientRect();
+  palette.style.left = `${swatchRect.left - blockRect.left}px`;
+  palette.style.top = `${swatchRect.bottom - blockRect.top + 6}px`;
+  palette.hidden = false;
+}
+
+document.querySelector('#metrics-palette').addEventListener('click', (event) => {
+  const colorButton = event.target.closest('.metrics-palette-color');
+  if (!colorButton) return;
+  const metric = chartPendingColorKey ? chartMetrics.get(chartPendingColorKey) : null;
+  chartPendingColorKey = null;
+  document.querySelector('#metrics-palette').hidden = true;
+  if (!metric) return;
+  metric.color = colorButton.dataset.color;
+  syncChartRowSelection();
+  renderMetricsChart();
+});
+
+document.addEventListener('click', (event) => {
+  const palette = document.querySelector('#metrics-palette');
+  if (palette.hidden) return;
+  if (event.target.closest('#metrics-palette') || event.target.closest('.metrics-swatch')) return;
+  palette.hidden = true;
+  chartPendingColorKey = null;
+});
+
+document.querySelector('#metrics-chart-clear').addEventListener('click', () => {
+  chartMetrics.clear();
+  syncChartRowSelection();
+  renderMetricsChart();
 });
 
 /* ── Informes (filings) ─────────────────────────────────────── */
@@ -692,232 +1189,26 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !document.querySelector('#filings-preview-backdrop').hidden) closeFilingsPreview();
 });
 
-/* ── Acciones favoritas ─────────────────────────────────────── */
+/* ── Listas de seguimiento ─────────────────────────────────── */
 
-function favoriteNumber(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function formatFavoriteNumber(value, digits = 2) {
-  const number = favoriteNumber(value);
-  if (number === null) return '—';
-  return new Intl.NumberFormat('es-ES', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(number);
-}
-
-function formatFavoriteSigned(value) {
-  const number = favoriteNumber(value);
-  if (number === null) return '—';
-  const sign = number > 0 ? '+' : number < 0 ? '−' : '';
-  return `${sign}${formatFavoriteNumber(Math.abs(number))}`;
-}
-
-function formatFavoritePercent(value) {
-  const number = favoriteNumber(value);
-  if (number === null) return '—';
-  return `${formatFavoriteSigned(number)} %`;
-}
-
-function formatFavoriteVolume(value) {
-  const number = favoriteNumber(value);
-  if (number === null) return '—';
-  const absolute = Math.abs(number);
-  const [unit, suffix] = absolute >= 1e9 ? [1e9, 'B']
-    : absolute >= 1e6 ? [1e6, 'M']
-      : absolute >= 1e3 ? [1e3, 'K']
-        : [1, ''];
-  return `${new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(number / unit)}${suffix}`;
-}
-
-function formatFavoriteTime(timestamp) {
-  const number = favoriteNumber(timestamp);
-  if (number === null || number <= 0) return '—';
-  return new Intl.DateTimeFormat('es-ES', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(new Date(number * 1000));
-}
-
-function favoriteChangeClass(value) {
-  const number = favoriteNumber(value);
-  return number === null ? '' : number >= 0 ? 'positive' : 'negative';
-}
-
-function requireLogin() {
-  if (companyAuthenticated) return true;
-  showToast('Inicia sesión para guardar acciones favoritas.');
-  window.openModal?.('login');
-  return false;
-}
-
-async function fetchFavorites() {
-  if (!companyAuthenticated) {
-    favoriteTickers = new Set();
-    favoritesList = [];
-    renderCompanyFavState();
-    renderFavoritesList();
-    return;
-  }
-  try {
-    const response = await fetch('/api/favorites');
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) return;
-    favoritesList = Array.isArray(data.favorites) ? data.favorites : [];
-    favoriteTickers = new Set(favoritesList.map((favorite) => String(favorite.ticker).toUpperCase()));
-    renderCompanyFavState();
-    renderFavoritesList();
-  } catch {
-    favoriteTickers = new Set();
-    favoritesList = [];
-    renderCompanyFavState();
-    renderFavoritesList();
-  }
-}
-
-function renderCompanyFavState() {
-  const button = document.querySelector('#company-fav');
+function renderCompanyWatchState() {
+  const button = document.querySelector('#company-watch');
   if (!button || !companyTicker) return;
-  const isFavorite = favoriteTickers.has(companyTicker);
-  button.classList.toggle('active', isFavorite);
-  button.setAttribute('aria-label', isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos');
+  const tracked = Watchlists.isInAnyList(companyTicker);
+  button.classList.toggle('active', tracked);
+  button.setAttribute('aria-label', tracked
+    ? `${companyTicker} está en tus listas de seguimiento`
+    : `Añadir ${companyTicker} a listas de seguimiento`);
 }
 
-async function removeFavorite(ticker) {
-  ticker = String(ticker).toUpperCase();
-  try {
-    const response = await fetch(`/api/favorites/${encodeURIComponent(ticker)}`, { method: 'DELETE' });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || 'No se pudo quitar el favorito.');
-    favoriteTickers.delete(ticker);
-    favoritesList = favoritesList.filter((favorite) => String(favorite.ticker).toUpperCase() !== ticker);
-    renderCompanyFavState();
-    renderFavoritesList();
-    showToast(`${ticker} eliminada de tus favoritas.`);
-  } catch (error) {
-    showToast(error.message);
-  }
-}
+window.addEventListener('watchlists:change', () => {
+  renderCompanyWatchState();
+});
 
-async function toggleCompanyFavorite() {
-  if (!requireLogin()) return;
-  if (favoriteTickers.has(companyTicker)) {
-    await removeFavorite(companyTicker);
-    return;
-  }
-  const button = document.querySelector('#company-fav');
-  favoriteTickers.add(companyTicker);
-  button.classList.toggle('active', true);
-  try {
-    const response = await fetch('/api/favorites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker: companyTicker, companyName: companyData?.company?.name }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || 'No se pudo añadir el favorito.');
-    showToast(`${companyTicker} añadida a tus favoritas.`);
-    fetchFavorites();
-  } catch (error) {
-    favoriteTickers.delete(companyTicker);
-    button.classList.toggle('active', false);
-    showToast(error.message);
-  }
-}
-
-function renderFavoriteTable(favorites) {
-  return `
-    <table class="favorites-market-table">
-      <thead>
-        <tr>
-          <th scope="col">Nombre</th>
-          <th scope="col">Símbolo</th>
-          <th scope="col">Último</th>
-          <th scope="col">Apertura</th>
-          <th scope="col">Máximo</th>
-          <th scope="col">Mínimo</th>
-          <th scope="col">Var.</th>
-          <th scope="col">% var.</th>
-          <th scope="col">Vol.</th>
-          <th scope="col">Fecha/Hora</th>
-          <th scope="col" aria-label="Acciones"></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${favorites.map((favorite) => {
-          const ticker = String(favorite.ticker ?? '').toUpperCase();
-          const name = String(favorite.companyName || ticker);
-          const quote = favorite.quote ?? {};
-          const changeClass = favoriteChangeClass(quote.change);
-          const time = formatFavoriteTime(quote.marketTimestamp);
-          const statusClass = quote.marketState === 'REGULAR' ? 'open'
-            : quote.marketState ? 'closed' : 'unknown';
-          return `
-            <tr data-ticker="${escapeHtml(ticker)}" tabindex="0">
-              <td class="favorite-name-cell">
-                <span class="favorite-flag" aria-hidden="true">🇺🇸</span>
-                <a class="favorite-company-link" href="/empresa/${encodeURIComponent(ticker)}">${escapeHtml(name)}</a>
-              </td>
-              <td><a class="favorite-symbol-link" href="/empresa/${encodeURIComponent(ticker)}">${escapeHtml(ticker)}</a></td>
-              <td class="favorite-last ${changeClass}">${formatFavoriteNumber(quote.price)}</td>
-              <td>${formatFavoriteNumber(quote.open)}</td>
-              <td>${formatFavoriteNumber(quote.dayHigh)}</td>
-              <td>${formatFavoriteNumber(quote.dayLow)}</td>
-              <td class="${changeClass}">${formatFavoriteSigned(quote.change)}</td>
-              <td class="${changeClass}">${formatFavoritePercent(quote.changePercent)}</td>
-              <td>${formatFavoriteVolume(quote.volume)}</td>
-              <td><span class="favorite-time"><i class="favorite-market-dot ${statusClass}"></i>${time}</span></td>
-              <td>
-                <button class="favorite-table-fav active" type="button" data-ticker="${escapeHtml(ticker)}" aria-label="Quitar ${escapeHtml(name)} de favoritos" title="Quitar de favoritos">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-                </button>
-              </td>
-            </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
-}
-
-function renderFavoritesList() {
-  const list = document.querySelector('#favorites-list');
-  const empty = document.querySelector('#favorites-empty');
-  const count = document.querySelector('#favorites-count');
-  if (!list) return;
-  if (!companyAuthenticated) {
-    list.innerHTML = '';
-    empty.hidden = false;
-    empty.textContent = 'Inicia sesión para guardar y ver tus acciones favoritas.';
-    count.textContent = 'Inicia sesión';
-    return;
-  }
-  empty.textContent = 'Aún no tienes acciones favoritas. Toca el corazón de una empresa para añadirla.';
-  empty.hidden = favoritesList.length > 0;
-  count.textContent = favoritesList.length ? `${favoritesList.length} ${favoritesList.length === 1 ? 'acción' : 'acciones'}` : '—';
-  list.innerHTML = renderFavoriteTable(favoritesList);
-  list.querySelectorAll('tbody tr[data-ticker]').forEach((row) => {
-    row.addEventListener('click', (event) => {
-      if (event.target.closest('a, button')) return;
-      goToCompany(row.dataset.ticker);
-    });
-    row.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !event.target.closest('a, button')) goToCompany(row.dataset.ticker);
-    });
-  });
-  list.querySelectorAll('.favorite-table-fav').forEach((button) => {
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      removeFavorite(button.closest('tr[data-ticker]').dataset.ticker);
-    });
-  });
-}
+Watchlists.mountSection(document.querySelector('#watchlists-section'), {
+  countEl: document.querySelector('#favorites-count'),
+  onNavigate: goToCompany,
+});
 
 /* ── Secciones del menú lateral ─────────────────────────────── */
 
@@ -925,6 +1216,7 @@ function showSection(key) {
   const sections = {
     perfil: document.querySelector('#section-perfil'),
     favoritos: document.querySelector('#section-favoritos'),
+    cartera: document.querySelector('#section-cartera'),
     informes: document.querySelector('#section-informes'),
     datos: document.querySelector('#section-datos'),
     placeholder: document.querySelector('#section-placeholder'),
@@ -934,7 +1226,16 @@ function showSection(key) {
 
   if (key === 'favoritos') {
     sections.favoritos.hidden = false;
-    renderFavoritesList();
+    return;
+  }
+  if (key === 'cartera') {
+    sections.cartera.hidden = false;
+    const root = document.querySelector('#portfolio-company-section');
+    if (root && !root.dataset.ticker) {
+      root.dataset.ticker = companyTicker;
+      root.dataset.name = companyData?.company?.name ?? companyTicker;
+      Portfolio.registerCompanyPanel(root);
+    }
     return;
   }
   if (key === 'informes') {
@@ -968,7 +1269,10 @@ document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
 
 /* ── Cabecera de empresa: acciones ──────────────────────────── */
 
-document.querySelector('#company-fav').addEventListener('click', toggleCompanyFavorite);
+document.querySelector('#company-watch').addEventListener('click', (event) => {
+  event.stopPropagation();
+  Watchlists.open(event.currentTarget, companyTicker, companyData?.company?.name);
+});
 document.querySelector('#company-alert').addEventListener('click', () => showToast('Las alertas de precio estarán disponibles próximamente.'));
 document.querySelector('#company-filings-shortcut').addEventListener('click', () => {
   document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'informes'));
@@ -1076,8 +1380,10 @@ document.addEventListener('click', (event) => {
 
 window.addEventListener('auth:change', (event) => {
   companyAuthenticated = Boolean(event.detail?.user);
+  Watchlists.setAuthenticated(companyAuthenticated);
+  if (companyAuthenticated) Watchlists.refresh();
+  Portfolio.setAuthenticated(companyAuthenticated);
   if (companyData && !document.querySelector('#section-datos').hidden) renderScreenerTables();
-  fetchFavorites();
 });
 
 async function loadCompany() {
@@ -1095,9 +1401,14 @@ async function loadCompany() {
     }
     renderCompany(data);
     companyBody.hidden = false;
-    renderCompanyFavState();
+    renderCompanyWatchState();
     renderPriceChart();
     loadChart(chartRange);
+    const portfolioRoot = document.querySelector('#portfolio-company-section');
+    if (portfolioRoot?.dataset.ticker) {
+      portfolioRoot.dataset.name = data.company?.name ?? companyTicker;
+      Portfolio.registerCompanyPanel(portfolioRoot);
+    }
   } catch {
     companyError.textContent = 'No se pudo conectar con el servidor. Comprueba que esté en marcha.';
     companyError.hidden = false;

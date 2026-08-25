@@ -3,67 +3,86 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Registro e inicio de sesión — Backend | Cifra</title>
+<title>Registro, login y verificación de correo — Backend | Cifra</title>
 <style>
-  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; }
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
-  .wrap { max-width:900px; margin:0 auto; padding:38px 20px 60px; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
   header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
   .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
   h1 { margin:0 0 8px; font-size:28px; }
   .sub { color:var(--muted); margin:0; font-size:14px; }
-  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:#1e7a3a; font-size:12px; font-weight:700; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
   h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
   p { margin:8px 0; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
   code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
   pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
   pre code { padding:0; background:none; color:inherit; }
   table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
   th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
   th { background:#f0f2f5; }
-  .ok { color:#1e7a3a; font-weight:700; }
-  .note { padding:11px 14px; border-left:4px solid var(--accent); background:#fff7e8; font-size:13px; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="crumb">documentacion / backend / funcionalidades / register</div>
-    <h1>Registro e inicio de sesión — Backend</h1>
-    <p class="sub">API de autenticación de Cifra: registro, login, logout y sesión con JWT en cookie.</p>
-    <span class="badge">✓ Implementado y probado · 2026-08-12</span>
+    <h1>Registro, inicio de sesión y verificación de correo — Backend</h1>
+    <p class="sub">Registro con verificación por email (código de 6 dígitos), login con 403 si no verificas, recuperación de contraseña y sesión JWT en cookie httpOnly.</p>
+    <span class="badge">✓ Implementado y probado · actualizado 2026-08-14</span>
   </header>
 
   <h2>Qué hace</h2>
-  <p>Permite crear una cuenta (<strong>registro</strong>) y acceder a ella (<strong>login</strong>) guardando los datos en PostgreSQL. La sesión se gestiona con un <strong>JWT en cookie httpOnly</strong> (7 días), de modo que el navegador la envía sola en cada petición.</p>
+  <p>Crea cuentas con email + contraseña (bcrypt), <strong>envía un código de 6 dígitos por correo</strong> para verificar la cuenta (SMTP real o consola en desarrollo), inicia sesión solo con cuentas verificadas (403 <code>EMAIL_NOT_VERIFIED</code> en caso contrario), permite <strong>recuperar la contraseña</strong> con otro código por correo y gestiona la sesión con un <strong>JWT en cookie httpOnly</strong> (7 días).</p>
 
   <h2>Endpoints</h2>
   <table>
     <tr><th>Método</th><th>Ruta</th><th>Qué hace</th><th>Respuestas</th></tr>
-    <tr><td>POST</td><td><code>/api/auth/register</code></td><td>Crear cuenta con email y contraseña (mín. 8)</td><td>201 · 400 · 409</td></tr>
-    <tr><td>POST</td><td><code>/api/auth/login</code></td><td>Iniciar sesión</td><td>200 · 401</td></tr>
+    <tr><td>POST</td><td><code>/api/auth/register</code></td><td>Crear cuenta y enviar código de verificación</td><td>201 · 400 · 409</td></tr>
+    <tr><td>POST</td><td><code>/api/auth/verify</code></td><td>Validar código → marca verificado y abre sesión</td><td>200 · 400 (CODE_EXPIRED) · 404</td></tr>
+    <tr><td>POST</td><td><code>/api/auth/resend-code</code></td><td>Enviar un código nuevo</td><td>200 · 400 · 404</td></tr>
+    <tr><td>POST</td><td><code>/api/auth/login</code></td><td>Iniciar sesión (solo cuenta verificada)</td><td>200 · 401 · 403</td></tr>
+    <tr><td>POST</td><td><code>/api/auth/forgot-password</code></td><td>Pedir código de recuperación</td><td>200 (no filtra cuentas)</td></tr>
+    <tr><td>POST</td><td><code>/api/auth/reset-password</code></td><td>Cambiar contraseña con el código</td><td>200 · 400 · 404</td></tr>
     <tr><td>POST</td><td><code>/api/auth/logout</code></td><td>Cerrar sesión (borra la cookie)</td><td>200</td></tr>
-    <tr><td>GET</td><td><code>/api/auth/me</code></td><td>Devolver el usuario actual (requiere cookie)</td><td>200 · 401</td></tr>
+    <tr><td>GET</td><td><code>/api/auth/me</code></td><td>Usuario actual (requiere cookie)</td><td>200 · 401</td></tr>
   </table>
 
-  <h2>Cómo funciona</h2>
-  <p><strong>Registro:</strong> se valida el email y la contraseña, se comprueba que el email no exista (si existe → 409), se hashea la contraseña con <strong>bcrypt</strong> (10 rondas) y se inserta el usuario. Después se firma un JWT con el id del usuario y se guarda en la cookie <code>token</code>.</p>
-  <p><strong>Login:</strong> se busca el usuario por email y se compara la contraseña con bcrypt. Si algo falla se responde siempre <em>401 "Correo o contraseña incorrectos"</em> (sin revelar si el email existe).</p>
-  <p><strong>Sesión:</strong> el middleware <code>requireAuth</code> lee la cookie, verifica el JWT y carga el usuario en <code>req.user</code>. Sin cookie o con token inválido → 401.</p>
+  <h2>El código de verificación</h2>
+  <ul>
+    <li><strong>6 dígitos</strong>, guardado como hash SHA-256 (nunca en claro), <strong>válido 15 min</strong> y <strong>máx. 5 intentos</strong> (al agotarse se consume y hay que pedir otro).</li>
+    <li>Se envía por correo con <strong>nodemailer/SMTP</strong>; sin SMTP configurado se imprime por consola (desarrollo).</li>
+    <li>Reenviable con <code>POST /resend-code</code>.</li>
+    <li><code>MAIL_TO_OVERRIDE</code> redirige los correos a una dirección fija (solo pruebas).</li>
+  </ul>
+
+  <h2>Flujo de recuperación de contraseña</h2>
+  <ol>
+    <li><code>POST /forgot-password { email }</code> → si existe la cuenta, se envía el código ("Restablece tu contraseña — Cifra"). Responde 200 también si no existe (no filtra cuentas).</li>
+    <li><code>POST /reset-password { email, code, newPassword }</code> → valida el código (mismo esquema), cambia el hash con bcrypt y <strong>marca el correo como verificado</strong> (demostró acceso al correo).</li>
+    <li>El usuario vuelve al login con la contraseña nueva.</li>
+  </ol>
 
   <h2>Seguridad aplicada</h2>
   <ul>
-    <li>Contraseñas <strong>hasheadas con bcrypt</strong>, nunca en claro.</li>
-    <li>Cookie <strong>httpOnly</strong> (inaccesible desde JS) y <strong>SameSite=Lax</strong> (mitiga CSRF).</li>
-    <li><code>secure</code> activo solo en producción (en local es http).</li>
-    <li>Errores 401 genéricos en login para no revelar emails registrados.</li>
-    <li>Secretos en <code>.env</code> (<code>JWT_SECRET</code>), nunca versionados.</li>
+    <li>Contraseñas <strong>hasheadas con bcrypt</strong> (10 rondas), nunca en claro.</li>
+    <li>Cookie <strong>httpOnly</strong> + <strong>SameSite=Lax</strong>; <code>secure</code> solo en producción.</li>
+    <li>Errores 401 genéricos en login (no revela emails registrados) y forgot-password que no filtra cuentas.</li>
+    <li>Login bloqueado sin verificar (403 <code>EMAIL_NOT_VERIFIED</code>).</li>
+    <li>Secretos en <code>.env</code> (<code>JWT_SECRET</code>, <code>SMTP_*</code>), nunca versionados.</li>
   </ul>
 
   <h2>Qué incluye / excluye</h2>
-  <p><strong>Incluye:</strong> registro, login, logout, <code>/me</code>, errores JSON, validación de email y contraseña.</p>
-  <p><strong>Excluye (pendiente):</strong> asociar análisis al usuario, planes premium con límites, recuperación de contraseña, verificación por email.</p>
+  <p><strong>Incluye:</strong> registro + verificación por correo + reenvío, login (con bloqueo de no verificados), recuperación de contraseña, logout, <code>/me</code>, errores JSON con <code>code</code>, prueba de envío (<code>npm run test:email</code>).</p>
+  <p><strong>Excluye (pendiente):</strong> iniciar sesión con Google, 2FA, planes premium con límites (Fase 5).</p>
 
   <h2>Errores posibles</h2>
   <table>
@@ -71,14 +90,22 @@
     <tr><td>Email mal formado</td><td>400 "El correo electrónico no es válido."</td></tr>
     <tr><td>Contraseña menor de 8 caracteres</td><td>400 "La contraseña debe tener al menos 8 caracteres."</td></tr>
     <tr><td>Email ya registrado</td><td>409 "Ya existe una cuenta con ese correo."</td></tr>
+    <tr><td>Login sin verificar</td><td class="err">403 EMAIL_NOT_VERIFIED "Debes verificar tu correo antes de entrar."</td></tr>
+    <tr><td>Código incorrecto</td><td>400 "El código no es correcto."</td></tr>
+    <tr><td>Código caducado/agotado</td><td class="err">400 CODE_EXPIRED "…Pide uno nuevo."</td></tr>
     <tr><td>Credenciales incorrectas</td><td>401 "Correo o contraseña incorrectos."</td></tr>
     <tr><td>Sin cookie o token expirado</td><td>401 "Sesión no iniciada." / "La sesión no es válida o ha expirado."</td></tr>
   </table>
 
   <h2>Pruebas</h2>
-  <p>Flujo completo verificado con curl (8 de 8 casos correctos): registro 201, email duplicado 409, login 200, contraseña mala 401, <code>/me</code> con cookie 200 y sin cookie 401, logout 200 y <code>/me</code> tras logout 401.</p>
+  <ul>
+    <li>Flujo completo con curl (11 casos): registro 201, duplicado 409, login antes de verificar 403, código incorrecto 400, verificación 200 + cookie, reenvío 200, login 200, /me 200/401, logout 200, /me tras logout 401.</li>
+    <li>Flujo forgot + reset: código → reset → login con la nueva OK → login con la antigua 401 → código reutilizado rechazado.</li>
+    <li>Envío real por SMTP de Gmail verificado; cuenta real persistida (lurlopez13@gmail.com).</li>
+    <li>Modal verificado con Chrome headless (13/13 comprobaciones) sin errores de consola.</li>
+  </ul>
 
-  <div class="note">Relacionado: <strong>frontend</strong> de esta funcionalidad en <code>documentacion/frontend/funcionalidades/register/register.html</code>.</div>
+  <div class="note">Relacionado: <strong>frontend</strong> en <code>documentacion/frontend/funcionalidades/register/register.html</code> · Pendiente del roadmap del usuario: posible problema con el correo de verificación la primera vez al reenviar (el segundo envío funciona correctamente).</div>
 </div>
 </body>
 </html>

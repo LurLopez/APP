@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cartera de inversión (portfolio) — Backend | Cifra</title>
+<style>
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
+  header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
+  .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  h1 { margin:0 0 8px; font-size:28px; }
+  .sub { color:var(--muted); margin:0; font-size:14px; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
+  h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
+  p { margin:8px 0; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
+  code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
+  table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
+  th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / backend / funcionalidades / cartera</div>
+    <h1>Cartera de inversión (portfolio) — Backend</h1>
+    <p class="sub">Compras/ventas con cantidad, precio y fecha; reconstrucción FIFO; dividendos estimados por fecha de pago real; valoración y alocaciones por empresa y sector.</p>
+    <span class="badge">✓ Implementado y probado · 2026-08-17</span>
+  </header>
+
+  <h2>Qué hace</h2>
+  <p>El backend guarda cada <strong>operación</strong> (compra o venta con cantidad, precio y fecha) en <code>portfolio_transactions</code> y <strong>reconstruye el estado de la cartera</strong> en cada lectura: lotes FIFO, coste medio, valor actual con la cotización de Yahoo, ganancias no realizadas y realizadas (con y sin dividendos), dividendos acumulados estimados con las fechas de pago reales, dividendos anuales previstos (TTM) y distribución por empresa y por sector.</p>
+
+  <h2>Base de datos</h2>
+  <pre><code>CREATE TABLE portfolio_transactions (
+    id           SERIAL PRIMARY KEY,
+    user_id      INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ticker       TEXT NOT NULL,
+    company_name TEXT NOT NULL,
+    type         TEXT NOT NULL CHECK (type IN ('buy', 'sell')),
+    shares       NUMERIC(18, 6) NOT NULL CHECK (shares > 0),
+    price        NUMERIC(18, 6) NOT NULL CHECK (price >= 0),
+    trade_date   DATE NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);</code></pre>
+  <p class="note">No hay tabla de cartera: el estado se reconstruye de las transacciones. Índices por <code>(user_id, trade_date, id)</code> y <code>(ticker)</code>.</p>
+
+  <h2>Endpoints (todos con sesión)</h2>
+  <table>
+    <tr><th>Método</th><th>Ruta</th><th>Función</th><th>Respuestas</th></tr>
+    <tr><td>GET</td><td><code>/api/portfolio</code></td><td>Cartera completa: summary, positions, transactions, allocations, tabs, groups</td><td>200 · 401</td></tr>
+    <tr><td>POST</td><td><code>/api/portfolio/transactions</code></td><td>Registrar compra/venta <code>{ ticker, type, shares, price, date }</code></td><td>201 · 400 · 404</td></tr>
+    <tr><td>DELETE</td><td><code>/api/portfolio/transactions/:id</code></td><td>Eliminar operación (con protección de consistencia FIFO)</td><td>200 · 400 · 404</td></tr>
+    <tr><td>POST / PATCH / DELETE</td><td><code>/api/portfolio/tabs[/:id]</code></td><td>CRUD de pestañas personalizadas <code>{ name, color? }</code></td><td>201/200 · 400 (duplicado) · 404</td></tr>
+    <tr><td>POST / PATCH / DELETE</td><td><code>/api/portfolio/groups[/:id]</code></td><td>CRUD de grupos <code>{ tabId, name, color?, tickers?, lotTransactionIds? }</code></td><td>201/200 · 400 · 404</td></tr>
+    <tr><td>POST / DELETE</td><td><code>/api/portfolio/groups/:id/members</code></td><td>Añadir/quitar miembro <code>{ ticker }</code> o <code>{ transactionId }</code></td><td>201/200 · 400 · 404</td></tr>
+  </table>
+
+  <h2>Pestañas y grupos</h2>
+  <p>Jerarquía <strong>pestaña → grupo → miembros</strong> con 4 tablas nuevas (todas con <code>ON DELETE CASCADE</code>):</p>
+  <pre><code>CREATE TABLE portfolio_tabs (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL, color TEXT NOT NULL DEFAULT '#2563eb',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (user_id, name)
+);
+CREATE TABLE portfolio_groups (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tab_id INT NOT NULL REFERENCES portfolio_tabs(id) ON DELETE CASCADE,
+    name TEXT NOT NULL, color TEXT NOT NULL DEFAULT '#2563eb',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (user_id, tab_id, name)
+);
+CREATE TABLE portfolio_group_rules (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    group_id INT NOT NULL REFERENCES portfolio_groups(id) ON DELETE CASCADE,
+    ticker TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (group_id, ticker)
+);
+CREATE TABLE portfolio_group_lots (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    group_id INT NOT NULL REFERENCES portfolio_groups(id) ON DELETE CASCADE,
+    buy_transaction_id INT NOT NULL REFERENCES portfolio_transactions(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (group_id, buy_transaction_id)
+);</code></pre>
+  <ul>
+    <li><strong>Regla de ticker</strong> (<code>portfolio_group_rules</code>): marcar "toda la acción" hace que las operaciones futuras de ese ticker entren solas en el grupo.</li>
+    <li><strong>Sublínea</strong> (<code>portfolio_group_lots</code>): asignación de un lote concreto por <code>buy_transaction_id</code> (la compra debe ser del usuario → si no, 400 <code>INVALID_LOT</code>).</li>
+    <li>Un ticker/lote puede pertenecer a <strong>varios grupos</strong>; nombre duplicado de pestaña/grupo → 400 <code>DUPLICATE</code>.</li>
+    <li><code>GET /api/portfolio</code> adjunta a cada posición sus grupos por regla (<code>viaRule: true</code>), a cada lote la unión de reglas + asignaciones explícitas (deduplicadas), y devuelve <code>tabs</code> y <code>groups</code> de nivel superior con <code>ruleTickers</code> y <code>lotTransactionIds</code>.</li>
+  </ul>
+
+  <h2>Cálculo FIFO</h2>
+  <ul>
+    <li>Los <strong>lotes</strong> son las compras ordenadas por fecha; cada venta consume los lotes <strong>más antiguos primero</strong> (FIFO, estándar de brokers).</li>
+    <li>La ganancia bruta de cada venta = Σ (precio venta − precio lote) × acciones, guardada por id de venta (<code>realizedGain</code>).</li>
+    <li>Venta sin respaldo → 400 <code>NOT_ENOUGH_SHARES</code>; borrar una compra que rompe el FIFO → 400 <code>INVALID_STATE</code>.</li>
+  </ul>
+
+  <h2>Dividendos y sector</h2>
+  <ul>
+    <li><strong>Dividendos</strong>: histórico real de Yahoo por tramos de 5 años (Yahoo trunca con <code>range=max</code>), desde la compra más antigua; porción por lote (compra→venta para lo vendido, compra→hoy para lo que queda).</li>
+    <li><strong>Anuales previstos</strong>: TTM (últimos 12 meses) por acción × acciones en cartera; <strong>yield</strong> = previstos / valor total.</li>
+    <li><strong>Sector</strong>: SIC de EDGAR → sector amplio en español (ej. "Consumo defensivo", "Alimentación y bebidas"); "Otros" si no hay.</li>
+    <li>Fallo de Yahoo/EDGAR → posición con <code>price: null</code>/<code>sector: null</code> (no rompe la cartera).</li>
+  </ul>
+
+  <h2>Validaciones de alta</h2>
+  <table>
+    <tr><th>Campo</th><th>Regla</th><th>Error</th></tr>
+    <tr><td>ticker</td><td><code>^[A-Z0-9.-]{1,10}$</code></td><td class="err">400 "Ticker no válido."</td></tr>
+    <tr><td>type</td><td><code>buy</code> o <code>sell</code></td><td class="err">400 "El tipo de operación debe ser buy o sell."</td></tr>
+    <tr><td>shares</td><td>finito y &gt; 0</td><td class="err">400 "La cantidad debe ser un número mayor que 0."</td></tr>
+    <tr><td>price</td><td>finito y ≥ 0</td><td class="err">400 "El precio debe ser mayor o igual que 0."</td></tr>
+    <tr><td>date</td><td>AAAA-MM-DD y no futura</td><td class="err">400 con mensaje específico</td></tr>
+  </table>
+
+  <h2>Decisiones</h2>
+  <ul>
+    <li><strong>FIFO (no FILO)</strong>: estándar en brokers (IBRK); el usuario confirmó FIFO.</li>
+    <li><strong>Sin comisiones</strong>: simplicidad en beta.</li>
+    <li><strong>Una única cartera por usuario</strong>: decisión de producto.</li>
+    <li><strong>Estado reconstruido de las transacciones</strong>: sin redundancia; siempre consistente por definición.</li>
+    <li><strong>Regla vs sublínea</strong>: "toda la acción" es regla de ticker (las futuras entran solas); marcar sublíneas solo asigna ese lote.</li>
+    <li><strong>Borrado en cascada</strong> y <strong>nombres únicos</strong> por usuario/pestaña (error <code>DUPLICATE</code> claro).</li>
+  </ul>
+
+  <h2>Pruebas</h2>
+  <ul>
+    <li><strong>Ejemplo TAP del usuario</strong>: 50 compradas a 50 $, 20 vendidas a 60 $ → realizada 200 $; dividendos 28,8 $ (en cartera) + 19,2 $ (vendidas).</li>
+    <li><strong>FIFO multi-lote</strong>: AAPL 10@100 + 10@150, venta 15@200 → quedan 5@150, realizada 1.250 $.</li>
+    <li>Borrado con protección, alocaciones al 100 %, sector EDGAR; <code>node --check</code> OK.</li>
+    <li><strong>Pestañas y grupos</strong>: <code>npm run db:migrate</code> OK y pruebas de API con JWT real (crear/borrar tab y grupo, añadir/quitar miembros, duplicado → 400 <code>DUPLICATE</code>, lote no propio → 400 <code>INVALID_LOT</code>).</li>
+  </ul>
+
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Dividendos cobrados reales declarados por el usuario (hoy son estimados).</li>
+    <li>Guardar valores al vender (roadmap) y límites por plan (Fase 5).</li>
+  </ul>
+</div>
+</body>
+</html>

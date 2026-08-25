@@ -40,7 +40,7 @@ Existen **2 formas de llegar al mismo análisis**, y ambas deben ejecutar **exac
 
 > **Regla fundamental:** cargar el Q2 2025 de TAP manualmente, o buscarlo y pulsar analizar, debe producir **el mismo resultado**.
 
-> **Estado actual (2026-08-13):** el buscador por ticker/nombre ya funciona con datos reales de la SEC (`/api/screener/search`) y el cribador muestra las series anuales/trimestrales de cada empresa (`/api/screener/company/:ticker`). Quedan pendientes el histórico de filings (lista de 10-Q/10-K con ver PDF) y el botón "Analizar" desde el cribador. Detalle en `documentacion/backend/funcionalidades/screener/` y `documentacion/frontend/funcionalidades/screener/`.
+> **Estado actual (2026-08-15):** las dos formas están **completas y verificadas**: búsqueda por ticker/nombre (`/api/screener/search`), página de empresa `/empresa/:ticker` con perfil y gráfico, cribador con series anuales/trimestrales sin huecos (`/api/screener/company/:ticker`), histórico de filings con vista previa por páginas, descarga del PDF y botón "Analizar con IA" (`POST .../filings/:accession/analyze`) que ejecuta exactamente el mismo pipeline que la subida manual. Detalle en `documentacion/backend/funcionalidades/screener/` y `documentacion/frontend/funcionalidades/screener/`.
 
 ## 4. Alcance de la beta
 
@@ -60,9 +60,11 @@ Sistema de **agentes extensible**: cada agente hace una tarea concreta. En beta 
 
 ### Agentes de la beta
 
-1. **Agente verificador de origen** — Lee el PDF y determina si los resultados son de una empresa de **Estados Unidos**. Si no lo son → error.
+1. **Agente verificador de origen** — Lee el PDF y determina si los resultados son de una empresa de **Estados Unidos**. Si no lo es → error.
 2. **Agente verificador de sector** — Lee el PDF y determina si la empresa es de **consumo defensivo**. Si no lo es → error.
-3. **Agente analista principal** — Realiza el análisis financiero del informe y genera el resultado final.
+3. **Agente analista principal** — Realiza el análisis financiero del informe (2 fases: extracción de cifras + estructuración con las reglas del sector) y genera el informe final con su PDF.
+
+> Los 3 agentes están implementados y registrados (`agentRegistry`); las reglas del sector viven en `src/agents/prompts/consumo-defensivo.md`. La subida manual y el botón "Analizar" de un filing ejecutan el mismo pipeline (`analysis.service.js`).
 
 ### Flujo del proceso de análisis
 
@@ -85,11 +87,13 @@ PDF recibido (vía subida manual o vía buscador)
         ▼
 ┌──────────────────────────────┐
 │ 3. Agente analista principal │
-│    (análisis del informe)    │
+│    (2 fases: extracción +    │
+│    estructuración + PDF)     │
 └──────────────────────────────┘
         │
         ▼
-   Informe final para el usuario
+   Informe final + PDF para el usuario
+   (guardado en analyses si hay sesión)
 ```
 
 > En el futuro se añadirán agentes para más países (verificación por país) y más sectores (verificación y análisis por sector).
@@ -101,7 +105,9 @@ La arquitectura debe estar preparada desde el principio para:
 ### 6.1. Registro / Inicio de sesión
 - Los usuarios podrán **registrarse e iniciar sesión**.
 - Al registrarse se envía un **código de verificación de 6 dígitos por correo** (SMTP configurable; sin SMTP, en desarrollo se imprime por consola) que el usuario debe introducir para validar su cuenta. Hasta entonces no puede iniciar sesión (error `EMAIL_NOT_VERIFIED` y el frontend le lleva al paso de verificación). Código válido 15 min, máx. 5 intentos, reenviable (`POST /api/auth/resend-code`).
-- La app se usará localmente al principio, pero el modelo de datos y los flujos deben contemplar usuarios desde el día uno.
+- **Recuperación de contraseña** implementada: "olvidé mi contraseña" envía otro código al correo y permite cambiarla (`POST /api/auth/forgot-password` y `POST /api/auth/reset-password`).
+- La app se usará localmente al principio, pero el modelo de datos y los flujos contemplan usuarios desde el día uno.
+- **Extras ligados a la sesión ya implementados**: histórico de análisis por usuario (`GET /api/analyses`), listas de seguimiento multi-lista (`/api/watchlists`) y cartera de inversión (`/api/portfolio`).
 
 ### 6.2. Suscripciones (plan gratuito / de pago)
 - Una vez registrado, existirá la opción de **suscribirse a la web** con ventajas como:
@@ -110,7 +116,7 @@ La arquitectura debe estar preparada desde el principio para:
 - Esta funcionalidad **no se implementa en la beta**, pero la arquitectura debe soportarla: gestión de usuarios, roles/planes, límites de uso y selección de modelo por plan.
 
 ### 6.3. Capa de abstracción de modelos IA
-- El modelo de IA a usar **aún no está decidido** (candidatos: DeepSeek, GPT — requiere comparar).
+- El modelo de IA en uso es **DeepSeek directo** (`AI_PROVIDER=deepseek`, 22–23 s por análisis, fiable); OpenCode Go probado pero intermitente. Confirmar a medio plazo.
 - Se debe construir una **capa abstracta de modelos** para poder cambiar de proveedor (o usar uno u otro según el plan del usuario) **sin tocar el código de los agentes**.
 - Los agentes deben hablar con la capa de abstracción, nunca con la API de un proveedor concreto.
 
@@ -125,7 +131,7 @@ La arquitectura debe estar preparada desde el principio para:
 
 ### 7.1. Análisis completo de la empresa
 - Botón **"Analizar empresa completa"**: leerá los resultados de los últimos trimestres/años y generará un **informe completo** de la empresa, no de un único periodo.
-- Requiere el histórico de filings (relacionado con la Forma 2 del buscador).
+- Requiere el histórico de filings (ya implementado en la página de empresa: `/empresa/:ticker` → Informes trimestrales).
 
 ### 7.2. Más países y sectores
 - Extensión de los agentes verificadores y analistas a nuevos países y sectores.
@@ -133,14 +139,19 @@ La arquitectura debe estar preparada desde el principio para:
 ### 7.3. Suscripciones y planes
 - Monetización con plan gratuito limitado y plan de pago con mejores modelos y análisis ilimitados.
 
+### 7.4. Ya implementado como extras (más allá del roadmap original)
+- **Histórico de análisis por usuario** con filtros (empresa, fecha de resultados/análisis) y apertura del PDF.
+- **Listas de seguimiento multi-lista** (sustituyen a los favoritos; lista por defecto "Favoritos").
+- **Cartera de inversión**: compras/ventas con FIFO, precio medio, dividendos estimados por fecha real de pago, rentabilidad con y sin dividendos y distribución por empresa/sector.
+
 ## 8. Roadmap
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| **0** | Documento de visión y requisitos (este documento) | ✅ En curso |
-| **1** | Subida manual de PDF → análisis (beta, EE. UU. + consumo defensivo) | 🔶 Frontend demo; backend pendiente (modelos IA, agentes, pipeline) |
-| **2** | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | 🔶 Buscador y cribador con datos reales de la SEC implementados; histórico de filings, ver PDF y botón "Analizar" pendientes |
-| **3** | Registro / inicio de sesión | 🔶 Implementado (backend + frontend) con verificación por correo; planes y asociación de análisis por usuario pendientes |
+| **0** | Documento de visión y requisitos (este documento) | ✅ Completado |
+| **1** | Subida manual de PDF → análisis (beta, EE. UU. + consumo defensivo) | ✅ Pipeline completo: 3 agentes + informe (2 horizontes, 3 bloques) + PDF + guardado por usuario |
+| **2** | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | ✅ Buscador, cribador sin huecos, perfil y gráfico, filings con vista previa/descarga y botón "Analizar" |
+| **3** | Registro / inicio de sesión | ✅ Implementado (verificación por correo + recuperación de contraseña); asociación de análisis por usuario ✅ |
 | **4** | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
 | **5** | Suscripciones y planes (modelos según plan, límites) | ⏳ Pendiente |
 | **6** | Nuevos países y sectores (más agentes) | ⏳ Pendiente |
@@ -151,10 +162,10 @@ La arquitectura debe estar preparada desde el principio para:
 
 | Decisión | Detalle | Estado |
 |---|---|---|
-| **Stack tecnológico** | Framework de frontend/backend, base de datos, hosting. Se elegirá teniendo en cuenta el perfil del desarrollador (sección 10) | ✅ Decidido: Node.js + Express + PostgreSQL + frontend puro (ver `ARQUITECTURA.md`) |
+| **Stack tecnológico** | Framework de frontend/backend, base de datos, hosting. Se eligió teniendo en cuenta el perfil del desarrollador (sección 10) | ✅ Decidido: Node.js + Express + PostgreSQL + frontend puro (ver `ARQUITECTURA.md`) |
 | **Despliegue (dónde alojarlo)** | VPS único vs PaaS (Render/Railway/Neon) con BD gestionada | 🔴 No bloquea; decidir cuando toque publicar |
-| **Modelo de IA** | Candidatos: DeepSeek, GPT — requiere comparación de modelos | 🔴 Por decidir |
-| **Formato del informe final** | El usuario ya tiene varios informes hechos que servirán de referencia. Se definirá en detalle con ejemplos reales | 🔴 Por definir |
+| **Modelo de IA** | Comparados: DeepSeek directo vs OpenCode Go | 🔶 En uso: **DeepSeek directo** (`AI_PROVIDER=deepseek`, 22–23 s, fiable; OpenCode Go intermitente). Confirmar a medio plazo |
+| **Formato del informe final** | Los informes de referencia del usuario guían el prompt (`src/agents/prompts/consumo-defensivo.md`); se refinará con más referencias | 🔶 Formato base en producción (2 horizontes + Ventas/Cash Flow/Asignación de Capital) |
 
 ## 10. Contexto del desarrollador
 

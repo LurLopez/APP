@@ -70,14 +70,14 @@ const STATEMENTS = {
     { key: 'goodwill', label: 'Fondo de comercio', tags: ['Goodwill'], unit: 'USD' },
     { key: 'otherIntangibleAssets', label: 'Otros intangibles', combine: ['FiniteLivedIntangibleAssetsNet', 'IndefiniteLivedIntangibleAssetsExcludingGoodwill'], tags: ['IntangibleAssetsNetExcludingGoodwill', 'OtherIntangibleAssetsNet', 'FiniteLivedIntangibleAssetsNet', 'IndefiniteLivedIntangibleAssetsExcludingGoodwill'], unit: 'USD' },
     { key: 'longTermReceivables', label: 'Préstamos por cobrar a largo plazo', tags: ['LoansAndNotesReceivableNoncurrent', 'LongTermReceivables'], unit: 'USD' },
-    { key: 'deferredTaxAssetsNoncurrent', label: 'Activos por impuestos diferidos a largo plazo', tags: ['DeferredTaxAssetsNetNoncurrent'], unit: 'USD' },
+    { key: 'deferredTaxAssetsNoncurrent', label: 'Activos por impuestos diferidos a largo plazo', tags: ['DeferredTaxAssetsNetNoncurrent', 'DeferredIncomeTaxAssetsNet'], unit: 'USD' },
     { key: 'deferredCharges', label: 'Cargos diferidos a largo plazo', tags: ['DeferredCharges', 'OtherDeferredCharges'], unit: 'USD' },
     { key: 'otherAssetsNoncurrent', label: 'Otros activos a largo plazo', tags: ['OtherAssetsNoncurrent'], unit: 'USD' },
     { key: 'assetsNoncurrent', label: 'Activo no corriente', tags: ['AssetsNoncurrent'], unit: 'USD', derived: true },
     { key: 'assets', label: 'Activo total', tags: ['Assets'], unit: 'USD', emphasis: true },
     { key: 'payables', label: 'Cuentas por pagar', tags: ['AccountsPayableCurrent', 'AccountsPayableTradeCurrent', 'AccountsPayableAndAccruedLiabilitiesCurrent'], unit: 'USD' },
-    { key: 'accruedLiabilities', label: 'Gastos devengados', tags: ['AccruedLiabilitiesCurrent', 'EmployeeRelatedLiabilitiesCurrent'], unit: 'USD' },
-    { key: 'shortTermLoans', label: 'Préstamos de corto plazo', tags: ['ShortTermBorrowings', 'ShortTermDebt', 'NotesAndLoansPayableCurrent', 'DebtCurrent'], unit: 'USD' },
+    { key: 'accruedLiabilities', label: 'Gastos devengados', tags: ['AccruedLiabilitiesCurrent', 'EmployeeRelatedLiabilitiesCurrent', 'AccruedExpensesCurrent'], unit: 'USD' },
+    { key: 'shortTermLoans', label: 'Préstamos de corto plazo', tags: ['ShortTermBorrowings', 'ShortTermDebt', 'NotesAndLoansPayableCurrent', 'DebtCurrent', 'NotesAndLoansPayable'], unit: 'USD' },
     { key: 'longTermDebtCurrent', label: 'Porción corriente de la deuda a largo plazo', tags: ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent'], unit: 'USD' },
     { key: 'currentCapitalLeaseObligations', label: 'Porción corriente de las obligaciones de arrendamiento financiero', tags: ['CapitalLeaseObligationsCurrent', 'FinanceLeaseLiabilityCurrent'], unit: 'USD' },
     { key: 'deferredTaxLiabilitiesCurrent', label: 'Pasivo por impuestos diferidos Corriente', tags: ['DeferredTaxLiabilitiesCurrent'], unit: 'USD' },
@@ -86,7 +86,7 @@ const STATEMENTS = {
     { key: 'longTermDebt', label: 'Deuda a largo plazo', tags: ['LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligations', 'LongTermDebt'], unit: 'USD' },
     { key: 'capitalLeasesNoncurrent', label: 'Arrendamientos de capitales', tags: ['CapitalLeaseObligationsNoncurrent', 'FinanceLeaseLiabilityNoncurrent'], unit: 'USD' },
     { key: 'pensions', label: 'Pensiones y otros beneficios posteriores a la jubilación', tags: ['PensionAndOtherPostretirementDefinedBenefitPlansLiabilitiesNoncurrent', 'DefinedBenefitPlanLiabilitiesNoncurrent'], unit: 'USD' },
-    { key: 'deferredTaxLiabilitiesNoncurrent', label: 'Pasivo por impuesto diferido no corriente', tags: ['DeferredTaxLiabilitiesNoncurrent'], unit: 'USD' },
+    { key: 'deferredTaxLiabilitiesNoncurrent', label: 'Pasivo por impuesto diferido no corriente', tags: ['DeferredTaxLiabilitiesNoncurrent', 'DeferredIncomeTaxLiabilitiesNet'], unit: 'USD' },
     { key: 'otherLiabilitiesNoncurrent', label: 'Otro pasivo no corriente', tags: ['OtherLiabilitiesNoncurrent'], unit: 'USD' },
     { key: 'liabilitiesNoncurrent', label: 'Pasivo no corriente', tags: ['LiabilitiesNoncurrent'], unit: 'USD', derived: true },
     { key: 'liabilities', label: 'Pasivo Total', tags: ['Liabilities'], unit: 'USD', emphasis: true },
@@ -146,7 +146,7 @@ const STATEMENTS = {
     { key: 'dividendsPreferred', label: 'Dividendos de acciones comunes y preferentes pagados', tags: ['PaymentsOfDividendsPreferredStock', 'DividendsPreferredStockCash'], unit: 'USD', negative: true },
     { key: 'otherFinancingActivities', label: 'Otras Actividades de Financiamiento', tags: ['OtherFinancingActivities', 'ProceedsFromPaymentsForOtherFinancingActivities'], unit: 'USD' },
     { key: 'cff', label: 'Efectivo de Financiamiento', tags: ['NetCashProvidedByUsedInFinancingActivities', 'NetCashProvidedByUsedInFinancingActivitiesContinuingOperations'], unit: 'USD', emphasis: true },
-    { key: 'fx', label: 'Ajustes del tipo de cambio de divisas', tags: ['EffectOfExchangeRateOnCashAndCashEquivalents', 'EffectOfExchangeRateOnCashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'], unit: 'USD' },
+    { key: 'fx', label: 'Ajustes del tipo de cambio de divisas', tags: ['EffectOfExchangeRateOnCashAndCashEquivalents', 'EffectOfExchangeRateOnCashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents', 'EffectOfExchangeRateOnCashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsIncludingDisposalGroupAndDiscontinuedOperations'], unit: 'USD' },
     { key: 'netChangeInCash', label: 'Cambio neto en efectivo', tags: ['CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect', 'CashAndCashEquivalentsPeriodIncreaseDecrease'], unit: 'USD', emphasis: true },
     { key: 'freeCashFlow', label: 'Flujo de caja libre', unit: 'USD', derived: true },
     { key: 'cashBeginning', label: 'Efectivo y equivalentes de efectivo, comienzo del período', tags: ['CashAndCashEquivalentsAtBeginningOfPeriod'], unit: 'USD' },
@@ -158,6 +158,55 @@ const STATEMENTS = {
 };
 
 const CONCEPTS = Object.values(STATEMENTS).flat();
+
+const CONCEPT_EXTENSION = {
+  // income
+  mergerRestructuringCharges: 'restructuringcharges?|restructuring.*(cost|charge|expense)',
+  goodwillImpairment: 'goodwillimpairmentloss|impairment.*goodwill',
+  gainLossOnInvestments: 'gain.*loss.*(saleof)?(investments|securities|equity)',
+  gainLossOnAssets: 'gain.*loss.*(property|assets)|saleofbusiness',
+  assetImpairment: 'assetimpairment|impairmentoflonglived',
+  insuranceSettlements: 'insurance',
+  legalSettlements: 'litigation|legalsettlement',
+  otherUnusualItems: 'unusual|infrequent|nonrecurring',
+  salesMarketing: 'sellingandmarketing|salesandmarketing',
+  otherNonoperatingIncome: 'othernonoperating',
+  foreignCurrencyGainLoss: 'foreign.*currenc.*(gain|loss|transaction)',
+  // cashflow
+  depreciation: '^depreciation$',
+  depreciationAmortizationTotal: 'depreciation.*(amortization|depletion)',
+  cashflowAmortizationGoodwillIntangibles: 'amortizationof(intangible|goodwill)',
+  amortizationDeferredCharges: 'amortizationofdeferred',
+  stockCompensation: 'sharebasedcompensation|stockbasedcompensation',
+  excessTaxBenefitStockOptions: 'excesstaxbenefit.*stock|taxbenefit.*stockoption',
+  equityMethodCashflow: 'incomelossfromequity|equity.*(income|loss)',
+  otherOperatingActivities: 'othernoncash|otheroperatingactivities|adjustmentsnoncash',
+  changeAccountsReceivable: 'increase.*decrease.*(receivable|accounts)',
+  changeInventory: 'increase.*decrease.*inventor',
+  changeAccountsPayable: 'increase.*decrease.*(payable|accrued)',
+  changeOtherOperatingAssets: 'increase.*decrease.*(operatingcapital|operatingassets|operatingliabilities)',
+  discontinuedOperationsCFO: 'discontinuedoperation.*(operating|cash)',
+  capex: 'payments.*(property|plant|productive)|purchases?ofproperty',
+  salePPE: 'proceeds.*(property|plant|productive)|disposals?ofproperty',
+  acquisitions: 'acquisition|acquirebusiness',
+  divestitures: 'divestiture|disposals?ofbusiness|sales?ofbusiness',
+  securitiesInvesting: 'purchases?ofinvestments|payments.*investments|acquireinvestments',
+  loansInvesting: 'loansandreceivables|originat.*(loan|receivable)',
+  otherInvestingActivities: 'otherinvesting',
+  debtIssued: 'proceeds.*(debt|borrowing|loans?|notes?)|issuances?of.*debt',
+  debtPaid: 'repayments?.*debt|payments?.*(debt|loans?|notes?|borrowing)|repaymentsofloans',
+  commonStockIssued: 'proceeds.*(stock|shares?)|issuances?of.*(stock|shares?)',
+  buybacks: 'repurchase.*(stock|shares?|treasury)|purchases?.*treasury',
+  dividendsCommon: 'dividends?.*(common|paid)|payments?.*dividend',
+  dividendsPreferred: 'dividend.*preferred|preferred.*dividend',
+  otherFinancingActivities: 'otherfinancing',
+  fx: 'exchangerate|cash.*(exchange|foreig)',
+  netChangeInCash: 'periodincreasedecrease',
+  interestPaid: 'interestpaid',
+  taxesPaid: 'taxespaid|incometaxespaid',
+};
+
+const EXTENSION_EXCLUDED = /(disposalgroup|relatedcost|stepacquisition|remeasurement|recognized|purchaseaccounting|contingent|earnout|stockissued|valueacquisition|percentage|maturity|textblock|policy|tabletextblock|member|servings|beverage|countries|weightedaverage|fairvalue|carryingvalue|periodof|maximum|minimum|aggregate|portionof|solvency|captive|selfinsurance|reserve|unrealized|comprehensive|arisingduring)/i;
 
 const DISPLAY_STATEMENTS = {
   income: [
@@ -341,7 +390,7 @@ function publicStatements() {
 
 let tickerMapCache = null;
 
-async function fetchSecJson(url) {
+async function fetchSecJson(url, retries = 2) {
   try {
     const response = await fetch(url, {
       headers: {
@@ -350,6 +399,10 @@ async function fetchSecJson(url) {
       },
       signal: AbortSignal.timeout(20000),
     });
+    if (response.status === 429 && retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      return fetchSecJson(url, retries - 1);
+    }
     if (!response.ok) {
       throw new Error(`EDGAR respondió ${response.status}`);
     }
@@ -453,13 +506,55 @@ function latestFactValue(facts, namespace, tags, unit, predicate = () => true) {
   return candidates[0]?.val ?? null;
 }
 
+const SIC_SECTORS = {
+  1: 'Agricultura', 2: 'Agricultura', 7: 'Agricultura', 8: 'Agricultura', 9: 'Agricultura',
+  10: 'Minería y extracción', 12: 'Minería y extracción', 13: 'Minería y extracción', 14: 'Minería y extracción',
+  15: 'Construcción', 16: 'Construcción', 17: 'Construcción',
+  22: 'Textil', 23: 'Ropa y accesorios', 24: 'Madera y papel', 25: 'Madera y papel', 26: 'Madera y papel',
+  27: 'Publicaciones y medios', 29: 'Petróleo y gas', 30: 'Plásticos y caucho', 31: 'Cuero',
+  32: 'Vidrio y cerámica', 33: 'Metales', 34: 'Metales fabricados', 35: 'Maquinaria', 36: 'Electrónica',
+  37: 'Vehículos', 38: 'Instrumentos', 39: 'Manufactura diversa',
+  40: 'Transporte', 41: 'Transporte', 42: 'Transporte', 43: 'Correos y mensajería', 44: 'Transporte marítimo',
+  45: 'Transporte aéreo', 46: 'Transporte de mercancías', 47: 'Transporte y servicios relacionados',
+  48: 'Comunicaciones', 49: 'Electricidad, gas y agua',
+  50: 'Comercio mayorista', 51: 'Comercio mayorista',
+  52: 'Comercio minorista', 53: 'Comercio minorista', 55: 'Comercio minorista', 56: 'Comercio minorista',
+  57: 'Comercio minorista', 59: 'Comercio minorista', 58: 'Restauración',
+  60: 'Bancos', 61: 'Bancos', 62: 'Intermediación bursátil', 63: 'Seguros', 64: 'Seguros',
+  65: 'Finanzas e inmobiliario', 66: 'Finanzas e inmobiliario', 67: 'Finanzas e inmobiliario',
+  70: 'Hostelería y turismo', 72: 'Servicios personales', 73: 'Servicios informáticos',
+  75: 'Reparación y mantenimiento', 76: 'Reparación y mantenimiento', 78: 'Entretenimiento',
+  79: 'Entretenimiento', 80: 'Sanidad', 81: 'Servicios jurídicos', 82: 'Educación', 83: 'Servicios sociales',
+  84: 'Museos y exposiciones', 86: 'Organizaciones y asociaciones', 87: 'Servicios de ingeniería',
+  89: 'Servicios profesionales', 91: 'Administración pública', 92: 'Administración pública',
+  93: 'Administración pública', 94: 'Administración pública', 95: 'Administración pública',
+  96: 'Administración pública', 97: 'Administración pública', 99: 'Otros',
+};
+
 function profileSector(sic) {
   const code = Number(sic);
+  if (!Number.isFinite(code)) return null;
   if ((code >= 2000 && code <= 2199) || (code >= 2830 && code <= 2836) || (code >= 2840 && code <= 2844)) {
     return 'Consumo defensivo';
   }
-  if (Number.isFinite(code)) return '—';
-  return null;
+  if (code >= 2000 && code <= 2099) return 'Alimentación y bebidas';
+  if (code >= 2100 && code <= 2199) return 'Tabaco';
+  if (code >= 2800 && code <= 2899) return 'Química y farmacéutica';
+  return SIC_SECTORS[Math.floor(code / 100)] ?? '—';
+}
+
+export async function getCompanyOrigin(ticker) {
+  const company = await getCompanyByTicker(ticker);
+  const submissions = await getCompanySubmissions(company);
+  return {
+    sector: profileSector(submissions?.sic) ?? '—',
+    country: profileCountry(submissions),
+  };
+}
+
+export async function getCompanySector(ticker) {
+  const origin = await getCompanyOrigin(ticker);
+  return origin.sector;
 }
 
 function profileIndustry(description) {
@@ -613,49 +708,110 @@ export async function getCompanyFilings(ticker) {
 const extensionFactsCache = new Map();
 const EXTENSION_FACTS_TTL = 24 * 60 * 60 * 1000;
 const EXTENSION_CONCURRENCY = 5;
-const EXTENSION_ACQUISITIONS_INCLUDE = /acquisition|acquire/i;
-const EXTENSION_ACQUISITIONS_EXCLUDE = /(relatedcost|restructuring|contingent|earnout|remeasurement|recognized|stepacquisition|purchaseaccounting|taxbenefit|stockissued|goodwill|gainorloss|settlement|expense|costs?)/i;
+const EXTENSION_ANNUAL_MIN_DAYS = 300;
+const EXTENSION_QUARTERLY_DIRECT_DAYS = 110;
+const EXTENSION_QUARTERLY_YTD_DAYS = 370;
 
-async function fetchSecText(url) {
+const conceptByTag = new Map();
+for (const concept of CONCEPTS) {
+  for (const tag of concept.tags ?? []) {
+    const list = conceptByTag.get(tag) ?? [];
+    list.push(concept);
+    conceptByTag.set(tag, list);
+  }
+}
+
+const INSTANCE_ONLY_TAGS = {
+  CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents: ['cash'],
+  CashAndCashEquivalentsAtCarryingValueIncludingDiscontinuedOperations: ['cash'],
+};
+
+async function fetchSecText(url, retries = 2) {
   const response = await fetch(url, {
     headers: { 'User-Agent': USER_AGENT, Accept: 'application/xml,text/xml' },
     signal: AbortSignal.timeout(45000),
   });
+  if (response.status === 429 && retries > 0) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    return fetchSecText(url, retries - 1);
+  }
   if (!response.ok) {
     throw new Error(`EDGAR respondió ${response.status}`);
   }
   return response.text();
 }
 
-function parseInstanceAcquisitions(xml) {
+function parseInstanceFacts(xml) {
   const periods = new Map();
   const contextPattern = /<context id="([^"]+)"[^>]*>([\s\S]*?)<\/context>/g;
   let match;
   while ((match = contextPattern.exec(xml))) {
     const inner = match[2];
-    if (inner.includes('<segment>')) continue;
+    const member = inner.includes('<segment>')
+      ? inner.match(/xbrldi:explicitMember[^>]*>([^<]+)<\/xbrldi:explicitMember>/)?.[1] ?? ''
+      : null;
     const start = inner.match(/<startDate>([^<]+)<\/startDate>/);
     const end = inner.match(/<endDate>([^<]+)<\/endDate>/);
-    if (start?.[1] && end?.[1]) periods.set(match[1], { start: start[1], end: end[1] });
+    const instant = inner.match(/<instant>([^<]+)<\/instant>/);
+    if (start?.[1] && end?.[1]) periods.set(match[1], { start: start[1], end: end[1], member });
+    else if (instant?.[1]) periods.set(match[1], { start: null, end: instant[1], member });
   }
 
   const facts = [];
   const seen = new Set();
-  const factPattern = /<([a-zA-Z0-9]+):([A-Za-z0-9_]+)[^>]*?contextRef="([^"]+)"[^>]*?>\s*(-?\d+(?:\.\d+)?)\s*<\/\1:\2>/g;
+  const factPattern = /<([a-zA-Z0-9-]+):([A-Za-z0-9_]+)[^>]*?contextRef="([^"]+)"[^>]*?>\s*(-?\d+(?:\.\d+)?)\s*<\/\1:\2>/g;
   while ((match = factPattern.exec(xml))) {
-    const tag = match[2];
-    if (!EXTENSION_ACQUISITIONS_INCLUDE.test(tag) || EXTENSION_ACQUISITIONS_EXCLUDE.test(tag)) continue;
     const period = periods.get(match[3]);
     if (!period) continue;
-    const key = `${match[1]}:${tag}|${match[3]}`;
+    const key = `${match[1]}:${match[2]}|${match[3]}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    facts.push({ tag, value: Number(match[4]), start: period.start, end: period.end });
+    facts.push({ tag: match[2], value: Number(match[4]), start: period.start, end: period.end, member: period.member });
   }
   return facts;
 }
 
-async function getFilingInstanceAcquisitions(company, filing) {
+function aggregateSegmentedInstants(facts) {
+  const nonSegmented = new Set();
+  for (const fact of facts) {
+    if (fact.start === null && fact.member === null) {
+      nonSegmented.add(`${fact.tag}|${fact.end}`);
+    }
+  }
+  const grouped = new Map();
+  for (const fact of facts) {
+    if (fact.start !== null || fact.member === null || /total|all|combined/i.test(fact.member)) continue;
+    if (nonSegmented.has(`${fact.tag}|${fact.end}`)) continue;
+    const key = `${fact.tag}|${fact.end}`;
+    const entry = grouped.get(key) ?? { value: 0 };
+    entry.value += fact.value;
+    grouped.set(key, entry);
+  }
+  for (const [key, entry] of grouped) {
+    const [tag, end] = key.split('|');
+    facts.push({ tag, value: entry.value, start: null, end, member: null });
+  }
+}
+
+function matchConceptKeys(tag) {
+  const exact = conceptByTag.get(tag);
+  if (exact) return exact.map((concept) => concept.key);
+  const instanceOnly = INSTANCE_ONLY_TAGS[tag];
+  if (instanceOnly) return instanceOnly;
+  if (EXTENSION_EXCLUDED.test(tag)) return null;
+  let bestKey = null;
+  let bestLength = 0;
+  for (const [key, pattern] of Object.entries(CONCEPT_EXTENSION)) {
+    if (!new RegExp(pattern, 'i').test(tag)) continue;
+    if (pattern.length > bestLength) {
+      bestLength = pattern.length;
+      bestKey = key;
+    }
+  }
+  return bestKey ? [bestKey] : null;
+}
+
+async function getFilingInstanceFacts(company, filing) {
   const items = await getFilingIndexItems(company, filing);
   if (!Array.isArray(items)) return [];
   const instanceName = items
@@ -665,10 +821,13 @@ async function getFilingInstanceAcquisitions(company, filing) {
   const accessionNoDashes = filing.accession.replaceAll('-', '');
   const url = `https://www.sec.gov/Archives/edgar/data/${company.cik}/${accessionNoDashes}/${instanceName}`;
   const xml = await fetchSecText(url);
-  return xml ? parseInstanceAcquisitions(xml) : [];
+  if (!xml) return [];
+  const facts = parseInstanceFacts(xml);
+  aggregateSegmentedInstants(facts);
+  return facts;
 }
 
-async function getExtensionAcquisitions(company) {
+async function getExtensionFacts(company) {
   const cached = extensionFactsCache.get(company.ticker);
   if (cached && Date.now() - cached.at < EXTENSION_FACTS_TTL) return cached.data;
   const { filings } = await getCompanyFilings(company.ticker);
@@ -679,69 +838,131 @@ async function getExtensionAcquisitions(company) {
   const facts = [];
   for (let offset = 0; offset < queue.length; offset += EXTENSION_CONCURRENCY) {
     const batch = queue.slice(offset, offset + EXTENSION_CONCURRENCY);
-    const results = await Promise.allSettled(batch.map((filing) => getFilingInstanceAcquisitions(company, filing)));
+    const results = await Promise.allSettled(batch.map((filing) => getFilingInstanceFacts(company, filing)));
     for (const result of results) {
       if (result.status === 'fulfilled') facts.push(...result.value);
     }
   }
-  extensionFactsCache.set(company.ticker, { data: facts, at: Date.now() });
-  return facts;
+  const relevant = facts.filter((fact) => matchConceptKeys(fact.tag) !== null);
+  extensionFactsCache.set(company.ticker, { data: relevant, at: Date.now() });
+  return relevant;
 }
 
-function mergeExtensionAcquisitions(annual, quarterly, facts) {
-  if (!facts.length) return;
+function mergeInstanceFacts(annual, quarterly, facts) {
   const durationDays = (fact) => {
+    if (!fact.start) return null;
     const startMs = Date.parse(`${fact.start}T00:00:00Z`);
     const endMs = Date.parse(`${fact.end}T00:00:00Z`);
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
     return Math.round((endMs - startMs) / 86400000);
   };
-  const factsByEnd = new Map();
-  for (const fact of facts) {
-    const list = factsByEnd.get(fact.end) ?? [];
-    list.push(fact);
-    factsByEnd.set(fact.end, list);
-  }
-  const pick = (end, minDays, maxDays) => {
-    const list = factsByEnd.get(end) ?? [];
-    return list
-      .map((fact) => ({ fact, days: durationDays(fact) }))
-      .filter(({ days }) => days !== null && days >= minDays && days <= maxDays)
-      .sort((a, b) => b.days - a.days)[0]?.fact ?? null;
-  };
 
-  for (const row of annual) {
-    if (row.values.acquisitions !== undefined || !row.periodEnd) continue;
-    const fact = pick(row.periodEnd, 300, Infinity);
-    if (fact) row.values.acquisitions = -Math.abs(fact.value);
+  const factsByConcept = new Map();
+  for (const fact of facts) {
+    const keys = matchConceptKeys(fact.tag);
+    if (!keys) continue;
+    for (const key of keys) {
+      const list = factsByConcept.get(key) ?? [];
+      list.push(fact);
+      factsByConcept.set(key, list);
+    }
   }
 
   const annualEnds = annual.map((row) => row.periodEnd).filter(Boolean).sort();
-  for (const row of quarterly) {
-    if (row.values.acquisitions !== undefined || !row.periodEnd) continue;
-    const direct = pick(row.periodEnd, 0, 110);
-    if (direct) {
-      row.values.acquisitions = -Math.abs(direct.value);
-      continue;
+
+  for (const [key, conceptFacts] of factsByConcept) {
+    const concept = CONCEPTS.find((item) => item.key === key);
+    if (!concept) continue;
+    const factsByEnd = new Map();
+    for (const fact of conceptFacts) {
+      const list = factsByEnd.get(fact.end) ?? [];
+      list.push(fact);
+      factsByEnd.set(fact.end, list);
     }
-    const ytd = pick(row.periodEnd, 111, 370);
-    if (!ytd) continue;
-    const fiscalYearStart = annualEnds.filter((end) => end < row.periodEnd).sort().slice(-1)[0];
-    if (!fiscalYearStart) {
-      row.values.acquisitions = -Math.abs(ytd.value);
-      continue;
+    const pick = (end, minDays, maxDays) => {
+      const list = factsByEnd.get(end) ?? [];
+      return list
+        .map((fact) => ({ fact, days: durationDays(fact) }))
+        .filter(({ fact, days }) => fact.member === null && days !== null && days >= minDays && days <= maxDays)
+        .sort((a, b) => b.days - a.days)[0]?.fact ?? null;
+    };
+    const instantAt = (end) => factsByEnd.get(end)?.find((fact) => !fact.start && fact.member === null) ?? null;
+    const valueFor = (row) => {
+      const duration = pick(row.periodEnd, EXTENSION_ANNUAL_MIN_DAYS, Infinity);
+      if (duration) return duration.value;
+      const instant = instantAt(row.periodEnd);
+      return instant ? instant.value : null;
+    };
+
+    for (const row of annual) {
+      if (row.values[key] !== undefined || !row.periodEnd) continue;
+      const value = valueFor(row);
+      if (Number.isFinite(value)) row.values[key] = normalizeConceptValue(concept, value);
     }
-    const previousEnd = [...factsByEnd.keys()]
-      .filter((end) => end < row.periodEnd && end > fiscalYearStart)
-      .sort()
-      .slice(-1)[0];
-    const previous = previousEnd ? pick(previousEnd, 0, 370) : null;
-    if (!previous) {
-      row.values.acquisitions = -Math.abs(ytd.value);
-      continue;
+
+    for (const row of quarterly) {
+      if (row.values[key] !== undefined || !row.periodEnd) continue;
+      const direct = pick(row.periodEnd, 0, EXTENSION_QUARTERLY_DIRECT_DAYS);
+      if (direct) {
+        row.values[key] = normalizeConceptValue(concept, direct.value);
+        continue;
+      }
+      const instant = factsByEnd.get(row.periodEnd)?.find((fact) => !fact.start && fact.member === null);
+      if (instant) {
+        row.values[key] = normalizeConceptValue(concept, instant.value);
+        continue;
+      }
+      const ytd = pick(row.periodEnd, EXTENSION_QUARTERLY_DIRECT_DAYS + 1, EXTENSION_QUARTERLY_YTD_DAYS);
+      if (!ytd) continue;
+      const fiscalYearStart = annualEnds.filter((end) => end < row.periodEnd).sort().slice(-1)[0];
+      if (!fiscalYearStart) {
+        row.values[key] = normalizeConceptValue(concept, ytd.value);
+        continue;
+      }
+      const previousEnd = [...factsByEnd.keys()]
+        .filter((end) => end < row.periodEnd && end > fiscalYearStart)
+        .sort()
+        .slice(-1)[0];
+      const previous = previousEnd ? pick(previousEnd, 0, EXTENSION_QUARTERLY_YTD_DAYS) : null;
+      if (!previous) {
+        row.values[key] = normalizeConceptValue(concept, ytd.value);
+        continue;
+      }
+      const quarterValue = ytd.value - previous.value;
+      if (Number.isFinite(quarterValue)) row.values[key] = normalizeConceptValue(concept, quarterValue);
     }
-    const quarterValue = ytd.value - previous.value;
-    if (Number.isFinite(quarterValue)) row.values.acquisitions = -Math.abs(quarterValue);
+  }
+}
+
+function rederiveCashValues(annual, quarterly) {
+  for (const rows of [annual, quarterly]) {
+    for (const row of rows) {
+      const values = row.values;
+      const cash = Number(values.cash);
+      if (values.cashEnding === undefined && Number.isFinite(cash)) values.cashEnding = cash;
+      if (values.cashBeginning === undefined
+        && Number.isFinite(Number(values.cashEnding)) && Number.isFinite(Number(values.netChangeInCash))) {
+        values.cashBeginning = Math.round((Number(values.cashEnding) - Number(values.netChangeInCash)) * 1e6) / 1e6;
+      }
+      if (values.cashAndShortTermInvestments === undefined) {
+        const cashPart = Number(values.cash);
+        const shortTerm = Number(values.shortTermInvestments);
+        if (Number.isFinite(cashPart) && Number.isFinite(shortTerm)) {
+          values.cashAndShortTermInvestments = Math.round((cashPart + shortTerm) * 1e6) / 1e6;
+        }
+      }
+      if (values.netDebt === undefined
+        && Number.isFinite(Number(values.totalDebt)) && Number.isFinite(Number(values.cashAndShortTermInvestments))) {
+        values.netDebt = Math.round((Number(values.totalDebt) - Number(values.cashAndShortTermInvestments)) * 1e6) / 1e6;
+      }
+    }
+    const ascending = [...rows].reverse();
+    for (let index = 1; index < ascending.length; index += 1) {
+      const row = ascending[index];
+      if (row.values.cashBeginning !== undefined) continue;
+      const previous = ascending[index - 1]?.values?.cashEnding;
+      if (Number.isFinite(Number(previous))) row.values.cashBeginning = Number(previous);
+    }
   }
 }
 
@@ -1337,16 +1558,13 @@ export async function getCompanyResults(ticker, options = {}) {
     getMarketProfile(company.ticker).catch(() => null),
   ]);
   const { annual, quarterly } = buildSeries(facts);
-  const hasStandardAcquisitions = annual.some((row) => row.values.acquisitions !== undefined)
-    || quarterly.some((row) => row.values.acquisitions !== undefined);
-  if (!hasStandardAcquisitions) {
-    try {
-      const extensionFacts = await getExtensionAcquisitions(company);
-      mergeExtensionAcquisitions(annual, quarterly, extensionFacts);
-    } catch {
-      // Si falla el rescate de datos de extensión, se devuelven solo los estándar.
-    }
+  try {
+    const extensionFacts = await getExtensionFacts(company);
+    mergeInstanceFacts(annual, quarterly, extensionFacts);
+  } catch {
+    // Si falla el rescate desde las instancias XBRL, se devuelven solo los datos estándar.
   }
+  rederiveCashValues(annual, quarterly);
   const authenticated = options.authenticated === true;
   return {
     company: { ticker: company.ticker, name: company.name, cik: company.cik },

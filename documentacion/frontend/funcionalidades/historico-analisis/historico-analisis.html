@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Histórico de análisis por usuario — Frontend | Cifra</title>
+<style>
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
+  header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
+  .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  h1 { margin:0 0 8px; font-size:28px; }
+  .sub { color:var(--muted); margin:0; font-size:14px; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
+  h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
+  p { margin:8px 0; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
+  code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
+  table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
+  th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / frontend / funcionalidades / historico-analisis</div>
+    <h1>Histórico de análisis por usuario — Frontend</h1>
+    <p class="sub">Sección "Mis análisis" con tabla real, filtros por empresa y por fecha, y apertura del PDF de cada análisis.</p>
+    <span class="badge">✓ Implementado y probado · 2026-08-14</span>
+  </header>
+
+  <h2>Qué hace</h2>
+  <p>La sección <strong>"Mis análisis"</strong> muestra la tabla de análisis del usuario conectado: Documento, Empresa, Periodo, Fecha de los resultados, Fecha del análisis, Estado y un botón ↗ que <strong>abre el PDF del análisis en otra pestaña</strong>. Tiene filtros por <strong>empresa</strong> (texto) y por <strong>fecha</strong> (de los resultados o del análisis, con desde/hasta), más un botón Limpiar.</p>
+
+  <h2>Cómo funciona</h2>
+  <ol>
+    <li>Al cargar (o al entrar/salir de sesión) → <code>GET /api/analyses</code> → tabla o estado vacío.</li>
+    <li>Filtros → nueva petición con <code>ticker</code> y <code>periodFrom/periodTo</code> (o <code>createdFrom/createdTo</code> según el tipo de fecha elegido).</li>
+    <li>Clic en una fila o en ↗ → abre <code>pdfUrl</code> en pestaña nueva.</li>
+    <li>Al completar un análisis con sesión → el histórico se refresca y se muestra el toast "Análisis guardado en tu histórico".</li>
+  </ol>
+
+  <h2>Estados</h2>
+  <table>
+    <tr><th>Caso</th><th>Comportamiento</th></tr>
+    <tr><td>Sin sesión</td><td>"Inicia sesión para ver tu histórico" + botón que abre el modal de login</td></tr>
+    <tr><td>Con sesión, sin análisis</td><td>Mensaje según haya filtros activos o no</td></tr>
+    <tr><td>Con análisis</td><td>Tabla con filas; clic → PDF</td></tr>
+    <tr><td>Fallo de red/API</td><td>Mensaje de error</td></tr>
+  </table>
+
+  <h2>Archivos</h2>
+  <table>
+    <tr><th>Archivo</th><th>Función</th></tr>
+    <tr><td><code>public/index.html</code></td><td>Sección <code>#historial</code> (filtros + tabla)</td></tr>
+    <tr><td><code>public/app.js</code></td><td>Carga, filtros, re-render, apertura del PDF, refresco tras análisis</td></tr>
+    <tr><td><code>public/auth.js</code></td><td>Evento <code>auth:change</code>; fix: <code>openModal</code> expuesto en <code>window</code></td></tr>
+    <tr><td><code>public/styles.css</code></td><td>Estilos de filtros y tabla</td></tr>
+  </table>
+
+  <h2>Pruebas</h2>
+  <ul>
+    <li>Flujo completo con usuario temporal (filtros por ticker y rangos de fechas).</li>
+    <li>401 sin sesión; lista vacía sin coincidencias; CTA de login abre el modal.</li>
+    <li><code>node --check</code> OK.</li>
+  </ul>
+
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Vista de detalle del análisis dentro de la web (por ahora se abre el PDF).</li>
+  </ul>
+</div>
+</body>
+</html>

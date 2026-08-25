@@ -1,6 +1,6 @@
 # Implementación — Todo lo construido hasta ahora
 
-> Versión: 1.2 · Fecha: 2026-08-13 · Este documento es el registro detallado de todo lo implementado en el proyecto hasta la fecha. Se actualiza cuando se añade o cambia algo relevante.
+> Versión: 2.0 · Fecha: 2026-08-15 · Este documento es el registro detallado de todo lo implementado en el proyecto hasta la fecha. Se actualiza cuando se añade o cambia algo relevante.
 
 ---
 
@@ -9,17 +9,17 @@
 | Área | Estado |
 |---|---|
 | Documentación (visión + arquitectura) | ✅ Completada |
-| Scaffolding Node/Express | ✅ Completado |
-| Base de datos PostgreSQL | ✅ Tablas creadas + datos demo + probada |
-| Capa de datos (repositorios) | ✅ `analysisRepository` + `userRepository` |
-| Autenticación (backend + frontend) | ✅ Probada 8/8 |
-| Pipeline de análisis IA (agentes) | 🔶 `originAgent` + `sectorAgent` implementados y probados (mock); `analystAgent` pendiente |
-| Frontend (diseño Terminal Cifra) | ✅ Rediseñado, flujo demo funcional |
-| Subida de PDF real (`POST /api/upload`) | ✅ Funcional: extrae texto → originAgent → veredicto o error visible en pantalla |
-| Histórico real en el frontend (`GET /api/analyses`) | ⏳ Pendiente (la BD ya lo guarda) |
-| Buscador de empresas (Fase 2) | ✅ Búsqueda real en EDGAR/SEC + cribador de resultados (3 estados financieros con las líneas de las capturas TIKR, pestañas × periodos, tabla única estilo TIKR claro); ⏳ histórico de filings y puente "Analizar" |
-| Asociar análisis al usuario conectado | ⏳ Pendiente |
-| Suscripciones y planes (Fase 5) | ⏳ Pendiente (campo `plan` ya existe) |
+| Scaffolding Node/Express + PostgreSQL | ✅ Completado |
+| Autenticación completa (backend + frontend) | ✅ Registro + verificación por correo + recuperación de contraseña; probado |
+| Pipeline de análisis IA (3 agentes) | ✅ Origen + sector + analista (2 fases) + informe + PDF; probado end-to-end |
+| Subida de PDF real (`POST /api/upload`) | ✅ Funcional y guarda por usuario |
+| Histórico de análisis (`GET /api/analyses`) | ✅ Con filtros (empresa, fecha resultados/análisis) + apertura del PDF |
+| Buscador de empresas (Fase 2) | ✅ Búsqueda EDGAR + página de empresa + perfil + gráfico |
+| Cribador sin huecos | ✅ Series anuales (10) / trimestrales (8) con 3 estados estilo TIKR y rescate XBRL |
+| Filings (histórico + ver PDF + preview + analizar) | ✅ 10-Q/10-K con documento, preview por páginas y botón "Analizar con IA" |
+| Listas de seguimiento (multi-lista) | ✅ Sustituyen a los favoritos (migración incluida) |
+| Cartera de inversión | ✅ FIFO, dividendos estimados, rentabilidad con/sin dividendos, donuts |
+| Suscripciones y planes (Fase 5) | ⏳ Pendiente (campo `plan` existe; bloqueo PRO del cribador como primer límite) |
 
 ---
 
@@ -27,197 +27,101 @@
 
 ### 2.1. Documento de visión y decisiones de stack
 
-- Creado `documentacion/PROYECTO.md` (resumen inyectado a los agentes, ~2.8 KB) y `documentacion/PROYECTO-detalle.md` (visión completa).
-- Decidido el stack (documentado en `documentacion/ARQUITECTURA.md`):
+- `documentacion/PROYECTO.md` (resumen inyectado) y `documentacion/PROYECTO-detalle.md` (visión completa).
+- Stack decidido: Node.js + Express 5 + PostgreSQL 16 + HTML/CSS/JS puro; JWT en cookie httpOnly; bcryptjs; nodemailer.
+- Regla del **diario de cambios obligatorio** (`documentacion/diario/YYYY/MM/YYYY-MM-DD.md`).
+- Enlaces simbólicos `agentes/` y `PROYECTO.md` (no versionados).
 
-| Capa | Tecnología |
-|---|---|
-| Backend | Node.js + Express 5 (API REST) |
-| BD | PostgreSQL 16 (tablas: users, analyses, filings) |
-| Frontend | HTML/CSS/JS puro (migrable a React) |
-| Sesión | JWT en cookie httpOnly |
-| Passwords | bcryptjs |
+### 2.2. Scaffolding y base de datos
 
-- Regla del **diario de cambios obligatorio**: todo cambio considerable se registra en `documentacion/diario/YYYY/MM/YYYY-MM-DD.md`.
-- Enlaces simbólicos `agentes/` → `~/.config/opencode/agent/` y `PROYECTO.md` → `documentacion/PROYECTO.md` (no versionados).
+- `package.json` (`type: module`; scripts `start`, `dev`, `db:migrate`, `db:seed`, `test:email`); `config/index.js`; `.env.example`.
+- `db/schema.sql`: tablas `users` (con `email_verified`), `verification_codes`, `analyses` (ampliada: `ticker`, `company_name`, `period_end`, `pdf_url`), `filings`, `watchlists` + `watchlist_items`, `portfolio_transactions`; migración de `favorites` → lista por defecto.
+- Repositorios: `analysisRepository`, `userRepository`, `watchlistRepository`, `portfolioRepository`.
+- `seed.js` idempotente (usuario demo + 3 análisis con report provisional).
 
-### 2.2. Scaffolding (Fase 0/1)
+### 2.3. Autenticación (Fase 3, completa)
 
-- `package.json`: `type: module`, scripts `start`, `dev`, `db:migrate`, `db:seed`. Dependencias: `express`, `pg`, `bcryptjs`, `jsonwebtoken`, `cookie-parser`.
-- `server.js`: Express + `express.json()` + `cookieParser()` + estáticos de `public/` + rutas de auth + `/api/health` + `errorHandler`.
-- `config/index.js`: lee `PORT`, `DATABASE_URL`/`DB_*`, `JWT_SECRET`, `NODE_ENV`. Exporta `{ port, database, jwtSecret, production }`.
-- `.env` (no versionado) y `.env.example` con todos los secretos documentados.
-- Los scripts usan `--env-file=.env` (nativo de Node ≥ 20.6, sin dependencia dotenv).
+**Backend**: `auth.service.js` (register con código 6 dígitos SHA-256 15 min/5 intentos; verify; resend; login con 403 `EMAIL_NOT_VERIFIED`; forgot/reset password; `AuthError`; `toPublicUser`), `email.service.js` (nodemailer SMTP, `MAIL_TO_OVERRIDE`, fallback consola, `sendVerificationCode`/`sendPasswordResetCode`), `auth.controller.js` (cookie JWT 7 días), `auth.routes.js` (8 rutas), middleware `requireAuth` + `resolveUser` (opcional), `errorHandler`, `utils/validate.js`, `scripts/test-email.js`.
 
-### 2.3. Base de datos (PostgreSQL)
+**Frontend**: `auth.js` con modal de 5 pantallas (login, registro, verificación, reset 1 y 2), `renderAuth`, chip de usuario, evento `auth:change`, `openModal` expuesto en `window` (fix), validaciones cliente.
 
-**Esquema** (`db/schema.sql`) — 3 tablas:
+**Configuración real**: SMTP de Gmail configurado con contraseña de aplicación; `MAIL_TO_OVERRIDE` para pruebas; envíos reales verificados.
 
-- `users`: `id SERIAL`, `email TEXT UNIQUE NOT NULL`, `password_hash TEXT NOT NULL` (bcrypt), `plan` (`'free'|'premium'`, por defecto `free`), `created_at`.
-- `analyses`: `id`, `user_id` (FK → users, nullable = anónimo), `filename`, `status` (`processing|done|error`), `error`, `origin`, `sector`, `report JSONB`, `model_used`, `created_at`.
-- `filings`: preparada para la Fase 2 (ticker, company_name, form_type, period, accession_no, filing_url, filed_at).
-- Índices: `idx_analyses_user (user_id)`, `idx_filings_ticker (ticker)`.
+### 2.4. Sistema de agentes IA y pipeline
 
-**Capa de datos** (`db/`):
+- Capa de modelos: `modelProvider.js` con `chat` y **`chatJson` (reintentos)**; proveedores **`deepseek`** (activo), **`opencode-go`** (alias `opencode`) y `mock`; `AI_MAX_TOKENS=16000`; `AI_REQUEST_TIMEOUT_MS=180000`.
+- Agentes: `originAgent` (financiero + EE. UU. + 10-Q/10-K), `sectorAgent` (consumo defensivo, rechazo seguro), **`analystAgent`** (2 fases: extracción de cifras JSON + informe estructurado con `prompts/consumo-defensivo.md`; ventana financiera `buildAnalysisText`; validación `horizons`).
+- `analysis.service.js`: `analyzePdf`/`analyzeText`/`htmlToText`; pipeline completo; `saveAnalysis` no bloqueante (status done, ticker, company, period_end, pdf_url, report, model_used).
+- `report.service.js`: PDF con pdfkit (cabecera, 2 horizontes, bloques VENTAS/CASH FLOW/ASIGNACIÓN DE CAPITAL, notas, paginación); `GET /api/reports/:file`.
+- Decisión: **DeepSeek directo** como proveedor activo (22–23 s, 4/4 JSON válidos; OpenCode Go 145–247 s intermitente — comparativa medida).
 
-- `pool.js`: pool de conexiones `pg` con la config del `.env`; exporta `pool` y `query(text, values)`.
-- `migrations.js`: ejecuta `schema.sql` (script `npm run db:migrate`).
-- `repositories/analysisRepository.js`:
-  - `createAnalysis({ userId, filename, status })` → INSERT.
-  - `getAnalysisById(id)` → SELECT por id.
-  - `listAnalyses({ userId, limit })` → SELECT ordenado por fecha (filtro opcional por usuario).
-  - `updateAnalysis(id, fields)` → UPDATE dinámico con *whitelist* de columnas (`status`, `error`, `origin`, `sector`, `report`, `model_used`).
-- `repositories/userRepository.js`:
-  - `createUser({ email, passwordHash, plan })` → INSERT.
-  - `findUserById(id)` y `findUserByEmail(email)` → devuelven `password_hash` solo para uso interno (login).
-- `seed.js` (script `npm run db:seed`): **idempotente**; crea el usuario `demo@cifra.local` si no existe y 3 análisis demo (TAP, KO, PEP) con `report` JSONB provisional, solo si la tabla `analyses` está vacía.
+### 2.5. Frontend general (dos páginas)
 
-**Verificación real realizada** (PostgreSQL 16 nativo, base `cifra`):
+- **Inicio** (`index.html` + `app.js`): buscador real del topbar (debounce 250 ms, logos con fallback de inicial), hero con logo + insignia Beta, tarjetas de empresas destacadas, subida de PDF con panel de agentes (cronómetro mm:ss, avisos 45 s/240 s), resultado con informe + descarga, **histórico "Mis análisis"** con filtros, secciones "Acciones en seguimiento" y "Cartera", modal de auth, toasts.
+- **Empresa** (`empresa.html` + `empresa.js`, ruta `GET /empresa/:ticker` validada): menú lateral en 2 bloques (fijos + cabecera de empresa + apartados), cabecera con logo real y ojo de seguimiento, cotización clicable, perfil (tarjeta Informe, gráfico de precios, información, descripción), informes trimestrales, datos financieros, panel de cartera; drawer en móvil.
+- Rutas absolutas de assets (fix: `/empresa/styles.css` capturado por la ruta dinámica).
 
-- `db:migrate` → "Base de datos preparada correctamente."
-- `db:seed` → usuario demo + 3 análisis.
-- psql: `SELECT id, email, plan FROM users` → 2 filas (demo + test).
+### 2.6. Cribador (screener) con datos de la SEC
 
-### 2.4. Autenticación (Fase 3)
+- `edgar.service.js`: búsqueda (ticker→CIK), `companyfacts` (caché 6 h), `buildSeries` en fases (frames → fallback anual por fecha de fin → instantáneos a anuales → dei → Q4 derivado → `cashBeginning` respaldo; `periodEnd` moda), `pickConceptData` **fusiona tags por frame** + conceptos combinados, catálogo `STATEMENTS` (income ~53 / balance ~58 / cashflow ~46 filas) con `emphasis`, `tone: 'negative'`, formatos `money|perShare|shares|count`, valores derivados y normalización de signos (incl. inversión de `IncreaseDecreaseInOperatingCapital`).
+- **Rescate sin huecos**: `getExtensionFacts`/`mergeInstanceFacts` desde las instancias `*_htm.xml` (8 10-K + 8 10-Q, 5 en paralelo, caché 24 h, solo si falta algo): tags exactos, `INSTANCE_ONLY_TAGS`, patrones `CONCEPT_EXTENSION` con exclusión de ruido, `aggregateSegmentedInstants`, `rederiveCashValues`; reintentos 429.
+- **Perfil**: `buildCompanyProfile` (market de Yahoo + metrics + info + description), `getCompanySector` (SIC → español).
+- **Filings**: `getCompanyFilings` (submissions, 40), `getFilingDocumentStream`/`getFilingPdfPath` (PDF real vía `index.json` o generado con Chrome headless con UA declarado; fallback HTML), `getFilingPreview` (pdftoppm 100 DPI), `getFilingContentBuffer` (pdf/html), `getFilingIndexItems` reutilizable.
+- `market.service.js`: `getChartSeries` (rangos + **MA100 diaria**), `getMarketQuote` (caché 60 s), `getMarketProfile` (beta vs SPY, dividendo TTM, OPV), `getDividendHistory` (tramos de 5 años, caché 24 h).
+- `screener.routes.js`: 8 endpoints (search, company, chart, filings, document, preview, preview/pages, analyze); `resolveUser` → `authenticated`; bloqueo PRO gestionado en el frontend.
+- Fix crítico: timeout cancelado al recibir cabeceras + manejo de errores del stream (ya no tumba el proceso Node).
 
-**Backend** (`src/`):
+### 2.7. Favoritos → Listas de seguimiento (watchlists)
 
-- `services/auth.service.js`:
-  - `register({ email, password })`: normaliza email (minúsculas+trim), valida formato y contraseña ≥ 8, comprueba duplicado (409), hashea con bcrypt (10 rondas) y crea el usuario con `email_verified = false`. **No inicia sesión**: genera un código de verificación de 6 dígitos (hash SHA-256, 15 min de validez, máx. 5 intentos) y lo envía por correo. Devuelve el usuario público (sin hash).
-  - `verifyEmail({ email, code })`: valida el código pendiente, marca `email_verified = true` y consume el código. Devuelve el usuario.
-  - `resendVerificationCode({ email })`: genera y envía un código nuevo.
-  - `login({ email, password })`: busca por email, compara con bcrypt, errores genéricos 401 ("Correo o contraseña incorrectos" — no revela si el email existe). **Si la cuenta no está verificada → 403 con `code: 'EMAIL_NOT_VERIFIED'`**.
-  - `AuthError` (mensaje + código HTTP + `code` opcional para el frontend) y `toPublicUser(user)` → `{ id, email, plan, email_verified, created_at }`.
-- `services/email.service.js` (nuevo): envía el código con **nodemailer** vía SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`). **Sin SMTP configurado el código se imprime por consola** (modo desarrollo).
-- `api/routes/auth.routes.js`: `POST /register`, `POST /verify`, `POST /resend-code`, `POST /login`, `POST /logout`, `GET /me` (protegido).
-- `api/controllers/auth.controller.js`: `register` responde 201 **sin cookie**; `verify` valida el código y **emite la sesión** (JWT `{ sub: userId }` 7 días en cookie `token`, `httpOnly`, `SameSite=Lax`, `secure` solo en producción). `logout` borra la cookie.
-- `middleware/auth.middleware.js` (`requireAuth`): lee la cookie, verifica el JWT, carga el usuario de la BD y lo adjunta a `req.user`; 401 en cualquier fallo.
-- `middleware/errorHandler.js`: errores siempre JSON `{ error, code? }` con el código correcto; los 5xx se loguean por consola.
-- `utils/validate.js`: `normalizeEmail`, `isValidEmail`, `isValidPassword`.
-- Base de datos: columna `email_verified` en `users` (migración idempotente en `db/schema.sql`) y tabla `verification_codes` (user_id, code_hash, attempts, expires_at, created_at).
+- Tablas `watchlists` + `watchlist_items`; migración de `favorites` (copia a "Favoritos" + DROP).
+- `watchlistRepository.js` (ensureDefaultWatchlist perezosa, listado con `json_agg`, CRUD, upsert de items, `removeItemFromAllLists`) y `watchlists.routes.js` (7 endpoints con `requireAuth`; nombre 1–40, 409 duplicado, por defecto inmutable, resolución de nombre en EDGAR).
+- `public/watchlists.js`: módulo compartido `Watchlists` (estado + `watchlists:change`), popover con checkmarks (creación inline, borrado de 2 pasos, cierre robusto con scroll preservado), sección montable (`mountSection`) con chips + tabla estilo Investing; integrado en Inicio y Empresa (ojo de seguimiento con estado activo).
 
-**Frontend** (`public/`):
+### 2.8. Cartera de inversión (portfolio)
 
-- `auth.js`:
-  - Estado de sesión (`state.user`), restaurado al cargar con `GET /api/auth/me`.
-  - `renderAuth()`: alterna entre botones "Iniciar sesión / Crear cuenta" y el chip de usuario (avatar con iniciales + email + salir) en la topbar; en el sidebar, "Invitado/Beta privada + Entrar" ↔ "email + plan + Salir".
-  - Modal con pestañas login/registro y **dos pasos**: credenciales (email, contraseña, repetir) y **verificación** (código de 6 dígitos, reenviar código, "usar otro correo"). Al registrarse (o al hacer login con `EMAIL_NOT_VERIFIED`) el modal pasa al paso de verificación.
-  - Validación cliente (contraseñas iguales, código de 6 dígitos), errores del servidor mostrados en el modal (el helper `api` propaga `error.code`), `Escape`/click fuera/× para cerrar.
-  - `initials()`: avatar con las 2 primeras letras del email.
-- `index.html`: modal de autenticación con los dos pasos (campos de credenciales + bloque `#auth-verify` con código, enlaces "Reenviar código" y "Usar otro correo"), botones en la topbar, tarjeta de cuenta en el sidebar, carga de `auth.js` tras `app.js`.
-- `styles.css`: estilos del modal, `.ghost-button`, `.user-chip`, `.user-avatar`, `.account-action`, `.verify-hint`, `.verify-actions .link-button`. Incluye la regla global `[hidden] { display: none !important; }` (fix 2026-08-12: el CSS con `display` anulaba el atributo `hidden` y el modal no se cerraba).
+- Tabla `portfolio_transactions` (sin tabla de estado: se reconstruye).
+- `portfolio.service.js`: `buildState` FIFO (lotes por compra, ventas contra los lotes más antiguos, `realizedGross` por venta), `addBuy`/`addSell` (validación de disponibilidad `NOT_ENOUGH_SHARES`), `removeTransaction` (protección `INVALID_STATE`), `getPortfolio` (dividendos por porción de lote con fechas reales de pago, sector SIC, cotización, 6 columnas de rentabilidad por posición, summary, alocaciones por empresa/sector, `realizedGain` por venta).
+- `portfolioRepository.js` (fechas ISO local), `portfolio.routes.js` (GET/POST/DELETE con validaciones).
+- `public/portfolio.js`: módulo `Portfolio` (resumen 6 tarjetas, tabla de posiciones, donuts SVG por empresa/sector, historial de operaciones con borrado, formulario compra/venta con autocompletar EDGAR); sección `#cartera` en Inicio y panel en Empresa (posición + formulario prefijado + `/?cartera=1`).
+- Decisiones de producto: FIFO, sin comisiones, una cartera por usuario, dividendos estimados por fecha real de pago.
 
-### 2.6. Sistema de agentes IA — Agente verificador de origen (pipeline)
+### 2.9. Histórico de análisis por usuario
 
-- **Capa de modelos IA** (`src/services/ai/modelProvider.js`): los agentes solo hablan con esta capa. Proveedor activo por defecto: `deepseek`. **Sin `DEEPSEEK_API_KEY` el análisis falla con error visible** ("Falta DEEPSEEK_API_KEY en el archivo .env"). El `mock` solo se usa si se fuerza con `AI_PROVIDER=mock` (desarrollo interno).
-- **Provider mock** (`src/services/ai/providers/mock.provider.js`): heurística por patrones sobre el texto del documento (SEC/Washington para EE. UU., `FORM 10-Q`/`FORM 10-K`, estados financieros). Devuelve JSON igual que lo haría un modelo real. Sin coste.
-- **Provider DeepSeek** (`src/services/ai/providers/deepseek.provider.js`): llama a `https://api.deepseek.com/chat/completions` con fetch nativo, modelo `deepseek-chat` (o `AI_MODEL`), `temperature: 0`, `max_tokens: 400`. Limpia respuestas envueltas en ```json```.
-- **Sistema de agentes** (`src/agents/`):
-  - `baseAgent.js`: clase `BaseAgent` (nombre, descripción, `run()`) + `AgentError` (mensaje + código) para errores controlados del agente.
-  - `originAgent.js`: recibe `{ text }`, envía prompt (system) + documento (máx. 80.000 caracteres) a la capa de modelos, valida el JSON de respuesta y devuelve `{ origin: 'US', formType: '10-Q'|'10-K' }`. Errores con mensajes claros en español: `EMPTY_DOCUMENT`, `INVALID_MODEL_RESPONSE`, `NOT_FINANCIAL` ("Este documento no es un informe financiero (10-Q / 10-K)."), `NOT_USA` ("Este informe no es de una empresa de EE. UU."), `NOT_10Q_10K`.
-  - `sectorAgent.js`: verifica consumo defensivo (bebidas, alimentos, tabaco, hogar, cuidado personal, retail de alimentación; contraejemplos listados en el prompt; sin evidencia → rechazo). Devuelve `{ sector: 'defensive_consumer' }` o `NOT_DEFENSIVE_CONSUMER` ("Este informe no corresponde al sector de consumo defensivo.").
-  - `agentRegistry.js`: registro de agentes por nombre (`registerAgent`, `getAgent`, `listAgents`); origin y sector quedan registrados al importar.
-- **Pruebas**: 5/5 casos de origen (10-Q válido, 10-K válido, no financiero, no estadounidense, sin FORM 10-Q/10-K) + sector probado vía endpoint (Molson Coors ✓, Apple ✗).
+- Columnas `ticker`, `company_name`, `period_end`, `pdf_url` en `analyses` + índices; `analysisRepository.listAnalyses` con filtros (ILIKE por empresa; `period_*`; `created_*` en UTC).
+- `analystAgent` incluye `reportingPeriod`; `analysis.service.js` guarda tras el pipeline (`saved`).
+- `GET /api/analyses` (requireAuth) con `periodTitle`; `POST /api/upload` y `POST .../analyze` responden `saved`.
+- Frontend: sección "Mis análisis" con filtros (empresa, tipo de fecha resultados/análisis, desde/hasta, Limpiar), tabla real y apertura del PDF; CTA de login; refresh tras análisis; fix `openModal` en `auth.js`.
 
-### 2.7. Subida real de PDF conectada al pipeline (POST /api/upload)
+### 2.10. Mejoras del cribador en pantalla (frontend)
 
-- **Dependencias nuevas**: `multer` (multipart) y `pdf-parse` 2.4.5 (API `PDFParse` + `getText()`, texto en `result.text`).
-- `src/services/pdf.service.js`: `extractTextFromPdf(buffer)` (destruye el parser en `finally`).
-- `src/services/analysis.service.js`: `analyzePdf(buffer)` → texto → `originAgent.run({ text })` → `{ text, origin, formType }`. Los siguientes agentes se encadenarán aquí.
-- `src/api/routes/analysis.routes.js`: `POST /api/upload` (campo `file`, memoria, máx. 25 MB). Respuestas: 200 `{ ok, origin, formType }`; 400 sin archivo o `LIMIT_FILE_SIZE`; 422 `{ error, code }` para `AgentError` (`NOT_PDF`, `NOT_FINANCIAL`, `NOT_USA`, `NOT_10Q_10K`, ...). Montada en `server.js`.
-- **Frontend**: el botón "Analizar informe" hace `fetch('/api/upload')` con `FormData`. Estados del agente: Procesando → Completado / Error (✕ rojo). Panel de error con el mensaje del servidor + "Reintentar"; tras éxito, "Documento verificado: 10-Q", toast informativo y botón "Analizar otro informe". Se eliminó la demo simulada del pipeline.
-- **Pruebas reales**: PDF normal → 422 `NOT_FINANCIAL`; PDF 10-Q → 200 `{ origin: 'US', formType: '10-Q' }`; sin archivo → 400; no-PDF → 422 `NOT_PDF`. HTML/CSS/JS servidos con 200.
-- **Nota**: el mock exige ≥ 2 patrones financieros para `isFinancial`; el texto enviado al agente se trunca a 80.000 caracteres.
+- **Cotización clicable** → abre el gráfico de Precio a pantalla completa (`toggleFullscreen` reutilizable).
+- **Gráfico de métricas interactivo**: clic en fila → barras/líneas con doble escala, paleta de 16 colores, tooltip, **CAGR como línea negra + caja arrastrable** (media anual lineal si hay cambio de signo; "—" solo si el inicial es 0).
+- **Control de historial por años** (doble asa): filtra tabla + gráfico; derivados sobre el historial completo.
+- **Rojo por naturaleza**: `tone: 'negative'` pinta en rojo costes/gastos/salidas aunque sean positivos; negativos en paréntesis.
+- **Bloqueo PRO sin sesión** (6 anuales + 4 trimestrales; recarga en silencio al cambiar de sesión).
+- **Filings**: preview por imágenes en modal, descarga, botón "Analizar con IA" → `/?analizar=...`.
 
-**Pruebas reales con curl** (8/8 correctas):
+### 2.11. Otros arreglos y decisiones relevantes
 
-| # | Caso | Respuesta |
-|---|---|---|
-| 1 | Registro nuevo | 201 + usuario (sin sesión; envía código de verificación) |
-| 2 | Email duplicado | 409 "Ya existe una cuenta con ese correo." |
-| 3 | Login antes de verificar | 403 `EMAIL_NOT_VERIFIED` "Debes verificar tu correo antes de entrar." |
-| 4 | Código incorrecto | 400 "El código no es correcto." |
-| 5 | Verificación correcta | 200 + usuario (`email_verified: true`) + cookie de sesión |
-| 6 | Reenviar código | 200 `{ok:true}` y se envía un código nuevo |
-| 7 | Login tras verificar | 200 + usuario |
-| 8 | `/me` con cookie | 200 + usuario |
-| 9 | `/me` sin cookie | 401 "Sesión no iniciada." |
-| 10 | Logout | 200 `{ok:true}` |
-| 11 | `/me` tras logout | 401 |
-
-> Prueba 2026-08-14: flujo completo verificado contra la API (registro → login bloqueado → código erróneo → verificación → login OK; usuarios de prueba borrados después). En desarrollo, sin SMTP, el código se imprime por consola.
->
-> Histórico: el usuario confirmó el flujo desde el navegador (registro real de `lurlopez13@gmail.com` persistido en `users`). Fix (2026-08-12, 21:21): `[hidden] { display: none !important; }` para que el modal se cierre correctamente tras login/registro.
-
-### 2.5. Frontend (diseño "Terminal Cifra")
-
-**Historia del diseño** (3 iteraciones):
-
-1. **Tema oscuro menta** (diseño inicial): sidebar fija oscura, acentos mint, gráficos de órbita decorativos. El usuario pidió rediseñar hacia una estética económica.
-2. **Tema navy estilo TIKR** (segunda iteración): azul marino profundo, acentos azules, verde/rojo financiero, topbar sticky, hero con tarjeta de datos de mercado.
-3. **Clon del panel TIKR** (actual): el usuario aportó una captura del terminal de TIKR y pidió un clon. Layout final:
-
-- **Topbar fija oscura** (`#242424`, 62 px): logo Terminal Cifra + botón contraer sidebar, buscador de empresas/tickers (demo), botones de auth, chip de usuario.
-- **Sidebar clara** (`#f7f7f7`, 270 px): navegación por secciones ("Generación de ideas", "Análisis fundamental") con iconos SVG inline, badge "NUEVO", flechas; footer con tarjeta de cuenta. Contraíble a 68 px en escritorio (solo iconos); drawer con backdrop en ≤ 900 px.
-- **Franja de aviso** (amarilla `#fffef0`): cuenta atrás estática, texto de promoción, botón "Descubrir Cifra", botón de cierre.
-- **Hero promocional** (amarillo `#fffbc4`): visual CSS puro (terminal falso con skyline y tabla de datos), copy de producto, lista de ventajas, CTA "Empezar un análisis". Cerrable.
-- **Bienvenida**: 3 tarjetas (guía rápida, espacio de trabajo con campo de referencia copiable, centro de ayuda).
-- **Mercados de referencia**: 4 tarjetas con sparklines SVG (S&P 500, NASDAQ, Dow Jones, Russell 2000) con verde/rojo; etiqueta "Datos de demostración".
-- **Análisis fundamental**: panel de subida de PDF (dropzone con arrastrar y soltar, validación tipo/25 MB, preview del archivo), panel "Qué ocurre después" con el pipeline de 3 agentes, panel de procesamiento con estados de agentes y barra de progreso, y vista de resultado demo con señal y métricas.
-- **Histórico**: tabla densa (documento, empresa con ticker, periodo, señal +/-, estado) sobre datos reales de la BD en el futuro.
-- **Toast** global para notificaciones.
-
-**Comportamiento (`app.js`)**:
-
-- Dropzone: click/teclado, drag&drop, validación (solo PDF, máx 25 MB), preview con quitar archivo.
-- Demo del pipeline: 3 agentes secuenciales con estados (En espera → Procesando → Completado), barra de progreso, temporizador.
-- Buscador: filtra un array local de empresas (TAP, KO, PEP, WMT) y muestra resultados; al seleccionar avisa que la integración SEC llega en la Fase 2.
-- Sidebar: contraer en escritorio (clase `sidebar-collapsed`), drawer + backdrop en móvil.
-- Cierre de avisos (`.close-button`) y toasts.
-
-### 2.8. Cribador de resultados (screener) con datos de la SEC — EDGAR
-
-**Backend** (`src/`):
-
-- `services/edgar.service.js`: consulta la API oficial de la SEC con `fetch` nativo (sin dependencias nuevas):
-  - Carga y cachea la tabla ticker→CIK (`https://www.sec.gov/files/company_tickers.json`, TTL 24 h en memoria).
-  - `searchCompanies(query, limit=8)`: ordena coincidencia exacta de ticker → empieza por → contiene en nombre.
-  - Descarga `https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json` (caché 6 h por ticker) y construye series **anuales (últimos 10)** y **trimestrales (últimos 8)**.
-  - **Constante `STATEMENTS` alineada con las capturas de TIKR**: `income` incluye el desglose de gastos operativos, intereses/inversiones, extraordinarios, beneficio atribuible, dividendos, EBITDA, EBITDAR y tasa efectiva; `balance` incluye circulante detallado, inmovilizado bruto/depreciación/neto, impuestos diferidos, deuda/arrendamientos, patrimonio, valor contable, deuda neta y datos físicos; `cashflow` incluye ajustes operativos, detalle de inversión/financiación, divisas, flujo de caja libre, saldos de caja y métricas por acción. Las **partidas de total llevan `emphasis: true`**, y `statements` exporta el catálogo como `{ key, label, format, emphasis }` (formatos `money`|`perShare`|`shares`|`count`).
-  - **Selector `pickConceptData`**: elige entre los tags candidatos el que tiene el dato más reciente (por frame); soporta **conceptos combinados** (`combine`: suma de dos tags por frame, p. ej. intangibles).
-  - **Alineación de periodos corregida (`buildSeries`)**: los valores con frame XBRL (`CYyyyy`, `CYyyyyQn`, `CYyyyyQnI`) se asignan a su fila; las partidas del 10-K con `fp=FY` se asocian además al año fiscal según su fecha de fin (`end`). Arregla: (a) balances de cierre fiscal de empresas con año fiscal distinto del calendario (PG cierra en junio) y (b) balances del 10-K sin frame (KO, 10-K reexpresado de 2025). Sustituye a la antigua heurística de "copiar del Q4".
-  - **Valores derivados** (cuando el tag directo no existe): agregados de resultados, EBT extraordinario, EBITDA/EBITDAR, efectivo/inversiones, cuentas por cobrar, inmovilizado neto, pasivo/fondos propios, valor contable, deuda neta, efectivo de inversión/financiación y flujo de caja libre.
-  - Cabecera `User-Agent` obligatoria (`Cifra contacto@cifra.local`), timeout de 20 s por petición.
-  - Errores con código: `COMPANY_NOT_FOUND` y `EDGAR_UNAVAILABLE`.
-- `api/routes/screener.routes.js` (montado en `server.js` como `/api/screener`):
-  - `GET /api/screener/search?q=` → `{ ok, companies: [{ cik, ticker, name }] }` (400 si falta `q`).
-  - `GET /api/screener/company/:ticker` → `{ ok, company: { ticker, name, cik }, currency: 'USD', statements: { income, balance, cashflow }, annual, quarterly }` (400 ticker inválido, 404 `COMPANY_NOT_FOUND`, 502 `EDGAR_UNAVAILABLE`). `statements` trae el catálogo de partidas `{ key, label, format, emphasis }` para que el frontend pinte la tabla genéricamente.
-
-**Frontend** (`public/`):
-
-- Nueva sección `#screener` en `index.html`: buscador propio (ticker o nombre), cabecera de empresa (**nombre + chip naranja con el ticker**, meta `CIK · USD · SEC EDGAR`), chip "USD", conmutador **Anual/Trimestral** y, en lugar de 3 tablas, **3 pestañas** ("Cuenta de resultados", "Balance", "Estado de Flujo de Efectivo") que repintan **una sola tabla** `#screener-statement-table` **estilo TIKR claro**: catálogo de filas alineado con las capturas, periodos como columnas, en millones $ (BPA y métricas por acción en $, 2 decimales; acciones en millones; empleados como recuento), **negativos entre paréntesis**, columnas de valores a la derecha, **filas de total en crema** (`.emphasis-row`, `#fff7e8`, negrita, marcadas por `emphasis: true` del backend), columna "Partida" **fija** (`position: sticky`), scroll horizontal (`.table-wrap`), hover `#fafafa`, tipografía tabular (`font-variant-numeric`) y "—" para datos ausentes. La tabla se pinta genéricamente desde `statements`.
-- **Paleta extraída de las capturas de referencia del usuario con PIL**: blanco `#ffffff`, texto `#333333`, naranja `#ff9900`, crema `#fff7e8` (255,251,237), gris `#777`, bordes `#ddd`/`#e0e0e0`/`#f0f0f0`.
-- El buscador del topbar (`#ticker-search`) ahora busca **de verdad** en EDGAR (antes lista estática): debounce de 250 ms, panel de resultados con nombre + ticker, mensaje "Sin resultados en EDGAR…", y al elegir empresa carga el cribador.
-- `app.js`: `searchCompanies`, `loadCompanyToScreener`, `renderScreener`, `renderScreenerTables`, `renderStatementTable` (repinta la tabla única desde `statements`), `submitScreenerSearch`, formateadores `formatMoneyUsd`/`formatEps`/`formatShares`/`formatScreenerValue`/`periodLabel`, estado `screenerSeries='annual'` y `screenerStatement='income'`. Pestañas y conmutador re-renderizan sin nueva petición.
-- `styles.css`: estilos bajo el comentario "Cribador (screener)"; pestañas con subrayado naranja en la activa, tabla única con sticky col y filas emphasis, alineación derecha de valores y scroll horizontal.
-
-**Pruebas reales**: KO FY2025 (ingresos 47.941 M$, B. neto 13.107 M$, BPA 3,04 $, activo 104.816 M$, pretax 15.998 M$, reservas 80.382 M$, autocartera 56.423 M$, variación neta de caja −478 M$, pasivo derivado 72.647 M$, activo no corriente derivado 73.772 M$, pasivo no corriente derivado 51.366 M$), PG (cierre fiscal junio alineado por fecha de fin; intangibles 21.737 M$ vía tag agregado), PEP (intangibles 15.066 M$ = finite + indefinite sumados; CAPEX vía `PaymentsToAcquireProductiveAssets`), TAP (pérdida neta FY2025 de −2.139,6 M$, pretax −2.518 M$, acciones diluidas 199,1 M en formato `shares`; ingresos vía tag ASC 606), ticker inexistente → 404, búsqueda sin `q` → 400.
-
-**Pendiente**: puente "Analizar" desde el cribador hacia el pipeline de IA y el histórico de filings (lista de 10-Q/10-K con ver PDF).
+- Fix modal `[hidden] { display: none !important; }`.
+- Fix descarga del PDF del análisis (`currentPdfUrl`).
+- Fix valores "—" del screener (4 causas: tags únicos, filas duplicadas por fallback FY, Q4-only con `fp=FY`, Q4 sin frames) — 19 tickers verificados sin huecos.
+- Fix SEC bloqueaba Chrome headless (User-Agent declarado).
+- Fix crash del servidor al hacer streaming (timeout cancelado al recibir cabeceras).
+- Comparativa de proveedores IA (DeepSeek vs OpenCode Go) documentada.
 
 ---
 
 ## 3. Cómo se ejecuta
 
 ```bash
-# Requisitos: Node ≥ 20.6, PostgreSQL 16 (local o remoto)
-
-cp .env.example .env          # y edita credenciales/JWT_SECRET
-
-npm install                   # dependencias
-npm run db:migrate            # crea las tablas
+# Requisitos: Node ≥ 20.6, PostgreSQL 16, Google Chrome y poppler-utils (pdftoppm) para filings
+cp .env.example .env          # y edita credenciales (BD, JWT_SECRET, SMTP_*, AI_PROVIDER...)
+npm install
+npm run db:migrate            # crea las tablas (+ migración de favoritos)
 npm run db:seed               # (opcional) datos demo
 npm run dev                   # servidor en http://localhost:3000
+npm run test:email            # prueba el envío de correos
 ```
 
 Endpoints disponibles:
@@ -225,13 +129,23 @@ Endpoints disponibles:
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/health` | Estado del servicio |
-| POST | `/api/auth/register` | `{ email, password }` → 201 + cookie |
-| POST | `/api/auth/login` | `{ email, password }` → 200 + cookie |
-| POST | `/api/auth/logout` | Borra la cookie |
-| GET | `/api/auth/me` | Usuario actual (requiere cookie) |
-| POST | `/api/upload` | PDF (campo `file`) → 200 `{ok, origin, formType}` o 422 `{error, code}` |
-| GET | `/api/screener/search?q=` | Búsqueda de empresas en EDGAR → `{ok, companies}` (400 sin `q`) |
-| GET | `/api/screener/company/:ticker` | Series anual/trimestral + 3 estados (`statements`) de la empresa → 200 · 400 · 404 · 502 |
+| POST | `/api/auth/register` · `/verify` · `/resend-code` | Registro + verificación de correo |
+| POST | `/api/auth/login` · `/logout` | Sesión (403 `EMAIL_NOT_VERIFIED` sin verificar) |
+| GET | `/api/auth/me` | Usuario actual |
+| POST | `/api/auth/forgot-password` · `/reset-password` | Recuperación de contraseña |
+| POST | `/api/upload` | PDF → pipeline completo (origen + sector + analista + PDF) |
+| GET | `/api/analyses` | Histórico por usuario con filtros (requireAuth) |
+| GET | `/api/reports/:file` | PDF del informe generado |
+| GET | `/api/screener/search?q=` | Búsqueda en EDGAR |
+| GET | `/api/screener/company/:ticker` | Series + statements + perfil |
+| GET | `/api/screener/company/:ticker/chart` | Precios + MA100 |
+| GET | `/api/screener/company/:ticker/filings` | Histórico 10-Q/10-K |
+| GET | `.../filings/:accession/document` | Documento (PDF/HTML; `download=1`) |
+| GET | `.../filings/:accession/preview` y `/pages/:page` | Preview por páginas |
+| POST | `.../filings/:accession/analyze` | Analizar el filing |
+| GET/POST/PATCH/DELETE | `/api/watchlists...` | Listas de seguimiento (requireAuth) |
+| GET/POST/DELETE | `/api/portfolio...` | Cartera (requireAuth) |
+| GET | `/empresa/:ticker` | Página de empresa (HTML) |
 
 ---
 
@@ -239,29 +153,34 @@ Endpoints disponibles:
 
 | Decisión | Detalle |
 |---|---|
-| **PostgreSQL nativo local** | En lugar de Docker: no requiere permisos extra, es lo más parecido a un PostgreSQL gestionado en producción; la app solo usa `DATABASE_URL`. |
-| **Sesión JWT en cookie httpOnly** | Sin tablas de sesión; el frontend nunca ve el token (menos superficie XSS). 7 días, `SameSite=Lax`. |
-| **bcryptjs en vez de bcrypt** | Implementación pura JS: sin problemas de compilación nativa. |
-| **Errores 401 genéricos en login** | No revela si el email existe (evita enumeración de cuentas). |
-| **`--env-file=.env` de Node** | Sin dependencia dotenv (menos paquetes). |
-| **Repositorios como única capa SQL** | La lógica de negocio (futuros services) no conocerá SQL; facilita cambios de BD. |
-| **Whitelist en `updateAnalysis`** | Impide actualizar columnas no permitidas (ej. id, created_at) desde fuera. |
-| **Diseño clon de TIKR** | Decisión del usuario: estética de terminal financiero (topbar oscura + sidebar clara + datos). |
+| **PostgreSQL nativo local** | Sin Docker; solo `DATABASE_URL`. |
+| **Sesión JWT en cookie httpOnly** | Sin tablas de sesión; menos superficie XSS; 7 días, SameSite=Lax. |
+| **bcryptjs** | Puro JS, sin compilación nativa. |
+| **Errores 401 genéricos + forgot-password sin filtrar** | Evita enumeración de cuentas. |
+| **`--env-file=.env` de Node** | Sin dotenv. |
+| **Repositorios como única capa SQL** | Facilita cambios de BD. |
+| **DeepSeek directo (AI_PROVIDER=deepseek)** | 22–23 s y fiable frente a OpenCode Go (intermitente). |
+| **`chatJson` con reintentos + timeout 180 s + `AI_MAX_TOKENS=16000`** | Absorbe fallos del modelo; nunca queda colgado; el informe no se trunca. |
+| **Analista en 2 fases** | Extracción JSON → estructuración con reglas del sector: informes fiables y validables. |
+| **Rescate desde instancias XBRL** | `companyfacts` no expone tags de extensión; sin él, líneas en "—" para siempre. Solo si falta algo. |
+| **PDF de filings con Chrome (UA declarado) + preview con pdftoppm** | Los filings modernos no traen PDF; la SEC bloquea headless sin UA; el visor PDF no renderiza en iframes. |
+| **FIFO en la cartera** | Estándar de brokers; confirmado por el usuario (pidió "FILO"). |
+| **Estado de cartera reconstruido de las transacciones** | Sin redundancia; consistencia garantizada. |
+| **Listas de seguimiento multi-lista** | Sustituyen a los favoritos con migración automática. |
+| **Diseño clon de TIKR** | Decisión del usuario (topbar oscura + panel claro + datos). |
 
 ---
 
 ## 5. Pendiente (próximos pasos)
 
-1. **Asociar análisis al usuario**: al crear análisis, usar `req.user.id` de `requireAuth`; filtrar `listAnalyses` por usuario.
-2. **`GET /api/analyses` + `GET /api/analyses/:id`**: endpoints + historial real en el frontend (sustituir la tabla estática).
-3. **Subida de PDF real**: ✅ `POST /api/upload` + `pdf.service.js` (pdf-parse) + originAgent conectado; ⏳ guardar el PDF en `uploads/` y el análisis en `analyses`.
-4. **Sistema de agentes**: ✅ `baseAgent.js`, `agentRegistry.js`, `originAgent` y `sectorAgent` (mock) listos y probados; ⏳ `analystAgent`.
-5. **Capa de modelos IA**: ✅ `modelProvider.js` + `deepseekProvider` (sin key falla con error visible; `AI_PROVIDER=mock` para desarrollo); falta probar con key real.
-6. **Pipeline**: ✅ `analysis.service.js` con origin + sector conectados; ⏳ encadenar analista y guardar en `analyses`.
-7. **Definir formato del informe** final con los informes de referencia del usuario.
-8. **Fase 2**: ✅ buscador real de empresas (API EDGAR/SEC) + cribador de resultados (series anual/trimestral); ⏳ histórico de filings, ver PDF y botón "Analizar" desde el cribador.
-9. **Fase 5**: suscripciones y planes (campo `plan` ya existe; límites por plan).
-10. **Fase 4/6**: análisis multi-periodo, más países y sectores.
+1. **Fase 4**: análisis completo de empresa (multi-periodo) usando el histórico de filings ya implementado.
+2. **Fase 5**: suscripciones y planes (campo `plan` existe; el proveedor de IA se elegirá por plan; el bloqueo PRO del cribador es el primer límite real).
+3. **Fase 6**: nuevos países y sectores (agentes + prompts).
+4. Refinar el prompt del analista con los informes de referencia del usuario.
+5. Decidir el modelo final a medio plazo (DeepSeek vs OpenCode Go) y el despliegue (VPS vs PaaS).
+6. Vista de detalle del análisis dentro de la web (hoy se abre el PDF).
+7. Pestañas Ratios y Segmentos del clon TIKR; Valoración y Accionariado (placeholders).
+8. Alertas de precio (roadmap) y "iniciar sesión con Google".
 
 ---
 
@@ -269,54 +188,28 @@ Endpoints disponibles:
 
 ```
 app/
-├── server.js                     # Express: estáticos + API + auth + errores
-├── package.json                  # Scripts: start, dev, db:migrate, db:seed
-├── .env / .env.example           # Configuración (secreto JWT, BD)
+├── server.js                     # Express: estáticos + API + /empresa/:ticker + errores
+├── package.json                  # Scripts: start, dev, db:migrate, db:seed, test:email
 ├── config/index.js               # Config centralizada
 ├── db/
-│   ├── pool.js                   # Pool PostgreSQL
-│   ├── schema.sql                # Esquema (users, analyses, filings)
-│   ├── migrations.js             # Aplica el esquema
-│   ├── seed.js                   # Datos demo idempotentes
-│   └── repositories/
-│       ├── analysisRepository.js # CRUD de análisis
-│       └── userRepository.js     # CRUD de usuarios
+│   ├── schema.sql                # Todas las tablas + migraciones idempotentes
+│   ├── migrations.js · seed.js
+│   └── repositories/             # analysis, user, watchlist, portfolio
 ├── src/
-│   ├── api/
-│   │   ├── routes/auth.routes.js # /api/auth/*
-│   │   ├── routes/screener.routes.js # /api/screener/search y /api/screener/company/:ticker
+│   ├── api/routes/               # auth, analysis, screener, watchlists, portfolio
 │   │   └── controllers/auth.controller.js
-│   ├── services/auth.service.js  # Lógica de registro/login
-│   ├── services/edgar.service.js # Datos de la SEC (EDGAR): ticker→CIK, companyfacts, 3 estados alineados con TIKR, series
-│   ├── services/pdf.service.js   # Extracción de texto de PDFs (pdf-parse)
-│   ├── services/analysis.service.js  # Pipeline: PDF → agentes → resultado
-│   ├── services/ai/              # Capa de modelos IA
-│   │   ├── modelProvider.js      # Abstracción (autodetecta key DeepSeek, si no mock)
-│   │   ├── providers/mock.provider.js  # Heurística local (sin coste)
-│   │   └── providers/deepseek.provider.js  # API real de DeepSeek
-│   ├── agents/                   # Sistema de agentes IA
-│   │   ├── baseAgent.js          # BaseAgent + AgentError
-│   │   ├── originAgent.js        # Verificador: financiero + 10-Q/10-K + EE. UU.
-│   │   ├── sectorAgent.js        # Verificador: consumo defensivo
-│   │   └── agentRegistry.js      # Registro de agentes por nombre
-│   ├── middleware/
-│   │   ├── auth.middleware.js    # requireAuth (JWT)
-│   │   └── errorHandler.js       # Errores JSON
-│   └── utils/validate.js         # Validación email/contraseña
-├── public/
-│   ├── index.html                # Web "Terminal Cifra"
-│   ├── styles.css                # Diseño clon TIKR (claro)
-│   ├── app.js                    # Interacción: subida real, agentes, errores
-│   └── auth.js                   # Modal login/registro y sesión
-├── uploads/                      # PDFs (vacío por ahora)
+│   ├── services/                 # auth, email, edgar, market, analysis, pdf, report, portfolio
+│   │   └── ai/                   # modelProvider + providers (deepseek, opencode-go, mock)
+│   ├── agents/                   # base, registry, origin, sector, analyst + prompts/
+│   ├── middleware/               # auth (requireAuth + resolveUser), errorHandler
+│   └── utils/validate.js
+├── public/                       # index.html, empresa.html, styles.css, app.js, empresa.js, auth.js, watchlists.js, portfolio.js
+├── scripts/test-email.js
+├── uploads/generated/            # PDFs IA + filings + previews
 ├── documentacion/                # PROYECTO*.md, ARQUITECTURA.md, IMPLEMENTACION.md
-│   ├── backend/funcionalidades/register/            # Doc backend de registro/login
-│   ├── backend/funcionalidades/verificacion-informe/ # Doc backend: subida + verificación 10-Q/10-K
-│   ├── backend/funcionalidades/screener/            # Doc backend: cribador con datos de EDGAR/SEC
-│   ├── frontend/funcionalidades/register/           # Doc frontend de registro/login
-│   ├── frontend/funcionalidades/verificacion-informe/ # Doc frontend: subida + verificación
-│   ├── frontend/funcionalidades/screener/           # Doc frontend: sección cribador + buscador real
-│   └── diario/YYYY/MM/YYYY-MM-DD.md           # Registro diario de cambios
+│   ├── backend/funcionalidades/{register, verificacion-informe, screener, listas-seguimiento, cartera, historico-analisis}/
+│   ├── frontend/funcionalidades/{idem}/
+│   └── diario/YYYY/MM/YYYY-MM-DD.md
 ├── agentes/ → ~/.config/opencode/agent/   (enlace, no versionado)
 └── PROYECTO.md → documentacion/PROYECTO.md (enlace, no versionado)
 ```

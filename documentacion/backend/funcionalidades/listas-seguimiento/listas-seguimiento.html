@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Listas de seguimiento (watchlists) — Backend | Cifra</title>
+<style>
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
+  header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
+  .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  h1 { margin:0 0 8px; font-size:28px; }
+  .sub { color:var(--muted); margin:0; font-size:14px; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
+  h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
+  p { margin:8px 0; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
+  code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
+  table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
+  th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / backend / funcionalidades / listas-seguimiento</div>
+    <h1>Listas de seguimiento (watchlists) — Backend</h1>
+    <p class="sub">Varias listas por usuario (crear, renombrar, eliminar, añadir/quitar acciones) con una lista por defecto "Favoritos" inmutable. Sustituye a los favoritos.</p>
+    <span class="badge">✓ Implementado y probado · 2026-08-15</span>
+  </header>
+
+  <h2>Qué hace</h2>
+  <p>El backend guarda en PostgreSQL las <strong>listas de seguimiento</strong> de cada usuario y su contenido. Cada usuario tiene una lista por defecto llamada <strong>"Favoritos"</strong> (creada de forma perezosa, no se puede renombrar ni eliminar) y puede crear tantas listas adicionales como quiera. Todos los endpoints exigen sesión (<code>requireAuth</code>).</p>
+
+  <h2>Base de datos</h2>
+  <pre><code>CREATE TABLE watchlists (
+    id         SERIAL PRIMARY KEY,
+    user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    is_default BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, name)
+);
+
+CREATE TABLE watchlist_items (
+    id           SERIAL PRIMARY KEY,
+    watchlist_id INT NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+    ticker       TEXT NOT NULL,
+    company_name TEXT NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (watchlist_id, ticker)
+);</code></pre>
+  <p class="note">Migración automática en <code>db/schema.sql</code>: los favoritos antiguos se copian a la lista "Favoritos" de cada usuario y después se elimina la tabla <code>favorites</code>.</p>
+
+  <h2>Endpoints</h2>
+  <table>
+    <tr><th>Método</th><th>Ruta</th><th>Función</th><th>Respuestas</th></tr>
+    <tr><td>GET</td><td><code>/api/watchlists</code></td><td>Listas + recuento + tickers (sin cotizaciones)</td><td>200 · 401</td></tr>
+    <tr><td>POST</td><td><code>/api/watchlists</code></td><td>Crear lista <code>{ name }</code> (1–40 chars)</td><td>201 · 400 · 409</td></tr>
+    <tr><td>PATCH</td><td><code>/api/watchlists/:id</code></td><td>Renombrar (prohibido en la por defecto)</td><td>200 · 400 · 404</td></tr>
+    <tr><td>DELETE</td><td><code>/api/watchlists/:id</code></td><td>Eliminar (prohibido en la por defecto)</td><td>200 · 400 · 404</td></tr>
+    <tr><td>GET</td><td><code>/api/watchlists/:id</code></td><td>Detalle con cotizaciones de cada item</td><td>200 · 400 · 404</td></tr>
+    <tr><td>POST</td><td><code>/api/watchlists/:id/items</code></td><td>Añadir acción (upsert; resuelve nombre en EDGAR si falta)</td><td>201 · 400 · 404</td></tr>
+    <tr><td>DELETE</td><td><code>/api/watchlists/:id/items/:ticker</code></td><td>Quitar acción</td><td>200 · 400</td></tr>
+  </table>
+
+  <h2>Reglas de negocio</h2>
+  <ul>
+    <li><strong>Lista por defecto "Favoritos"</strong>: inmutable — no se renombra ni se elimina (400 con mensaje claro).</li>
+    <li><strong>Nombres</strong>: 1–40 caracteres; duplicado por usuario → 409 "Ya existe una lista con ese nombre."</li>
+    <li><strong>Items</strong>: ticker válido (<code>^[A-Z0-9.-]{1,10}$</code>); añadir repetido es un <em>upsert</em> (actualiza el nombre de empresa).</li>
+    <li><strong>Cotizaciones</strong>: solo en el detalle; si una falla se devuelve <code>null</code> sin romper la lista.</li>
+    <li>Sin sesión → 401 en todos los endpoints.</li>
+  </ul>
+
+  <h2>Errores visibles</h2>
+  <table>
+    <tr><th>Situación</th><th>Respuesta</th></tr>
+    <tr><td>Sin sesión</td><td class="err">401 (middleware)</td></tr>
+    <tr><td>Nombre inválido</td><td class="err">400 "El nombre debe tener entre 1 y 40 caracteres."</td></tr>
+    <tr><td>Nombre duplicado</td><td class="err">409 "Ya existe una lista con ese nombre."</td></tr>
+    <tr><td>Renombrar/eliminar "Favoritos"</td><td class="err">400 "La lista de favoritos no se puede renombrar/eliminar."</td></tr>
+    <tr><td>Lista inexistente</td><td class="err">404 "La lista no existe."</td></tr>
+    <tr><td>Ticker inexistente en EDGAR</td><td class="err">404 COMPANY_NOT_FOUND</td></tr>
+  </table>
+
+  <h2>Archivos</h2>
+  <table>
+    <tr><th>Archivo</th><th>Función</th></tr>
+    <tr><td><code>db/schema.sql</code></td><td>Tablas + migración desde <code>favorites</code></td></tr>
+    <tr><td><code>db/repositories/watchlistRepository.js</code></td><td>CRUD de listas/items, upsert, <code>ensureDefaultWatchlist</code></td></tr>
+    <tr><td><code>src/api/routes/watchlists.routes.js</code></td><td>7 endpoints con validaciones y errores</td></tr>
+    <tr><td><code>src/services/edgar.service.js</code> / <code>market.service.js</code></td><td>Resolución de nombres y cotizaciones</td></tr>
+    <tr><td><code>server.js</code></td><td>Monta <code>/api/watchlists</code></td></tr>
+  </table>
+
+  <h2>Decisiones</h2>
+  <ul>
+    <li><strong>Multi-lista en vez de favoritos</strong>: el usuario pedía organizar por listas; la migración conserva los favoritos antiguos.</li>
+    <li><strong>Lista por defecto inmutable y perezosa</strong>: sin migraciones al registrarse y UX estable.</li>
+    <li><strong>Upsert de items</strong>: añadir un ticker ya presente actualiza el nombre, nunca falla ni duplica.</li>
+    <li><strong>Cotizaciones solo en el detalle</strong>: el listado es barato; la tabla con cotizaciones se pide al mostrarla.</li>
+  </ul>
+
+  <h2>Pruebas</h2>
+  <ul>
+    <li>Migración: 1 favorita antigua conservada; <code>favorites</code> eliminada.</li>
+    <li>Flujo completo con usuario temporal: crear lista, duplicado 409, nombre inválido 400, añadir/upsert/quitar, renombrar, borrar lista, borrar por defecto 400, 404, ticker inválido 400, 401 sin sesión.</li>
+    <li><code>node --check</code> OK y recursos estáticos 200.</li>
+  </ul>
+
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Alertas de precio por email sobre acciones en seguimiento (roadmap).</li>
+  </ul>
+</div>
+</body>
+</html>

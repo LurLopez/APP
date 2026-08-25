@@ -3,20 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verificación del informe (10-Q / 10-K) — Frontend | Cifra</title>
+<title>Análisis del informe (10-Q / 10-K) — Frontend | Cifra</title>
 <style>
-  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; }
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
-  .wrap { max-width:900px; margin:0 auto; padding:38px 20px 60px; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
   header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
   .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
   h1 { margin:0 0 8px; font-size:28px; }
   .sub { color:var(--muted); margin:0; font-size:14px; }
   .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
   h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
   p { margin:8px 0; }
-  ul { margin:8px 0; padding-left:22px; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
   code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
   pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
   pre code { padding:0; background:none; color:inherit; }
@@ -25,66 +28,77 @@
   th { background:#f0f2f5; }
   .ok { color:var(--green); font-weight:700; }
   .err { color:var(--red); font-weight:700; }
-  .note { padding:11px 14px; border-left:4px solid var(--accent); background:#fff7e8; font-size:13px; }
-  .states td:first-child { font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="crumb">documentacion / frontend / funcionalidades / verificacion-informe</div>
-    <h1>Verificación del informe (10-Q / 10-K) — Frontend</h1>
-    <p class="sub">Subida del PDF y verificación real contra la API: estados de los agentes, errores en pantalla y botones de acción.</p>
-    <span class="badge">✓ Implementado y conectado a la API real · 2026-08-12</span>
+    <h1>Análisis del informe (10-Q / 10-K) — Frontend</h1>
+    <p class="sub">Subida de PDF, pipeline de 3 agentes en vivo con cronómetro, informe estructurado con descarga de PDF y análisis desde la página de empresa.</p>
+    <span class="badge">✓ Implementado y probado · actualizado 2026-08-14</span>
   </header>
 
   <h2>Qué hace</h2>
-  <p>El usuario sube un PDF (arrastrando o seleccionándolo), pulsa <strong>"Analizar informe"</strong> y el documento se envía a <code>POST /api/upload</code>. En pantalla se ve el agente <strong>Verificador de origen</strong> procesando; al terminar: <strong>✓ Completado</strong> con el tipo detectado (10-Q / 10-K) o <strong>✕ Error</strong> con el mensaje del servidor.</p>
+  <p>El usuario <strong>sube un PDF</strong> (arrastrar y soltar o clic, validado PDF ≤ 25 MB) y ve el <strong>pipeline de 3 agentes</strong> (Origen → Sector → Análisis) ejecutarse en tiempo real con estados, barra de progreso y <strong>cronómetro</strong>. Al terminar se muestra el <strong>informe estructurado</strong> (dos horizontes; bloques Ventas, Cash Flow y Asignación de Capital) con el botón de <strong>descargar el PDF</strong>. Si el informe no cumple el alcance, aparece una caja roja con el error claro y botón Reintentar.</p>
 
-  <h2>Flujo</h2>
+  <h2>Cómo funciona</h2>
   <ol>
-    <li>Seleccionar PDF → validación cliente (tipo y ≤ 25 MB) → preview con nombre, tamaño y botón de quitar.</li>
-    <li>"Analizar informe" → panel de análisis visible, agente origin en <em>Procesando</em>, contador en marcha.</li>
-    <li><code>fetch POST /api/upload</code> con el PDF.</li>
-    <li><strong>Éxito</strong> → "Documento verificado: 10-Q" + toast + botón "Analizar otro informe".</li>
-    <li><strong>Error</strong> → caja roja con el mensaje exacto del servidor + botón "Reintentar" (conserva el archivo).</li>
+    <li>Subir PDF → <code>POST /api/upload</code>.</li>
+    <li>Agentes en vivo: estados (En espera / Procesando / Completado / Error), cronómetro mm:ss y avisos a los 45 s y 240 s.</li>
+    <li>Éxito → informe (3 bloques) + "Descargar PDF del análisis" (nombre <code>&lt;ticker&gt;-analisis-cifra.pdf</code>).</li>
+    <li>Error → caja roja con el mensaje del servidor (p. ej. "Este informe no es de una empresa de EE. UU.") + Reintentar.</li>
+    <li>Con sesión → toast "Análisis guardado en tu histórico" y recarga de "Mis análisis".</li>
   </ol>
 
-  <h2>Estados del panel</h2>
-  <table class="states">
-    <tr><th>Elemento</th><th>En curso</th><th>Éxito</th><th>Error</th></tr>
-    <tr><td>Título</td><td>Verificando el documento...</td><td>Documento verificado: 10-Q</td><td>No se pudo verificar el documento</td></tr>
-    <tr><td>Agente origin</td><td>Procesando (naranja)</td><td>✓ Completado (verde)</td><td>✕ Error (rojo)</td></tr>
-    <tr><td>Sector y analista</td><td colspan="3">En espera (pendientes del pipeline)</td></tr>
-    <tr><td>Caja de error</td><td>oculta</td><td>oculta</td><td class="err">visible</td></tr>
-    <tr><td>Botón</td><td>oculto</td><td>Analizar otro informe</td><td>Reintentar</td></tr>
-    <tr><td>Barra de progreso</td><td>20 %</td><td>34 %</td><td>100 %</td></tr>
-  </table>
+  <h2>Analizar desde la página de empresa</h2>
+  <ul>
+    <li>Cada filing de la pestaña de informes tiene el botón <strong>"Analizar con IA"</strong>.</li>
+    <li>Navega a <code>/?analizar=TICKER&amp;accession=...</code>; Inicio consume los parámetros, limpia la URL y ejecuta <code>POST /api/screener/company/:ticker/filings/:accession/analyze</code> con la <strong>misma UI</strong>.</li>
+    <li>"Reintentar" re-ejecuta el mismo filing (<code>pendingFiling</code>).</li>
+  </ul>
 
-  <h2>Errores que se ven en pantalla</h2>
+  <h2>Estados de los agentes</h2>
   <table>
-    <tr><th>Situación</th><th>Mensaje en pantalla</th></tr>
-    <tr><td>PDF no financiero</td><td class="err">"Este documento no es un informe financiero (10-Q / 10-K)."</td></tr>
-    <tr><td>No es de EE. UU.</td><td class="err">"Este informe no es de una empresa de EE. UU."</td></tr>
-    <tr><td>No es 10-Q ni 10-K</td><td class="err">"El documento no es un FORM 10-Q ni un FORM 10-K."</td></tr>
-    <tr><td>Archivo no PDF</td><td class="err">"Solo se admiten archivos PDF."</td></tr>
-    <tr><td>Falta la API key de DeepSeek</td><td class="err">"Falta DEEPSEEK_API_KEY en el archivo .env"</td></tr>
-    <tr><td>Servidor apagado</td><td class="err">"No se pudo conectar con el servidor. Comprueba que esté en marcha."</td></tr>
+    <tr><th>Estado</th><th>Visual</th></tr>
+    <tr><td>En espera</td><td>Círculo gris</td></tr>
+    <tr><td>Procesando</td><td>Spinner</td></tr>
+    <tr><td>Completado</td><td>✓ verde</td></tr>
+    <tr><td>Error</td><td>✕ rojo (los agentes anteriores quedan Completado)</td></tr>
   </table>
 
-  <h2>Qué incluye / excluye</h2>
-  <p><strong>Incluye:</strong> dropzone con arrastrar y soltar, validación cliente, preview del archivo, llamada real a la API, estados por agente (espera/procesando/completado/error), errores del servidor en pantalla, reintentar, analizar otro informe.</p>
-  <p><strong>Excluye (pendiente):</strong> ejecución visual de los agentes de sector y analista, informe final, histórico real del usuario.</p>
+  <h2>Casos límite</h2>
+  <table>
+    <tr><th>Caso</th><th>Comportamiento</th></tr>
+    <tr><td>Archivo no PDF / &gt; 25 MB</td><td>Error cliente antes de subir</td></tr>
+    <tr><td>Informe no válido</td><td>Caja roja 422 con el mensaje claro</td></tr>
+    <tr><td>Sin API key / timeout de la IA</td><td>Caja roja 500 con el mensaje del servidor</td></tr>
+    <tr><td>Sin sesión</td><td>Resultado visible; no se guarda (<code>saved: false</code>)</td></tr>
+  </table>
 
-  <h2>Archivos implicados</h2>
+  <h2>Archivos</h2>
   <table>
     <tr><th>Archivo</th><th>Función</th></tr>
-    <tr><td><code>public/index.html</code></td><td>Dropzone, formulario, panel de procesamiento (3 agentes, error, retry) y preview de resultado.</td></tr>
-    <tr><td><code>public/app.js</code></td><td>Validación, <code>runRealAnalysis()</code> (fetch), estados de agentes, <code>showAnalysisError()</code>.</td></tr>
-    <tr><td><code>public/styles.css</code></td><td>Estilos de estados (activo/✓/✕), caja de error roja, botón de reintentar.</td></tr>
+    <tr><td><code>public/index.html</code></td><td>Sección <code>#nuevo</code> (dropzone, procesamiento, resultado, metodología)</td></tr>
+    <tr><td><code>public/app.js</code></td><td>Subida, estados de agentes, cronómetro, informe, descarga, <code>?analizar=</code></td></tr>
+    <tr><td><code>public/empresa.js</code></td><td>Botón "Analizar con IA" por filing</td></tr>
+    <tr><td><code>public/styles.css</code></td><td>Estilos de la sección</td></tr>
   </table>
 
-  <div class="note">La demo simulada del pipeline se eliminó: el flujo ahora es real. Cuando el pipeline implemente sector y analista, sus filas pasarán de "En espera" a estados reales.</div>
+  <h2>Pruebas</h2>
+  <ul>
+    <li>Pipeline completo con KHC 10-Q real: 200 ~21 s, informe con 2 horizontes y 3 bloques, PDF descargable.</li>
+    <li>Botón "Analizar con IA" (TAP): 200 en 22,8 s con DeepSeek; guardado con sesión.</li>
+    <li>Cronómetro mm:ss y avisos progresivos verificados.</li>
+  </ul>
+
+  <div class="note">Nota de desarrollo: con <code>npm run dev</code> (--watch), guardar cualquier archivo durante un análisis corta la petición en curso.</div>
+
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Vista de detalle del análisis dentro de la web.</li>
+  </ul>
 </div>
 </body>
 </html>

@@ -56,6 +56,7 @@
   .b-blue  { color: var(--accent); border-color: var(--accent); background: rgba(77,163,255,.08); }
   .b-green { color: var(--green); border-color: var(--green); background: rgba(61,220,151,.08); }
   .b-purple{ color: var(--purple); border-color: var(--purple); background: rgba(180,139,242,.08); }
+  .b-amber { color: var(--amber); border-color: var(--amber); background: rgba(255,180,84,.08); }
 
   section {
     background: var(--panel);
@@ -109,7 +110,6 @@
   .callout.blue strong { color: var(--accent); }
   .callout.green strong { color: var(--green); }
 
-  /* Diagrama general */
   .arch {
     background: var(--panel-2);
     border: 1px solid var(--border);
@@ -138,7 +138,6 @@
   }
   .alayer.primary { border-color: var(--accent); }
 
-  /* Pipeline agentes */
   .flow { display: flex; flex-direction: column; align-items: center; margin: 14px 0; }
   .fnode {
     background: var(--panel-2);
@@ -177,7 +176,6 @@
   }
   .flabel.no { color: var(--red); border-color: rgba(255,107,107,.3); background: rgba(255,107,107,.08); }
 
-  /* Código */
   pre {
     background: #0c1322;
     border: 1px solid var(--border);
@@ -190,11 +188,10 @@
     color: var(--text);
     font-family: 'Cascadia Code', Consolas, monospace;
   }
-  pre .c { color: #5a6c8c; }  /* comentario */
-  pre .k { color: var(--purple); } /* keyword */
-  pre .s { color: var(--green); }  /* string */
+  pre .c { color: #5a6c8c; }
+  pre .k { color: var(--purple); }
+  pre .s { color: var(--green); }
 
-  /* Estructura carpetas */
   .tree {
     background: #0c1322;
     border: 1px solid var(--border);
@@ -240,11 +237,12 @@
   <!-- HERO -->
   <div class="hero">
     <h1>Arquitectura del <span>Analizador Financiero</span></h1>
-    <p>Versión 1.1 · Stack decidido</p>
+    <p>Versión 2.0 · 2026-08-15 · Stack decidido y en marcha</p>
     <div class="badges">
-      <span class="badge b-blue">Node.js + Express</span>
-      <span class="badge b-green">PostgreSQL</span>
-      <span class="badge b-purple">Frontend puro → React (Fase 2)</span>
+      <span class="badge b-blue">Node.js + Express 5</span>
+      <span class="badge b-green">PostgreSQL 16</span>
+      <span class="badge b-purple">Frontend puro → React (futuro)</span>
+      <span class="badge b-amber">IA: DeepSeek activo</span>
     </div>
   </div>
 
@@ -253,12 +251,14 @@
     <h2><span class="num">1</span>Stack tecnológico (decidido)</h2>
     <table>
       <tr><th>Capa</th><th>Tecnología</th><th>Por qué</th></tr>
-      <tr><td><strong>Backend</strong></td><td>Node.js + Express (API REST)</td><td>Dominado en clase, ecosistema maduro, mismo idioma que el frontend</td></tr>
-      <tr><td><strong>Base de datos</strong></td><td>PostgreSQL</td><td>Se controla SQL; modelo relacional encaja (users, filings, analyses)</td></tr>
-      <tr><td><strong>Frontend</strong></td><td>HTML/CSS/JS puro (beta)</td><td>Sin curva de aprendizaje; se migrará a React en la Fase 2</td></tr>
-      <tr><td><strong>Extracción PDF</strong></td><td>Librería de texto (ej. <code>pdf-parse</code>)</td><td>Extrae el texto del informe para los agentes</td></tr>
-      <tr><td><strong>Modelos IA</strong></td><td>Capa de abstracción propia (DeepSeek / GPT intercambiables)</td><td>Modelo final por decidir; la capa permite cambiar sin tocar agentes</td></tr>
-      <tr><td><strong>Almacenamiento PDFs</strong></td><td>Filesystem local (<code>uploads/</code>)</td><td>Suficiente para uso local; migrable a S3</td></tr>
+      <tr><td><strong>Backend</strong></td><td>Node.js + Express 5 (API REST)</td><td>Dominado en clase, ecosistema maduro, mismo idioma que el frontend</td></tr>
+      <tr><td><strong>Base de datos</strong></td><td>PostgreSQL 16</td><td>Se controla SQL; modelo relacional (users, analyses, filings, watchlists, portfolio)</td></tr>
+      <tr><td><strong>Frontend</strong></td><td>HTML/CSS/JS puro (beta)</td><td>Sin curva de aprendizaje; migrable a React (API REST pura)</td></tr>
+      <tr><td><strong>Extracción PDF</strong></td><td><code>pdf-parse</code> 2.4.5</td><td>Extrae el texto del informe para los agentes</td></tr>
+      <tr><td><strong>PDFs</strong></td><td><code>pdfkit</code> (informes IA) · Chrome headless (filings SEC) · pdftoppm (previews)</td><td>Generación de informes y de PDFs de la SEC</td></tr>
+      <tr><td><strong>Modelos IA</strong></td><td>Capa de abstracción propia (<code>modelProvider</code>)</td><td>Proveedores deepseek (activo), opencode-go y mock; cambiar = editar <code>.env</code></td></tr>
+      <tr><td><strong>Correos</strong></td><td><code>nodemailer</code> (SMTP Gmail)</td><td>Códigos de verificación y recuperación; fallback consola sin SMTP</td></tr>
+      <tr><td><strong>Almacenamiento</strong></td><td>Filesystem local (<code>uploads/</code>)</td><td>Suficiente para uso local; migrable a S3</td></tr>
     </table>
   </section>
 
@@ -268,20 +268,21 @@
     <div class="arch">
       <div class="alayer">
         <span class="atitle">FRONTEND (beta) — HTML / CSS / JS puro (<code>public/</code>)</span>
-        <small>Vista subir PDF · Vista resultado del análisis</small>
+        <small>index.html (Inicio) · empresa.html (/empresa/:ticker) · app.js · empresa.js · auth.js · watchlists.js · portfolio.js</small>
       </div>
       <div class="aarrow">▼ &nbsp;fetch() / FormData (multipart)&nbsp; ▼</div>
       <div class="alayer primary">
-        <span class="atitle">BACKEND — Node.js + Express</span>
+        <span class="atitle">BACKEND — Node.js + Express 5</span>
         <div class="aflex" style="margin-top: 8px;">
           <div class="amod">API Layer<br><small>routes / controllers</small></div>
-          <div class="amod">Services<br><small>analysis, pdf, (auth…)</small></div>
-          <div class="amod">Agentes<br><small>registro + runner</small></div>
-          <div class="amod">Modelos IA<br><small>interfaz común</small></div>
+          <div class="amod">Services<br><small>auth · edgar · market · analysis · report · portfolio</small></div>
+          <div class="amod">Agentes<br><small>origin → sector → analyst</small></div>
+          <div class="amod">Modelos IA<br><small>modelProvider + chatJson</small></div>
         </div>
         <div class="aflex" style="margin-top: 8px;">
-          <div class="amod" style="border-color: var(--green);">PostgreSQL<br><small>users · analyses · filings</small></div>
-          <div class="amod" style="border-color: var(--amber);">uploads/<br><small>PDFs (filesystem)</small></div>
+          <div class="amod" style="border-color: var(--green);">PostgreSQL<br><small>users · analyses · filings · watchlists · portfolio_transactions</small></div>
+          <div class="amod" style="border-color: var(--amber);">Fuentes externas<br><small>SEC EDGAR · Yahoo Finance</small></div>
+          <div class="amod" style="border-color: var(--purple);">uploads/<br><small>PDFs + previews (filesystem)</small></div>
         </div>
       </div>
     </div>
@@ -289,7 +290,7 @@
     <h3>Principios rectores</h3>
     <ol>
       <li><strong>API REST pura</strong>: el frontend solo habla con la API vía JSON. El frontend es reemplazable (facilita migrar a React sin tocar nada más).</li>
-      <li><strong>Separación en capas</strong>: API → Services → Agents → Models. Cada capa solo conoce a la inferior.</li>
+      <li><strong>Separación en capas</strong>: API → Services → Agents → Models; repositorios como única capa SQL.</li>
       <li><strong>Agentes extensibles</strong>: se añaden agentes por país/sector registrándolos, sin modificar el runner.</li>
       <li><strong>Modelos intercambiables</strong>: los agentes nunca llaman a una API de IA directamente; siempre vía la capa de modelos.</li>
     </ol>
@@ -299,80 +300,95 @@
   <section>
     <h2><span class="num a">3</span>Estructura de carpetas</h2>
     <div class="tree"><span class="dir">app/</span>
-├─ <span class="dir">server.js</span>                <span class="cmt"># Arranque de Express</span>
-├─ <span class="dir">package.json</span> · <span class="dir">.env</span>     <span class="cmt"># Variables (no versionar)</span>
-├─ <span class="dir">config/</span><span class="cmt">/index.js</span>           <span class="cmt"># Lectura de .env (puerto, BD, proveedor IA…)</span>
+├─ <span class="dir">server.js</span>                <span class="cmt"># Express: estáticos + API + /empresa/:ticker</span>
+├─ <span class="dir">package.json</span> · <span class="dir">.env</span>     <span class="cmt"># scripts; variables (no versionar)</span>
+├─ <span class="dir">config/</span><span class="cmt">/index.js</span>           <span class="cmt"># Lectura de .env</span>
 ├─ <span class="dir">db/</span>
-│  ├─ <span class="dir">pool.js</span>                 <span class="cmt"># Pool de conexiones PostgreSQL</span>
-│  ├─ <span class="dir">schema.sql</span>             <span class="cmt"># Esquema de la BD</span>
-│  └─ <span class="dir">migrations.js</span>          <span class="cmt"># Ejecutor sencillo (beta)</span>
+│  ├─ <span class="dir">pool.js</span> · <span class="dir">schema.sql</span> · <span class="dir">migrations.js</span> · <span class="dir">seed.js</span>
+│  └─ <span class="dir">repositories/</span>  <span class="cmt">analysis · user · watchlist · portfolio</span>
 ├─ <span class="dir">src/</span>
-│  ├─ <span class="dir">api/</span>
-│  │  ├─ <span class="dir">routes/</span>  <span class="cmt">upload.routes.js · analyses.routes.js</span>
-│  │  └─ <span class="dir">controllers/</span>  <span class="cmt">upload · analyses</span>
-│  ├─ <span class="dir">services/</span>  <span class="cmt">analysis.service.js · pdf.service.js · (futuro: auth, filing)</span>
-│  ├─ <span class="dir">agents/</span>
-│  │  ├─ <span class="dir">agentRegistry.js</span>   <span class="cmt"># Registro y orden de ejecución</span>
-│  │  ├─ <span class="dir">baseAgent.js</span>       <span class="cmt"># Interfaz/plantilla</span>
-│  │  └─ <span class="dir">agents/</span>  <span class="cmt">originAgent · sectorAgent · analystAgent</span>
-│  ├─ <span class="dir">models/</span>  <span class="cmt">modelProvider.js · deepseekProvider.js · openaiProvider.js</span>
-│  ├─ <span class="dir">middleware/</span>  <span class="cmt">errorHandler.js</span>
+│  ├─ <span class="dir">api/routes/</span>  <span class="cmt">auth · analysis · screener · watchlists · portfolio</span>
+│  │  └─ <span class="dir">controllers/</span>  <span class="cmt">auth.controller.js</span>
+│  ├─ <span class="dir">services/</span>  <span class="cmt">auth · email · edgar · market · analysis · pdf · report · portfolio</span>
+│  │  └─ <span class="dir">ai/</span>  <span class="cmt">modelProvider.js + providers/ (deepseek · opencode-go · mock)</span>
+│  ├─ <span class="dir">agents/</span>  <span class="cmt">baseAgent · agentRegistry · origin · sector · analyst + prompts/</span>
+│  ├─ <span class="dir">middleware/</span>  <span class="cmt">auth (requireAuth + resolveUser) · errorHandler</span>
 │  └─ <span class="dir">utils/</span>  <span class="cmt">validate.js</span>
-├─ <span class="dir">public/</span>  <span class="cmt">index.html · result.html · css/ · js/main.js</span>
-├─ <span class="dir">uploads/</span>  <span class="cmt"># PDFs subidos</span>
+├─ <span class="dir">public/</span>  <span class="cmt">index.html · empresa.html · styles.css · app.js · empresa.js · auth.js · watchlists.js · portfolio.js</span>
+├─ <span class="dir">scripts/</span>  <span class="cmt">test-email.js</span>
+├─ <span class="dir">uploads/generated/</span>  <span class="cmt"># PDFs IA + filings + previews</span>
+├─ <span class="dir">documentacion/</span>  <span class="cmt"># PROYECTO*.md · ARQUITECTURA* · IMPLEMENTACION.md · backend/ y frontend/ funcionalidades · diario/</span>
 ├─ <span class="dir">agentes/</span>  <span class="cmt"># ENLACE → ~/.config/opencode/agent/ (agentes de opencode)</span>
 └─ <span class="dir">PROYECTO.md</span>  <span class="cmt"># ENLACE → documentacion/PROYECTO.md (resumen inyectado)</span></div>
 
     <div class="callout green">
-      <strong>Enlaces simbólicos, no copias:</strong> <code>agentes/</code> apunta a <code>~/.config/opencode/agent/</code> (tus agentes de opencode: <code>documentacion.md</code>, <code>agentes.md</code>) y <code>PROYECTO.md</code> a <code>documentacion/PROYECTO.md</code>. Editar a través del enlace modifica el archivo real del prompt. Los agentes integrados (<code>build</code>, <code>plan</code>, <code>explore</code>, <code>general</code>) no aparecen ahí: vienen dentro de opencode. Ambos enlaces están en <code>.gitignore</code>.
+      <strong>Enlaces simbólicos, no copias:</strong> <code>agentes/</code> apunta a <code>~/.config/opencode/agent/</code> y <code>PROYECTO.md</code> a <code>documentacion/PROYECTO.md</code>. Ambos están en <code>.gitignore</code>.
     </div>
   </section>
 
   <!-- 4. BD -->
   <section>
     <h2><span class="num p">4</span>Base de datos (PostgreSQL)</h2>
-    <h3>Tablas (beta)</h3>
-    <pre><span class="c">-- Usuarios: se crea ahora aunque el registro llegue en Fase 3</span>
+    <h3>Tablas (implementadas)</h3>
+    <pre><span class="c">-- Usuarios (con verificación de correo)</span>
 CREATE <span class="k">TABLE</span> users (
-    id            SERIAL PRIMARY KEY,
-    email         TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,                  <span class="c">-- bcrypt</span>
-    plan          TEXT NOT NULL DEFAULT 'free',   <span class="c">-- 'free' | 'premium' (Fase 5)</span>
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,                     <span class="c">-- bcrypt</span>
+    plan TEXT NOT NULL DEFAULT 'free'
+      CHECK (plan IN ('free','premium')),            <span class="c">-- Fase 5</span>
+    email_verified BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+<span class="c">-- Códigos de verificación/recuperación (SHA-256, 15 min, máx. 5 intentos)</span>
+CREATE <span class="k">TABLE</span> verification_codes (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL, attempts INT NOT NULL DEFAULT 0,
+    expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-<span class="c">-- Análisis realizados (histórico por usuario)</span>
+<span class="c">-- Análisis (histórico por usuario, con filtros)</span>
 CREATE <span class="k">TABLE</span> analyses (
-    id           SERIAL PRIMARY KEY,
-    user_id      INT REFERENCES users(id) ON DELETE CASCADE, <span class="c">-- NULL = anónimo (beta)</span>
-    filename     TEXT NOT NULL,
-    status       TEXT NOT NULL DEFAULT 'processing', <span class="c">-- processing|done|error</span>
-    error        TEXT,
-    origin       TEXT,                            <span class="c">-- 'US' | error de origen</span>
-    sector       TEXT,                            <span class="c">-- 'defensive_consumer' | error</span>
-    report       JSONB,                           <span class="c">-- informe final (formato por definir)</span>
-    model_used   TEXT,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    id SERIAL PRIMARY KEY, user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'processing'
+      CHECK (status IN ('processing','done','error')),
+    error TEXT, origin TEXT, sector TEXT, report JSONB, model_used TEXT,
+    ticker TEXT, company_name TEXT, period_end DATE, pdf_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-<span class="c">-- Filings: histórico por empresa (Fase 2)</span>
+<span class="c">-- Filings (preparada; hoy se consulta al vuelo desde EDGAR)</span>
 CREATE <span class="k">TABLE</span> filings (
-    id           SERIAL PRIMARY KEY,
-    ticker       TEXT NOT NULL,
-    company_name TEXT NOT NULL,
-    form_type    TEXT NOT NULL,                   <span class="c">-- '10-Q' | '10-K'</span>
-    period       TEXT,                            <span class="c">-- ej. 'Q2 2025'</span>
-    accession_no TEXT UNIQUE,                     <span class="c">-- identificador SEC</span>
-    filing_url   TEXT,
-    filed_at     DATE,
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    id SERIAL PRIMARY KEY, ticker TEXT NOT NULL, company_name TEXT NOT NULL,
+    form_type TEXT NOT NULL CHECK (form_type IN ('10-Q','10-K')),
+    period TEXT, accession_no TEXT UNIQUE, filing_url TEXT, filed_at DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_filings_ticker ON filings (ticker);
-CREATE INDEX idx_analyses_user ON analyses (user_id);</pre>
+<span class="c">-- Listas de seguimiento (multi-lista; migrado desde favorites)</span>
+CREATE <span class="k">TABLE</span> watchlists (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL, is_default BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (user_id, name)
+);
+CREATE <span class="k">TABLE</span> watchlist_items (
+    id SERIAL PRIMARY KEY, watchlist_id INT NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+    ticker TEXT NOT NULL, company_name TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (watchlist_id, ticker)
+);
+
+<span class="c">-- Cartera (el estado se reconstruye de las transacciones)</span>
+CREATE <span class="k">TABLE</span> portfolio_transactions (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ticker TEXT NOT NULL, company_name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('buy','sell')),
+    shares NUMERIC(18,6) NOT NULL CHECK (shares > 0),
+    price NUMERIC(18,6) NOT NULL CHECK (price >= 0),
+    trade_date DATE NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);</pre>
 
     <div class="callout green">
-      <strong>Preparada para el futuro:</strong> <code>users.plan</code> → suscripciones (Fase 5); <code>analyses.user_id</code> nullable → la beta funciona sin login y el historial se asocia luego; <code>report JSONB</code> → flexible al formato final; <code>filings</code> se rellena en Fase 2 con la API de SEC/EDGAR.
+      <strong>Estado:</strong> <code>users.plan</code> preparado para suscripciones (Fase 5); <code>analyses</code> ampliada con ticker/empresa/period_end/pdf_url para el histórico; migraciones idempotentes en <code>schema.sql</code>; la migración de favoritos copia los datos a "Favoritos" y elimina la tabla <code>favorites</code>.
     </div>
   </section>
 
@@ -380,119 +396,125 @@ CREATE INDEX idx_analyses_user ON analyses (user_id);</pre>
   <section>
     <h2><span class="num c">5</span>Sistema de agentes</h2>
     <pre><span class="k">class</span> BaseAgent {
-  <span class="k">constructor</span>(id, name) { <span class="k">this</span>.id = id; <span class="k">this</span>.name = name; }
-  <span class="k">async</span> run({ pdfText, metadata }) {
-    <span class="k">throw new</span> Error(<span class="s">'Debe implementarse'</span>);
-  }
+  <span class="k">constructor</span>({ name, description }) { ... }
+  <span class="k">async</span> run(input) { <span class="k">throw new</span> Error(...); }
 }
-
-<span class="c">// agentRegistry.js — el orden del array = orden del pipeline</span>
-<span class="k">const</span> pipeline = [
-  <span class="k">new</span> OriginAgent(),   <span class="c">// 1. ¿Es de EE. UU.?</span>
-  <span class="k">new</span> SectorAgent(),   <span class="c">// 2. ¿Es consumo defensivo?</span>
-  <span class="k">new</span> AnalystAgent(),  <span class="c">// 3. Análisis principal</span>
-];</pre>
+<span class="c">// agentRegistry.js — registerAgent / getAgent / listAgents</span></pre>
 
     <div class="flow">
       <div class="fnode">
         <span class="fnum">1</span>
-        <strong>OriginAgent</strong>
-        <small>¿Los resultados son de una empresa de EE. UU.?</small>
+        <strong>originAgent</strong>
+        <small>¿Financiero + 10-Q/10-K + empresa de EE. UU.?</small>
       </div>
       <div class="flabel">Sí</div>
-      <div class="flabel no">No → error guardado, status=error</div>
+      <div class="flabel no">No → 422 NOT_FINANCIAL / NOT_USA / NOT_10Q_10K</div>
       <div class="farrow"></div>
       <div class="fnode">
         <span class="fnum">2</span>
-        <strong>SectorAgent</strong>
-        <small>¿Es consumo defensivo?</small>
+        <strong>sectorAgent</strong>
+        <small>¿Es consumo defensivo? (rechazo seguro sin evidencia)</small>
       </div>
       <div class="flabel">Sí</div>
-      <div class="flabel no">No → error guardado, status=error</div>
+      <div class="flabel no">No → 422 NOT_DEFENSIVE_CONSUMER</div>
       <div class="farrow"></div>
-      <div class="fnode fin">
+      <div class="fnode">
         <span class="fnum">3</span>
-        <strong>AnalystAgent</strong>
-        <small>Genera el informe (usa la capa de modelos)</small>
+        <strong>analystAgent</strong>
+        <small>Fase 1: extracción de cifras (JSON) · Fase 2: informe con las reglas del sector</small>
       </div>
       <div class="farrow"></div>
       <div class="fnode fin">
-        <strong>report guardado + status=done</strong>
+        <strong>Informe (2 horizontes) + PDF + guardado en analyses</strong>
       </div>
     </div>
 
     <div class="callout blue">
-      <strong>Extensión futura:</strong> Canadá → se registra <code>OriginAgentCA</code>; tecnología → <code>SectorAgentTech</code> + <code>AnalystAgentTech</code>. El runner no cambia.
+      <strong>Estado:</strong> los 3 agentes implementados y probados. Reglas por sector en <code>src/agents/prompts/consumo-defensivo.md</code>. Extensión futura: Canadá → <code>OriginAgentCA</code>; tecnología → <code>SectorAgentTech</code> + <code>AnalystAgentTech</code>. El runner no cambia.
     </div>
   </section>
 
   <!-- 6. MODELOS -->
   <section>
     <h2><span class="num">6</span>Capa de abstracción de modelos IA</h2>
-    <pre><span class="c">// Todos los proveedores implementan esta misma firma.
-// Los agentes llaman SOLO a esta capa, nunca a la API de un proveedor.</span>
-<span class="k">class</span> ModelProvider {
-  <span class="k">async</span> generate({ system, messages, maxTokens }) { <span class="c">// → string</span>
-    <span class="k">throw new</span> Error(<span class="s">'Debe implementarse'</span>);
-  }
+    <pre><span class="c">// modelProvider.js — los agentes llaman SOLO a esta capa</span>
+<span class="k">export function</span> chat(messages) { <span class="k">return</span> getProvider().chat(messages); }
+<span class="k">export async function</span> chatJson(messages, attempts = 2) {
+  <span class="c">// reintenta ante respuesta vacía, JSON inválido o error transitorio</span>
 }</pre>
-    <p class="muted">Implementaciones: <code>deepseekProvider.js</code> (candidato A) y <code>openaiProvider.js</code> (candidato B).</p>
+    <table>
+      <tr><th>Proveedor</th><th>Cuándo</th><th>Notas</th></tr>
+      <tr><td><strong>deepseek</strong></td><td>Activo (<code>AI_PROVIDER=deepseek</code>)</td><td>22–23 s por análisis, 4/4 JSON válidos; <code>AI_MAX_TOKENS=16000</code>, timeout 180 s</td></tr>
+      <tr><td><strong>opencode-go</strong> (alias <code>opencode</code>)</td><td>Alternativo</td><td>Probado pero intermitente (145–247 s, JSON inválido en el chat del analista)</td></tr>
+      <tr><td><strong>mock</strong></td><td>Solo <code>AI_PROVIDER=mock</code></td><td>Heurística local sin coste, para desarrollo</td></tr>
+    </table>
     <ul>
-      <li><strong>Beta:</strong> el proveedor se elige por variables de entorno: <code>AI_PROVIDER=deepseek|openai</code>, <code>AI_API_KEY</code>, <code>AI_MODEL</code>.</li>
+      <li><strong>Beta:</strong> el proveedor se elige por <code>AI_PROVIDER</code> en <code>.env</code>.</li>
       <li><strong>Fase 5:</strong> el proveedor se elegirá <strong>según el plan del usuario</strong> (free → modelo base, premium → modelo mejor). Mismo código, solo cambia quién elige.</li>
     </ul>
     <div class="callout red">
-      <strong>Garantía clave:</strong> los agentes nunca importan <code>deepseek</code> ni <code>openai</code> directamente. Cambiar de modelo = editar <code>.env</code>, no código de agentes.
+      <strong>Garantía clave:</strong> los agentes nunca importan un proveedor concreto. Cambiar de modelo = editar <code>.env</code>, no código de agentes.
     </div>
   </section>
 
   <!-- 7. FLUJO -->
   <section>
-    <h2><span class="num g">7</span>Flujo completo de un análisis (Fase 1)</h2>
+    <h2><span class="num g">7</span>Flujo completo de un análisis (implementado)</h2>
     <ol>
-      <li>Usuario sube PDF (multipart) a <code>POST /api/upload</code></li>
-      <li>Express guarda el archivo en <code>uploads/</code> con nombre único</li>
-      <li><code>pdf.service</code> extrae el texto del PDF</li>
-      <li><code>analysis.service</code> crea registro en <code>analyses</code> (status=processing)</li>
-      <li>Pipeline: OriginAgent → SectorAgent → AnalystAgent (se detiene en el primer error)</li>
-      <li>Se guarda <code>report</code> + status=done</li>
-      <li>Respuesta JSON → <code>result.html</code> muestra el informe</li>
+      <li>PDF subido (<code>POST /api/upload</code>) o filing de la SEC (<code>POST .../filings/:accession/analyze</code>) → texto (pdf-parse / htmlToText).</li>
+      <li><code>analysis.service</code>: originAgent → sectorAgent → analystAgent (2 fases).</li>
+      <li><code>report.service</code> genera el PDF (pdfkit) → <code>pdfUrl</code>.</li>
+      <li>Si hay sesión, se guarda en <code>analyses</code> (status done, report, pdf_url...).</li>
+      <li>Respuesta JSON <code>{ ok, origin, formType, sector, report, pdfUrl, saved }</code>; errores 422 con <code>code</code>.</li>
     </ol>
-    <h3>Endpoints API (beta)</h3>
+    <h3>Endpoints API (todos implementados)</h3>
     <table>
       <tr><th>Método</th><th>Ruta</th><th>Función</th></tr>
-      <tr><td><code>POST</code></td><td><code>/api/upload</code></td><td>Sube PDF y lanza el análisis (multipart)</td></tr>
-      <tr><td><code>GET</code></td><td><code>/api/analyses</code></td><td>Lista de análisis realizados (histórico)</td></tr>
-      <tr><td><code>GET</code></td><td><code>/api/analyses/:id</code></td><td>Detalle de un análisis (incluye report JSONB)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/upload</code></td><td>Sube PDF y ejecuta el pipeline completo</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/analyses</code></td><td>Histórico por usuario con filtros (requireAuth)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/reports/:file</code></td><td>PDF del informe generado</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/screener/search?q=</code></td><td>Búsqueda en EDGAR</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/screener/company/:ticker</code></td><td>Series + statements + perfil (+ authenticated)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/screener/company/:ticker/chart</code></td><td>Precios (3m…all) + MA100</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/screener/company/:ticker/filings</code></td><td>Histórico 10-Q/10-K</td></tr>
+      <tr><td><code>GET</code></td><td><code>.../filings/:accession/document</code></td><td>Documento (PDF/HTML; download=1)</td></tr>
+      <tr><td><code>GET</code></td><td><code>.../filings/:accession/preview</code> y <code>/pages/:page</code></td><td>Vista previa por páginas (PNG)</td></tr>
+      <tr><td><code>POST</code></td><td><code>.../filings/:accession/analyze</code></td><td>Analiza el filing (mismo pipeline)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/auth/register</code> · <code>/verify</code> · <code>/resend-code</code></td><td>Registro + verificación de correo</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/auth/login</code> · <code>/logout</code> · <code>GET /me</code></td><td>Sesión (403 EMAIL_NOT_VERIFIED sin verificar)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/auth/forgot-password</code> · <code>/reset-password</code></td><td>Recuperación de contraseña</td></tr>
+      <tr><td><code>GET/POST/PATCH/DELETE</code></td><td><code>/api/watchlists...</code></td><td>Listas de seguimiento (requireAuth)</td></tr>
+      <tr><td><code>GET/POST/DELETE</code></td><td><code>/api/portfolio...</code></td><td>Cartera (requireAuth)</td></tr>
     </table>
-    <p class="muted">Fase 2 añadirá: <code>/api/companies?q=TAP</code>, <code>/api/companies/:ticker/filings</code>, <code>/api/filings/:id/analyze</code></p>
+    <p class="muted">Autenticación: JWT en cookie httpOnly (7 días, SameSite=Lax); <code>requireAuth</code> (obligatoria) y <code>resolveUser</code> (opcional, screener/análisis).</p>
   </section>
 
   <!-- 8. PLAN -->
   <section>
-    <h2><span class="num a">8</span>Plan de implementación</h2>
-    <ol>
-      <li><strong>Scaffolding</strong>: <code>npm init</code>, Express, <code>config/</code>, <code>server.js</code> con <code>/api/health</code>.</li>
-      <li><strong>PostgreSQL</strong>: <code>db/pool.js</code>, <code>db/schema.sql</code>, crear <code>users</code> y <code>analyses</code>.</li>
-      <li><strong>Capa de modelos</strong>: <code>modelProvider.js</code> + <code>deepseekProvider.js</code> (mock primero).</li>
-      <li><strong>Agentes</strong>: <code>baseAgent.js</code>, <code>agentRegistry.js</code>, los 3 agentes de la beta.</li>
-      <li><strong>PDF</strong>: <code>pdf.service.js</code> (pdf-parse) + <code>POST /api/upload</code>.</li>
-      <li><strong>Pipeline</strong>: <code>analysis.service.js</code> conectando todo + guardado en BD.</li>
-      <li><strong>Frontend puro</strong>: <code>index.html</code> (subir PDF) + <code>result.html</code> (mostrar informe) + <code>js/main.js</code>.</li>
-      <li><strong>Histórico</strong>: <code>GET /api/analyses</code> + vista de historial.</li>
-      <li><strong>Formato del informe</strong>: con tus informes de referencia (afecta al prompt del AnalystAgent y al JSONB).</li>
-    </ol>
+    <h2><span class="num a">8</span>Plan de implementación (estado)</h2>
+    <table>
+      <tr><th>Paso</th><th>Contenido</th><th>Estado</th></tr>
+      <tr><td>1–2</td><td>Scaffolding Express + PostgreSQL + repositorios</td><td><span class="pill ok">Hecho</span></td></tr>
+      <tr><td>3</td><td>Capa de modelos IA (deepseek/opencode-go/mock)</td><td><span class="pill ok">Hecho (DeepSeek activo)</span></td></tr>
+      <tr><td>4–6</td><td>Agentes + PDF + pipeline completo + guardado</td><td><span class="pill ok">Hecho</span></td></tr>
+      <tr><td>7</td><td>Frontend puro (Inicio + Empresa)</td><td><span class="pill ok">Hecho</span></td></tr>
+      <tr><td>8–9</td><td>Histórico + formato del informe</td><td><span class="pill ok">Histórico hecho; informe base en producción</span></td></tr>
+      <tr><td>10</td><td>Autenticación completa (verificación + recuperación)</td><td><span class="pill ok">Hecho</span></td></tr>
+      <tr><td>11–12</td><td>Fase 2 completa (filings, preview, analizar) + extras (watchlists, cartera, PRO)</td><td><span class="pill ok">Hecho</span></td></tr>
+      <tr><td>13</td><td>Fases 4 (multi-periodo), 5 (planes) y 6 (países/sectores)</td><td><span class="pill wait">Pendiente</span></td></tr>
+    </table>
   </section>
 
   <!-- 9. PENDIENTES -->
   <section>
-    <h2><span class="num p">9</span>Decisiones de arquitectura pendientes</h2>
+    <h2><span class="num p">9</span>Decisiones de arquitectura</h2>
     <table>
-      <tr><th>Decisión</th><th>Impacto</th><th>Estado</th></tr>
-      <tr><td>Formato exacto del <code>report JSONB</code></td><td>Define el prompt del AnalystAgent y la vista de resultados</td><td><span class="pill wait">Con tus informes de referencia</span></td></tr>
-      <tr><td>Librería de PDF concreta</td><td><code>pdf-parse</code> (sencilla) vs <code>pdfjs-dist</code> (completa)</td><td><span class="pill wait">Paso 5</span></td></tr>
-      <tr><td>Modelo concreto (DeepSeek vs GPT)</td><td>No bloquea: la capa de abstracción permite empezar con cualquiera</td><td><span class="pill wait">Por comparar</span></td></tr>
-      <tr><td>Límites del plan free</td><td>Solo Fase 5, pero el campo <code>plan</code> ya existe</td><td><span class="pill ok">No bloquea</span></td></tr>
+      <tr><th>Decisión</th><th>Detalle</th><th>Estado</th></tr>
+      <tr><td>Stack</td><td>Node.js + Express 5 + PostgreSQL 16 + frontend puro</td><td><span class="pill ok">Decidido</span></td></tr>
+      <tr><td>Modelo IA</td><td>DeepSeek directo (22–23 s, fiable) vs OpenCode Go (intermitente)</td><td><span class="pill wait">En uso DeepSeek; confirmar a medio plazo</span></td></tr>
+      <tr><td>Formato del <code>report</code></td><td>2 horizontes + Ventas/Cash Flow/Asignación de Capital (prompt consumo-defensivo.md)</td><td><span class="pill wait">Base en producción; refinar con referencias</span></td></tr>
+      <tr><td>Límites del plan free</td><td>Campo <code>plan</code> ya existe; bloqueo PRO del cribador como primer límite</td><td><span class="pill ok">No bloquea</span></td></tr>
+      <tr><td>Despliegue</td><td>VPS vs PaaS</td><td><span class="pill wait">Cuando toque publicar</span></td></tr>
     </table>
   </section>
 
@@ -501,20 +523,28 @@ CREATE INDEX idx_analyses_user ON analyses (user_id);</pre>
     <h2><span class="num c">10</span>Mitigación de riesgos</h2>
     <div class="grid">
       <div class="card">
-        <h4>PDF con tablas/escaneado pierde texto</h4>
-        <p>Extraer texto es el paso 1. Si el texto sale vacío o demasiado corto → error claro: "No se pudo extraer texto".</p>
+        <h4>PDF escaneado pierde texto</h4>
+        <p>Si el texto sale vacío o demasiado corto → error claro <code>EMPTY_DOCUMENT</code>.</p>
       </div>
       <div class="card">
-        <h4>Coste de API de IA</h4>
-        <p>Empezar con modelo barato (DeepSeek) para desarrollo; limitar el texto enviado a los agentes (primeras N páginas si el informe es enorme).</p>
+        <h4>Coste y fallos de la API de IA</h4>
+        <p>DeepSeek barato; texto limitado a 80.000 caracteres; <code>chatJson</code> reintenta; timeout 180 s; avisos progresivos en la UI.</p>
+      </div>
+      <div class="card">
+        <h4>SEC limita o bloquea</h4>
+        <p>User-Agent declarado, cachés (24 h/6 h), reintentos 429, concurrencia 5, timeout cancelado al recibir cabeceras.</p>
+      </div>
+      <div class="card">
+        <h4>Filings sin PDF / visor PDF en iframe</h4>
+        <p>PDF generado con Chrome (cacheado) + fallback HTML; vista previa por imágenes (pdftoppm).</p>
       </div>
       <div class="card">
         <h4>Migrar frontend a React</h4>
-        <p>Garantizado por la API REST pura: el frontend nunca contiene lógica de negocio.</p>
+        <p>API REST pura: el frontend nunca contiene lógica de negocio.</p>
       </div>
       <div class="card">
-        <h4>La IA inventa cifras (alucinación)</h4>
-        <p>Prompt del AnalystAgent: análisis estrictamente sobre el texto del PDF; prohibido inventar cifras no presentes.</p>
+        <h4>La IA inventa cifras</h4>
+        <p>Prompt del analista: usar exclusivamente los datos extraídos; prohibido inventar cifras.</p>
       </div>
     </div>
   </section>
@@ -522,30 +552,16 @@ CREATE INDEX idx_analyses_user ON analyses (user_id);</pre>
   <!-- 11. ENTORNO OPENCODE -->
   <section>
     <h2><span class="num a">11</span>Entorno de desarrollo: opencode</h2>
-    <p class="muted">Cómo se monta el contexto que reciben los agentes de opencode (no confundir con los agentes de la app de la sección 5).</p>
-    <h3>Configuración actual</h3>
     <table>
       <tr><th>Archivo</th><th>Contenido</th></tr>
-      <tr><td><code>opencode.json</code> (raíz)</td><td><code>"instructions": ["documentacion/PROYECTO.md"]</code> → inyecta el resumen en el prompt de todos los agentes</td></tr>
+      <tr><td><code>opencode.json</code> (raíz)</td><td><code>"instructions": ["documentacion/PROYECTO.md"]</code> → resumen inyectado en el prompt de todos los agentes</td></tr>
       <tr><td><code>agentes/</code> (enlace)</td><td><code>documentacion.md</code> y <code>agentes.md</code> (prompts de los agentes de opencode)</td></tr>
     </table>
-    <h3>Qué recibe la IA en cada mensaje</h3>
-    <ol>
-      <li>Prompt de sistema de opencode + esquemas de las herramientas permitidas.</li>
-      <li>Prompt del agente activo (archivo en <code>~/.config/opencode/agent/</code>).</li>
-      <li><code>documentacion/PROYECTO.md</code> (resumen; el detalle está en <code>PROYECTO-detalle.md</code>).</li>
-      <li>Historial de la sesión + mensaje actual + resultados de herramientas.</li>
-    </ol>
-    <h3>Optimización de tokens (aplicada)</h3>
     <ul>
-      <li><strong><code>PROYECTO.md</code> resumido</strong> (~2.8 KB): el detalle se movió a <code>PROYECTO-detalle.md</code>, que se lee solo cuando hace falta.</li>
-      <li><strong>Prompts de agentes condensados</strong> (<code>documentacion</code>, <code>agentes</code>).</li>
-      <li><strong>Herramientas no usadas en <code>deny</code></strong> (<code>webfetch</code>, <code>task</code>, <code>skill</code>, <code>todowrite</code>, <code>websearch</code>, <code>apply_patch</code>): opencode deja de enviar sus esquemas al modelo.</li>
-      <li><strong>Resultado medido</strong> (DeepSeek, mensaje "hola"): ~7.900 → <strong>~4.925 tokens</strong> de contexto por mensaje (-38 %).</li>
+      <li><code>PROYECTO.md</code> resumido (~2.8 KB); el detalle en <code>PROYECTO-detalle.md</code>.</li>
+      <li>Herramientas no usadas en <code>deny</code> (webfetch, task, skill, todowrite, websearch, apply_patch) → menos tokens de contexto (-38 % medido).</li>
+      <li>Los cambios en <code>opencode.json</code>, prompts o <code>PROYECTO.md</code> solo se aplican al reiniciar opencode.</li>
     </ul>
-    <div class="callout red">
-      <strong>Regla importante:</strong> los cambios en <code>opencode.json</code>, prompts de agentes o <code>PROYECTO.md</code> solo se aplican <strong>al reiniciar opencode</strong> (la configuración se carga al arrancar).
-    </div>
   </section>
 
   <div class="footer">Documento vivo · Se actualiza conforme avanza la implementación</div>

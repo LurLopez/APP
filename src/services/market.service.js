@@ -81,6 +81,53 @@ function sumRecentDividends(chart) {
   }, 0) || null;
 }
 
+const DIVIDEND_TTL = 24 * 60 * 60 * 1000;
+const DIVIDEND_CHUNK_MS = 5 * 365 * 24 * 60 * 60 * 1000;
+
+export async function getDividendHistory(ticker, { from } = {}) {
+  const normalizedTicker = String(ticker).trim().toUpperCase();
+  const fromIso = from ? String(from).slice(0, 10) : null;
+  const cacheKey = `divs:${normalizedTicker}:${fromIso ?? 'default'}`;
+  const cached = marketCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < DIVIDEND_TTL) return cached.data;
+
+  const fromMs = fromIso ? Date.parse(`${fromIso}T00:00:00Z`) : Date.now() - (10 * 365 * 24 * 60 * 60 * 1000);
+  const nowMs = Date.now();
+  const events = [];
+  let chunkStart = Number.isFinite(fromMs) ? fromMs : nowMs - (10 * 365 * 24 * 60 * 60 * 1000);
+
+  while (chunkStart < nowMs) {
+    const chunkEnd = Math.min(chunkStart + DIVIDEND_CHUNK_MS, nowMs);
+    const url = `${YAHOO_CHART_URL}/${encodeURIComponent(normalizedTicker)}`
+      + `?period1=${Math.floor(chunkStart / 1000)}&period2=${Math.ceil(chunkEnd / 1000)}&interval=1mo&events=div%2Csplits`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Cifra contacto@cifra.local',
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(MARKET_TIMEOUT),
+    });
+    if (!response.ok) throw new Error(`Yahoo Finance respondió ${response.status}`);
+    const data = await response.json();
+    const result = data?.chart?.result?.[0];
+    const chunkEvents = Object.values(result?.events?.dividends ?? {});
+    events.push(...chunkEvents
+      .filter((event) => Number.isFinite(Number(event?.date)) && Number.isFinite(Number(event?.amount)))
+      .map((event) => ({
+        date: new Date(Number(event.date) * 1000).toISOString().slice(0, 10),
+        amount: Number(event.amount),
+      })));
+    chunkStart = chunkEnd + 1000;
+  }
+
+  const unique = new Map();
+  events.forEach((event) => unique.set(`${event.date}|${event.amount}`, event));
+  const dividends = [...unique.values()].sort((a, b) => a.date.localeCompare(b.date));
+
+  marketCache.set(cacheKey, { data: dividends, at: Date.now() });
+  return dividends;
+}
+
 function findYearAgoClose(series) {
   if (!series.length) return null;
   const target = series.at(-1).timestamp - (365 * 24 * 60 * 60);
@@ -93,6 +140,7 @@ function toIsoDate(timestamp) {
 }
 
 const CHART_RANGES = {
+  '1m': { range: '1mo', interval: '1d' },
   '3m': { range: '3mo', interval: '1d' },
   '6m': { range: '6mo', interval: '1d' },
   '1y': { range: '1y', interval: '1d' },
@@ -101,6 +149,37 @@ const CHART_RANGES = {
   '10y': { range: '10y', interval: '1mo' },
   all: { range: 'max', interval: '1mo' },
 };
+
+const HISTORICAL_RANGES = new Set(['1m', '3m', '6m', '1y', '2y', '3y', '5y', 'all']);
+
+export async function getHistoricalPrices(ticker, { from, to } = {}) {
+  const normalizedTicker = String(ticker).trim().toUpperCase();
+  const fromIso = String(from ?? '').slice(0, 10);
+  const toIso = String(to ?? new Date().toISOString()).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromIso) || !/^\d{4}-\d{2}-\d{2}$/.test(toIso) || fromIso > toIso) {
+    throw new Error('Rango histórico no válido');
+  }
+  const cacheKey = `historical:${normalizedTicker}:${fromIso}:${toIso}`;
+  const cached = marketCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < MARKET_TTL) return cached.data;
+
+  const period1 = Math.floor(Date.parse(`${fromIso}T00:00:00Z`) / 1000);
+  const period2 = Math.ceil(Date.parse(`${toIso}T23:59:59Z`) / 1000) + 1;
+  const url = `${YAHOO_CHART_URL}/${encodeURIComponent(normalizedTicker)}?period1=${period1}&period2=${period2}&interval=1d&events=div%2Csplits`;
+  const response = await fetch(url, {
+    headers: { 'User-Agent': 'Cifra contacto@cifra.local', Accept: 'application/json' },
+    signal: AbortSignal.timeout(MARKET_TIMEOUT),
+  });
+  if (!response.ok) throw new Error(`Yahoo Finance respondió ${response.status}`);
+  const result = (await response.json())?.chart?.result?.[0];
+  if (!result) throw new Error('Yahoo Finance no devolvió datos históricos');
+  const prices = extractSeries(result).map((item) => ({
+    date: new Date(item.timestamp * 1000).toISOString().slice(0, 10),
+    close: item.close,
+  }));
+  marketCache.set(cacheKey, { data: prices, at: Date.now() });
+  return prices;
+}
 
 function computeMovingAverage(series, window) {
   if (series.length < window) return [];
@@ -217,6 +296,7 @@ export async function getMarketQuote(ticker) {
   const quote = {
     currency: meta.currency ?? 'USD',
     exchange: meta.fullExchangeName ?? meta.exchangeName ?? null,
+    instrumentType: meta.instrumentType ?? null,
     price,
     open: numberOrNull(meta.regularMarketOpen) ?? latestQuoteValue('open'),
     dayHigh: numberOrNull(meta.regularMarketDayHigh) ?? latestQuoteValue('high'),

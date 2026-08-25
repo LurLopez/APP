@@ -15,34 +15,37 @@ Web que analiza con IA informes financieros de EE. UU. (10-Q trimestral, 10-K an
 
 1. **Verificador de origen** — ¿empresa de EE. UU.? No → error.
 2. **Verificador de sector** — ¿consumo defensivo? No → error.
-3. **Analista principal** — análisis financiero e informe final.
+3. **Analista principal** — análisis financiero e informe final (2 fases: extracción + estructuración) + PDF generado.
 
-**Regla fundamental:** las dos formas de llegar al análisis (subida manual de PDF o buscador por ticker) deben ejecutar exactamente el mismo proceso y dar el mismo resultado.
+**Regla fundamental:** las dos formas de llegar al análisis (subida manual de PDF o buscador por ticker/filing de la SEC) deben ejecutar exactamente el mismo proceso y dar el mismo resultado. ✅ Verificada.
 
-## Arquitectura exigida (esqueleto preparado desde el día uno, sin implementar aún)
-
-- **Usuarios**: modelo de datos y flujos deben contemplar registro/login y planes (gratuito/de pago con mejores modelos y sin límites), aunque no se implementen en la beta.
-- **Capa de abstracción de modelos IA**: los agentes hablan con la capa, nunca con la API de un proveedor concreto; permite cambiar de proveedor sin tocar los agentes.
-- **Sistema de agentes extensible**: cada agente es independiente y registrable; nuevos países/sectores se añaden sin modificar los existentes.
-- **Histórico de análisis**: guardar, listar y consultar por usuario.
-- **Roadmap**: F1 subida manual → F2 buscador (ticker + histórico + ver PDF + analizar) → F3 registro/login → F4 análisis completo de empresa (multi-periodo) → F5 suscripciones y planes → F6 más países y sectores.
-
-## Estado del roadmap
+## Estado del roadmap (2026-08-15)
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| 1 | Subida manual de PDF → análisis (beta) | 🔶 Frontend demo; backend pendiente (modelos IA, agentes, pipeline) |
-| 2 | Buscador de empresas (ticker) + histórico de filings | 🔶 Buscador y cribador con datos reales de la SEC implementados; histórico de filings y botón "Analizar" pendientes |
-| 3 | Registro / inicio de sesión | 🔶 Implementado (backend + frontend); planes y asociación de análisis por usuario pendientes |
+| 1 | Subida manual de PDF → análisis (beta) | ✅ Pipeline completo funcionando (3 agentes + informe + PDF + guardado); modelo activo DeepSeek directo |
+| 2 | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | ✅ Buscador, cribador (sin huecos), perfil, gráfico, filings con vista previa/descarga y botón "Analizar" implementados |
+| 3 | Registro / inicio de sesión | ✅ Implementado con verificación por correo y recuperación de contraseña; planes pendientes (Fase 5) |
 | 4 | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
-| 5 | Suscripciones y planes | ⏳ Pendiente |
+| 5 | Suscripciones y planes (modelos según plan, límites) | ⏳ Pendiente (campo `plan` ya existe) |
 | 6 | Nuevos países y sectores | ⏳ Pendiente |
 
-## Decisiones pendientes
+**Extras ya implementados:** histórico de análisis por usuario con filtros · listas de seguimiento multi-lista (sustituyen a los favoritos) · cartera de inversión con FIFO, dividendos estimados y gráficos de distribución.
 
-- **Stack tecnológico** (por decidir; debe aprovechar el perfil: SQL y Java fuertes, Node/Express/MongoDB y JS/HTML/CSS conocidos, Python básico; único desarrollador, estudiante de 4.º de informática).
-- **Modelo de IA** (DeepSeek vs GPT, por comparar).
-- **Formato del informe final** (se definirá con los informes de referencia del usuario).
+## Arquitectura (en marcha)
+
+- **Stack decidido**: Node.js + Express 5 + PostgreSQL 16 + frontend puro (HTML/CSS/JS; migrable a React). Sesión JWT en cookie httpOnly; bcryptjs.
+- **Capa de abstracción de modelos IA**: los agentes solo hablan con `modelProvider.chat/chatJson`; proveedores `deepseek` (activo), `opencode-go` y `mock`; `AI_PROVIDER` en `.env` permite cambiar sin tocar agentes.
+- **Sistema de agentes extensible**: cada agente es independiente y registrable (`agentRegistry`); reglas por sector en `src/agents/prompts/`.
+- **Histórico de análisis**: guardado por usuario en `analyses` con filtros (`GET /api/analyses`).
+- **Roadmap**: F1 ✅ → F2 ✅ → F3 ✅ → F4 (multi-periodo) → F5 (planes) → F6 (más países/sectores).
+
+## Decisiones tomadas y pendientes
+
+- ✅ **Stack**: Node.js + Express + PostgreSQL + frontend puro (ver `ARQUITECTURA.md`).
+- ✅ **Modelo IA en uso**: **DeepSeek directo** (`AI_PROVIDER=deepseek`, 22–23 s por análisis y fiable; OpenCode Go probado pero intermitente). Decisión a medio plazo por confirmar.
+- ✅ **Formato del informe**: 2 horizontes + bloques Ventas / Cash Flow / Asignación de Capital según `src/agents/prompts/consumo-defensivo.md` (derivado del informe de referencia del usuario); pendiente refinar con más referencias.
+- 🔴 **Despliegue**: decidir cuando toque publicar (VPS vs PaaS).
 
 ## Interacción con el usuario (importante)
 

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Histórico de análisis por usuario — Backend | Cifra</title>
+<style>
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
+  header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
+  .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
+  h1 { margin:0 0 8px; font-size:28px; }
+  .sub { color:var(--muted); margin:0; font-size:14px; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
+  h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
+  p { margin:8px 0; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
+  code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
+  table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
+  th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / backend / funcionalidades / historico-analisis</div>
+    <h1>Histórico de análisis por usuario — Backend</h1>
+    <p class="sub">Cada análisis completado se guarda asociado al usuario y se puede listar y filtrar por empresa y por fecha (de los resultados o del análisis).</p>
+    <span class="badge">✓ Implementado y probado · 2026-08-14</span>
+  </header>
+
+  <h2>Qué hace</h2>
+  <p>Al terminar un análisis con éxito (subida manual o botón "Analizar con IA" de un filing), el backend lo <strong>guarda en <code>analyses</code> con el usuario</strong> que lo hizo (ticker, empresa, fecha de fin de periodo, informe, modelo y URL del PDF). El endpoint <code>GET /api/analyses</code> lista esos análisis con <strong>filtros por empresa y por rango de fechas</strong>. Sin sesión no se guarda nada.</p>
+
+  <h2>Guardado automático</h2>
+  <ul>
+    <li>Tras el pipeline completo (origen → sector → analista → PDF), con <code>userId</code>: <code>status: done</code>, <code>ticker</code>/<code>company</code> del informe, <code>period_end</code> desde <code>reportingPeriod</code> (AAAA-MM-DD), <code>pdf_url</code>.</li>
+    <li>Se actualiza después con <code>origin</code>, <code>sector</code>, <code>report</code> y <code>model_used</code>.</li>
+    <li>Un fallo de BD al guardar <strong>no rompe la respuesta</strong> del análisis (solo se loguea).</li>
+    <li>Los endpoints devuelven <code>saved: true/false</code> según hubiera usuario.</li>
+  </ul>
+
+  <h2>Base de datos</h2>
+  <pre><code>ALTER TABLE analyses ADD COLUMN IF NOT EXISTS ticker TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS company_name TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS period_end DATE;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS pdf_url TEXT;
+
+CREATE INDEX idx_analyses_user_period ON analyses (user_id, period_end);
+CREATE INDEX idx_analyses_user_created ON analyses (user_id, created_at);</code></pre>
+
+  <h2>GET /api/analyses (requiere sesión)</h2>
+  <table>
+    <tr><th>Parámetro</th><th>Filtra por</th></tr>
+    <tr><td><code>ticker</code></td><td>Empresa (ticker o nombre, ILIKE parcial)</td></tr>
+    <tr><td><code>periodFrom</code> / <code>periodTo</code></td><td>Fecha de los resultados (<code>period_end</code>)</td></tr>
+    <tr><td><code>createdFrom</code> / <code>createdTo</code></td><td>Fecha del análisis (<code>created_at</code> en UTC)</td></tr>
+  </table>
+  <p>Respuesta: <code>{ ok, analyses: [{ id, filename, ticker, companyName, periodEnd, periodTitle, status, createdAt, pdfUrl }] }</code>. Sin coincidencias → 200 con lista vacía; sin sesión → 401.</p>
+
+  <h2>Decisiones</h2>
+  <ul>
+    <li><strong>Sin sesión no se guarda</strong>: el anónimo ve el resultado pero no genera ruido en BD.</li>
+    <li><strong>Se abre el PDF en otra pestaña</strong> (decisión del usuario): la vista de detalle en la web queda para más adelante.</li>
+    <li><strong>Filtro de fecha de resultados con <code>period_end</code></strong>: usa la fecha de fin de periodo del informe, no la de presentación.</li>
+    <li><strong>Fechas en UTC</strong>: el cast evita desfases por zona horaria de la BD.</li>
+  </ul>
+
+  <h2>Pruebas</h2>
+  <ul>
+    <li>Flujo completo con usuario temporal: registro → verificación → login → análisis guardado → listado con filtros por ticker y rangos de fechas.</li>
+    <li>401 sin sesión, lista vacía sin coincidencias, <code>node --check</code> OK.</li>
+  </ul>
+
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Vista de detalle del análisis dentro de la web.</li>
+  </ul>
+</div>
+</body>
+</html>

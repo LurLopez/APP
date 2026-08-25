@@ -3,80 +3,108 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Registro e inicio de sesión — Frontend | Cifra</title>
+<title>Registro, login y verificación de correo — Frontend | Cifra</title>
 <style>
-  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; }
+  :root { --bg:#f5f6f8; --panel:#fff; --line:#dde1e6; --ink:#1c2733; --muted:#5b6b7b; --accent:#ff9900; --accent-dark:#c96e00; --code:#f0f3f6; --green:#1e7a3a; --red:#b3261e; --cream:#fff7e8; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; line-height:1.55; }
-  .wrap { max-width:900px; margin:0 auto; padding:38px 20px 60px; }
+  .wrap { max-width:920px; margin:0 auto; padding:38px 20px 60px; }
   header { margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid var(--accent); }
   .crumb { color:var(--muted); font-size:12px; margin-bottom:6px; }
   h1 { margin:0 0 8px; font-size:28px; }
   .sub { color:var(--muted); margin:0; font-size:14px; }
-  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:#1e7a3a; font-size:12px; font-weight:700; }
+  .badge { display:inline-block; margin-top:10px; padding:4px 10px; border-radius:20px; background:#e9f7ee; color:var(--green); font-size:12px; font-weight:700; }
+  .badge.wip { background:#fff3e0; color:#b45309; }
   h2 { margin:34px 0 10px; font-size:20px; }
+  h3 { margin:22px 0 8px; font-size:16px; }
   p { margin:8px 0; }
+  ul, ol { margin:8px 0; padding-left:22px; }
+  li { margin:3px 0; }
   code { padding:2px 6px; border-radius:4px; background:var(--code); font-size:13px; }
+  pre { overflow-x:auto; padding:14px; border-radius:8px; background:#111820; color:#dbe6f2; font-size:13px; }
+  pre code { padding:0; background:none; color:inherit; }
   table { width:100%; margin:12px 0; border-collapse:collapse; font-size:13px; background:var(--panel); }
   th, td { padding:9px 11px; border:1px solid var(--line); text-align:left; vertical-align:top; }
   th { background:#f0f2f5; }
-  .note { padding:11px 14px; border-left:4px solid var(--accent); background:#fff7e8; font-size:13px; }
+  .ok { color:var(--green); font-weight:700; }
+  .err { color:var(--red); font-weight:700; }
+  .note { padding:11px 14px; border-left:4px solid var(--accent); background:var(--cream); font-size:13px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="crumb">documentacion / frontend / funcionalidades / register</div>
-    <h1>Registro e inicio de sesión — Frontend</h1>
-    <p class="sub">Interfaz de autenticación de Cifra: modal de login/registro, chip de usuario y estados de sesión.</p>
-    <span class="badge">✓ Implementado y probado · 2026-08-12</span>
+    <h1>Registro, inicio de sesión y verificación de correo — Frontend</h1>
+    <p class="sub">Modal con registro en dos pasos (credenciales → código de verificación), login, recuperación de contraseña y estado de sesión en topbar/sidebar.</p>
+    <span class="badge">✓ Implementado y probado · actualizado 2026-08-14</span>
   </header>
 
   <h2>Qué hace</h2>
-  <p>Da al usuario la interfaz para <strong>crear una cuenta</strong>, <strong>iniciar sesión</strong> y <strong>cerrar sesión</strong>, conectada con la API real del backend. Al cargar la página, la sesión se restaura sola (<code>GET /api/auth/me</code>).</p>
+  <p>El usuario crea su cuenta con <strong>email + contraseña</strong> y, en un <strong>segundo paso del mismo modal</strong>, introduce el <strong>código de 6 dígitos</strong> que recibe por correo para verificarla. Si intenta entrar sin verificar (403 <code>EMAIL_NOT_VERIFIED</code>) el modal salta solo al paso de verificación. Desde el login también puede <strong>recuperar la contraseña</strong> con otro código por correo. Todo integrado con <code>auth.js</code> y el estado de sesión (chip de usuario, tarjeta de cuenta, evento <code>auth:change</code>).</p>
+
+  <h2>Pantallas del modal</h2>
+  <table>
+    <tr><th>Pantalla</th><th>Contenido</th></tr>
+    <tr><td>Login</td><td>Email, contraseña, enlace "¿Olvidaste tu contraseña?"</td></tr>
+    <tr><td>Registro</td><td>Email, contraseña, repetir contraseña</td></tr>
+    <tr><td>Verificación</td><td>Código de 6 dígitos, "Reenviar código", "Usar otro correo"</td></tr>
+    <tr><td>Reset 1 (pedir código)</td><td>Email + "Enviar código"</td></tr>
+    <tr><td>Reset 2 (nuevo código)</td><td>Código + nueva contraseña + repetir + "Cambiar contraseña", reenviar, volver</td></tr>
+  </table>
 
   <h2>Cómo funciona</h2>
-  <ul>
-    <li><strong>Botones</strong> "Iniciar sesión" y "Crear cuenta" en la barra superior: abren el <strong>modal con pestañas</strong>.</li>
-    <li><strong>Modal</strong>: valida los datos (contraseñas iguales, mínimo 8), llama a la API y muestra los errores del servidor dentro del propio modal.</li>
-    <li><strong>Estado de sesión</strong> reflejado en dos sitios: chip de usuario en la topbar (avatar con iniciales + email + salir) y tarjeta de cuenta en el sidebar (Invitado ↔ email + plan).</li>
-    <li>El modal se cierra con <strong>×</strong>, click fuera o <strong>Escape</strong>; el botón de envío se desactiva durante la petición.</li>
-  </ul>
+  <ol>
+    <li><strong>Registro</strong>: validación cliente (contraseñas iguales y ≥ 8) → <code>POST /register</code> → 201 → pasa al paso de verificación (el código llega por correo o por consola sin SMTP).</li>
+    <li><strong>Verificación</strong>: <code>POST /verify</code> → 200 → sesión iniciada y modal cerrado; errores (código incorrecto, caducado) dentro del paso con "Reenviar código".</li>
+    <li><strong>Login</strong>: <code>POST /login</code> → 401 genérico o salto a verificación si 403 <code>EMAIL_NOT_VERIFIED</code>.</li>
+    <li><strong>Recuperación</strong>: enlace en login → pedir código → introducir código + nueva contraseña → al completar, toast y vuelta al login.</li>
+    <li><strong>Logout</strong>: <code>POST /logout</code> → estado invitado; se emite <code>auth:change</code> para recargar histórico, listas y cartera.</li>
+  </ol>
 
-  <h2>Estados de la interfaz</h2>
+  <h2>Estados de sesión</h2>
   <table>
     <tr><th>Elemento</th><th>Invitado</th><th>Logueado</th></tr>
-    <tr><td>Topbar · botones</td><td>Iniciar sesión + Crear cuenta</td><td>Ocultos</td></tr>
-    <tr><td>Topbar · chip</td><td>Oculto</td><td>Avatar + email + salir</td></tr>
-    <tr><td>Sidebar · cuenta</td><td>Invitado · Beta privada · "Entrar"</td><td>Email · Plan · "Salir"</td></tr>
+    <tr><td>Topbar</td><td>"Iniciar sesión" + "Crear cuenta"</td><td>Chip: avatar (iniciales) + email + salir</td></tr>
+    <tr><td>Sidebar (Inicio)</td><td>"Invitado · Beta privada · Entrar"</td><td>email + plan + Salir</td></tr>
   </table>
 
-  <h2>Qué incluye / excluye</h2>
-  <p><strong>Incluye:</strong> modal con pestañas, validación cliente, errores del servidor en pantalla, restauración de sesión, logout, diseño responsive (en móvil se ocultan los textos).</p>
-  <p><strong>Excluye (pendiente):</strong> histórico real por usuario, zona de perfil, cambio de contraseña.</p>
-
-  <h2>Errores visibles para el usuario</h2>
+  <h2>Errores que se ven</h2>
   <table>
     <tr><th>Situación</th><th>Mensaje</th></tr>
-    <tr><td>Contraseñas distintas (registro)</td><td>"Las contraseñas no coinciden."</td></tr>
-    <tr><td>Email ya registrado</td><td>"Ya existe una cuenta con ese correo."</td></tr>
-    <tr><td>Credenciales incorrectas</td><td>"Correo o contraseña incorrectos."</td></tr>
-    <tr><td>Error de servidor</td><td>"Error del servidor." (o el mensaje devuelto)</td></tr>
+    <tr><td>Contraseñas no coinciden</td><td class="err">Error cliente, sin llamada</td></tr>
+    <tr><td>Email duplicado</td><td class="err">409 "Ya existe una cuenta con ese correo."</td></tr>
+    <tr><td>Credenciales incorrectas</td><td class="err">401 "Correo o contraseña incorrectos."</td></tr>
+    <tr><td>Código incorrecto/caducado</td><td class="err">400 con "Reenviar código" disponible</td></tr>
+    <tr><td>Red caída / 5xx</td><td class="err">Mensaje del servidor o "Error del servidor."</td></tr>
   </table>
 
-  <h2>Archivos implicados</h2>
+  <h2>Archivos</h2>
   <table>
-    <tr><th>Archivo</th><th>Qué contiene</th></tr>
-    <tr><td><code>public/index.html</code></td><td>Botones, chip de usuario, tarjeta de cuenta, modal y carga de <code>auth.js</code></td></tr>
-    <tr><td><code>public/auth.js</code></td><td>Estado de sesión, peticiones API, lógica del modal y renderizado de estados</td></tr>
-    <tr><td><code>public/styles.css</code></td><td>Estilos del modal, botones y chip (con ajustes para móvil)</td></tr>
+    <tr><th>Archivo</th><th>Función</th></tr>
+    <tr><td><code>public/auth.js</code></td><td>Estado de sesión, modal (5 pantallas), <code>renderAuth</code>, <code>openModal</code> en <code>window</code>, evento <code>auth:change</code></td></tr>
+    <tr><td><code>public/index.html</code> / <code>empresa.html</code></td><td>Botones, chip, tarjeta de cuenta, modal; carga de <code>auth.js</code></td></tr>
+    <tr><td><code>public/styles.css</code></td><td>Estilos del modal + <code>[hidden]{display:none!important}</code></td></tr>
   </table>
+
+  <h2>Bugs corregidos</h2>
+  <ul>
+    <li><strong>Modal no se cerraba</strong> (2026-08-12): el CSS con <code>display</code> anulaba <code>hidden</code> → regla global <code>[hidden]</code>.</li>
+    <li><strong><code>openModal</code> no expuesto</strong> (2026-08-14): los CTA de iniciar sesión (histórico, favoritos) no abrían el modal.</li>
+  </ul>
 
   <h2>Pruebas</h2>
-  <p>Flujo completo verificado contra la API real (registro 201, login 200, <code>/me</code> 200/401, logout 200) y comprobación visual de ambos estados en topbar y sidebar.</p>
-  <p><strong>Bug corregido (2026-08-12):</strong> el modal no se cerraba tras iniciar sesión porque el CSS (<code>display: grid/flex</code>) anulaba el atributo <code>hidden</code> del HTML. Se añadió la regla global <code>[hidden] { display: none !important; }</code> en <code>styles.css</code>, que protege todos los elementos ocultables (incluido el dropzone de subida).</p>
+  <ul>
+    <li>Flujo completo contra la API: registro → login bloqueado 403 → código erróneo → verificación → login OK.</li>
+    <li>Recuperación de contraseña de extremo a extremo con correo real.</li>
+    <li>Chrome headless: 13/13 comprobaciones del modal sin errores de consola en ambas páginas.</li>
+  </ul>
 
-  <div class="note">Relacionado: <strong>backend</strong> de esta funcionalidad en <code>documentacion/backend/funcionalidades/register/register.html</code>.</div>
+  <h2>Pendiente</h2>
+  <ul>
+    <li>Iniciar sesión con Google (roadmap).</li>
+    <li>Zona de cuenta (cambiar contraseña desde el perfil).</li>
+  </ul>
 </div>
 </body>
 </html>

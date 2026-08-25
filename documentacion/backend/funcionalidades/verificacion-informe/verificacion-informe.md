@@ -1,202 +1,214 @@
-# Funcionalidad: Verificación del informe (10-Q / 10-K de EE. UU.) — Backend
+# Funcionalidad: Análisis del informe (10-Q / 10-K de EE. UU.) — Backend
 
-> Capa: **backend** · Fecha: 2026-08-12 · Estado: **implementado y probado (origen + sector); analista pendiente**
+> Capa: **backend** · Fecha: 2026-08-12 (verificadores) · Actualizado: 2026-08-13/14 (pipeline completo) · Estado: **implementado y probado (origen + sector + analista + PDF + guardado)**
 
 ---
 
 ## 1. Objetivo
 
-Verificar que el PDF subido es un informe financiero **10-Q o 10-K de una empresa de EE. UU. del sector de consumo defensivo** antes de continuar con el análisis. Si no lo es, la API devuelve un error claro y legible que el frontend muestra en pantalla. Son los dos primeros eslabones del pipeline de análisis (agentes *verificador de origen* y *verificador de sector*).
+Ejecutar el **pipeline completo de análisis** de un informe financiero 10-Q / 10-K de una empresa de EE. UU. del sector de consumo defensivo: **verificar el origen**, **verificar el sector** y **generar el informe estructurado** con su PDF. Si el informe no cumple el alcance, se devuelve un error claro y legible. El mismo pipeline se ejecuta tanto desde la **subida manual de PDF** como desde el **botón "Analizar con IA"** de un filing de la SEC (regla fundamental del proyecto: mismo proceso y mismo resultado).
 
 ## 2. Alcance
 
 **Incluido:**
-- Subida de PDF vía `POST /api/upload` (multipart, campo `file`, máx. 25 MB).
-- Extracción de texto del PDF (pdf-parse 2.4.5).
-- **Agente verificador de origen**: ¿es financiero? ¿es de EE. UU.? ¿es 10-Q o 10-K?
-- **Agente verificador de sector**: ¿es consumo defensivo? (bebidas, alimentos, tabaco, hogar, cuidado personal, retail de alimentación; con contraejemplos y rechazo seguro si no hay evidencia).
-- Capa de abstracción de modelos IA con dos proveedores: `deepseek` (real) y `mock` (heurística local, solo con `AI_PROVIDER=mock`).
+- `POST /api/upload` (multipart, campo `file`, máx. 25 MB) → texto → **3 agentes** → informe JSON + **PDF generado** + guardado opcional.
+- `POST /api/screener/company/:ticker/filings/:accession/analyze` → mismo pipeline con el contenido del filing (PDF real, PDF generado o HTML).
+- Agente **verificador de origen**: ¿financiero? ¿EE. UU.? ¿10-Q/10-K?
+- Agente **verificador de sector**: ¿consumo defensivo? (rechazo seguro sin evidencia).
+- Agente **analista principal**: extracción de cifras en dos fases + informe estructurado según `src/agents/prompts/consumo-defensivo.md` (dos horizontes; bloques Ventas / Cash Flow / Asignación de Capital).
+- Generador de **PDF** del informe (`report.service.js`, pdfkit) servido en `GET /api/reports/:file`.
+- Capa de modelos IA con proveedores `deepseek` (activo), `opencode-go` y `mock`; reintentos (`chatJson`), timeout y límite de tokens configurables.
 - Errores controlados con código (`AgentError`) y mensajes en español.
-- Sin `DEEPSEEK_API_KEY` el análisis **no funciona**: error visible "Falta DEEPSEEK_API_KEY en el archivo .env" (comportamiento pedido por el usuario para poder comprobar la API real).
+- Guardado en `analyses` si hay sesión (`saved: true/false`) — ver `historico-analisis`.
 
 **Excluido (pendiente):**
-- Agente analista principal (informe final).
-- Guardar el análisis en `analyses` (histórico) y el PDF en `uploads/`.
-- Asociar el análisis al usuario conectado (`requireAuth`).
-- Guardar el texto extraído o el resultado parcial en BD.
+- Análisis multi-periodo de empresa completa (Fase 4).
+- Formato final del informe "definitivo" (los informes de referencia del usuario siguen guiando el prompt; se refinará).
 
 ## 3. Endpoints
 
 | Método | Ruta | Cuerpo | Respuestas |
 |---|---|---|---|
-| `POST` | `/api/upload` | multipart, campo `file` (PDF, ≤ 25 MB) | 200 `{ ok, origin, formType }` · 400 · 422 · 500 |
+| `POST` | `/api/upload` | multipart, campo `file` (PDF, ≤ 25 MB) | 200 `{ ok, origin, formType, sector, report, pdfUrl, saved }` · 400 · 422 · 500 |
+| `POST` | `/api/screener/company/:ticker/filings/:accession/analyze` | — | 200 (mismo cuerpo) · 400 · 404 · 422 · 502 |
+| `GET` | `/api/reports/:file` | — | 200 `application/pdf` · 404 · 400 (path traversal) |
 
 ### Respuesta de éxito
 
 ```json
-{ "ok": true, "origin": "US", "formType": "10-Q", "sector": "defensive_consumer" }
+{
+  "ok": true,
+  "origin": "US",
+  "formType": "10-Q",
+  "sector": "defensive_consumer",
+  "report": { "company": "...", "ticker": "...", "periodTitle": "...", "reportingPeriod": "2026-06-27", "horizons": [...] },
+  "pdfUrl": "/api/reports/<uuid>.pdf",
+  "saved": true
+}
 ```
 
 ### Respuestas de error
 
-Siempre JSON: `{ "error": "<mensaje en español>", "code": "<CODIGO>" }` (el `code` solo en errores `AgentError`, es decir 422).
+Siempre JSON `{ "error": "<mensaje en español>", "code": "<CODIGO>" }` (el `code` solo en errores `AgentError`, es decir 422).
 
 ## 4. Flujo
 
 ```
 POST /api/upload (multipart, campo file)
-  → multer recibe el archivo en memoria (≤ 25 MB)      [sin archivo → 400]
+  → multer en memoria (≤ 25 MB)                        [sin archivo → 400; > 25 MB → 400]
   → ¿es PDF? (mimetype o extensión)                     [no → 422 NOT_PDF]
-  → pdf.service: extractTextFromPdf(buffer)             [texto extraído]
-  → analysis.service: analyzePdf(buffer)
-      → originAgent.run({ text })                       (texto truncado a 80.000 caracteres)
-          → capa de modelos (chat) con prompt system + documento
-          → ¿isFinancial?                               [no → 422 NOT_FINANCIAL]
-          → ¿isUsa?                                     [no → 422 NOT_USA]
-          → ¿formType es '10-Q' o '10-K'?               [no → 422 NOT_10Q_10K]
-      → { origin: 'US', formType }
-      → sectorAgent.run({ text })
-          → ¿isDefensiveConsumer?                       [no → 422 NOT_DEFENSIVE_CONSUMER]
-      → { sector: 'defensive_consumer' }
-  → 200 { ok: true, origin, formType, sector }
+  → pdf.service: extractTextFromPdf(buffer)
+  → analysis.service: analyzeText(text, { userId, filename })
+      1. originAgent → ¿isFinancial? [no → NOT_FINANCIAL]
+                      → ¿isUsa?      [no → NOT_USA]
+                      → ¿10-Q/10-K?  [no → NOT_10Q_10K]
+                      → { origin: 'US', formType }
+      2. sectorAgent → ¿isDefensiveConsumer? [no → NOT_DEFENSIVE_CONSUMER]
+                      → { sector: 'defensive_consumer' }
+      3. analystAgent → fase 1: extracción de cifras (JSON)
+                      → fase 2: informe estructurado (2 horizontes, 3 bloques)
+      → report.service: generateReportPdf(report) → pdfUrl
+      → si hay userId: saveAnalysis (status done, ticker, company, period_end, pdf_url, report, model_used)
+  → 200 { ok, origin, formType, sector, report, pdfUrl, saved }
 ```
+
+**Desde un filing de la SEC** (`.../filings/:accession/analyze`): `getFilingContentBuffer` devuelve el PDF (real de la SEC o generado con Chrome) o el HTML primario; PDF → `analyzePdf`, HTML → `htmlToText` + `analyzeText`. El resto es idéntico (misma regla fundamental).
 
 ## 5. Capa de modelos IA
 
-### `modelProvider.js` (los agentes solo conocen esta capa)
+### `modelProvider.js`
 
-- Registro de proveedores: `mock`, `deepseek`.
-- Proveedor activo: `process.env.AI_PROVIDER` si está definido; si no, `deepseek`.
-- `chat(messages)` delega en el proveedor activo.
+- Proveedores registrados: `mock`, `deepseek`, `opencode-go` (alias `opencode`).
+- Proveedor activo: `process.env.AI_PROVIDER`; por defecto `deepseek`. **Hoy el `.env` usa `deepseek`** (el directo fue ~10× más rápido y fiable que OpenCode Go en las pruebas: 22–23 s vs 145–247 s por análisis).
+- `chat(messages)` delega en el proveedor activo; **`chatJson(messages, attempts=2)`** reintenta una vez ante respuesta vacía, JSON inválido o error transitorio (los 3 agentes lo usan).
 
-### `providers/mock.provider.js` (desarrollo, sin coste)
+### Configuración en `.env`
 
-Detecta la tarea por el prompt `system` del agente y aplica heurística sobre el texto del documento (solo mensajes `role: user`):
-
-| Tarea | Decisión | Regla |
+| Variable | Valor actual | Efecto |
 |---|---|---|
-| Origen (`isFinancial`, `isUsa`, `formType`) | `isFinancial` | ≥ 2 patrones financieros presentes (balance, cuenta de resultados, flujos de caja, totales...) |
-| | `isUsa` | ≥ 1 patrón de EE. UU. (SEC, Washington D.C., Exchange Act of 1934...) |
-| | `formType` | `FORM 10-Q` → `10-Q` · `FORM 10-K` → `10-K` · ninguno → `null` |
-| Sector (`isDefensiveConsumer`) | defensivo | ≥ 1 patrón defensivo (bebidas, alimentos, tabaco, hogar, cuidado personal, supermercados...) y 0 patrones contrarios (tech, automoción, banca, energía, farma...) |
+| `AI_PROVIDER` | `deepseek` | `deepseek` · `opencode`/`opencode-go` · `mock` |
+| `DEEPSEEK_API_KEY` / `OPENCODE_GO_API_KEY` | (según proveedor) | Sin key → error visible |
+| `AI_MODEL` / `OPENCODE_GO_MODEL` | — | Modelo por defecto `deepseek-chat` / `deepseek-v4-flash` |
+| `AI_MAX_TOKENS` | `16000` | Antes 400/8000; el informe superaba 8000 tokens y el modelo devolvía vacío |
+| `AI_REQUEST_TIMEOUT_MS` | `180000` | Timeout por llamada; evita paneles colgados para siempre |
+| `AI_PROVIDER=mock` | (solo desarrollo) | Heurística local sin coste |
 
-Devuelve `JSON.stringify(...)`, igual que lo haría un modelo real.
+### Proveedores
 
-### `providers/deepseek.provider.js` (real)
+| Proveedor | Uso | Notas |
+|---|---|---|
+| `deepseek.provider.js` | Activo | `POST api.deepseek.com/chat/completions`, `temperature: 0`, limpieza de ```json``` |
+| `opencode-go.provider.js` | Alternativo | `https://opencode.ai/zen/go/v1/chat/completions` (formato OpenAI-compatible); intermitente en el chat del analista (vacio/JSON inválido) |
+| `mock.provider.js` | Solo `AI_PROVIDER=mock` | Heurística por patrones (SEC, FORM 10-Q/10-K, sector); incluye respuesta mínima para el analista |
 
-- `POST https://api.deepseek.com/chat/completions` con fetch nativo (sin dependencias).
-- Modelo: `deepseek-chat` (configurable con `AI_MODEL`), `temperature: 0`, `max_tokens: 400`.
-- Limpia la respuesta si viene envuelta en bloque ```json```.
-- Sin `DEEPSEEK_API_KEY` lanza error claro. Errores HTTP de DeepSeek se propagan con detalle (≤ 300 caracteres).
+**Garantía clave**: los agentes nunca importan un proveedor concreto; solo usan `modelProvider.chat`/`chatJson`. Cambiar de API es editar `.env`.
 
-## 6. Agentes verificadores
+## 6. Agentes
 
 ### `originAgent` (origen)
 
-- **Entrada**: `{ text }` (texto extraído del PDF).
-- **Prompt**: instrucciones (system) + documento (user, truncado a `MAX_CHARS = 80000`).
-- **Respuesta del modelo esperada**: `{"isFinancial": bool, "isUsa": bool, "formType": "10-Q"|"10-K"|null}`.
-- **Salida**: `{ origin: 'US', formType: '10-Q' | '10-K' }`.
+- **Entrada**: `{ text }` (máx. 80.000 caracteres). **Salida**: `{ origin: 'US', formType: '10-Q' | '10-K' }`.
 
 ### `sectorAgent` (sector)
 
-- **Entrada**: `{ text }`.
-- **Prompt**: define qué es consumo defensivo (bebidas —incluidas alcohólicas—, alimentos y aperitivos, tabaco, productos de hogar, cuidado personal, retail de alimentación) y contraejemplos (tech, semiconductores, telecom, automoción, moda, comida rápida, aerolíneas, banca/seguros, energía, farma/biotec, industriales). **Sin evidencia suficiente → `false`** (rechazo seguro, filosofía del proyecto).
-- **Respuesta del modelo esperada**: `{"isDefensiveConsumer": bool}`.
-- **Salida**: `{ sector: 'defensive_consumer' }`.
+- **Entrada**: `{ text }`. Define consumo defensivo (bebidas —incluidas alcohólicas—, alimentos, tabaco, hogar, cuidado personal, retail de alimentación) con contraejemplos (tech, banca, energía, farma...). **Sin evidencia suficiente → rechazo** (filosofía del proyecto). **Salida**: `{ sector: 'defensive_consumer' }`.
+
+### `analystAgent` (analista principal)
+
+- **Entrada**: `{ text, sector }`. Dos fases con `chatJson`:
+  1. **Extracción** (`EXTRACTION_PROMPT`): JSON con empresa, ticker, `reportingPeriod` (AAAA-MM-DD), trimestre/acumulado (y comparativos), cash flow y hechos relevantes. La ventana de texto se construye con `buildAnalysisText`: cabecera (30.000) + sección de estados financieros detectada por marcadores (15.000 antes / 50.000 después), recortada a 80.000.
+  2. **Informe** (`SYSTEM_PROMPT` + reglas de `src/agents/prompts/consumo-defensivo.md` cargadas por sector): dos horizontes (trimestre y acumulado del año), bloques **Ventas / Cash Flow / Asignación de Capital** con filas ajustadas/normales, notas en español, variaciones %, BPA.
+- Validación de la estructura (`horizons` no vacío) → `INVALID_REPORT_STRUCTURE`.
+- Errores: `EMPTY_DOCUMENT`, `NO_SECTOR_RULES` (sin reglas para el sector), `INVALID_MODEL_RESPONSE`.
 
 ### Errores (`AgentError`)
 
-| Código | Mensaje | Agente | Cuándo |
-|---|---|---|---|
-| `EMPTY_DOCUMENT` | "No se pudo leer el contenido del documento." | ambos | texto vacío |
-| `INVALID_MODEL_RESPONSE` | "El modelo no devolvió una respuesta válida..." | ambos | JSON inválido |
-| `NOT_FINANCIAL` | "Este documento no es un informe financiero (10-Q / 10-K)." | origin | `isFinancial: false` |
-| `NOT_USA` | "Este informe no es de una empresa de EE. UU." | origin | `isUsa: false` |
-| `NOT_10Q_10K` | "El documento no es un FORM 10-Q ni un FORM 10-K." | origin | `formType` nulo u otro |
-| `NOT_DEFENSIVE_CONSUMER` | "Este informe no corresponde al sector de consumo defensivo." | sector | `isDefensiveConsumer: false` |
+| Código | Mensaje | Cuándo |
+|---|---|---|
+| `EMPTY_DOCUMENT` | "No se pudo leer el contenido del documento." | texto vacío |
+| `INVALID_MODEL_RESPONSE` | "El modelo no devolvió una respuesta válida..." / "No se pudieron extraer los datos del informe." / "El modelo no devolvió un análisis válido." | JSON inválido o extracción fallida |
+| `INVALID_REPORT_STRUCTURE` | "El análisis no contiene bloques válidos de datos." | informe sin `horizons` |
+| `NO_SECTOR_RULES` | "No hay reglas de análisis definidas para el sector X." | sector sin fichero de reglas |
+| `NOT_FINANCIAL` | "Este documento no es un informe financiero (10-Q / 10-K)." | `isFinancial: false` |
+| `NOT_USA` | "Este informe no es de una empresa de EE. UU." | `isUsa: false` |
+| `NOT_10Q_10K` | "El documento no es un FORM 10-Q ni un FORM 10-K." | `formType` nulo u otro |
+| `NOT_DEFENSIVE_CONSUMER` | "Este informe no corresponde al sector de consumo defensivo." | `isDefensiveConsumer: false` |
 
-## 7. Errores y casos límite del endpoint
+## 7. Generación del PDF (`src/services/report.service.js`)
+
+- **pdfkit**: cabecera (empresa, ticker, periodo), dos horizontes, bloques **1. VENTAS / 2. CASH FLOW / 3. ASIGNACIÓN DE CAPITAL** con tablas (cabecera oscura, filas alternas, notas en cursiva gris) y paginación automática.
+- Guarda en `uploads/generated/` con nombre UUID; `GET /api/reports/:file` lo sirve validando contra path traversal.
+
+## 8. Errores y casos límite del endpoint
 
 | Caso | Respuesta |
 |---|---|
-| Sin archivo en el campo `file` | 400 "No se recibió ningún archivo." |
-| Archivo > 25 MB | 400 "El archivo supera el límite de 25 MB." (multer `LIMIT_FILE_SIZE`) |
-| Archivo no PDF (txt, docx...) | 422 `NOT_PDF` "Solo se admiten archivos PDF." |
-| PDF no financiero (informe de marketing, tesis...) | 422 `NOT_FINANCIAL` |
-| PDF financiero de empresa no estadounidense | 422 `NOT_USA` |
-| PDF financiero sin FORM 10-Q/10-K (informe semestral...) | 422 `NOT_10Q_10K` |
-| PDF financiero de EE. UU. de sector no defensivo (tech, banca...) | 422 `NOT_DEFENSIVE_CONSUMER` |
-| PDF escaneado sin capa de texto | Texto vacío → 422 `EMPTY_DOCUMENT` |
-| Sin `DEEPSEEK_API_KEY` en `.env` | 500 "Falta DEEPSEEK_API_KEY en el archivo .env" |
-| Key inválida / error de DeepSeek | 500 con el detalle de la API (logueado por consola) |
-| Respuesta del modelo no parseable | 422 `INVALID_MODEL_RESPONSE` |
+| Sin archivo en `file` | 400 "No se recibió ningún archivo." |
+| Archivo > 25 MB | 400 (multer `LIMIT_FILE_SIZE`) |
+| Archivo no PDF | 422 `NOT_PDF` |
+| PDF no financiero | 422 `NOT_FINANCIAL` |
+| Financiero no estadounidense | 422 `NOT_USA` |
+| Sin FORM 10-Q/10-K | 422 `NOT_10Q_10K` |
+| Sector no defensivo | 422 `NOT_DEFENSIVE_CONSUMER` |
+| PDF escaneado sin capa de texto | 422 `EMPTY_DOCUMENT` |
+| Filing inexistente en SEC | 404 `FILING_NOT_FOUND` |
+| SEC caída al descargar el filing | 502 `EDGAR_UNAVAILABLE` |
+| Sin `DEEPSEEK_API_KEY` (con provider deepseek) | 500 "Falta DEEPSEEK_API_KEY en el archivo .env" |
+| Timeout de la IA (> 180 s) | 500 "La API de IA tardó más de X s en responder" |
+| Respuesta del modelo no parseable (tras reintento) | 422 `INVALID_MODEL_RESPONSE` |
+| Guardado en BD falla | El análisis responde OK; solo se loguea |
 
-## 8. Archivos del backend implicados
+## 9. Archivos del backend implicados
 
 | Archivo | Función |
 |---|---|
-| `src/services/pdf.service.js` | `extractTextFromPdf(buffer)` con `PDFParse` de pdf-parse; destruye el parser en `finally`. |
-| `src/services/analysis.service.js` | Pipeline: texto → `originAgent.run` → `{ text, origin, formType }`. Aquí se encadenarán sector y analista. |
-| `src/services/ai/modelProvider.js` | Capa de abstracción: registro de proveedores + `chat(messages)`. |
-| `src/services/ai/providers/mock.provider.js` | Heurística local (regex). |
-| `src/services/ai/providers/deepseek.provider.js` | Llamada real a la API de DeepSeek. |
-| `src/agents/baseAgent.js` | `BaseAgent` (name, description, run) + `AgentError` (mensaje + código). |
-| `src/agents/originAgent.js` | Agente verificador de origen/tipo. |
-| `src/agents/sectorAgent.js` | Agente verificador de sector (consumo defensivo). |
-| `src/agents/agentRegistry.js` | `registerAgent`, `getAgent`, `listAgents`; registra origin y sector al importar. |
-| `src/api/routes/analysis.routes.js` | `POST /api/upload` con multer (memoria) y manejo de errores (400/422/500). |
-| `server.js` | Monta `/api` (analysisRoutes) y el `errorHandler`. |
+| `src/services/pdf.service.js` | `extractTextFromPdf(buffer)` (pdf-parse 2.4.5, `PDFParse`). |
+| `src/services/analysis.service.js` | `analyzePdf`/`analyzeText` (pipeline completo), `htmlToText`, `saveAnalysis` (guardado no bloqueante). |
+| `src/services/ai/modelProvider.js` | Capa de abstracción; `chat`/`chatJson` (reintentos). |
+| `src/services/ai/providers/{deepseek,opencode-go,mock}.provider.js` | Proveedores. |
+| `src/agents/baseAgent.js` | `BaseAgent` + `AgentError`. |
+| `src/agents/originAgent.js` / `sectorAgent.js` / `analystAgent.js` | Los 3 agentes del pipeline. |
+| `src/agents/prompts/consumo-defensivo.md` | Reglas de análisis del sector (derivadas del PDF de referencia del usuario). |
+| `src/services/report.service.js` | Generador de PDF (pdfkit). |
+| `src/api/routes/analysis.routes.js` | `POST /api/upload`, `GET /api/analyses`, `GET /api/reports/:file`. |
+| `src/api/routes/screener.routes.js` | `POST .../filings/:accession/analyze`. |
+| `src/services/edgar.service.js` | `getFilingContentBuffer` (PDF real / generado / HTML). |
+| `server.js` | Monta las rutas y el `errorHandler`. |
 
-Dependencias nuevas: `multer`, `pdf-parse` (2.4.5).
+Dependencias: `multer`, `pdf-parse` (2.4.5), `pdfkit`.
 
-## 9. Decisiones y motivos
+## 10. Decisiones y motivos
 
 | Decisión | Motivo |
 |---|---|
-| **multer en memoria** (no a disco) | El PDF se procesa al vuelo; aún no se guarda en `uploads/` (pendiente). |
-| **pdf-parse 2.4.5** | API moderna `PDFParse` + `getText()`; compatible con ESM (la 1.x requería workarounds). |
-| **Truncado a 80.000 caracteres** | Los 10-K superan ese tamaño; limita coste y tokens de la API. |
-| **`temperature: 0`** | La verificación es una clasificación: determinista, sin creatividad. |
-| **Sin key → error (no mock)** | Decisión del usuario: comprobar que DeepSeek funciona de verdad; el mock queda solo con `AI_PROVIDER=mock`. |
-| **Validación de PDF en el controller** | El `fileFilter` de multer envolvía el error y devolvía 500; validando en el controller se controla el 422. |
-| **Códigos `AgentError` estables** | El frontend (o futuro guardado en BD) puede reaccionar por código, no solo por texto. |
+| **DeepSeek directo como proveedor activo** | Medido con el mismo pipeline y el mismo informe (TAP 10-Q Q2 2026): 22–23 s y 4/4 JSON válidos vs OpenCode Go 145–247 s con fallos intermitentes. |
+| **`AI_MAX_TOKENS=16000`** | El informe final supera 8.000 tokens de salida; con menos, el modelo devolvía respuesta vacía. |
+| **`chatJson` con reintento** | Absorbe respuestas vacías/JSON inválido transitorias sin reescribir los agentes. |
+| **Timeout de 180 s** | Un fallo de la API ya no deja el panel "Procesando" para siempre. |
+| **Analista en dos fases** | Extraer primero las cifras (JSON) y luego estructurarlas con las reglas del sector da informes más fiables y permite validar cada paso. |
+| **Ventana financiera (`buildAnalysisText`)** | Los estados financieros quedan dentro del texto enviado aunque el 10-K supere los 80.000 caracteres. |
+| **HTML→texto para filings** | Los 10-Q/10-K modernos de la SEC son HTML/XBRL; el pipeline funciona igual (regla fundamental). |
+| **Guardado no bloqueante** | Un fallo de BD no rompe la respuesta del análisis. |
 
-## 10. Pruebas realizadas
+## 11. Pruebas realizadas
 
-| # | Caso | Resultado |
-|---|---|---|
-| 1 | Agente con 10-Q válido (texto) | `{ origin: 'US', formType: '10-Q' }` |
-| 2 | Agente con 10-K válido (texto) | `{ origin: 'US', formType: '10-K' }` |
-| 3 | Texto no financiero | `AgentError NOT_FINANCIAL` |
-| 4 | Financiero no estadounidense | `AgentError NOT_USA` |
-| 5 | Financiero sin FORM 10-Q/10-K | `AgentError NOT_10Q_10K` |
-| 6 | Endpoint con PDF normal | 422 `NOT_FINANCIAL` |
-| 7 | Endpoint con PDF 10-Q defensivo (Molson Coors) | 200 `{ ok: true, origin: 'US', formType: '10-Q', sector: 'defensive_consumer' }` |
-| 8 | Endpoint con PDF 10-Q tech (Apple) | 422 `NOT_DEFENSIVE_CONSUMER` |
-| 9 | Endpoint sin archivo | 400 |
-| 10 | Endpoint con .txt | 422 `NOT_PDF` |
-| 11 | Endpoint sin API key | 500 "Falta DEEPSEEK_API_KEY en el archivo .env" |
+- **Verificadores**: 5/5 casos de origen (10-Q válido, 10-K válido, no financiero, no estadounidense, sin FORM 10-Q/10-K) + sector (Molson Coors ✓, Apple ✗).
+- **Pipeline completo end-to-end** (KHC 10-Q real de SEC EDGAR): HTTP 200 ~21 s, formType 10-Q, sector defensive_consumer, informe con 2 horizontes y 3 bloques, PDF descargable (200, application/pdf).
+- **Desde el botón del screener** (TAP): HTTP 200 en 22,8 s con DeepSeek; origen ✓, sector ✓, analista ✓, informe completo, `saved: true` con sesión.
+- **Regla fundamental**: la subida manual del mismo PDF falla/éxito exactamente igual que el endpoint del filing.
+- Comparativa de proveedores medida (DeepSeek vs OpenCode Go) documentada en el diario del 14/08.
+- `node --check` y `git diff --check` correctos.
 
-> Nota: los PDFs de prueba se generaron a mano (contenido en literales de texto PDF de ≤ 70 caracteres por línea, porque pdf.js corta operaciones de texto largas).
+## 12. Relación con otros módulos
 
-## 11. Relación con otros módulos
+- **Frontend**: panel de agentes y resultado en `public/app.js` (ver `documentacion/frontend/funcionalidades/verificacion-informe/`).
+- **Histórico**: `analysis.service.js` guarda en `analyses` (ver `historico-analisis`).
+- **Screener**: `POST .../analyze` conecta el filing con este pipeline.
+- **Auth**: `resolveUser` decide si se guarda (`saved`).
+- **Fase 5 (planes)**: el proveedor de IA se elegirá por plan (la capa ya lo permite).
 
-- **Frontend**: `public/app.js` consume `POST /api/upload` (ver `documentacion/frontend/funcionalidades/verificacion-informe/`).
-- **Pipeline futuro**: `analysis.service.js` encadenará `analystAgent` tras sector; luego guardará en `analyses` (`analysisRepository.updateAnalysis` ya soporta `status`, `error`, `origin`, `sector`, `report`, `model_used`).
-- **Auth (Fase 3)**: `requireAuth` protegerá `/api/upload` para asociar `analyses.user_id`.
-- **Fase 5 (planes)**: el proveedor de IA se elegirá por plan (la capa ya lo permite: `AI_PROVIDER`).
+## 13. Pendientes
 
-## 12. Pendientes
-
-- Probar con una key real de DeepSeek (usuario la añadirá en `.env`).
-- `analystAgent` (informe final).
-- Guardar análisis en `analyses` + PDF en `uploads/`.
-- Proteger el endpoint con `requireAuth`.
-- Decidir el modelo final (DeepSeek vs GPT) y el formato del informe.
-
-## 13. Referencias
-
-- `documentacion/PROYECTO-detalle.md` — secciones 4 (alcance beta), 5 (agentes) y 6.3 (capa de modelos).
-- `documentacion/ARQUITECTURA.md` — secciones 5 (agentes), 6 (capa IA) y 7 (flujo).
-- `documentacion/IMPLEMENTACION.md` — secciones 2.6 y 2.7 (cronología).
+- Decidir el modelo final a medio plazo (DeepSeek vs OpenCode Go; hoy funciona DeepSeek directo).
+- Refinar las reglas del prompt del analista con los informes de referencia del usuario.
+- Fase 4: análisis completo de empresa (multi-periodo).

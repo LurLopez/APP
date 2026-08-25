@@ -25,7 +25,6 @@ let currentPdfName = 'analisis-cifra.pdf';
 let searchDebounceTimer;
 let pendingFiling = null;
 let currentUser = null;
-let favoriteTickers = new Set();
 
 let processingHintTimer;
 
@@ -528,264 +527,66 @@ document.querySelector('#history-clear').addEventListener('click', () => {
 document.querySelector('#history-refresh').addEventListener('click', fetchAnalyses);
 historyLoginButton.addEventListener('click', () => window.openModal?.('login'));
 
-document.querySelectorAll('.home-card').forEach((card) => {
-  card.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') goToCompany(card.dataset.ticker);
-  });
-});
+/* ── Navegación por secciones ──────────────────────────────── */
 
-document.querySelectorAll('.home-top-link').forEach((button) => {
+const homeMenu = document.querySelector('#home-menu');
+const homeSections = {
+  seguimiento: document.querySelector('#favoritos'),
+  cartera: document.querySelector('#cartera'),
+  analisis: document.querySelector('#analisis'),
+};
+
+function closeHomeSection() {
+  homeMenu.hidden = false;
+  Object.values(homeSections).forEach((section) => { section.hidden = true; });
+  document.querySelectorAll('.home-top-link').forEach((button) => button.classList.remove('active'));
+}
+
+function openHomeSection(name, { scroll = true } = {}) {
+  const section = homeSections[name];
+  if (!section) return;
+  homeMenu.hidden = true;
+  Object.entries(homeSections).forEach(([key, other]) => { other.hidden = key !== name; });
+  document.querySelectorAll('.home-top-link').forEach((button) => {
+    button.classList.toggle('active', button.dataset.section === name);
+  });
+  if (scroll) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+document.querySelectorAll('.home-top-link, .home-menu-card').forEach((button) => {
   button.addEventListener('click', () => {
-    if (button.dataset.soon === 'Favoritos') {
-      openFavoritesSection();
+    if (button.classList.contains('active')) {
+      closeHomeSection();
       return;
     }
-    showToast(`${button.dataset.soon}: disponible próximamente.`);
+    openHomeSection(button.dataset.section);
   });
 });
 
-/* ── Acciones favoritas ─────────────────────────────────────── */
+/* ── Listas de seguimiento ─────────────────────────────────── */
 
-function favoriteNumber(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
+Watchlists.mountSection(document.querySelector('#watchlists-section'), {
+  countEl: document.querySelector('#favorites-count'),
+  onNavigate: goToCompany,
+});
 
-function formatFavoriteNumber(value, digits = 2) {
-  const number = favoriteNumber(value);
-  if (number === null) return '—';
-  return new Intl.NumberFormat('es-ES', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(number);
-}
-
-function formatFavoriteSigned(value) {
-  const number = favoriteNumber(value);
-  if (number === null) return '—';
-  const sign = number > 0 ? '+' : number < 0 ? '−' : '';
-  return `${sign}${formatFavoriteNumber(Math.abs(number))}`;
-}
-
-function formatFavoritePercent(value) {
-  const number = favoriteNumber(value);
-  if (number === null) return '—';
-  return `${formatFavoriteSigned(number)} %`;
-}
-
-function formatFavoriteVolume(value) {
-  const number = favoriteNumber(value);
-  if (number === null) return '—';
-  const absolute = Math.abs(number);
-  const [unit, suffix] = absolute >= 1e9 ? [1e9, 'B']
-    : absolute >= 1e6 ? [1e6, 'M']
-      : absolute >= 1e3 ? [1e3, 'K']
-        : [1, ''];
-  return `${new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(number / unit)}${suffix}`;
-}
-
-function formatFavoriteTime(timestamp) {
-  const number = favoriteNumber(timestamp);
-  if (number === null || number <= 0) return '—';
-  return new Intl.DateTimeFormat('es-ES', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).format(new Date(number * 1000));
-}
-
-function favoriteChangeClass(value) {
-  const number = favoriteNumber(value);
-  return number === null ? '' : number >= 0 ? 'positive' : 'negative';
-}
-
-function requireLogin() {
-  if (currentUser) return true;
-  showToast('Inicia sesión para guardar acciones favoritas.');
-  window.openModal?.('login');
-  return false;
-}
-
-async function toggleFavorite(button, ticker, companyName) {
-  if (!requireLogin()) return;
-  ticker = String(ticker).toUpperCase();
-  const wasFavorite = favoriteTickers.has(ticker);
-
-  favoriteTickers[wasFavorite ? 'delete' : 'add'](ticker);
-  button.classList.toggle('active', !wasFavorite);
-
-  try {
-    const response = await fetch('/api/favorites', {
-      method: wasFavorite ? 'DELETE' : 'POST',
-      headers: wasFavorite ? undefined : { 'Content-Type': 'application/json' },
-      body: wasFavorite ? undefined : JSON.stringify({ ticker, companyName }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || 'No se pudo actualizar el favorito.');
-    }
-    showToast(wasFavorite
-      ? `${ticker} eliminada de tus favoritas.`
-      : `${ticker} añadida a tus favoritas.`);
-    fetchFavorites();
-  } catch (error) {
-    favoriteTickers[wasFavorite ? 'add' : 'delete'](ticker);
-    button.classList.toggle('active', wasFavorite);
-    showToast(error.message);
-  }
-}
-
-function renderFavoriteTable(favorites) {
-  return `
-    <table class="favorites-market-table">
-      <thead>
-        <tr>
-          <th scope="col">Nombre</th>
-          <th scope="col">Símbolo</th>
-          <th scope="col">Último</th>
-          <th scope="col">Apertura</th>
-          <th scope="col">Máximo</th>
-          <th scope="col">Mínimo</th>
-          <th scope="col">Var.</th>
-          <th scope="col">% var.</th>
-          <th scope="col">Vol.</th>
-          <th scope="col">Fecha/Hora</th>
-          <th scope="col" aria-label="Acciones"></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${favorites.map((favorite) => {
-          const ticker = String(favorite.ticker ?? '').toUpperCase();
-          const name = String(favorite.companyName || ticker);
-          const quote = favorite.quote ?? {};
-          const changeClass = favoriteChangeClass(quote.change);
-          const time = formatFavoriteTime(quote.marketTimestamp);
-          const statusClass = quote.marketState === 'REGULAR' ? 'open'
-            : quote.marketState ? 'closed' : 'unknown';
-          return `
-            <tr data-ticker="${escapeHtml(ticker)}" tabindex="0">
-              <td class="favorite-name-cell">
-                <span class="favorite-flag" aria-hidden="true">🇺🇸</span>
-                <a class="favorite-company-link" href="/empresa/${encodeURIComponent(ticker)}">${escapeHtml(name)}</a>
-              </td>
-              <td><a class="favorite-symbol-link" href="/empresa/${encodeURIComponent(ticker)}">${escapeHtml(ticker)}</a></td>
-              <td class="favorite-last ${changeClass}">${formatFavoriteNumber(quote.price)}</td>
-              <td>${formatFavoriteNumber(quote.open)}</td>
-              <td>${formatFavoriteNumber(quote.dayHigh)}</td>
-              <td>${formatFavoriteNumber(quote.dayLow)}</td>
-              <td class="${changeClass}">${formatFavoriteSigned(quote.change)}</td>
-              <td class="${changeClass}">${formatFavoritePercent(quote.changePercent)}</td>
-              <td>${formatFavoriteVolume(quote.volume)}</td>
-              <td><span class="favorite-time"><i class="favorite-market-dot ${statusClass}"></i>${time}</span></td>
-              <td>
-                <button class="favorite-table-fav active" type="button" data-ticker="${escapeHtml(ticker)}" aria-label="Quitar ${escapeHtml(name)} de favoritos" title="Quitar de favoritos">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-                </button>
-              </td>
-            </tr>
-          `;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
-}
-
-function renderFavorites(favorites) {
-  const section = document.querySelector('#favoritos');
-  const table = document.querySelector('#favorites-table');
-  const list = Array.isArray(favorites) ? favorites : [];
-  favoriteTickers = new Set(list.map((favorite) => String(favorite.ticker).toUpperCase()));
-  updateFavoriteButtons();
-
-  if (!currentUser || !list.length) {
-    section.hidden = true;
-    table.innerHTML = '';
-    return;
-  }
-  document.querySelector('#favorites-count').textContent = `${list.length} ${list.length === 1 ? 'acción' : 'acciones'}`;
-  table.innerHTML = renderFavoriteTable(list);
-  section.hidden = false;
-  table.querySelectorAll('tbody tr[data-ticker]').forEach((row) => {
-    row.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !event.target.closest('a, button')) {
-        goToCompany(row.dataset.ticker);
-      }
-    });
-  });
-}
-
-function updateFavoriteButtons() {
-  document.querySelectorAll('.home-card[data-ticker]').forEach((card) => {
-    const button = card.querySelector('.home-card-fav');
-    if (!button) return;
-    const ticker = String(card.dataset.ticker).toUpperCase();
-    const name = card.querySelector('.home-card-copy strong')?.textContent ?? ticker;
-    const isFavorite = favoriteTickers.has(ticker);
-    button.classList.toggle('active', isFavorite);
-    button.setAttribute('aria-label', isFavorite
-      ? `Quitar ${name} de favoritos`
-      : `Añadir ${name} a favoritos`);
-  });
-}
-
-async function fetchFavorites() {
-  if (!currentUser) {
-    renderFavorites([]);
-    return;
-  }
-  try {
-    const response = await fetch('/api/favorites');
-    const data = await response.json().catch(() => ({}));
-    if (response.ok) renderFavorites(data.favorites ?? []);
-  } catch {
-    renderFavorites([]);
-  }
-}
-
-function openFavoritesSection() {
-  if (!requireLogin()) return;
-  const section = document.querySelector('#favoritos');
-  if (section.hidden) {
-    showToast('Aún no tienes acciones favoritas. Toca el corazón de una empresa para añadirla.');
-    return;
-  }
-  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+Portfolio.mountSection(document.querySelector('#portfolio-section'), {
+  onNavigate: goToCompany,
+});
 
 window.addEventListener('auth:change', (event) => {
   currentUser = Boolean(event.detail?.user);
-  fetchFavorites();
+  Watchlists.setAuthenticated(currentUser);
+  if (currentUser) Watchlists.refresh();
+  Portfolio.setAuthenticated(currentUser);
   fetchAnalyses();
 });
 
 document.addEventListener('click', (event) => {
-  const tableFavoriteButton = event.target.closest('.favorite-table-fav');
-  if (tableFavoriteButton) {
-    event.preventDefault();
-    event.stopPropagation();
-    const row = tableFavoriteButton.closest('tr[data-ticker]');
-    const name = row?.querySelector('.favorite-company-link')?.textContent ?? row?.dataset.ticker;
-    if (row) toggleFavorite(tableFavoriteButton, row.dataset.ticker, name);
-    return;
-  }
   const favoriteRow = event.target.closest('.favorites-market-table tbody tr[data-ticker]');
   if (favoriteRow && !event.target.closest('a, button')) {
     goToCompany(favoriteRow.dataset.ticker);
-    return;
   }
-  const favButton = event.target.closest('.home-card-fav');
-  if (favButton) {
-    event.stopPropagation();
-    const card = favButton.closest('.home-card[data-ticker]');
-    if (!card) return;
-    const name = card.querySelector('.home-card-copy strong')?.textContent ?? card.dataset.ticker;
-    toggleFavorite(favButton, card.dataset.ticker, name);
-    return;
-  }
-  const card = event.target.closest('.home-card[data-ticker]');
-  if (card) goToCompany(card.dataset.ticker);
 });
 
 async function searchCompanies(query) {
@@ -866,6 +667,13 @@ const pendingTicker = (urlParams.get('analizar') ?? '').trim().toUpperCase();
 const pendingAccession = urlParams.get('accession') ?? '';
 if (/^[A-Z0-9.-]{1,10}$/.test(pendingTicker) && /^\d{10}-\d{2}-\d{6}$/.test(pendingAccession)) {
   history.replaceState(null, '', window.location.pathname);
+  openHomeSection('analisis', { scroll: false });
   document.querySelector('#nuevo').scrollIntoView({ behavior: 'auto', block: 'start' });
   runFilingAnalysis(pendingTicker, pendingAccession);
+} else if (urlParams.get('cartera') === '1') {
+  history.replaceState(null, '', window.location.pathname);
+  openHomeSection('cartera', { scroll: false });
+  Portfolio.openSection();
+} else {
+  openHomeSection('seguimiento', { scroll: false });
 }

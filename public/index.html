@@ -6,22 +6,22 @@
   <meta name="theme-color" content="#242424">
   <meta name="description" content="Cifra: análisis fundamental de informes financieros 10-Q y 10-K.">
   <title>Cifra Terminal | Inicio</title>
-  <link rel="stylesheet" href="/styles.css?v=14">
+  <link rel="stylesheet" href="/styles.css?v=50">
 </head>
 <body class="home-page">
   <header class="topbar home-topbar">
-    <nav class="home-top-links" aria-label="Accesos rápidos">
-      <button class="home-top-link" type="button" data-soon="Favoritos">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-        <span>Favoritos</span>
+    <nav class="home-top-links" aria-label="Secciones">
+      <button class="home-top-link" type="button" data-section="seguimiento">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+        <span>Seguimiento</span>
       </button>
-      <button class="home-top-link" type="button" data-soon="Filtros">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14l-5 6v7l-4 2v-9L5 5Z"/></svg>
-        <span>Filtros</span>
-      </button>
-      <button class="home-top-link" type="button" data-soon="Cartera">
+      <button class="home-top-link" type="button" data-section="cartera">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
         <span>Cartera</span>
+      </button>
+      <button class="home-top-link" type="button" data-section="analisis">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5"/><path d="M10 12h6M10 16h6"/></svg>
+        <span>Análisis</span>
       </button>
     </nav>
 
@@ -58,151 +58,38 @@
       </div>
     </section>
 
-    <section class="home-grid-section" id="favoritos" hidden aria-label="Tus acciones favoritas">
+    <section class="home-menu-section" id="home-menu" aria-label="Secciones de Cifra">
+      <button class="home-menu-card" type="button" data-section="seguimiento">
+        <span class="home-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg></span>
+        <span class="home-menu-copy"><strong>Seguimiento</strong><small>Las acciones que te gustan, en tus listas.</small></span>
+        <span class="home-menu-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="home-menu-card" type="button" data-section="cartera">
+        <span class="home-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></span>
+        <span class="home-menu-copy"><strong>Cartera</strong><small>Tu cartera de dividendos y posiciones.</small></span>
+        <span class="home-menu-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="home-menu-card" type="button" data-section="analisis">
+        <span class="home-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7zM14 3v5h5"/><path d="M10 12h6M10 16h6"/></svg></span>
+        <span class="home-menu-copy"><strong>Análisis</strong><small>Sube un 10-Q / 10-K y consulta tu historial.</small></span>
+        <span class="home-menu-arrow" aria-hidden="true">→</span>
+      </button>
+    </section>
+
+    <section class="home-grid-section" id="favoritos" hidden aria-label="Tus acciones en seguimiento">
       <div class="section-title-row">
-        <div><span class="eyebrow">TUS ACCIONES</span><h2>Acciones favoritas</h2><p class="section-subtitle">Las empresas que has marcado con el corazón.</p></div>
+        <div><span class="eyebrow">TUS ACCIONES</span><h2>Acciones en seguimiento</h2><p class="section-subtitle">Elige una lista para ver sus acciones.</p></div>
         <span class="scope-badge" id="favorites-count">0</span>
       </div>
-      <div class="favorites-table-wrap" id="favorites-table"></div>
+      <div id="watchlists-section"></div>
     </section>
 
-    <section class="home-grid-section" aria-label="Empresas destacadas">
-      <div class="home-grid">
-        <article class="home-card" data-ticker="AAPL" tabindex="0" role="link" aria-label="Ver Apple Inc.">
-          <div class="home-card-head">
-            <span class="home-card-logo" style="background:#111">A</span>
-            <div class="home-card-copy">
-              <strong>Apple Inc.</strong>
-              <small>AAPL · NasdaqGS</small>
-              <small>Tecnología</small>
-            </div>
-            <button class="home-card-fav" type="button" aria-label="Añadir Apple a favoritos">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-            </button>
-          </div>
-          <div class="home-card-quote">
-            <div class="home-card-numbers">
-              <strong class="negative"><span class="quote-arrow" aria-hidden="true">▼</span> $304.69</strong>
-              <small class="negative">$−0.57 (−0.19%)</small>
-              <small class="home-card-updated">Actualizado 14/08/2026</small>
-            </div>
-            <svg class="sparkline negative-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 17 C16 10 23 26 38 20 S54 29 68 19 S87 29 101 24 S120 37 136 26 S153 34 168 28 S184 42 197 31 S215 38 226 32 S237 42 240 39"/></svg>
-          </div>
-        </article>
-
-        <article class="home-card" data-ticker="MSFT" tabindex="0" role="link" aria-label="Ver Microsoft Corporation">
-          <div class="home-card-head">
-            <span class="home-card-logo" style="background:#00a4ef">M</span>
-            <div class="home-card-copy">
-              <strong>Microsoft Corporation</strong>
-              <small>MSFT · NasdaqGS</small>
-              <small>Tecnología</small>
-            </div>
-            <button class="home-card-fav" type="button" aria-label="Añadir Microsoft a favoritos">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-            </button>
-          </div>
-          <div class="home-card-quote">
-            <div class="home-card-numbers">
-              <strong class="positive"><span class="quote-arrow" aria-hidden="true">▲</span> $499.64</strong>
-              <small class="positive">$+2.76 (0.56%)</small>
-              <small class="home-card-updated">Actualizado 14/08/2026</small>
-            </div>
-            <svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 42 C15 39 22 42 34 30 S51 36 65 31 S82 40 94 23 S112 28 126 20 S143 27 155 15 S172 20 184 12 S200 24 211 13 S225 18 240 5"/></svg>
-          </div>
-        </article>
-
-        <article class="home-card" data-ticker="JNJ" tabindex="0" role="link" aria-label="Ver Johnson &amp; Johnson">
-          <div class="home-card-head">
-            <span class="home-card-logo" style="background:#c8102e">J</span>
-            <div class="home-card-copy">
-              <strong>Johnson &amp; Johnson</strong>
-              <small>JNJ · NYSE</small>
-              <small>Salud</small>
-            </div>
-            <button class="home-card-fav" type="button" aria-label="Añadir Johnson &amp; Johnson a favoritos">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-            </button>
-          </div>
-          <div class="home-card-quote">
-            <div class="home-card-numbers">
-              <strong class="negative"><span class="quote-arrow" aria-hidden="true">▼</span> $260.73</strong>
-              <small class="negative">$−1.35 (−0.52%)</small>
-              <small class="home-card-updated">Actualizado 14/08/2026</small>
-            </div>
-            <svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 36 C16 39 23 30 35 34 S52 41 62 27 S82 32 92 22 S112 30 126 19 S145 25 156 16 S174 22 188 13 S210 17 221 7 S234 9 240 2"/></svg>
-          </div>
-        </article>
-
-        <article class="home-card" data-ticker="KO" tabindex="0" role="link" aria-label="Ver The Coca-Cola Company">
-          <div class="home-card-head">
-            <span class="home-card-logo" style="background:#f40000">KO</span>
-            <div class="home-card-copy">
-              <strong>The Coca-Cola Company</strong>
-              <small>KO · NYSE</small>
-              <small>Consumo defensivo</small>
-            </div>
-            <button class="home-card-fav" type="button" aria-label="Añadir Coca-Cola a favoritos">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-            </button>
-          </div>
-          <div class="home-card-quote">
-            <div class="home-card-numbers">
-              <strong class="positive"><span class="quote-arrow" aria-hidden="true">▲</span> $87.84</strong>
-              <small class="positive">$+0.42 (0.48%)</small>
-              <small class="home-card-updated">Actualizado 14/08/2026</small>
-            </div>
-            <svg class="sparkline negative-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 43 C13 42 17 36 29 40 S47 31 57 36 S76 22 91 29 S110 16 122 25 S139 20 151 18 S170 27 182 16 S200 18 211 8 S228 11 240 3"/></svg>
-          </div>
-        </article>
-
-        <article class="home-card" data-ticker="NVDA" tabindex="0" role="link" aria-label="Ver NVIDIA Corporation">
-          <div class="home-card-head">
-            <span class="home-card-logo" style="background:#76b900">N</span>
-            <div class="home-card-copy">
-              <strong>NVIDIA Corporation</strong>
-              <small>NVDA · NasdaqGS</small>
-              <small>Tecnología</small>
-            </div>
-            <button class="home-card-fav" type="button" aria-label="Añadir NVIDIA a favoritos">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-            </button>
-          </div>
-          <div class="home-card-quote">
-            <div class="home-card-numbers">
-              <strong class="negative"><span class="quote-arrow" aria-hidden="true">▼</span> $225.11</strong>
-              <small class="negative">$−0.19 (−0.08%)</small>
-              <small class="home-card-updated">Actualizado 14/08/2026</small>
-            </div>
-            <svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 42 C15 39 22 42 34 30 S51 36 65 31 S82 40 94 23 S112 28 126 20 S143 27 155 15 S172 20 184 12 S200 24 211 13 S225 18 240 5"/></svg>
-          </div>
-        </article>
-
-        <article class="home-card" data-ticker="MMM" tabindex="0" role="link" aria-label="Ver 3M Company">
-          <div class="home-card-head">
-            <span class="home-card-logo" style="background:#ff0000">3M</span>
-            <div class="home-card-copy">
-              <strong>3M Company</strong>
-              <small>MMM · NYSE</small>
-              <small>Industriales</small>
-            </div>
-            <button class="home-card-fav" type="button" aria-label="Añadir 3M a favoritos">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-            </button>
-          </div>
-          <div class="home-card-quote">
-            <div class="home-card-numbers">
-              <strong class="positive"><span class="quote-arrow" aria-hidden="true">▲</span> $183.04</strong>
-              <small class="positive">$+0.39 (0.21%)</small>
-              <small class="home-card-updated">Actualizado 14/08/2026</small>
-            </div>
-            <svg class="sparkline positive-line" viewBox="0 0 240 54" preserveAspectRatio="none" aria-hidden="true"><path d="M0 36 C16 39 23 30 35 34 S52 41 62 27 S82 32 92 22 S112 30 126 19 S145 25 156 16 S174 22 188 13 S210 17 221 7 S234 9 240 2"/></svg>
-          </div>
-        </article>
-      </div>
+    <section class="home-grid-section portfolio-page-section" id="cartera" hidden aria-label="Tu cartera de inversión">
+      <div id="portfolio-section"></div>
     </section>
 
-    <section class="analysis-section" id="nuevo">
+    <section class="home-analisis-section" id="analisis" hidden aria-label="Análisis de resultados y historial">
+      <section class="analysis-section" id="nuevo">
       <div class="section-title-row analysis-title"><div><span class="eyebrow">ANÁLISIS FUNDAMENTAL</span><h2>Sube un informe para empezar</h2><p class="section-subtitle">La beta acepta informes 10-Q y 10-K de empresas estadounidenses de consumo defensivo.</p></div><span class="scope-badge">FASE 1 · BETA</span></div>
       <div class="analysis-layout">
         <div class="panel upload-panel">
@@ -238,6 +125,7 @@
     </section>
 
     <section class="history-panel" id="historial"><div class="section-title-row"><div><span class="eyebrow">ACTIVIDAD</span><h2>Mis análisis</h2><p class="section-subtitle">Los análisis completados se guardan en tu cuenta y quedan aquí listos para consultar.</p></div><button class="text-button" id="history-refresh" type="button">Actualizar <span>↻</span></button></div><div class="history-filters" id="history-filters" hidden><label class="history-filter history-company"><span>Empresa</span><input id="history-company" type="text" placeholder="Ticker o nombre, ej. KO" autocomplete="off"></label><fieldset class="history-filter history-date-type"><legend>Fecha</legend><label class="history-date-option"><input type="radio" name="history-date-type" value="period" checked><span>De los resultados</span></label><label class="history-date-option"><input type="radio" name="history-date-type" value="created"><span>Del análisis</span></label></fieldset><label class="history-filter history-date"><span>Desde</span><input id="history-from" type="date"></label><label class="history-filter history-date"><span>Hasta</span><input id="history-to" type="date"></label><button class="secondary-button history-clear" id="history-clear" type="button">Limpiar</button></div><div class="table-wrap"><table id="history-table"><thead><tr><th>Documento</th><th>Empresa</th><th>Periodo</th><th>Fecha resultados</th><th>Fecha análisis</th><th>Estado</th><th></th></tr></thead><tbody id="history-body"></tbody></table></div><div class="history-empty" id="history-empty" hidden><p id="history-empty-text"></p><button class="primary-button" id="history-login" type="button" hidden>Iniciar sesión</button></div></section>
+    </section>
 
     <footer class="page-footer"><span>Cifra Terminal <b>·</b> beta 0.1</span><span>La IA ordena la información. Tú decides qué significa.</span></footer>
   </main>
@@ -295,7 +183,9 @@
     </div>
   </div>
 
-  <script src="/app.js?v=12"></script>
+  <script src="/watchlists.js?v=4"></script>
+  <script src="/portfolio.js?v=36"></script>
+  <script src="/app.js?v=19"></script>
   <script src="/auth.js?v=6"></script>
 </body>
 </html>

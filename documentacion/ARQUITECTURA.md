@@ -1,6 +1,6 @@
 # Arquitectura — Analizador de Resultados Financieros
 
-> Versión: 1.5 · Fecha: 2026-08-13 · Stack: Node.js + Express + PostgreSQL + Frontend puro (migrable a React)
+> Versión: 2.0 · Fecha: 2026-08-15 · Stack: Node.js + Express 5 + PostgreSQL 16 + Frontend puro (migrable a React)
 
 ---
 
@@ -8,12 +8,14 @@
 
 | Capa | Tecnología | Por qué |
 |---|---|---|
-| **Backend** | Node.js + Express (API REST) | Dominado en clase, ecosistema maduro, mismo idioma que el frontend |
-| **Base de datos** | PostgreSQL | Se controla SQL; modelo relacional encaja (users, filings, analyses) |
-| **Frontend** | HTML/CSS/JS puro (beta) | Sin curva de aprendizaje; se migrará a React en la Fase 2 |
-| **Extracción PDF** | Librería de texto de PDF (ej. `pdf-parse`) | Extrae el texto del informe para los agentes |
-| **Modelos IA** | Capa de abstracción propia (DeepSeek / GPT intercambiables) | Modelo final por decidir; la capa permite cambiar sin tocar agentes |
-| **Almacenamiento PDFs** | Filesystem local (carpeta `uploads/`) | Suficiente para uso local; migrable a S3 |
+| **Backend** | Node.js + Express 5 (API REST) | Dominado en clase, ecosistema maduro, mismo idioma que el frontend |
+| **Base de datos** | PostgreSQL 16 | Se controla SQL; modelo relacional encaja (users, analyses, filings, watchlists, portfolio) |
+| **Frontend** | HTML/CSS/JS puro (beta) | Sin curva de aprendizaje; migrable a React (API REST pura) |
+| **Extracción PDF** | `pdf-parse` 2.4.5 (API `PDFParse`) | Extrae el texto del informe para los agentes |
+| **PDF de informes** | `pdfkit` (informes IA) + Chrome headless (filings SEC) | Generación de PDFs; pdftoppm para previews |
+| **Modelos IA** | Capa de abstracción propia (`modelProvider`) | Proveedores: `deepseek` (activo), `opencode-go`, `mock`; cambiar = editar `.env` |
+| **Correos** | `nodemailer` vía SMTP (Gmail) | Códigos de verificación y recuperación; fallback consola sin SMTP |
+| **Almacenamiento PDFs** | Filesystem local (`uploads/`) | Suficiente para uso local; migrable a S3 |
 
 ---
 
@@ -23,7 +25,8 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                        FRONTEND (beta)                      │
 │              HTML / CSS / JS puro (carpeta public/)         │
-│         Vista: subir PDF · Vista: resultado del análisis    │
+│   index.html (Inicio)  ·  empresa.html (/empresa/:ticker)   │
+│   app.js · empresa.js · auth.js · watchlists.js · portfolio.js
 └───────────────────────────┬─────────────────────────────────┘
                             │  fetch() / FormData (multipart)
                             ▼
@@ -32,28 +35,32 @@
 │                                                             │
 │  ┌────────────┐  ┌────────────┐  ┌──────────────────────┐   │
 │  │ API Layer  │→ │ Services   │→ │ Sistema de Agentes   │   │
-│  │ (routes/   │  │ (analysis, │  │ (registro + runner)  │   │
-│  │ controllers│  │  pdf, auth,│  │  Origin → Sector →   │   │
-│  │            │  │  edgar)    │  │  Analyst             │   │
-│  └────────────┘  └─────┬──────┘  └──────────┬───────────┘   │
-│                        │                    │               │
-│                        ▼                    ▼               │
-│              ┌──────────────────┐  ┌───────────────────┐    │
-│              │ PostgreSQL       │  │ Capa de Modelos IA │   │
-│              │ (users,          │  │ (interfaz común:   │   │
-│              │  analyses,       │  │  generate() →      │   │
-│              │  filings)        │  │  DeepSeek / GPT)   │   │
-│              └──────────────────┘  └───────────────────┘    │
+│  │ (routes/)  │  │ (auth, edgar,│ │ (origin → sector →   │   │
+│  │            │  │  market,   │  │  analyst)            │   │
+│  │            │  │  analysis, │  └──────────┬───────────┘   │
+│  │            │  │  report,   │             │               │
+│  │            │  │  portfolio)│             ▼               │
+│  └────────────┘  └─────┬──────┘  ┌───────────────────┐      │
+│                        │         │ Capa de Modelos IA │      │
+│                        ▼         │ modelProvider +    │      │
+│              ┌──────────────────┐ │ chat/chatJson     │      │
+│              │ PostgreSQL       │ │ deepseek·opencode·mock   │
+│              │ users, analyses, │ └───────────────────┘      │
+│              │ filings,         │                            │
+│              │ verification_codes, watchlists,               │
+│              │ watchlist_items, portfolio_transactions       │
+│              └──────────────────┘                            │
 │                                                             │
-│              uploads/ (PDFs subidos, filesystem local)      │
+│   uploads/ (PDFs subidos y generados, previews)             │
+│   SEC EDGAR (JSON + XBRL) · Yahoo Finance (chart/quote)     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Principios rectores
-1. **API REST pura**: el frontend solo habla con el backend vía endpoints JSON. El frontend es un detalle reemplazable (facilita migrar a React sin tocar nada más).
-2. **Separación en capas**: API → Services → Agents → Models. Cada capa solo conoce a la inferior.
+1. **API REST pura**: el frontend solo habla con el backend vía endpoints JSON.
+2. **Separación en capas**: API → Services → Agents → Models; repositorios como única capa SQL.
 3. **Agentes extensibles**: se añaden agentes por país/sector registrándolos, sin modificar el runner.
-4. **Modelos intercambiables**: los agentes nunca llaman a una API de IA directamente; siempre a través de la capa de modelos.
+4. **Modelos intercambiables**: los agentes nunca llaman a una API de IA directamente; solo `modelProvider.chat/chatJson`.
 
 ---
 
@@ -61,337 +68,297 @@
 
 ```
 app/
-├── server.js                  # Arranque de Express + estáticos + rutas + errorHandler
-├── package.json               # Scripts: start, dev, db:migrate, db:seed
-├── .env                       # Variables (no versionar): PORT, JWT_SECRET, DATABASE_URL/DB_*
-├── config/
-│   └── index.js               # Config central: port, database, jwtSecret, production
+├── server.js                  # Express: estáticos + API + /empresa/:ticker + errorHandler
+├── package.json               # Scripts: start, dev, db:migrate, db:seed, test:email
+├── .env / .env.example        # PORT, DB_*, JWT_SECRET, SMTP_*, AI_*, CHROME_BIN...
+├── config/index.js            # Config central
 ├── db/
-│   ├── pool.js                # Pool de conexiones PostgreSQL
-│   ├── schema.sql             # Esquema de la BD (users, analyses, filings)
-│   ├── migrations.js          # Ejecutor sencillo de schema (npm run db:migrate)
-│   ├── seed.js                # Datos demo idempotentes (npm run db:seed)
+│   ├── pool.js                # Pool PostgreSQL
+│   ├── schema.sql             # Todas las tablas (migraciones idempotentes)
+│   ├── migrations.js          # npm run db:migrate
+│   ├── seed.js                # Datos demo idempotentes
 │   └── repositories/
-│       ├── analysisRepository.js  # create/get/list/update de analyses
-│       └── userRepository.js      # create/find de users
+│       ├── analysisRepository.js   # create/list/update analyses (filtros)
+│       ├── userRepository.js       # users + verification_codes
+│       ├── watchlistRepository.js  # listas de seguimiento (CRUD + upsert)
+│       └── portfolioRepository.js  # transacciones de cartera
 ├── src/
-│   ├── api/                   # Capa HTTP
+│   ├── api/
 │   │   ├── routes/
-│   │   │   ├── auth.routes.js       # POST /api/auth/register|login|logout, GET /me
-│   │   │   ├── analysis.routes.js   # POST /api/upload (multer, memoria)
-│   │   │   ├── screener.routes.js   # GET /api/screener/search, GET /api/screener/company/:ticker
-│   │   │   └── analyses.routes.js   # (futuro) GET /api/analyses, GET /api/analyses/:id
+│   │   │   ├── auth.routes.js       # /api/auth/* (8 rutas)
+│   │   │   ├── analysis.routes.js   # /api/upload, /api/analyses, /api/reports/:file
+│   │   │   ├── screener.routes.js   # /api/screener/* (8 rutas)
+│   │   │   ├── watchlists.routes.js # /api/watchlists/*
+│   │   │   └── portfolio.routes.js  # /api/portfolio/*
 │   │   └── controllers/
-│   │       └── auth.controller.js   # Firma JWT y gestiona la cookie de sesión
-│   ├── services/              # Lógica de negocio
-│   │   ├── auth.service.js         # Registro/login (bcrypt, validaciones, AuthError)
-│   │   ├── analysis.service.js     # Orquesta: PDF → agentes → resultado
-│   │   ├── edgar.service.js        # API SEC (EDGAR): ticker→CIK, companyfacts XBRL, 3 estados alineados con TIKR, series
-│   │   ├── pdf.service.js          # Extracción de texto del PDF (pdf-parse)
-│   │   ├── ai/                     # Capa de modelos IA
-│   │   │   ├── modelProvider.js        # chat(messages) → proveedor activo
-│   │   │   └── providers/
-│   │   │       ├── mock.provider.js       # Heurística local (solo AI_PROVIDER=mock)
-│   │   │       └── deepseek.provider.js   # API real de DeepSeek
-│   │   └── (futuro) filing, subscription
-│   ├── agents/                # Sistema de agentes
+│   │       └── auth.controller.js   # JWT + cookie
+│   ├── services/
+│   │   ├── auth.service.js          # Registro/login/verificación/reset (AuthError)
+│   │   ├── email.service.js         # nodemailer; MAIL_TO_OVERRIDE; fallback consola
+│   │   ├── edgar.service.js         # SEC: búsqueda, facts, series, rescate XBRL, perfil, filings, documento/preview
+│   │   ├── market.service.js        # Yahoo: chart+MA100, quote, profile, dividendos
+│   │   ├── analysis.service.js      # Pipeline: texto/PDF/HTML → 3 agentes → PDF → guardado
+│   │   ├── pdf.service.js           # pdf-parse
+│   │   ├── report.service.js        # PDF del informe (pdfkit)
+│   │   ├── portfolio.service.js     # FIFO, dividendos, sector, summary, alocaciones
+│   │   └── ai/
+│   │       ├── modelProvider.js     # chat/chatJson (reintentos) → proveedor activo
+│   │       └── providers/
+│   │           ├── mock.provider.js         # heurística local
+│   │           ├── deepseek.provider.js     # API directa DeepSeek (activo)
+│   │           └── opencode-go.provider.js  # OpenCode Go (alias 'opencode')
+│   ├── agents/
 │   │   ├── baseAgent.js           # BaseAgent + AgentError
-│   │   ├── agentRegistry.js       # Registro por nombre (origin registrado)
-│   │   └── originAgent.js         # ¿Financiero + 10-Q/10-K + EE. UU.? (implementado)
+│   │   ├── agentRegistry.js       # registro por nombre
+│   │   ├── originAgent.js         # financiero + 10-Q/10-K + EE. UU.
+│   │   ├── sectorAgent.js         # consumo defensivo
+│   │   ├── analystAgent.js        # 2 fases (extracción + informe) + prompts por sector
+│   │   └── prompts/consumo-defensivo.md  # reglas del sector
 │   ├── middleware/
-│   │   ├── auth.middleware.js  # requireAuth: valida JWT de la cookie y carga req.user
-│   │   └── errorHandler.js     # Errores uniformes JSON { error }
-│   └── utils/
-│       └── validate.js         # normalizeEmail, isValidEmail, isValidPassword
-├── public/                    # Frontend (beta, JS puro)
-│   ├── index.html             # Web "Terminal Cifra" (topbar + sidebar + secciones)
-│   ├── styles.css             # Diseño clon TIKR (claro)
-│   ├── app.js                 # Subida real → /api/upload, estados de agentes, errores
-│   └── auth.js                # Modal login/registro, estado de sesión, logout
-├── uploads/                   # PDFs subidos (pendiente: guardarlos aquí)
-├── documentacion/             # PROYECTO*.md, ARQUITECTURA.md, IMPLEMENTACION.md
-│   ├── backend/funcionalidades/<nombre>/    # Doc por funcionalidad (capa backend)
-│   │   ├── register/                        # ✅ Registro/login
-│   │   ├── verificacion-informe/            # ✅ Verificación 10-Q/10-K
-│   │   └── screener/                        # ✅ Cribador (API EDGAR/SEC)
-│   ├── frontend/funcionalidades/<nombre>/   # Doc por funcionalidad (capa frontend)
-│   │   ├── register/                        # ✅ Registro/login
-│   │   ├── verificacion-informe/            # ✅ Verificación 10-Q/10-K
-│   │   └── screener/                        # ✅ Cribador (sección + buscador topbar)
-│   └── diario/YYYY/MM/YYYY-MM-DD.md         # Registro diario de cambios
-├── agentes/                   # ENLACE → ~/.config/opencode/agent/ (tus agentes de opencode)
-└── PROYECTO.md                # ENLACE → documentacion/PROYECTO.md (resumen inyectado)
+│   │   ├── auth.middleware.js     # requireAuth + resolveUser (opcional)
+│   │   └── errorHandler.js        # JSON { error, code? }
+│   └── utils/validate.js          # email/contraseña
+├── public/                        # Frontend puro
+│   ├── index.html                 # Inicio: buscador, seguimiento, cartera, análisis, histórico
+│   ├── empresa.html               # /empresa/:ticker: perfil, informes, datos financieros
+│   ├── styles.css                 # Clon TIKR claro + todo el diseño
+│   ├── app.js                     # Inicio: búsqueda, análisis, histórico, secciones
+│   ├── empresa.js                 # Empresa: perfil, gráficos, tabla, filings
+│   ├── auth.js                    # Sesión + modal (5 pantallas)
+│   ├── watchlists.js              # Módulo compartido de listas de seguimiento
+│   └── portfolio.js               # Módulo compartido de cartera
+├── scripts/test-email.js          # npm run test:email
+├── uploads/
+│   ├── generated/filings/         # PDFs generados de la SEC (caché)
+│   │   └── previews/{accession}/  # PNG por página (pdftoppm)
+│   └── generated/                 # PDFs de informes IA (UUID)
+├── documentacion/                 # PROYECTO*.md, ARQUITECTURA.md, IMPLEMENTACION.md
+│   ├── backend/funcionalidades/   # register, verificacion-informe, screener, listas-seguimiento, cartera, historico-analisis
+│   ├── frontend/funcionalidades/  # idem (capa frontend)
+│   └── diario/YYYY/MM/YYYY-MM-DD.md
+├── agentes/ → ~/.config/opencode/agent/   (enlace, no versionado)
+└── PROYECTO.md → documentacion/PROYECTO.md (enlace, no versionado)
 ```
 
-### Enlaces simbólicos (acceso directo, no copias)
-
-- **`agentes/`** → enlace a `~/.config/opencode/agent/`, la carpeta global con los agentes de opencode (`documentacion.md`, `agentes.md`). Es un **enlace, no una copia**: editar un archivo a través de `agentes/` modifica el archivo real del prompt. Los agentes integrados (`build`, `plan`, `explore`, `general`) no aparecen ahí porque vienen dentro del propio opencode.
-- **`PROYECTO.md`** (raíz) → enlace a `documentacion/PROYECTO.md`, el resumen del proyecto que se inyecta en el prompt de todos los agentes (ver sección 11).
-- Ambos enlaces están en `.gitignore`: existen solo en tu máquina, no se versionan.
+### Enlaces simbólicos
+- **`agentes/`** → enlace a `~/.config/opencode/agent/` (prompts de los agentes de opencode).
+- **`PROYECTO.md`** (raíz) → enlace a `documentacion/PROYECTO.md` (resumen inyectado).
+- Ambos están en `.gitignore`.
 
 ---
 
 ## 4. Diseño de la base de datos (PostgreSQL)
 
-### Tablas (beta)
-
 ```sql
--- Usuarios: se crea ahora aunque el registro llegue en Fase 3
+-- Usuarios + verificación
 CREATE TABLE users (
-    id            SERIAL PRIMARY KEY,
-    email         TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,          -- bcrypt
-    plan          TEXT NOT NULL DEFAULT 'free',  -- 'free' | 'premium' (Fase 5)
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL, plan TEXT NOT NULL DEFAULT 'free'
+      CHECK (plan IN ('free','premium')),
+    email_verified BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE verification_codes (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL, attempts INT NOT NULL DEFAULT 0,
+    expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Análisis realizados (histórico por usuario)
+-- Análisis (histórico por usuario)
 CREATE TABLE analyses (
-    id           SERIAL PRIMARY KEY,
-    user_id      INT REFERENCES users(id) ON DELETE CASCADE,  -- NULL = anónimo (beta)
-    filename     TEXT NOT NULL,            -- nombre del PDF subido
-    status       TEXT NOT NULL DEFAULT 'processing',  -- processing|done|error
-    error        TEXT,                     -- mensaje de error si falla
-    origin       TEXT,                     -- 'US' | error de origen
-    sector       TEXT,                     -- 'defensive_consumer' | error de sector
-    report       JSONB,                    -- informe final estructurado (formato por definir)
-    model_used   TEXT,                     -- qué proveedor/modelo se usó
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    id SERIAL PRIMARY KEY, user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'processing'
+      CHECK (status IN ('processing','done','error')),
+    error TEXT, origin TEXT, sector TEXT, report JSONB, model_used TEXT,
+    ticker TEXT, company_name TEXT, period_end DATE, pdf_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Filings: histórico de resultados por empresa (Fase 2)
+-- Filings (preparada; hoy se consulta al vuelo desde EDGAR)
 CREATE TABLE filings (
-    id             SERIAL PRIMARY KEY,
-    ticker         TEXT NOT NULL,
-    company_name   TEXT NOT NULL,
-    form_type      TEXT NOT NULL,          -- '10-Q' | '10-K'
-    period         TEXT,                   -- ej. 'Q2 2025'
-    accession_no   TEXT UNIQUE,            -- identificador del filing en SEC
-    filing_url     TEXT,                   -- enlace al PDF oficial
-    filed_at       DATE,
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    id SERIAL PRIMARY KEY, ticker TEXT NOT NULL, company_name TEXT NOT NULL,
+    form_type TEXT NOT NULL CHECK (form_type IN ('10-Q','10-K')), period TEXT,
+    accession_no TEXT UNIQUE, filing_url TEXT, filed_at DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_filings_ticker ON filings (ticker);
-CREATE INDEX idx_analyses_user ON analyses (user_id);
+-- Listas de seguimiento (multi-lista; sustituyen a favorites, migrado)
+CREATE TABLE watchlists (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL, is_default BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (user_id, name)
+);
+CREATE TABLE watchlist_items (
+    id SERIAL PRIMARY KEY, watchlist_id INT NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+    ticker TEXT NOT NULL, company_name TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (watchlist_id, ticker)
+);
+
+-- Cartera (el estado se reconstruye de las transacciones)
+CREATE TABLE portfolio_transactions (
+    id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ticker TEXT NOT NULL, company_name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('buy','sell')),
+    shares NUMERIC(18,6) NOT NULL CHECK (shares > 0),
+    price NUMERIC(18,6) NOT NULL CHECK (price >= 0),
+    trade_date DATE NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 ```
 
-### Observaciones
-- `users.plan` y la tabla `users` completa: preparadas para **suscripciones (Fase 5)** sin migraciones traumáticas. La tabla ya se usa para registro/login (Fase 3).
-- `analyses.user_id` nullable: la beta local funciona sin login; la auth ya existe, falta asociar el historial al usuario conectado.
-- `report JSONB`: flexible para el formato final del informe (se fijará con los informes de referencia del usuario); el seed ya guarda un formato provisional.
-- La tabla `filings` se rellena en la **Fase 2** (llamadas a la API de EDGAR/SEC); en beta no se usa, pero ya está definida.
+Índices: `idx_analyses_user`, `(user_id, period_end)`, `(user_id, created_at)`, `idx_filings_ticker`, `idx_watchlists_user`, `idx_watchlist_items_watchlist/ticker`, `idx_portfolio_transactions_user (user_id, trade_date, id)` y `(ticker)`, `idx_verification_codes_user`.
+
+**Migraciones**: `schema.sql` usa `CREATE TABLE IF NOT EXISTS` y `ADD COLUMN IF NOT EXISTS`; la migración de favoritos copia los datos a la lista por defecto "Favoritos" y elimina la tabla `favorites`.
 
 ---
 
 ## 5. Sistema de agentes
 
-### Interfaz de agente (`src/agents/baseAgent.js`)
-
 ```js
+// baseAgent.js
 export class BaseAgent {
-  constructor({ name, description }) {
-    this.name = name;         // ej. 'origin'
-    this.description = description;
-  }
+  constructor({ name, description }) { this.name = name; this.description = description; }
   async run(_input) { throw new Error(`El agente ${this.name} no implementa run().`); }
 }
-
-export class AgentError extends Error {
-  constructor(message, code = 'AGENT_ERROR') { super(message); this.code = code; }
-}
+export class AgentError extends Error { constructor(message, code='AGENT_ERROR') { super(message); this.code = code; } }
 ```
-
-### Registro (`agentRegistry.js`)
-
-```js
-const agents = new Map();
-registerAgent(agent);   // agents.set(agent.name, agent)
-getAgent(name);         // → agente o null
-listAgents();           // → array de agentes
-```
-
-### Agentes actuales y futuros
 
 | Agente | Archivo | Estado |
 |---|---|---|
-| `origin` (verificador de origen) | `src/agents/originAgent.js` | ✅ Implementado y probado |
-| `sector` (verificador de sector) | `src/agents/sectorAgent.js` | ⏳ Pendiente |
-| `analyst` (analista principal) | `src/agents/analystAgent.js` | ⏳ Pendiente |
+| `origin` (origen: financiero + EE. UU. + 10-Q/10-K) | `src/agents/originAgent.js` | ✅ Implementado y probado |
+| `sector` (consumo defensivo) | `src/agents/sectorAgent.js` | ✅ Implementado y probado |
+| `analyst` (analista: extracción + informe + PDF) | `src/agents/analystAgent.js` | ✅ Implementado y probado |
 
-### Comportamiento del pipeline
-
-- El agente `origin` devuelve `{ origin: 'US', formType: '10-Q' | '10-K' }` o lanza `AgentError` con mensaje claro (códigos: `EMPTY_DOCUMENT`, `INVALID_MODEL_RESPONSE`, `NOT_FINANCIAL`, `NOT_USA`, `NOT_10Q_10K`).
-- Si un agente falla → **el pipeline se detiene** y el error llega al frontend (y en el futuro a `analyses.error`).
-- **Extensión futura**: para añadir Canadá se registra `OriginAgentCA`; para añadir tecnología, `SectorAgentTech` + `AnalystAgentTech`. El runner no cambia.
+- Reglas por sector en `src/agents/prompts/<sector>.md` (hoy `consumo-defensivo.md`); el analista las carga según `sector` (`NO_SECTOR_RULES` si no existen).
+- **Extensión futura**: añadir `OriginAgentCA`, `SectorAgentTech` + `AnalystAgentTech` registrándolos; el runner no cambia.
 
 ---
 
 ## 6. Capa de abstracción de modelos IA
 
-### Interfaz común (`src/services/ai/modelProvider.js`)
-
 ```js
-// Todos los proveedores implementan esta misma firma.
-// Los agentes llaman SOLO a esta capa, nunca a la API de un proveedor.
+// modelProvider.js — los agentes llaman SOLO a esta capa
 export function chat(messages) { return getProvider().chat(messages); }
-// messages: [{ role: 'system'|'user', content }] → string
+export async function chatJson(messages, attempts = 2) { /* reintenta ante vacío/JSON inválido/error transitorio */ }
 ```
 
-### Implementaciones (`src/services/ai/providers/`)
-
-| Proveedor | Cuándo se usa | Notas |
+| Proveedor | Cuándo | Notas |
 |---|---|---|
-| `deepseek.provider.js` | Por defecto (o `AI_PROVIDER=deepseek`) | `POST api.deepseek.com/chat/completions` con fetch nativo; modelo `deepseek-chat` (o `AI_MODEL`), `temperature: 0`, `max_tokens: 400`; sin `DEEPSEEK_API_KEY` → error visible |
-| `mock.provider.js` | Solo con `AI_PROVIDER=mock` | Heurística por patrones (SEC, FORM 10-Q/10-K, estados financieros); sin coste, para desarrollo |
-| `openai.provider.js` | ⏳ Futuro (candidato GPT) | Misma interfaz |
+| `deepseek.provider.js` | **Activo** (`AI_PROVIDER=deepseek` o por defecto) | `api.deepseek.com/chat/completions`, modelo `deepseek-chat`/`AI_MODEL`, `temperature: 0`, limpieza de ```json```. 22–23 s por análisis, fiable |
+| `opencode-go.provider.js` | `AI_PROVIDER=opencode`/`opencode-go` | `opencode.ai/zen/go/v1/chat/completions`, `deepseek-v4-flash`; probado pero intermitente (145–247 s, fallos de JSON) |
+| `mock.provider.js` | Solo `AI_PROVIDER=mock` | Heurística local sin coste; respuesta mínima para el analista |
 
-### Selección del proveedor
+Configuración en `.env`: `AI_PROVIDER`, `DEEPSEEK_API_KEY`, `OPENCODE_GO_API_KEY`, `AI_MODEL`, `OPENCODE_GO_MODEL`, **`AI_MAX_TOKENS=16000`** (el informe supera 8000 tokens), **`AI_REQUEST_TIMEOUT_MS=180000`**.
 
-- El proveedor activo se resuelve al arrancar: `AI_PROVIDER` si está definido; si no, `deepseek`.
-- La única configuración del usuario es `DEEPSEEK_API_KEY` en `.env` (y `AI_MODEL` opcional).
-- En Fase 5 (suscripciones): el proveedor se elegirá **según el plan del usuario** (free → modelo base, premium → modelo mejor). Mismo código, solo cambia quién elige el provider.
-
-### Garantía clave
-
-Los agentes **nunca** importan `deepseek` ni `mock` directamente. Solo usan `modelProvider.chat()`. Así, cambiar de modelo es editar `.env`, no código de agentes.
+**Garantía clave**: los agentes nunca importan un proveedor concreto; cambiar de API es editar `.env`. En Fase 5, el proveedor se elegirá según el plan del usuario.
 
 ---
 
-## 7. Flujo completo de un análisis (Fase 1)
-
-### Estado actual (implementado)
+## 7. Flujo completo de un análisis (implementado)
 
 ```
-Usuario → sube PDF (multipart) a POST /api/upload
+PDF (subida manual) o filing de la SEC (PDF/HTML)
     │
     ▼
-Express + multer recibe el archivo en memoria (≤ 25 MB)     [no PDF → 422]
+texto (pdf-parse) o htmlToText
     │
     ▼
-pdf.service extrae el texto del PDF (pdf-parse 2.4.5)
+analysis.service (analyzePdf / analyzeText):
+    1. originAgent → NOT_FINANCIAL / NOT_USA / NOT_10Q_10K / { origin:'US', formType }
+    2. sectorAgent → NOT_DEFENSIVE_CONSUMER / { sector:'defensive_consumer' }
+    3. analystAgent → extracción (chatJson) → informe (chatJson + reglas del sector)
+    4. report.service → PDF (uploads/generated/<uuid>.pdf)
+    5. saveAnalysis (si hay userId) → analyses (status done, report, pdf_url, ...)
     │
     ▼
-analysis.service → Pipeline de agentes (por ahora solo origin):
-    OriginAgent → ¿financiero? → No → 422 NOT_FINANCIAL
-                → ¿EE. UU.?    → No → 422 NOT_USA
-                → ¿10-Q/10-K?  → No → 422 NOT_10Q_10K
-                → Sí → { origin: 'US', formType }
-    │
-    ▼
-Respuesta JSON al frontend → el panel muestra veredicto o error
+200 { ok, origin, formType, sector, report, pdfUrl, saved } (+ error 422 con code si falla un agente)
 ```
 
-### Queda pendiente en el flujo
-
-```
-[Pendiente] guardar el PDF en uploads/ con nombre único
-[Pendiente] crear registro en analyses (status=processing) al empezar
-[Pendiente] SectorAgent → ¿consumo defensivo? → No → error guardado, status=error
-[Pendiente] AnalystAgent → genera informe (usa la capa de modelos)
-[Pendiente] guardar report + status=done en analyses
-[Pendiente] GET /api/analyses para el histórico real
-```
-
-### Endpoints API (beta)
+### Endpoints API
 
 | Método | Ruta | Función | Estado |
 |---|---|---|---|
-| `POST` | `/api/upload` | Sube PDF y verifica origen/tipo (multipart) | ✅ Implementado |
-| `GET` | `/api/analyses` | Lista de análisis realizados (histórico) | ⏳ Pendiente |
-| `GET` | `/api/analyses/:id` | Detalle de un análisis (incluye report JSONB) | ⏳ Pendiente |
-| `GET` | `/api/screener/search?q=` | Busca empresas por ticker/nombre en EDGAR | ✅ Implementado (Fase 2) |
-| `GET` | `/api/screener/company/:ticker` | Series anuales/trimestrales + 3 estados (`statements: income, balance, cashflow`) de la empresa (EDGAR) | ✅ Implementado (Fase 2) |
-| `POST` | `/api/auth/register` | Registro de usuario (email + contraseña ≥ 8) → cookie de sesión | ✅ Implementado |
-| `POST` | `/api/auth/login` | Inicio de sesión → cookie de sesión | ✅ Implementado |
-| `POST` | `/api/auth/logout` | Cierra la sesión (borra la cookie) | ✅ Implementado |
-| `GET` | `/api/auth/me` | Usuario actual (requiere cookie válida) | ✅ Implementado |
+| `POST` | `/api/upload` | Sube PDF y ejecuta el pipeline completo | ✅ |
+| `GET` | `/api/analyses` | Histórico por usuario con filtros (requireAuth) | ✅ |
+| `GET` | `/api/reports/:file` | Sirve el PDF del informe generado | ✅ |
+| `GET` | `/api/screener/search?q=` | Busca empresas en EDGAR | ✅ |
+| `GET` | `/api/screener/company/:ticker` | Series anuales/trimestrales + statements + perfil (+ `authenticated`) | ✅ |
+| `GET` | `/api/screener/company/:ticker/chart` | Precios (3m…all) + MA100 (`ma=1`) | ✅ |
+| `GET` | `/api/screener/company/:ticker/filings` | Histórico 10-Q/10-K (máx. 40) | ✅ |
+| `GET` | `.../filings/:accession/document` | Documento (PDF/HTML; `download=1`) | ✅ |
+| `GET` | `.../filings/:accession/preview` + `/pages/:page` | Vista previa por páginas (PNG) | ✅ |
+| `POST` | `.../filings/:accession/analyze` | Analiza el filing (mismo pipeline) | ✅ |
+| `POST` | `/api/auth/register` · `/verify` · `/resend-code` | Registro + verificación de correo | ✅ |
+| `POST` | `/api/auth/login` · `/logout` · `/me` | Sesión (403 `EMAIL_NOT_VERIFIED` si no verificado) | ✅ |
+| `POST` | `/api/auth/forgot-password` · `/reset-password` | Recuperación de contraseña | ✅ |
+| `GET/POST/PATCH/DELETE` | `/api/watchlists...` | Listas de seguimiento (CRUD listas + items, requireAuth) | ✅ |
+| `GET/POST/DELETE` | `/api/portfolio...` | Cartera (estado, transacciones, borrado protegido, requireAuth) | ✅ |
 
-> **Contrato del cribador**: la respuesta de `GET /api/screener/company/:ticker` incluye `statements` (catálogo y orden de filas de las capturas TIKR, con `{ key, label, format, emphasis, kind }` para los 3 estados y formatos `money`|`perShare`|`shares`|`count`) junto a `annual` y `quarterly` (`{ period, values }`), de modo que el frontend pinta la tabla genéricamente sin conocer las partidas. Los periodos se alinean por **frame XBRL** y por **fecha de fin** (`fp=FY` → año de `end`), lo que coloca correctamente los balances de cierre fiscal de años no naturales (p. ej. PG, cierre en junio) y los 10-K reexpresados sin frame (p. ej. KO). Los valores ausentes se derivan cuando es posible (agregados de resultados, balance, deuda y flujo de caja libre).
+### Autenticación
 
-*(Fase 2 añadirá además: `GET /api/companies/:ticker/filings` —histórico de filings— y el puente "Analizar" desde el cribador hacia el pipeline)*
-
-### Autenticación (Fase 3, implementada)
-
-- Sesión con **JWT en cookie httpOnly** (`SameSite=Lax`, 7 días, `secure` solo en producción). Sin almacenamiento de sesiones en BD.
-- `bcryptjs` para el hash de contraseñas (`users.password_hash`); `cookie-parser` para leer la cookie.
-- `src/services/auth.service.js` (lógica + errores con estado HTTP), `src/api/routes/auth.routes.js` y `src/api/controllers/auth.controller.js`.
-- `src/middleware/auth.middleware.js` (`requireAuth`) protegerá los endpoints que necesiten usuario (ej. histórico por usuario).
-- `src/middleware/errorHandler.js`: respuestas de error siempre JSON `{ error }` con el código HTTP correcto.
-- Secretos en `.env` (`JWT_SECRET`). Pendiente: asociar análisis al usuario conectado (`analyses.user_id`) y límites por plan.
+- **JWT en cookie httpOnly** (`SameSite=Lax`, 7 días, `secure` solo en producción); sin sesiones en BD.
+- `register` no inicia sesión: genera código de 6 dígitos (SHA-256, 15 min, máx. 5 intentos) y lo envía por SMTP (consola sin SMTP). `verify` valida y emite la cookie. `login` bloquea cuentas sin verificar (403 `EMAIL_NOT_VERIFIED`).
+- `forgot-password` no filtra cuentas (responde igual si el email no existe); `reset-password` valida código, cambia el hash y marca verificado.
+- `requireAuth` (obligatoria) y `resolveUser` (opcional: devuelve usuario o `null` — usada por el screener para `authenticated` y por los análisis para `saved`).
 
 ---
 
-## 8. Plan de implementación (orden de trabajo)
+## 8. Plan de implementación (estado)
 
 | Paso | Contenido | Estado |
 |---|---|---|
-| 1 | **Scaffolding**: Express, `config/`, `server.js` con `/api/health` | ✅ Hecho |
-| 2 | **PostgreSQL**: `db/pool.js`, `db/schema.sql`, tablas `users` y `analyses` | ✅ Hecho (+ repositorios y seed) |
-| 3 | **Capa de modelos IA**: `modelProvider.js` + proveedores (`deepseek` real, `mock` heurístico) | ✅ Hecho (falta probar con key real) |
-| 4 | **Sistema de agentes**: `baseAgent.js`, `agentRegistry.js`, `originAgent` | ✅ Hecho y probado; `sectorAgent` y `analystAgent` ⏳ |
-| 5 | **PDF**: `pdf.service.js` (pdf-parse 2.4.5) + `POST /api/upload` | ✅ Hecho y probado |
-| 6 | **Pipeline**: `analysis.service.js` con origin conectado; guardado en BD y resto de agentes ⏳ | 🔶 Parcial |
-| 7 | **Frontend puro**: `public/` + subida real conectada a la API | ✅ Hecho (estados de agentes + errores en pantalla) |
-| 8 | **Histórico**: `GET /api/analyses` + vista de historial | 🔶 Repositorio listo; endpoint y vista pendientes |
-| 9 | **Formato del informe** con los informes de referencia del usuario | ⏳ Pendiente |
-| 10 | **Autenticación** (registro/login, bcrypt, sesión JWT en cookie) | ✅ Hecho y probado |
+| 1 | Scaffolding Express + config | ✅ Hecho |
+| 2 | PostgreSQL + repositorios + seed | ✅ Hecho |
+| 3 | Capa de modelos IA (deepseek/opencode-go/mock) | ✅ Hecho (DeepSeek activo) |
+| 4 | Sistema de agentes (origin, sector, analyst) | ✅ Hecho y probado |
+| 5 | PDF (pdf-parse) + `POST /api/upload` | ✅ Hecho |
+| 6 | Pipeline completo (3 agentes + PDF + guardado) | ✅ Hecho |
+| 7 | Frontend puro (Inicio + Empresa) | ✅ Hecho |
+| 8 | Histórico (`GET /api/analyses` + filtros + vista) | ✅ Hecho |
+| 9 | Formato del informe (prompt consumo-defensivo) | 🔶 Base en producción; refinar con referencias |
+| 10 | Autenticación completa (verificación + recuperación) | ✅ Hecho |
+| 11 | Fase 2 completa (filings, preview, descarga, analizar) | ✅ Hecho |
+| 12 | Extras: listas de seguimiento + cartera + bloqueo PRO | ✅ Hecho |
+| 13 | Fase 4 (multi-periodo) / Fase 5 (planes) / Fase 6 (países/sectores) | ⏳ Pendiente |
 
 > El detalle de todo lo implementado está en `documentacion/IMPLEMENTACION.md`.
 
 ---
 
-## 9. Decisiones de arquitectura pendientes
+## 9. Decisiones de arquitectura
 
-| Decisión | Impacto |
-|---|---|---|
-| **Formato exacto del report JSONB** | Define el prompt del AnalystAgent y la vista de resultados. Se fija cuando el usuario aporte sus informes de referencia |
-| **Librería de PDF** | ✅ Decidida: `pdf-parse` 2.4.5 (API `PDFParse`/`getText()`, compatible ESM) |
-| **Modelo concreto (DeepSeek vs GPT)** | 🔶 En prueba: provider DeepSeek implementado (falta key real); GPT como proveedor futuro con la misma interfaz |
-| **Límites del plan free** | Afecta solo a Fase 5, pero el campo `plan` ya existe |
-
----
+| Decisión | Detalle |
+|---|---|
+| **Stack** | Node.js + Express 5 + PostgreSQL 16 + frontend puro (migrable a React) |
+| **Librería de PDF** | `pdf-parse` 2.4.5 (API `PDFParse`/`getText()`, compatible ESM) |
+| **PDF de informes IA** | `pdfkit`; PDFs de filings con Chrome headless (`--user-agent` declarado) y previews con `pdftoppm` |
+| **Modelo IA activo** | `AI_PROVIDER=deepseek` (directo): 22–23 s, fiable. OpenCode Go probado (intermitente). Revisar a medio plazo |
+| **Correos** | `nodemailer` + SMTP Gmail; `MAIL_TO_OVERRIDE` para pruebas; fallback consola |
+| **Sesión** | JWT en cookie httpOnly, 7 días, SameSite=Lax |
+| **Screener sin huecos** | Rescate desde instancias XBRL (solo si falta algo), `buildSeries` en fases, reintentos 429 |
+| **Frontend por páginas** | `/` (Inicio) y `/empresa/:ticker` (Empresa); módulos compartidos `watchlists.js`/`portfolio.js` |
+| **Límites plan free** | Campo `plan` ya existe; bloqueo PRO del cribador como primer límite real (Fase 5 pendiente) |
 
 ## 10. Mitigación de riesgos
 
 | Riesgo | Mitigación |
 |---|---|
-| PDF con tablas/escaneado que pierde texto | Extraer texto es el paso 1; si el texto sale vacío o demasiado corto, error claro: "No se pudo extraer texto" |
-| Coste de API de IA | Empezar con modelo barato (DeepSeek) para desarrollo; limitar tamaño de texto enviado a los agentes (primeras N páginas si el informe es enorme) |
-| Migrar frontend a React | Garantizado por API REST pura; el frontend nunca contiene lógica de negocio |
-| SQL en los prompts | Recordatorio explícito en el prompt del AnalystAgent de que el análisis es financiero y no debe inventar cifras no presentes en el PDF |
+| PDF escaneado sin texto | Error claro "No se pudo extraer texto" (`EMPTY_DOCUMENT`) |
+| Coste de API de IA | DeepSeek barato; texto limitado a 80.000 caracteres; timeout 180 s |
+| Fallos intermitentes del modelo | `chatJson` reintenta; UI con Reintentar; avisos progresivos |
+| SEC bloquea/limita | User-Agent declarado, cachés (24 h/6 h), reintentos 429, concurrencia 5 |
+| Filings sin PDF | Generación con Chrome (cacheada) + fallback HTML |
+| Preview PDF en iframe | Previews por imágenes (pdftoppm) |
+| Migrar frontend a React | API REST pura; la lógica de negocio vive en el backend |
+| SQL en los prompts | El prompt del analista prohíbe inventar cifras no presentes en el informe |
 
 ---
 
 ## 11. Entorno de desarrollo: opencode (prompts y agentes)
 
-Cómo se monta el contexto que reciben los agentes de opencode (no confundir con los agentes de la app de la sección 5).
-
-### Configuración actual
-
-| Archivo | Contenido |
-|---|---|
-| `opencode.json` (raíz del proyecto) | `"instructions": ["documentacion/PROYECTO.md"]` → inyecta el resumen en el prompt de todos los agentes |
-| `agentes/` (enlace) | `documentacion.md` y `agentes.md` (prompts de los agentes de opencode) |
-
-### Qué recibe la IA en cada mensaje
-
-1. Prompt de sistema de opencode + esquemas de las herramientas permitidas.
-2. Prompt del agente activo (archivo en `~/.config/opencode/agent/`).
-3. `documentacion/PROYECTO.md` (resumen; el detalle está en `documentacion/PROYECTO-detalle.md`).
-4. Historial de la sesión + mensaje actual + resultados de herramientas.
-
-### Optimización de tokens (aplicada)
-
-- **`PROYECTO.md` resumido** (~2.8 KB): el documento completo se movió a `PROYECTO-detalle.md`, que solo se lee cuando hace falta.
-- **Prompts de agentes condensados** (`documentacion`, `agentes`).
-- **Herramientas no usadas en `deny`** (`webfetch`, `task`, `skill`, `todowrite`, `websearch`, `apply_patch`): opencode deja de enviar sus esquemas al modelo.
-- **Resultado medido** (modelo DeepSeek, mensaje "hola"): ~7.900 → **~4.925 tokens** de contexto por mensaje (-38 %).
-
-### Regla importante
-
-- Los cambios en `opencode.json`, prompts de agentes o `PROYECTO.md` **solo se aplican al reiniciar opencode** (la configuración se carga al arrancar).
-- Los enlaces `agentes/` y `PROYECTO.md` están en `.gitignore` (no se versionan).
+- `opencode.json` → `"instructions": ["documentacion/PROYECTO.md"]` (resumen inyectado; el detalle en `PROYECTO-detalle.md`).
+- `agentes/` → enlace a `~/.config/opencode/agent/` (prompts de los agentes de opencode).
+- Optimización de tokens aplicada (documento resumido, prompts condensados, herramientas en `deny`).
+- Los cambios en `opencode.json`, prompts o `PROYECTO.md` se aplican al reiniciar opencode.
 
 ---
 

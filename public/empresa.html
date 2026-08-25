@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#242424">
   <meta name="description" content="Cifra: perfil y análisis fundamental de empresas.">
   <title>Cifra Terminal | Empresa</title>
-  <link rel="stylesheet" href="/styles.css?v=14">
+  <link rel="stylesheet" href="/styles.css?v=45">
 </head>
 <body class="company-page">
   <div class="app-shell">
@@ -48,8 +48,8 @@
       <nav class="main-nav" aria-label="Navegación de la empresa">
         <div class="nav-section">
           <a class="nav-link" href="#" data-section="favoritos">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
-            <span>Favoritos</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+            <span>Seguimiento</span>
           </a>
           <a class="nav-link" href="#" data-section="alertas">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2.5h-15L6 16ZM10 20a2 2 0 0 0 4 0"/></svg>
@@ -123,8 +123,8 @@
                 </div>
                 <div class="company-chips">
                   <span class="ticker-select" id="company-ticker-chip">🇺🇸 —</span>
-                  <button class="icon-chip" type="button" id="company-fav" aria-label="Añadir a favoritos">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.2-8.6C1.2 8.5 3 5.5 6.2 5.5c1.9 0 3.2 1 3.8 2 .6-1 1.9-2 3.8-2 3.2 0 5 3 3.4 5.9C15 15.4 12 20 12 20Z"/></svg>
+                  <button class="icon-chip" type="button" id="company-watch" aria-label="Añadir a listas de seguimiento" title="Listas de seguimiento">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
                   </button>
                   <button class="icon-chip" type="button" id="company-filings-shortcut" aria-label="Ver informes">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10v14H7zM9 8h6M9 12h6"/></svg>
@@ -137,7 +137,7 @@
               </div>
             </div>
 
-            <div class="panel company-quote">
+            <div class="panel company-quote" id="company-quote" role="button" tabindex="0" aria-label="Ver el gráfico en pantalla grande" title="Ver el gráfico en pantalla grande">
               <div class="company-quote-copy">
                 <strong id="quote-price" class="positive"><span class="quote-arrow" aria-hidden="true">▲</span> —</strong>
                 <small id="quote-change" class="positive">—</small>
@@ -218,9 +218,15 @@
 
           <section class="company-section" id="section-favoritos" hidden>
             <div class="filings-view">
-              <div class="filings-head"><span class="screener-units">TUS ACCIONES FAVORITAS</span><span class="screener-period-range" id="favorites-count">—</span></div>
-              <div class="favorites-table-wrap" id="favorites-list"></div>
-              <div class="favorites-empty" id="favorites-empty" hidden>Aún no tienes acciones favoritas. Toca el corazón de una empresa para añadirla.</div>
+              <div class="filings-head"><span class="screener-units">TUS LISTAS DE SEGUIMIENTO</span><span class="screener-period-range" id="favorites-count">—</span></div>
+              <div id="watchlists-section"></div>
+            </div>
+          </section>
+
+          <section class="company-section" id="section-cartera" hidden>
+            <div class="filings-view">
+              <div class="filings-head"><span class="screener-units">TU CARTERA</span><span class="screener-period-range">FIFO · Dividendos estimados</span></div>
+              <div id="portfolio-company-section"></div>
             </div>
           </section>
 
@@ -232,6 +238,18 @@
           </section>
 
           <section class="company-section" id="section-datos" hidden>
+            <div class="panel metrics-chart-block" id="metrics-chart-block" hidden>
+              <div class="metrics-chart-head">
+                <h5>Gráfico de métricas <span class="metrics-chart-hint">Haz clic en una fila de la tabla para añadirla al gráfico</span></h5>
+                <button type="button" class="metrics-chart-clear" id="metrics-chart-clear" hidden>Limpiar</button>
+              </div>
+              <div class="metrics-chart-legend" id="metrics-chart-legend"></div>
+              <div class="metrics-palette" id="metrics-palette" hidden></div>
+              <div class="metrics-chart-body" id="metrics-chart-body">
+                <svg id="metrics-chart" viewBox="0 0 720 300" preserveAspectRatio="none" role="img" aria-label="Gráfico de métricas financieras"></svg>
+                <div class="chart-tooltip" id="metrics-chart-tooltip" hidden></div>
+              </div>
+            </div>
             <div class="screener-company-head">
               <div class="screener-controls">
                 <span class="screener-currency">USD</span>
@@ -245,6 +263,15 @@
               <button class="screener-tab active" type="button" role="tab" data-statement="income">Cuenta de resultados</button>
               <button class="screener-tab" type="button" role="tab" data-statement="balance">Balance</button>
               <button class="screener-tab" type="button" role="tab" data-statement="cashflow">Estado de Flujo de Efectivo</button>
+            </div>
+            <div class="screener-range" id="screener-range" hidden>
+              <span class="screener-range-label">Historial</span>
+              <div class="screener-range-inputs">
+                <div class="screener-range-track" id="screener-range-track"></div>
+                <input type="range" id="screener-range-min" min="2016" max="2026" step="1" value="2016" aria-label="Año inicial del historial">
+                <input type="range" id="screener-range-max" min="2016" max="2026" step="1" value="2026" aria-label="Año final del historial">
+              </div>
+              <span class="screener-range-values" id="screener-range-values">—</span>
             </div>
             <div class="screener-block">
               <div class="screener-toolbar"><span class="screener-units">USD · Millones</span><span class="screener-period-range" id="screener-period-range">—</span><div class="screener-tools" role="group" aria-label="Opciones de tabla"><button type="button" data-precision="0">0</button><button type="button" data-precision="1">.0</button><button type="button" data-precision="2" class="active">.00</button><button type="button" data-table-action="transpose" aria-label="Compactar tabla">↔</button><button type="button" data-table-action="empty" aria-label="Ocultar filas vacías">◉</button></div></div>
@@ -333,7 +360,9 @@
     </div>
   </div>
 
-  <script src="/empresa.js?v=14"></script>
+  <script src="/watchlists.js?v=4"></script>
+  <script src="/portfolio.js?v=21"></script>
+  <script src="/empresa.js?v=21"></script>
   <script src="/auth.js?v=6"></script>
 </body>
 </html>
