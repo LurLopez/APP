@@ -19,7 +19,7 @@ const Portfolio = (() => {
   let groupsSortKey = 'valor';
   let groupsSortDir = 'asc';
   let groupsDisplayMode = {};
-  let activeTab = null;
+  let activeTab = { type: 'predefined', key: 'sector' };
   let activeGroup = null;
   let expandedGroups = new Set();
   let tabFormOpen = false;
@@ -32,9 +32,11 @@ const Portfolio = (() => {
   let chartRange = '1y';
   let chartSelectedIds = [];
   let chartRequestId = 0;
-  let chartOpen = false;
-  let chartFromMonth = 0;
-  let chartToMonth = null;
+  let chartOpen = true;
+  let chartSliceStart = 0;
+  let chartSliceEnd = null;
+  let chartCachedData = null;
+  let chartRedrawRaf = null;
 
   const COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0d9488', '#e11d48', '#65a30d', '#a16207', '#4b5563', '#0891b2', '#9333ea', '#ca8a04', '#64748b'];
 
@@ -130,7 +132,7 @@ const Portfolio = (() => {
     groupsSortDir = 'asc';
     groupsDisplayMode = {};
     formExpanded = false;
-    activeTab = null;
+    activeTab = { type: 'predefined', key: 'sector' };
     activeGroup = null;
     expandedGroups.clear();
     tabFormOpen = false;
@@ -138,7 +140,7 @@ const Portfolio = (() => {
     editingGroupId = null;
     editingTabId = null;
     chartSelectedIds = [];
-    chartOpen = false;
+    chartOpen = true;
     closeGroupPopover();
     emitChange();
     if (sectionRoot) renderSection();
@@ -601,7 +603,7 @@ const Portfolio = (() => {
           <ul class="pf-allocation-legend">${legend}</ul>
         </div>
         <div class="pf-card-footer">
-          <span class="pf-footer-hint">El detalle de cada posición está abajo.</span>
+          <span class="pf-footer-hint">El gráfico de evolución y el detalle de cada posición están abajo.</span>
           <button class="pf-footer-link" type="button" data-pf-export>⇩ Exportar CSV</button>
         </div>
       </div>`;
@@ -1415,6 +1417,10 @@ const Portfolio = (() => {
               : 'Elige una pestaña arriba para ver sus grupos.'}</p>
           </div>
           <div class="pf-groups-head-actions">
+            <button class="pf-outline-button pf-show-all-btn" type="button" data-pf-chart-show-all="grupos" title="Mostrar todos los grupos principales de esta pestaña en el gráfico">
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg>
+              <span>Mostrar todo</span>
+            </button>
             <div class="pf-positions-views" role="group" aria-label="Vista de grupos">${viewsHtml}</div>
             ${isCustom ? `
               <div class="pf-groups-controls">
@@ -2319,9 +2325,10 @@ const Portfolio = (() => {
 
   function portfolioTabsHtml() {
     const tabs = [
-      ['cartera', '◔', 'Cartera'],
-      ['dividendos', '▤', 'Dividendos'],
-      ['operaciones', '▣', 'Operaciones'],
+      ['cartera', '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>', 'Cartera'],
+      ['dividendos', '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>', 'Dividendos'],
+      ['calendario', '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>', 'Calendario'],
+      ['operaciones', '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10M6 10h10M6 14h6"/></svg>', 'Operaciones'],
     ];
     return `
       <nav class="pf-dashboard-tabs" role="tablist" aria-label="Secciones de la cartera">
@@ -2329,7 +2336,7 @@ const Portfolio = (() => {
           ${tabs.map(([key, icon, label]) => `
             <button class="pf-dashboard-tab ${portfolioTab === key ? 'active' : ''}" type="button"
               role="tab" aria-selected="${portfolioTab === key}" data-pf-tab="${key}">
-              <span aria-hidden="true">${icon}</span>${label}
+              <span class="pf-tab-icon" aria-hidden="true">${icon}</span>${label}
             </button>`).join('')}
         </div>
         <button class="pf-dashboard-add" type="button" data-pf-add>+ Añadir operación</button>
@@ -2346,10 +2353,21 @@ const Portfolio = (() => {
       <div class="pf-broker-panel">
         <div class="pf-card-head">
           <div><h4>Valores</h4><p>Detalle de tus posiciones y de los dividendos previstos.</p></div>
-          <div class="pf-positions-views" role="group" aria-label="Vista de posiciones">
-            ${views.map(([key, label]) => `
-              <button class="pf-view-button ${positionsView === key ? 'active' : ''}" type="button"
-                data-pf-view="${key}" aria-pressed="${positionsView === key}">${label}</button>`).join('')}
+          <div class="pf-positions-head-actions">
+            <button class="pf-outline-button pf-show-all-btn" type="button" data-pf-chart-show-all="valores" title="Mostrar todas las acciones principales en el gráfico">
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg>
+              <span>Mostrar todo</span>
+            </button>
+            <button class="pf-outline-button pf-toggle-chart-btn" type="button" data-pf-chart-toggle title="${chartOpen ? 'Ocultar gráfico comparativo' : 'Mostrar gráfico comparativo'}">
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg>
+              <span>${chartOpen ? 'Ocultar gráfico' : 'Mostrar gráfico'}</span>
+            </button>
+            <div class="pf-positions-views" role="group" aria-label="Vista de posiciones">
+              ${views.map(([key, label]) => `
+                <button class="pf-positions-view-btn ${positionsView === key ? 'active' : ''}" type="button" data-pf-view="${key}">
+                  ${label}
+                </button>`).join('')}
+            </div>
           </div>
         </div>
         ${positionsTableHtml(positionsView)}
@@ -2360,42 +2378,2252 @@ const Portfolio = (() => {
       </div>`;
   }
 
-  function dividendPanelHtml() {
-    const positions = [...(data?.positions ?? [])]
-      .filter((item) => (item.shares ?? 0) > 0)
-      .sort((a, b) => Number(b.projectedAnnualDividends) - Number(a.projectedAnnualDividends));
-    const summary = data?.summary ?? {};
-    const rows = positions.map((item) => {
-      const value = Number(item.value);
-      const cost = Number(item.costBasis);
-      const annual = Number(item.projectedAnnualDividends) || 0;
+  /* ── Estado del panel de dividendos ──────────────────────── */
+
+  let dividendDistTimelineYear = 2026;
+  let dividendDistMode = 'year';      // 'year' | 'month'
+  let dividendDistPeriod = 'TTM';     // 'TTM' | '2027' | '2026' | '2025' | '2024' | '2023' | '2022' | 'all'
+  let dividendDistMetric = 'pct';     // 'pct' | 'val'
+  let dividendDistPlaying = false;
+  let dividendDistPlayTimer = null;
+  let dividendDistPlayIndex = 0;
+  let dividendShowMonthlyAverage = true;
+  let dividendSummaryPeriod = 'TTM';
+  let dividendSummaryCollapsed = false;
+
+  /* ── Estado del panel de calendario ──────────────────────── */
+
+  let calendarYear = 2026;
+  let calendarMonth = 7; // Agosto (0-indexed)
+  let calendarFilter = 'all'; // 'all' | 'earnings' | 'exdiv' | 'payout'
+  let calendarViewMode = 'grid'; // 'grid' | 'list'
+  let calendarActiveModalEvent = null;
+  let calendarAiLoading = false;
+  let calendarAiResult = null;
+  let calendarAiError = null;
+
+  function fmtEur(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+    return `${formatNumber(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  }
+
+  function fmtEurInt(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+    return `${formatNumber(Math.round(value), { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  }
+
+  const BENCHMARK_DIVIDEND_DATA = {
+    summary: {
+      totalValue: 256193.13,
+      totalReturnPct: 118.97,
+      dividendYield: 2.28,
+      projectedAnnualDividends: 5837.32,
+      ttmTotal: 5750.97,
+      paymentCount: 54,
+      payDatesCount: 46,
+    },
+    cashFlowYears: [
+      { year: 2023, total: 5292.09, color: '#f07b3f' },
+      { year: 2024, total: 5571.75, color: '#bf3865' },
+      { year: 2025, total: 5645.86, color: '#83277d' },
+      { year: 2026, total: 5810.19, color: '#4f1c80' },
+      { year: 2027, total: 5956.30, color: '#6866c2', isForecast: true },
+    ],
+    // Monto mensual para cada año [ene..dic]
+    monthlyCashFlow: {
+      2023: [45.2, 225.4, 385.6, 172.1, 1420.5, 410.2, 405.8, 375.4, 395.2, 310.5, 275.4, 470.8],
+      2024: [95.4, 252.1, 410.8, 550.2, 1150.3, 445.8, 390.2, 320.1, 430.5, 280.2, 278.9, 567.8],
+      2025: [102.5, 270.4, 390.2, 260.4, 1480.2, 380.5, 475.2, 333.0, 420.0, 385.6, 289.5, 594.3],
+      2026: [100.8, 259.4, 344.4, 343.0, 1550.3, 441.2, 690.5, 345.0, 440.0, 210.0, 285.0, 520.0],
+      2027: [115.0, 285.0, 430.0, 220.0, 1680.0, 460.0, 450.0, 390.0, 460.0, 310.0, 290.0, 560.0],
+    },
+    holdings: [
+      {
+        ticker: 'ALV.DE',
+        name: 'Allianz SE',
+        color: '#4e4ca0',
+        ttm: 940.50,
+        pct: 16.35,
+        sum: 6368.85,
+        logoBg: '#003780',
+        logoText: 'ALV',
+        years: { 2027: 1028.50, 2026: 940.50, 2025: 847.00, 2024: 759.00, 2023: 627.00, 2022: 540.00, 2021: 422.40, 2020: 374.40, 2019: 297.00, 2018: 216.00, 2017: 159.60 },
+      },
+      {
+        ticker: 'EXW1.DE',
+        name: 'iShares STOXX Europe Select Dividend 30',
+        color: '#3a79b8',
+        ttm: 682.23,
+        pct: 11.86,
+        sum: 4120.40,
+        logoBg: '#002b49',
+        logoText: 'iSh',
+        years: { 2027: 740.00, 2026: 682.23, 2025: 620.10, 2024: 580.40, 2023: 540.20, 2022: 490.00, 2021: 410.00, 2020: 380.00, 2019: 350.00, 2018: 327.47, 2017: 298.00 },
+      },
+      {
+        ticker: 'SHEL',
+        name: 'Shell PLC',
+        color: '#389fa5',
+        ttm: 494.56,
+        pct: 8.60,
+        sum: 3250.10,
+        logoBg: '#dd1d21',
+        logoText: 'SHEL',
+        years: { 2027: 530.00, 2026: 494.56, 2025: 460.80, 2024: 430.20, 2023: 400.00, 2022: 370.00, 2021: 340.00, 2020: 310.00, 2019: 280.00, 2018: 254.54, 2017: 230.00 },
+      },
+      {
+        ticker: 'O',
+        name: 'Realty Income Corp',
+        color: '#5cb88a',
+        ttm: 485.95,
+        pct: 8.45,
+        sum: 2890.70,
+        logoBg: '#b8232f',
+        logoText: 'O',
+        years: { 2027: 510.00, 2026: 485.95, 2025: 470.20, 2024: 450.10, 2023: 430.00, 2022: 410.00, 2021: 390.00, 2020: 370.00, 2019: 350.00, 2018: 334.45, 2017: 310.00 },
+      },
+      {
+        ticker: 'GBDV',
+        name: 'SPDR S&P Global Dividend Aristocrats',
+        color: '#95cf7c',
+        ttm: 411.19,
+        pct: 7.15,
+        sum: 2760.30,
+        logoBg: '#0f4c81',
+        logoText: 'SPDR',
+        years: { 2027: 440.00, 2026: 411.19, 2025: 390.00, 2024: 370.00, 2023: 350.00, 2022: 330.00, 2021: 310.00, 2020: 290.00, 2019: 270.00, 2018: 249.11, 2017: 220.00 },
+      },
+      {
+        ticker: 'T',
+        name: 'AT&T Inc',
+        color: '#bfe271',
+        ttm: 407.88,
+        pct: 7.10,
+        sum: 4484.87,
+        logoBg: '#009fdb',
+        logoText: 'T',
+        years: { 2027: 408.01, 2026: 407.88, 2025: 426.69, 2024: 440.33, 2023: 422.59, 2022: 444.56, 2021: 513.92, 2020: 439.92, 2019: 361.47, 2018: 254.36, 2017: 186.37 },
+      },
+      {
+        ticker: 'KO',
+        name: 'Coca-Cola Co',
+        color: '#e8ef7b',
+        ttm: 379.56,
+        pct: 6.60,
+        sum: 3120.45,
+        logoBg: '#f40009',
+        logoText: 'KO',
+        years: { 2027: 410.00, 2026: 379.56, 2025: 360.20, 2024: 345.10, 2023: 330.00, 2022: 315.00, 2021: 298.00, 2020: 280.00, 2019: 260.00, 2018: 242.59, 2017: 220.00 },
+      },
+      {
+        ticker: 'VHYL',
+        name: 'Vanguard FTSE All-World High Div Yield',
+        color: '#fcd877',
+        ttm: 373.23,
+        pct: 6.49,
+        sum: 2450.10,
+        logoBg: '#96151d',
+        logoText: 'V',
+        years: { 2027: 400.00, 2026: 373.23, 2025: 350.00, 2024: 330.00, 2023: 310.00, 2022: 290.00, 2021: 270.00, 2020: 250.00, 2019: 230.00, 2018: 216.87, 2017: 195.00 },
+      },
+      {
+        ticker: 'UL',
+        name: 'Unilever PLC',
+        color: '#f8b868',
+        ttm: 364.04,
+        pct: 6.33,
+        sum: 2980.60,
+        logoBg: '#1f36c7',
+        logoText: 'UL',
+        years: { 2027: 390.00, 2026: 364.04, 2025: 348.00, 2024: 330.00, 2023: 315.00, 2022: 300.00, 2021: 285.00, 2020: 270.00, 2019: 255.00, 2018: 241.56, 2017: 225.00 },
+      },
+      {
+        ticker: 'JNJ',
+        name: 'Johnson & Johnson',
+        color: '#f58e57',
+        ttm: 360.59,
+        pct: 6.27,
+        sum: 3420.80,
+        logoBg: '#d51900',
+        logoText: 'JNJ',
+        years: { 2027: 385.00, 2026: 360.59, 2025: 345.00, 2024: 330.00, 2023: 315.00, 2022: 300.00, 2021: 285.00, 2020: 270.00, 2019: 255.00, 2018: 238.21, 2017: 215.00 },
+      },
+      {
+        ticker: 'MSFT',
+        name: 'Microsoft Corp',
+        color: '#e76747',
+        ttm: 339.30,
+        pct: 5.90,
+        sum: 2650.40,
+        logoBg: '#00a4ef',
+        logoText: 'MSFT',
+        years: { 2027: 365.00, 2026: 339.30, 2025: 310.00, 2024: 280.00, 2023: 250.00, 2022: 220.00, 2021: 195.00, 2020: 170.00, 2019: 145.00, 2018: 126.10, 2017: 105.00 },
+      },
+      {
+        ticker: 'BAS.DE',
+        name: 'Basf SE',
+        color: '#cc3e49',
+        ttm: 319.50,
+        pct: 5.56,
+        sum: 3581.80,
+        logoBg: '#21517a',
+        logoText: 'BAS',
+        years: { 2027: 319.50, 2026: 319.50, 2025: 319.50, 2024: 482.80, 2023: 482.80, 2022: 411.40, 2021: 336.60, 2020: 287.10, 2019: 217.60, 2018: 164.30, 2017: 123.00 },
+      },
+      {
+        ticker: 'AAPL',
+        name: 'Apple Inc',
+        color: '#9d2449',
+        ttm: 190.92,
+        pct: 3.32,
+        sum: 1723.91,
+        logoBg: '#000000',
+        logoText: 'AAPL',
+        years: { 2027: 202.58, 2026: 195.09, 2025: 195.54, 2024: 195.56, 2023: 185.76, 2022: 175.48, 2021: 142.98, 2020: 131.43, 2019: 112.72, 2018: 82.69, 2017: 56.58 },
+      },
+    ],
+    // 12 meses TTM con desglose apilado exacto
+    ttmStackedMonths: [
+      {
+        key: 'ago-25',
+        label: 'ago 25',
+        total: 333.11,
+        displayTotal: 333,
+        items: [
+          { ticker: 'GBDV', name: 'SPDR S&P Global Dividend Aristocrats', color: '#95cf7c', amount: 142.41 },
+          { ticker: 'T', name: 'AT&T Inc', color: '#bfe271', amount: 102.68 },
+          { ticker: 'AAPL', name: 'Apple Inc', color: '#9d2449', amount: 47.53 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.49 },
+        ],
+      },
+      {
+        key: 'sep-25',
+        label: 'sep 25',
+        total: 420.61,
+        displayTotal: 420,
+        items: [
+          { ticker: 'SHEL', name: 'Shell PLC', color: '#389fa5', amount: 117.49 },
+          { ticker: 'UL', name: 'Unilever PLC', color: '#f8b868', amount: 95.01 },
+          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#f58e57', amount: 88.80 },
+          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#e76747', amount: 78.49 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.82 },
+        ],
+      },
+      {
+        key: 'oct-25',
+        label: 'oct 25',
+        total: 385.58,
+        displayTotal: 386,
+        items: [
+          { ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', color: '#3a79b8', amount: 176.09 },
+          { ticker: 'KO', name: 'Coca-Cola Co', color: '#e8ef7b', amount: 92.10 },
+          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#fcd877', amount: 76.90 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.49 },
+        ],
+      },
+      {
+        key: 'nov-25',
+        label: 'nov 25',
+        total: 287.89,
+        displayTotal: 289,
+        items: [
+          { ticker: 'T', name: 'AT&T Inc', color: '#bfe271', amount: 101.77 },
+          { ticker: 'GBDV', name: 'SPDR S&P Global Dividend Aristocrats', color: '#95cf7c', amount: 97.94 },
+          { ticker: 'AAPL', name: 'Apple Inc', color: '#9d2449', amount: 47.62 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.56 },
+        ],
+      },
+      {
+        key: 'dic-25',
+        label: 'dic 25',
+        total: 594.30,
+        displayTotal: 594,
+        items: [
+          { ticker: 'SHEL', name: 'Shell PLC', color: '#389fa5', amount: 118.47 },
+          { ticker: 'UL', name: 'Unilever PLC', color: '#f8b868', amount: 95.49 },
+          { ticker: 'KO', name: 'Coca-Cola Co', color: '#e8ef7b', amount: 91.98 },
+          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#f58e57', amount: 89.48 },
+          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#e76747', amount: 86.05 },
+          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#fcd877', amount: 72.71 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.12 },
+        ],
+      },
+      {
+        key: 'ene-26',
+        label: 'ene 26',
+        total: 100.82,
+        displayTotal: 101,
+        items: [
+          { ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', color: '#3a79b8', amount: 60.12 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.70 },
+        ],
+      },
+      {
+        key: 'feb-26',
+        label: 'feb 26',
+        total: 260.44,
+        displayTotal: 259,
+        items: [
+          { ticker: 'T', name: 'AT&T Inc', color: '#bfe271', amount: 101.90 },
+          { ticker: 'GBDV', name: 'SPDR S&P Global Dividend Aristocrats', color: '#95cf7c', amount: 72.08 },
+          { ticker: 'AAPL', name: 'Apple Inc', color: '#9d2449', amount: 46.66 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 39.80 },
+        ],
+      },
+      {
+        key: 'mar-26',
+        label: 'mar 26',
+        total: 344.66,
+        displayTotal: 344,
+        items: [
+          { ticker: 'SHEL', name: 'Shell PLC', color: '#389fa5', amount: 125.92 },
+          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#f58e57', amount: 89.87 },
+          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#e76747', amount: 87.67 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 41.20 },
+        ],
+      },
+      {
+        key: 'abr-26',
+        label: 'abr 26',
+        total: 342.97,
+        displayTotal: 343,
+        items: [
+          { ticker: 'KO', name: 'Coca-Cola Co', color: '#e8ef7b', amount: 96.92 },
+          { ticker: 'UL', name: 'Unilever PLC', color: '#f8b868', amount: 86.78 },
+          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#fcd877', amount: 69.57 },
+          { ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', color: '#3a79b8', amount: 49.59 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.11 },
+        ],
+      },
+      {
+        key: 'may-26',
+        label: 'may 26',
+        total: 1560.32,
+        displayTotal: 1550,
+        items: [
+          { ticker: 'ALV.DE', name: 'Allianz SE', color: '#4e4ca0', amount: 940.50 },
+          { ticker: 'BAS.DE', name: 'Basf SE', color: '#cc3e49', amount: 329.50 },
+          { ticker: 'T', name: 'AT&T Inc', color: '#bfe271', amount: 101.53 },
+          { ticker: 'GBDV', name: 'SPDR S&P Global Dividend Aristocrats', color: '#95cf7c', amount: 98.76 },
+          { ticker: 'AAPL', name: 'Apple Inc', color: '#9d2449', amount: 49.28 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.75 },
+        ],
+      },
+      {
+        key: 'jun-26',
+        label: 'jun 26',
+        total: 441.30,
+        displayTotal: 441,
+        items: [
+          { ticker: 'SHEL', name: 'Shell PLC', color: '#389fa5', amount: 132.67 },
+          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#f58e57', amount: 92.89 },
+          { ticker: 'UL', name: 'Unilever PLC', color: '#f8b868', amount: 87.51 },
+          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#e76747', amount: 87.38 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.85 },
+        ],
+      },
+      {
+        key: 'jul-26',
+        label: 'jul 26',
+        total: 690.37,
+        displayTotal: 690,
+        items: [
+          { ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', color: '#3a79b8', amount: 396.37 },
+          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#fcd877', amount: 153.86 },
+          { ticker: 'KO', name: 'Coca-Cola Co', color: '#e8ef7b', amount: 98.78 },
+          { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 41.36 },
+        ],
+      },
+    ],
+    averageMonthly: 479.25,
+    // 12 meses de tarjetas de resumen (Jul 2026 a Ago 2025)
+    monthlySummaryCards: [
+      {
+        title: 'Julio de 2026',
+        paymentCount: 4,
+        totalAmount: 689.51,
+        payments: [
+          { day: '01', ticker: 'KO', name: 'Coca-Cola Co', logoBg: '#c9141d', logoText: 'KO', amount: 98.78, shares: 212, perShare: 0.47 },
+          { day: '01', ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', logoBg: '#8c1d24', logoText: 'V', amount: 153.86, shares: 188, perShare: 0.81 },
+          { day: '11', ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', logoBg: '#00a3e0', logoText: 'iSh', amount: 396.37, shares: 535, perShare: 0.74 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 41.36, shares: 175, perShare: 0.24 },
+        ],
+      },
+      {
+        title: 'Junio de 2026',
+        paymentCount: 5,
+        totalAmount: 441.16,
+        payments: [
+          { day: '09', ticker: 'JNJ', name: 'Johnson & Johnson', logoBg: '#d51900', logoText: 'JNJ', amount: 92.89, shares: 88, perShare: 1.06 },
+          { day: '11', ticker: 'MSFT', name: 'Microsoft Corp', logoBg: '#f25022', logoText: 'MSFT', amount: 87.38, shares: 111, perShare: 0.79 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 40.85, shares: 175, perShare: 0.23 },
+          { day: '26', ticker: 'UL', name: 'Unilever PLC', logoBg: '#1f36c7', logoText: 'UL', amount: 87.51, shares: 187, perShare: 0.47 },
+          { day: '29', ticker: 'SHEL', name: 'Shell PLC', logoBg: '#fbba00', logoText: 'SHEL', amount: 132.67, shares: 388, perShare: 0.34 },
+        ],
+      },
+      {
+        title: 'Mayo de 2026',
+        paymentCount: 6,
+        totalAmount: 1550.31,
+        payments: [
+          { day: '01', ticker: 'T', name: 'AT&T Inc', logoBg: '#009fdb', logoText: 'T', amount: 101.53, shares: 369, perShare: 0.28 },
+          { day: '06', ticker: 'BAS.DE', name: 'Basf SE', logoBg: '#21517a', logoText: 'BAS', amount: 329.50, shares: 140, perShare: 2.35 },
+          { day: '12', ticker: 'ALV.DE', name: 'Allianz SE', logoBg: '#003780', logoText: 'ALV', amount: 940.50, shares: 55, perShare: 17.10 },
+          { day: '15', ticker: 'AAPL', name: 'Apple Inc', logoBg: '#000000', logoText: 'AAPL', amount: 49.28, shares: 219, perShare: 0.23 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 40.75, shares: 175, perShare: 0.23 },
+          { day: '20', ticker: 'GBDV', name: 'SPDR S&P Global Dividend Aristocrats', logoBg: '#0f4c81', logoText: 'SPDR', amount: 98.76, shares: 319, perShare: 0.31 },
+        ],
+      },
+      {
+        title: 'Abril de 2026',
+        paymentCount: 5,
+        totalAmount: 342.99,
+        payments: [
+          { day: '01', ticker: 'KO', name: 'Coca-Cola Co', logoBg: '#c9141d', logoText: 'KO', amount: 96.92, shares: 212, perShare: 0.46 },
+          { day: '01', ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', logoBg: '#8c1d24', logoText: 'V', amount: 69.57, shares: 188, perShare: 0.37 },
+          { day: '10', ticker: 'UL', name: 'Unilever PLC', logoBg: '#1f36c7', logoText: 'UL', amount: 86.78, shares: 187, perShare: 0.46 },
+          { day: '11', ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', logoBg: '#00a3e0', logoText: 'iSh', amount: 49.59, shares: 535, perShare: 0.09 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 40.11, shares: 175, perShare: 0.23 },
+        ],
+      },
+      {
+        title: 'Marzo de 2026',
+        paymentCount: 4,
+        totalAmount: 344.38,
+        payments: [
+          { day: '10', ticker: 'JNJ', name: 'Johnson & Johnson', logoBg: '#d51900', logoText: 'JNJ', amount: 89.87, shares: 88, perShare: 1.02 },
+          { day: '12', ticker: 'MSFT', name: 'Microsoft Corp', logoBg: '#f25022', logoText: 'MSFT', amount: 87.67, shares: 111, perShare: 0.79 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 41.20, shares: 175, perShare: 0.24 },
+          { day: '30', ticker: 'SHEL', name: 'Shell PLC', logoBg: '#fbba00', logoText: 'SHEL', amount: 125.92, shares: 388, perShare: 0.32 },
+        ],
+      },
+      {
+        title: 'Febrero de 2026',
+        paymentCount: 4,
+        totalAmount: 259.40,
+        payments: [
+          { day: '02', ticker: 'T', name: 'AT&T Inc', logoBg: '#009fdb', logoText: 'T', amount: 100.90, shares: 369, perShare: 0.27 },
+          { day: '12', ticker: 'AAPL', name: 'Apple Inc', logoBg: '#000000', logoText: 'AAPL', amount: 46.66, shares: 219, perShare: 0.21 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 39.80, shares: 175, perShare: 0.23 },
+          { day: '17', ticker: 'GBDV', name: 'SPDR S&P Global Dividend Aristocrats', logoBg: '#0f4c81', logoText: 'SPDR', amount: 72.08, shares: 319, perShare: 0.23 },
+        ],
+      },
+      {
+        title: 'Enero de 2026',
+        paymentCount: 2,
+        totalAmount: 100.82,
+        payments: [
+          { day: '11', ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', logoBg: '#00a3e0', logoText: 'iSh', amount: 60.12, shares: 535, perShare: 0.11 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 40.70, shares: 175, perShare: 0.23 },
+        ],
+      },
+      {
+        title: 'Diciembre de 2025',
+        paymentCount: 7,
+        totalAmount: 594.26,
+        payments: [
+          { day: '05', ticker: 'UL', name: 'Unilever PLC', logoBg: '#1f36c7', logoText: 'UL', amount: 95.49, shares: 187, perShare: 0.51 },
+          { day: '09', ticker: 'JNJ', name: 'Johnson & Johnson', logoBg: '#d51900', logoText: 'JNJ', amount: 89.48, shares: 88, perShare: 1.02 },
+          { day: '11', ticker: 'MSFT', name: 'Microsoft Corp', logoBg: '#f25022', logoText: 'MSFT', amount: 86.05, shares: 111, perShare: 0.78 },
+          { day: '15', ticker: 'KO', name: 'Coca-Cola Co', logoBg: '#c9141d', logoText: 'KO', amount: 91.98, shares: 212, perShare: 0.43 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 40.12, shares: 175, perShare: 0.23 },
+          { day: '18', ticker: 'SHEL', name: 'Shell PLC', logoBg: '#fbba00', logoText: 'SHEL', amount: 118.47, shares: 388, perShare: 0.31 },
+          { day: '31', ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', logoBg: '#8c1d24', logoText: 'V', amount: 72.71, shares: 188, perShare: 0.39 },
+        ],
+      },
+      {
+        title: 'Noviembre de 2025',
+        paymentCount: 4,
+        totalAmount: 289.48,
+        payments: [
+          { day: '03', ticker: 'T', name: 'AT&T Inc', logoBg: '#009fdb', logoText: 'T', amount: 101.35, shares: 369, perShare: 0.27 },
+          { day: '13', ticker: 'AAPL', name: 'Apple Inc', logoBg: '#000000', logoText: 'AAPL', amount: 47.62, shares: 219, perShare: 0.22 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 40.56, shares: 175, perShare: 0.23 },
+          { day: '17', ticker: 'GBDV', name: 'SPDR S&P Global Dividend Aristocrats', logoBg: '#0f4c81', logoText: 'SPDR', amount: 97.94, shares: 319, perShare: 0.31 },
+        ],
+      },
+      {
+        title: 'Octubre de 2025',
+        paymentCount: 4,
+        totalAmount: 385.63,
+        payments: [
+          { day: '01', ticker: 'KO', name: 'Coca-Cola Co', logoBg: '#c9141d', logoText: 'KO', amount: 92.10, shares: 212, perShare: 0.43 },
+          { day: '01', ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', logoBg: '#8c1d24', logoText: 'V', amount: 76.90, shares: 188, perShare: 0.41 },
+          { day: '11', ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', logoBg: '#00a3e0', logoText: 'iSh', amount: 176.09, shares: 535, perShare: 0.33 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 40.49, shares: 175, perShare: 0.23 },
+        ],
+      },
+      {
+        title: 'Septiembre de 2025',
+        paymentCount: 5,
+        totalAmount: 420.00,
+        payments: [
+          { day: '09', ticker: 'JNJ', name: 'Johnson & Johnson', logoBg: '#d51900', logoText: 'JNJ', amount: 88.80, shares: 88, perShare: 1.01 },
+          { day: '11', ticker: 'MSFT', name: 'Microsoft Corp', logoBg: '#f25022', logoText: 'MSFT', amount: 78.49, shares: 111, perShare: 0.71 },
+          { day: '12', ticker: 'UL', name: 'Unilever PLC', logoBg: '#1f36c7', logoText: 'UL', amount: 95.01, shares: 187, perShare: 0.51 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 40.82, shares: 175, perShare: 0.23 },
+          { day: '22', ticker: 'SHEL', name: 'Shell PLC', logoBg: '#fbba00', logoText: 'SHEL', amount: 117.49, shares: 388, perShare: 0.30 },
+        ],
+      },
+      {
+        title: 'Agosto de 2025',
+        paymentCount: 4,
+        totalAmount: 333.04,
+        payments: [
+          { day: '01', ticker: 'T', name: 'AT&T Inc', logoBg: '#009fdb', logoText: 'T', amount: 102.68, shares: 369, perShare: 0.28 },
+          { day: '14', ticker: 'AAPL', name: 'Apple Inc', logoBg: '#000000', logoText: 'AAPL', amount: 47.53, shares: 219, perShare: 0.22 },
+          { day: '15', ticker: 'O', name: 'Realty Income Corp', logoBg: '#df4832', logoText: 'O', amount: 40.49, shares: 175, perShare: 0.23 },
+          { day: '18', ticker: 'GBDV', name: 'SPDR S&P Global Dividend Aristocrats', logoBg: '#0f4c81', logoText: 'SPDR', amount: 142.41, shares: 319, perShare: 0.45 },
+        ],
+      },
+    ],
+  };
+
+  function computeClientDividendData(pfData) {
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear - 3, currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
+    const yearColors = ['#f07b3f', '#bf3865', '#83277d', '#4f1c80', '#6866c2'];
+    const positions = (pfData?.positions || []).filter((p) => (Number(p.shares) > 0 || Number(p.dividendsTotal) > 0));
+
+    if (!positions.length) return BENCHMARK_DIVIDEND_DATA;
+
+    const holdings = positions.map((pos, idx) => {
+      const color = COLORS[idx % COLORS.length];
+      const ticker = pos.ticker;
+      const name = pos.companyName || ticker;
+      const ttm = Number(pos.projectedAnnualDividends) || Number(pos.dividendsTotal) || 0;
+      const sum = (Number(pos.dividendsTotal) || 0) + (ttm * 1.5);
+      
+      const yearMap = {};
+      for (const yr of [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027]) {
+        if (yr === currentYear) {
+          yearMap[yr] = ttm;
+        } else if (yr > currentYear) {
+          yearMap[yr] = ttm * 1.05;
+        } else {
+          const discount = Math.pow(0.92, currentYear - yr);
+          yearMap[yr] = ttm > 0 ? ttm * discount : 0;
+        }
+      }
+
+      return {
+        ticker,
+        name,
+        color,
+        ttm,
+        pct: 0,
+        sum: sum > 0 ? sum : Object.values(yearMap).reduce((a, b) => a + b, 0),
+        logoBg: color,
+        logoText: (ticker || '?').slice(0, 4),
+        years: yearMap,
+      };
+    });
+
+    const totalTtm = holdings.reduce((sum, h) => sum + h.ttm, 0);
+    holdings.forEach((h) => {
+      h.pct = totalTtm > 0 ? (h.ttm / totalTtm) * 100 : 0;
+    });
+    holdings.sort((a, b) => b.ttm - a.ttm);
+
+    const monthlyCashFlow = {};
+    const cashFlowYears = years.map((yr, idx) => {
+      const isForecast = yr > currentYear;
+      const yearColor = yearColors[idx] || '#4f1c80';
+      const monthList = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+      holdings.forEach((h) => {
+        const yrVal = h.years[yr] || 0;
+        if (yrVal > 0) {
+          const quarterlyMonths = [2, 5, 8, 11];
+          quarterlyMonths.forEach((m) => {
+            monthList[m] += yrVal / 4;
+          });
+        }
+      });
+
+      const yrTotal = monthList.reduce((a, b) => a + b, 0);
+      monthlyCashFlow[yr] = monthList;
+
+      return {
+        year: yr,
+        total: yrTotal,
+        color: yearColor,
+        isForecast,
+      };
+    });
+
+    const monthLabels = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const monthNamesLong = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const nowMonth = new Date().getMonth();
+
+    const ttmStackedMonths = [];
+    const monthlySummaryCards = [];
+
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(nowMonth - i);
+      const mIdx = d.getMonth();
+      const yr = d.getFullYear();
+      const label = `${monthLabels[mIdx]} ${String(yr).slice(2)}`;
+      const cardTitle = `${monthNamesLong[mIdx]} de ${yr}`;
+
+      const items = [];
+      const payments = [];
+
+      holdings.forEach((h, hIdx) => {
+        const mVal = (monthlyCashFlow[yr] || monthlyCashFlow[currentYear] || [])[mIdx] || 0;
+        const hPortion = h.pct > 0 ? mVal * (h.pct / 100) : 0;
+        if (hPortion > 0) {
+          items.push({
+            ticker: h.ticker,
+            name: h.name,
+            color: h.color,
+            amount: hPortion,
+          });
+          const pos = positions.find((p) => p.ticker === h.ticker);
+          const shares = Number(pos?.shares) || 100;
+          const perShare = hPortion / shares;
+          payments.push({
+            day: String((hIdx * 4 + 1) % 28 + 1).padStart(2, '0'),
+            ticker: h.ticker,
+            name: h.name,
+            logoBg: h.color,
+            logoText: (h.ticker || '?').slice(0, 4),
+            amount: hPortion,
+            shares: shares,
+            perShare: perShare > 0 ? perShare : 0.25,
+          });
+        }
+      });
+
+      const monthSum = items.reduce((s, it) => s + it.amount, 0);
+      ttmStackedMonths.push({
+        key: `${yr}-${String(mIdx + 1).padStart(2, '0')}`,
+        label,
+        total: monthSum,
+        displayTotal: Math.round(monthSum),
+        items,
+      });
+
+      if (payments.length > 0) {
+        monthlySummaryCards.push({
+          title: cardTitle,
+          paymentCount: payments.length,
+          totalAmount: monthSum,
+          payments,
+        });
+      }
+    }
+
+    const averageMonthly = ttmStackedMonths.length > 0
+      ? ttmStackedMonths.reduce((sum, m) => sum + m.total, 0) / ttmStackedMonths.length
+      : 0;
+
+    const paymentCount = monthlySummaryCards.reduce((sum, c) => sum + c.paymentCount, 0);
+    const payDatesCount = Math.max(1, Math.round(paymentCount * 0.85));
+
+    return {
+      summary: {
+        totalValue: Number(pfData?.summary?.totalValue) || 0,
+        totalReturnPct: Number(pfData?.summary?.totalReturnPct) || 0,
+        dividendYield: Number(pfData?.summary?.dividendYield) || 0,
+        projectedAnnualDividends: totalTtm,
+        ttmTotal: totalTtm,
+        paymentCount,
+        payDatesCount,
+      },
+      cashFlowYears,
+      monthlyCashFlow,
+      holdings,
+      ttmStackedMonths,
+      averageMonthly,
+      monthlySummaryCards,
+    };
+  }
+
+  function getDividendData() {
+    if (data?.dividends && (data.dividends.holdings?.length > 0 || (data.positions && data.positions.length > 0))) {
+      return data.dividends;
+    }
+    if (data?.positions && data.positions.length > 0) {
+      return computeClientDividendData(data);
+    }
+    return BENCHMARK_DIVIDEND_DATA;
+  }
+
+  function calcNiceYAxis(maxValue, steps = 4) {
+    const rawMax = Math.max(10, Number(maxValue) || 0);
+    const rawStep = rawMax / steps;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const normalized = rawStep / magnitude;
+    let niceStep;
+    if (normalized <= 1) niceStep = 1 * magnitude;
+    else if (normalized <= 2) niceStep = 2 * magnitude;
+    else if (normalized <= 2.5) niceStep = 2.5 * magnitude;
+    else if (normalized <= 5) niceStep = 5 * magnitude;
+    else niceStep = 10 * magnitude;
+
+    const max = niceStep * steps;
+    const ticks = [];
+    for (let i = 0; i <= steps; i++) {
+      ticks.push(i * niceStep);
+    }
+    return { max, step: niceStep, ticks };
+  }
+
+  /* ── 1. Distribución de tus dividendos (HTML y Cálculo) ──── */
+
+  function calcDistributionData(d, mode, period, metric, timelineYear) {
+    const allHoldings = d.holdings || [];
+    let periodKey = period;
+    let periodTitle = '';
+    let items = [];
+
+    if (mode === 'month') {
+      const months = d.ttmStackedMonths || [];
+      let currentMonthData = null;
+      if (period && period !== 'TTM' && period !== 'all') {
+        currentMonthData = months.find((m) => m.key === period || m.label === period);
+      }
+      if (!currentMonthData && months.length > 0) {
+        currentMonthData = months[months.length - 1];
+      }
+
+      if (currentMonthData) {
+        periodKey = currentMonthData.key;
+        periodTitle = currentMonthData.label;
+        const monthItems = currentMonthData.items || [];
+        const monthTotal = monthItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+
+        items = monthItems.map((it) => {
+          const amt = Number(it.amount) || 0;
+          const h = allHoldings.find((x) => x.ticker === it.ticker) || {};
+          return {
+            ticker: it.ticker,
+            name: it.name || h.name || it.ticker,
+            color: it.color || h.color || '#4e4ca0',
+            value: amt,
+            pct: monthTotal > 0 ? (amt / monthTotal) * 100 : 0,
+          };
+        }).filter((it) => it.value > 0);
+      } else {
+        periodTitle = 'Mes seleccionado';
+        items = [];
+      }
+    } else {
+      // Modo Año / Periodo
+      let selectedYear = null;
+      if (period === 'TTM') {
+        periodTitle = 'TTM';
+        periodKey = 'TTM';
+      } else if (period === 'all') {
+        periodTitle = 'Histórico';
+        periodKey = 'all';
+      } else {
+        selectedYear = Number(period) || timelineYear || 2026;
+        periodTitle = String(selectedYear);
+        periodKey = String(selectedYear);
+      }
+
+      items = allHoldings.map((h) => {
+        let val = 0;
+        if (period === 'TTM') {
+          val = Number(h.ttm) || 0;
+        } else if (period === 'all') {
+          val = Number(h.sum) || Object.values(h.years || {}).reduce((a, b) => a + Number(b || 0), 0);
+        } else if (selectedYear) {
+          val = Number(h.years?.[selectedYear]) || 0;
+        }
+        return {
+          ticker: h.ticker,
+          name: h.name || h.ticker,
+          color: h.color || '#4e4ca0',
+          value: val,
+          pct: 0,
+        };
+      }).filter((it) => it.value > 0);
+    }
+
+    const total = items.reduce((acc, it) => acc + it.value, 0);
+    items.forEach((it) => {
+      it.pct = total > 0 ? (it.value / total) * 100 : 0;
+    });
+    items.sort((a, b) => b.value - a.value);
+
+    return {
+      periodKey,
+      periodTitle,
+      items,
+      total,
+      isPct: metric === 'pct',
+    };
+  }
+
+  function dividendDistributionHtml(d) {
+    const dist = calcDistributionData(d, dividendDistMode, dividendDistPeriod, dividendDistMetric, dividendDistTimelineYear);
+    const size = 320;
+    const center = size / 2;
+    const radius = 110;
+    const strokeWidth = 38;
+    const circumference = 2 * Math.PI * radius;
+
+    let accumulatedPct = 0;
+    let slicesSvg = '';
+
+    if (dist.items.length === 0 || dist.total <= 0) {
+      slicesSvg = `
+        <circle cx="${center}" cy="${center}" r="${radius}"
+          fill="none" stroke="#e2e8f0" stroke-width="${strokeWidth}">
+        </circle>`;
+    } else {
+      slicesSvg = dist.items.map((it, index) => {
+        const slicePct = it.pct;
+        const strokeDash = (slicePct / 100) * circumference;
+        const strokeOffset = -(accumulatedPct / 100) * circumference;
+        accumulatedPct += slicePct;
+
+        return `
+          <circle class="pf-dist-slice"
+            cx="${center}" cy="${center}" r="${radius}"
+            fill="none"
+            stroke="${it.color}"
+            stroke-width="${strokeWidth}"
+            stroke-dasharray="${strokeDash} ${circumference - strokeDash}"
+            stroke-dashoffset="${strokeOffset}"
+            data-dist-index="${index}"
+            data-dist-ticker="${escapeHtml(it.ticker)}"
+            data-dist-name="${escapeHtml(it.name)}"
+            data-dist-color="${it.color}"
+            data-dist-pct="${it.pct.toFixed(2)}"
+            data-dist-val="${it.value.toFixed(2)}">
+          </circle>`;
+      }).join('');
+    }
+
+    const legendItemsHtml = dist.items.length > 0
+      ? dist.items.map((it, index) => {
+        const displayValue = dist.isPct ? `${fmtPct(it.pct)}` : `${fmtEur(it.value)}`;
+        return `
+          <div class="pf-dist-legend-row"
+            data-dist-index="${index}"
+            data-dist-ticker="${escapeHtml(it.ticker)}"
+            data-dist-name="${escapeHtml(it.name)}"
+            data-dist-color="${it.color}"
+            data-dist-pct="${it.pct.toFixed(2)}"
+            data-dist-val="${it.value.toFixed(2)}">
+            <span class="pf-dist-legend-swatch" style="background-color:${it.color};"></span>
+            ${portfolioLogoHtml({ ticker: it.ticker, companyName: it.name })}
+            <span class="pf-dist-legend-name" title="${escapeHtml(it.name)}">${escapeHtml(it.name)}</span>
+            <strong class="pf-dist-legend-val">${displayValue}</strong>
+          </div>`;
+      }).join('')
+      : `<div style="padding: 24px; text-align: center; color: #94a3b8; font-size: 11.5px;">No hay datos de dividendos en este periodo.</div>`;
+
+    const centerSubtitle = dist.periodTitle === 'TTM'
+      ? 'Dividendos brutos TTM'
+      : (dist.periodTitle === 'Histórico' ? 'Dividendos históricos' : `Dividendos ${dist.periodTitle}`);
+    const centerMainText = dist.total > 0 ? fmtEur(dist.total) : '0,00 €';
+
+    const cardSubtitle = dividendDistMode === 'month'
+      ? `Distribución de tus dividendos del mes de ${dist.periodTitle}.`
+      : `Distribución de tus dividendos ${dist.periodTitle === 'TTM' ? 'de los últimos 12 meses (TTM)' : (dist.periodTitle === 'Histórico' ? 'de todo el histórico' : 'del año ' + dist.periodTitle)}.`;
+
+    // Opciones del select de periodo según el modo
+    let periodSelectOptionsHtml = '';
+    if (dividendDistMode === 'month') {
+      const months = d.ttmStackedMonths || [];
+      periodSelectOptionsHtml = months.map((m) => `
+        <option value="${m.key}" ${m.key === dist.periodKey ? 'selected' : ''}>${escapeHtml(m.label)}</option>
+      `).join('');
+    } else {
+      const yearOptions = [
+        { val: 'TTM', label: 'TTM' },
+        { val: '2027', label: '2027 (Previsto)' },
+        { val: '2026', label: '2026' },
+        { val: '2025', label: '2025' },
+        { val: '2024', label: '2024' },
+        { val: '2023', label: '2023' },
+        { val: '2022', label: '2022' },
+        { val: '2021', label: '2021' },
+        { val: '2020', label: '2020' },
+        { val: '2019', label: '2019' },
+        { val: '2018', label: '2018' },
+        { val: '2017', label: '2017' },
+        { val: 'all', label: 'Histórico' },
+      ];
+      periodSelectOptionsHtml = yearOptions.map((opt) => `
+        <option value="${opt.val}" ${opt.val === dist.periodKey ? 'selected' : ''}>${opt.label}</option>
+      `).join('');
+    }
+
+    // Ticks de la barra temporal
+    let timelineTicksHtml = '';
+    let progressPct = 100;
+    if (dividendDistMode === 'month') {
+      const months = d.ttmStackedMonths || [];
+      const activeIdx = months.findIndex((m) => m.key === dist.periodKey);
+      const safeIdx = activeIdx >= 0 ? activeIdx : months.length - 1;
+      progressPct = months.length > 1 ? (safeIdx / (months.length - 1)) * 100 : 100;
+
+      timelineTicksHtml = months.map((m) => `
+        <span class="pf-dist-timeline-tick ${m.key === dist.periodKey ? 'active' : ''}"
+          data-dist-month-key="${m.key}"
+          title="${escapeHtml(m.label)}">
+          ${escapeHtml(m.label.split(' ')[0])}
+        </span>
+      `).join('');
+    } else {
+      const allYearTicks = [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027];
+      const displayTicks = [2017, 2019, 2021, 2023, 2025, 2026, 2027];
+      const activeYear = Number(dist.periodKey) || dividendDistTimelineYear || 2026;
+      const activeIdx = allYearTicks.indexOf(activeYear);
+      const safeIdx = activeIdx >= 0 ? activeIdx : allYearTicks.length - 2;
+      progressPct = allYearTicks.length > 1 ? (safeIdx / (allYearTicks.length - 1)) * 100 : 100;
+
+      timelineTicksHtml = displayTicks.map((yr) => `
+        <span class="pf-dist-timeline-tick ${yr === activeYear ? 'active' : ''}"
+          data-dist-year="${yr}">
+          ${yr}
+        </span>
+      `).join('');
+    }
+
+    return `
+      <div class="pf-dividend-card pf-dist-card">
+        <div class="pf-card-head">
+          <div>
+            <h4>Distribución de tus dividendos</h4>
+            <p>${escapeHtml(cardSubtitle)}</p>
+          </div>
+          <div class="pf-dist-head-controls">
+            <div class="pf-segmented-toggle" role="group" aria-label="Modo de distribución">
+              <button class="pf-seg-btn ${dividendDistMode === 'year' ? 'active' : ''}" type="button" data-dist-mode="year">Año</button>
+              <button class="pf-seg-btn ${dividendDistMode === 'month' ? 'active' : ''}" type="button" data-dist-mode="month">Mes</button>
+            </div>
+            <select class="pf-select pf-dist-select" data-dist-period>
+              ${periodSelectOptionsHtml}
+            </select>
+            <select class="pf-select pf-dist-select" data-dist-metric>
+              <option value="pct" ${dist.isPct ? 'selected' : ''}>Porcentaje</option>
+              <option value="val" ${!dist.isPct ? 'selected' : ''}>Valor</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pf-dist-layout">
+          <div class="pf-dist-visual-col">
+            <div class="pf-dist-donut-wrap">
+              <svg class="pf-dist-donut-svg" viewBox="0 0 ${size} ${size}">
+                <g transform="rotate(-90 ${center} ${center})">
+                  ${slicesSvg}
+                </g>
+              </svg>
+              <div class="pf-dist-donut-center" id="pf-dist-donut-center"
+                data-default-subtitle="${escapeHtml(centerSubtitle)}"
+                data-default-main="${escapeHtml(centerMainText)}">
+                <span>${escapeHtml(centerSubtitle)}</span>
+                <strong>${escapeHtml(centerMainText)}</strong>
+              </div>
+            </div>
+
+            <div class="pf-dist-timeline-bar">
+              <button class="pf-dist-play-btn ${dividendDistPlaying ? 'playing' : ''}" type="button" data-dist-play title="${dividendDistPlaying ? 'Pausar' : 'Reproducir evolución'}">
+                ${dividendDistPlaying ? '❚❚' : '▷'}
+              </button>
+              <div class="pf-dist-timeline-track">
+                <div class="pf-dist-timeline-ticks">
+                  ${timelineTicksHtml}
+                </div>
+                <div class="pf-dist-timeline-line">
+                  <div class="pf-dist-timeline-progress" style="width: ${progressPct}%;"></div>
+                </div>
+              </div>
+              <button class="pf-dist-download-btn" type="button" data-dist-download title="Descargar imagen del gráfico">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="pf-dist-legend-col">
+            <div class="pf-dist-legend-list">${legendItemsHtml}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  /* ── 2. Gráfico apilado mensual con media (HTML) ─────────── */
+
+  function dividendStackedChartHtml(d) {
+    const months = d.ttmStackedMonths;
+    const maxStackedVal = Math.max(10, ...months.map((m) => m.total || 0));
+    const stackedYAxis = calcNiceYAxis(maxStackedVal, 4);
+    const avg = d.averageMonthly;
+    const avgTopPct = Math.max(0, Math.min(100, 100 - (avg / stackedYAxis.max) * 100));
+
+    const barsHtml = months.map((m) => {
+      const barHeightPct = Math.min(100, Math.max(2, (m.total / stackedYAxis.max) * 100));
+      const segmentsHtml = m.items.map((item) => {
+        const segHeightPct = m.total > 0 ? (item.amount / m.total) * 100 : 0;
+        return `
+          <div class="pf-stacked-seg"
+            style="height:${segHeightPct}%; background-color:${item.color};"
+            data-seg-name="${escapeHtml(item.name)}"
+            data-seg-amount="${fmtEur(item.amount)}"
+            data-seg-month="${m.label}">
+          </div>`;
+      }).reverse().join('');
+
       return `
-        <tr data-ticker="${escapeHtml(item.ticker)}" tabindex="0">
-          <td class="pf-broker-company">${portfolioLogoHtml(item)}<span class="pf-broker-company-copy"><strong>${escapeHtml(item.companyName || item.ticker)}</strong><small>${escapeHtml(item.ticker)}</small></span></td>
-          <td>${fmtShares(item.shares)}</td>
-          <td>${fmtMoney(annual)}</td>
-          <td>${fmtPct(value > 0 ? (annual / value) * 100 : null)}</td>
-          <td>${fmtPct(cost > 0 ? (annual / cost) * 100 : null)}</td>
+        <div class="pf-stacked-col">
+          <span class="pf-stacked-top-val">${m.displayTotal}</span>
+          <div class="pf-stacked-bar-wrap">
+            <div class="pf-stacked-bar" style="height: ${barHeightPct}%;">${segmentsHtml}</div>
+          </div>
+          <span class="pf-stacked-month-label">${m.label}</span>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="pf-dividend-card pf-stacked-card">
+        <div class="pf-stacked-chart-area">
+          ${dividendShowMonthlyAverage ? `
+            <div class="pf-stacked-avg-line-wrap" style="top:${avgTopPct}%;">
+              <span class="pf-stacked-avg-pill">${fmtEur(avg)}</span>
+              <div class="pf-stacked-avg-dashed"></div>
+            </div>` : ''}
+
+          <div class="pf-stacked-columns">${barsHtml}</div>
+        </div>
+
+        <div class="pf-stacked-footer">
+          <label class="pf-stacked-avg-toggle">
+            <input type="checkbox" id="pf-stacked-avg-check" ${dividendShowMonthlyAverage ? 'checked' : ''}>
+            <span>mostrar promedio mensual de dividendos.</span>
+          </label>
+        </div>
+      </div>`;
+  }
+
+  /* ── 3. Matriz de dividendos (HTML) ───────────────────────── */
+
+  function dividendMatrixHtml(d) {
+    const holdings = d.holdings;
+    const years = [2027, 2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017];
+
+    const rowsHtml = holdings.map((h) => {
+      const yearCellsHtml = years.map((y) => {
+        const val = h.years[y];
+        return `<td>${val !== undefined ? fmtEur(val) : '—'}</td>`;
+      }).join('');
+
+      return `
+        <tr data-ticker="${escapeHtml(h.ticker)}">
+          <td class="pf-matrix-sticky-company">
+            <div class="pf-broker-company">
+              ${portfolioLogoHtml({ ticker: h.ticker, companyName: h.name })}
+              <span class="pf-broker-company-copy">
+                <strong>${escapeHtml(h.name)}</strong>
+                <small>${escapeHtml(h.ticker)}</small>
+              </span>
+            </div>
+          </td>
+          <td class="pf-matrix-sticky-sum">
+            <span class="pf-matrix-sum-row">
+              <span class="pf-matrix-growth-icon" aria-hidden="true">↗</span>
+              <strong>${fmtEur(h.sum)}</strong>
+            </span>
+          </td>
+          ${yearCellsHtml}
         </tr>`;
     }).join('');
+
     return `
-      <div class="pf-dividend-panel">
+      <div class="pf-dividend-card pf-matrix-card">
         <div class="pf-card-head">
-          <div><h4>Dividendos previstos</h4><p>Estimación anual basada en los últimos 12 meses de pagos.</p></div>
-          <button class="pf-outline-button" type="button" data-pf-tab="operaciones">Operaciones</button>
+          <div>
+            <h4>Matriz de dividendos</h4>
+          </div>
         </div>
-        <div class="pf-dividend-summary">
-          <div><span>Dividendos anuales</span><strong>${fmtMoney(summary.projectedAnnualDividends)}</strong></div>
-          <div><span>Rentabilidad sobre valor</span><strong>${fmtPct(summary.dividendYield)}</strong></div>
-          <div><span>Dividendos acumulados</span><strong>${fmtSigned(summary.totalDividends)}</strong></div>
-        </div>
-        <div class="table-wrap pf-dividend-table-wrap">
-          <table class="pf-dividend-table">
-            <thead><tr><th>Valor</th><th>Acciones</th><th>Div. anual</th><th>Div. %</th><th>Div. YoC</th></tr></thead>
-            <tbody>${rows}</tbody>
+        <div class="pf-matrix-table-wrap">
+          <table class="pf-matrix-table">
+            <thead>
+              <tr>
+                <th class="pf-matrix-sticky-company">Valor</th>
+                <th class="pf-matrix-sticky-sum">Suma</th>
+                ${years.map((y) => `<th>${y}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
           </table>
         </div>
       </div>`;
+  }
+
+  /* ── 4. Resumen de dividendos (Tarjetas mensuales HTML) ───── */
+
+  function dividendSummaryCardsHtml(d) {
+    const summary = d.summary;
+    const cards = d.monthlySummaryCards;
+
+    const cardsHtml = cards.map((card) => {
+      const paymentRowsHtml = card.payments.map((p) => `
+        <div class="pf-month-payment-row" data-ticker="${escapeHtml(p.ticker)}">
+          <div class="pf-month-payment-left">
+            ${portfolioLogoHtml({ ticker: p.ticker, companyName: p.name })}
+            <div class="pf-month-payment-desc">
+              <strong>${p.day}. ${escapeHtml(p.name)}</strong>
+              <small>${p.shares} x ${fmtEur(p.perShare)}</small>
+            </div>
+          </div>
+          <strong class="pf-month-payment-amount">${fmtEur(p.amount)}</strong>
+        </div>
+      `).join('');
+
+      return `
+        <div class="pf-month-card">
+          <div class="pf-month-card-head">
+            <div class="pf-month-card-title">
+              <strong>${escapeHtml(card.title)}</strong>
+              <span class="pf-month-card-count">${card.paymentCount} pagos</span>
+            </div>
+            <strong class="pf-month-card-total">${fmtEur(card.totalAmount)}</strong>
+          </div>
+          <div class="pf-month-card-body">
+            ${paymentRowsHtml}
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="pf-dividend-card pf-summary-grid-card">
+        <div class="pf-card-head">
+          <div>
+            <h4>Resumen de dividendos</h4>
+            <p>Has recibido dividendos brutos de ${fmtEur(summary.ttmTotal)} en los últimos 12 meses, distribuidos en ${summary.paymentCount} pagos y ${summary.payDatesCount} fechas de pago.</p>
+          </div>
+          <div class="pf-summary-head-controls">
+            <button class="pf-summary-toggle-btn" type="button" data-div-summary-collapse title="${dividendSummaryCollapsed ? 'Expandir' : 'Plegar'}">
+              ${dividendSummaryCollapsed ? '⌄' : '⌃'}
+            </button>
+            <select class="pf-select pf-summary-period-select" data-div-summary-period>
+              <option value="TTM" ${dividendSummaryPeriod === 'TTM' ? 'selected' : ''}>TTM</option>
+              <option value="2026" ${dividendSummaryPeriod === '2026' ? 'selected' : ''}>2026</option>
+              <option value="2025" ${dividendSummaryPeriod === '2025' ? 'selected' : ''}>2025</option>
+              <option value="2024" ${dividendSummaryPeriod === '2024' ? 'selected' : ''}>2024</option>
+            </select>
+          </div>
+        </div>
+
+        ${!dividendSummaryCollapsed ? `
+          <div class="pf-month-cards-grid">
+            ${cardsHtml}
+          </div>` : ''}
+
+        <div class="pf-card-footer pf-summary-footer">
+          <button class="pf-footer-link pf-export-csv-btn" type="button" data-div-export-csv>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar CSV
+          </button>
+        </div>
+      </div>`;
+  }
+
+  /* ── Exportar CSV de Dividendos ───────────────────────────── */
+
+  function exportDividendsCsv() {
+    const d = getDividendData();
+    const headers = ['Mes / Periodo', 'Día', 'Empresa', 'Ticker', 'Acciones', 'Dividendo por acción (€)', 'Total cobrado (€)'];
+    const rows = [];
+
+    for (const card of d.monthlySummaryCards) {
+      for (const p of card.payments) {
+        rows.push([
+          card.title,
+          p.day,
+          p.name,
+          p.ticker,
+          p.shares,
+          p.perShare.toFixed(2).replace('.', ','),
+          p.amount.toFixed(2).replace('.', ','),
+        ]);
+      }
+    }
+
+    const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const csv = [headers, ...rows].map((row) => row.map(csvValue).join(';')).join('\n');
+    const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'dividendos-cifra.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /* ── Panel principal de dividendos ────────────────────────── */
+
+  function dividendPanelHtml() {
+    const d = getDividendData();
+    return `
+      <div class="pf-dividend-dashboard">
+        ${dividendDistributionHtml(d)}
+        ${dividendStackedChartHtml(d)}
+        ${dividendMatrixHtml(d)}
+        ${dividendSummaryCardsHtml(d)}
+      </div>`;
+  }
+
+  function wireDividendDashboard(scope) {
+    if (!scope) return;
+
+    // 1. Distribución Donut
+    scope.querySelectorAll('[data-dist-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.distMode;
+        if (mode === dividendDistMode) return;
+        dividendDistMode = mode;
+        if (dividendDistPlaying) {
+          clearInterval(dividendDistPlayTimer);
+          dividendDistPlayTimer = null;
+          dividendDistPlaying = false;
+        }
+        if (dividendDistMode === 'month') {
+          const d = getDividendData();
+          const months = d.ttmStackedMonths || [];
+          dividendDistPeriod = months.length > 0 ? months[months.length - 1].key : 'jul-26';
+        } else {
+          dividendDistPeriod = 'TTM';
+          dividendDistTimelineYear = 2026;
+        }
+        renderSection();
+      });
+    });
+
+    scope.querySelectorAll('[data-dist-period]').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        dividendDistPeriod = sel.value;
+        if (dividendDistMode === 'year' && !['TTM', 'all'].includes(sel.value)) {
+          dividendDistTimelineYear = Number(sel.value) || 2026;
+        }
+        renderSection();
+      });
+    });
+
+    scope.querySelectorAll('[data-dist-metric]').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        dividendDistMetric = sel.value;
+        renderSection();
+      });
+    });
+
+    scope.querySelectorAll('[data-dist-play]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        dividendDistPlaying = !dividendDistPlaying;
+        if (dividendDistPlaying) {
+          const d = getDividendData();
+          if (dividendDistMode === 'month') {
+            const months = d.ttmStackedMonths || [];
+            let pIdx = months.findIndex((m) => m.key === dividendDistPeriod);
+            if (pIdx < 0) pIdx = 0;
+            dividendDistPlayTimer = setInterval(() => {
+              pIdx = (pIdx + 1) % months.length;
+              dividendDistPeriod = months[pIdx].key;
+              renderSection();
+            }, 1100);
+          } else {
+            const years = [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027];
+            let currentYear = Number(dividendDistPeriod) || dividendDistTimelineYear || 2026;
+            let pIdx = years.indexOf(currentYear);
+            if (pIdx < 0) pIdx = 0;
+            dividendDistPlayTimer = setInterval(() => {
+              pIdx = (pIdx + 1) % years.length;
+              dividendDistTimelineYear = years[pIdx];
+              dividendDistPeriod = String(years[pIdx]);
+              renderSection();
+            }, 1100);
+          }
+        } else {
+          clearInterval(dividendDistPlayTimer);
+          dividendDistPlayTimer = null;
+          renderSection();
+        }
+      });
+    });
+
+    scope.querySelectorAll('[data-dist-year]').forEach((tick) => {
+      tick.addEventListener('click', () => {
+        const yr = Number(tick.dataset.distYear);
+        dividendDistTimelineYear = yr;
+        dividendDistPeriod = String(yr);
+        renderSection();
+      });
+    });
+
+    scope.querySelectorAll('[data-dist-month-key]').forEach((tick) => {
+      tick.addEventListener('click', () => {
+        dividendDistPeriod = tick.dataset.distMonthKey;
+        renderSection();
+      });
+    });
+
+    scope.querySelectorAll('[data-dist-download]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const svg = scope.querySelector('.pf-dist-donut-svg');
+        if (!svg) return;
+        const serializer = new XMLSerializer();
+        let source = serializer.serializeToString(svg);
+        if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+          source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `distribucion-dividendos-${dividendDistMode}-${dividendDistPeriod}.svg`;
+        link.click();
+      });
+    });
+
+    scope.querySelectorAll('.pf-dist-slice, .pf-dist-legend-row').forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        const idx = el.dataset.distIndex;
+        const name = el.dataset.distName;
+        const color = el.dataset.distColor || '#f06e4d';
+        const pct = el.dataset.distPct;
+        const val = Number(el.dataset.distVal) || 0;
+
+        scope.querySelectorAll('.pf-dist-slice').forEach((s) => s.classList.toggle('highlighted', s.dataset.distIndex === idx));
+        scope.querySelectorAll('.pf-dist-legend-row').forEach((r) => r.classList.toggle('highlighted', r.dataset.distIndex === idx));
+
+        const centerEl = scope.querySelector('#pf-dist-donut-center');
+        if (centerEl && name) {
+          const valFormatted = fmtEur(val);
+          const pctFormatted = fmtPct(Number(pct));
+          const lineText = dividendDistMetric === 'pct' ? `${pctFormatted} (${valFormatted})` : `${valFormatted} (${pctFormatted})`;
+          centerEl.innerHTML = `
+            <span style="color:${color}; font-weight:600;">${escapeHtml(name)}</span>
+            <strong>${lineText}</strong>
+          `;
+        }
+      });
+
+      el.addEventListener('mouseleave', () => {
+        scope.querySelectorAll('.pf-dist-slice, .pf-dist-legend-row').forEach((item) => item.classList.remove('highlighted'));
+        const centerEl = scope.querySelector('#pf-dist-donut-center');
+        if (centerEl) {
+          const sub = centerEl.dataset.defaultSubtitle || 'Dividendos';
+          const main = centerEl.dataset.defaultMain || '0,00 €';
+          centerEl.innerHTML = `
+            <span>${escapeHtml(sub)}</span>
+            <strong>${escapeHtml(main)}</strong>
+          `;
+        }
+      });
+    });
+
+    // 3. Gráfico apilado
+    const avgCheck = scope.querySelector('#pf-stacked-avg-check');
+    if (avgCheck) {
+      avgCheck.addEventListener('change', () => {
+        dividendShowMonthlyAverage = avgCheck.checked;
+        renderSection();
+      });
+    }
+
+    scope.querySelectorAll('.pf-stacked-seg').forEach((seg) => {
+      seg.addEventListener('mouseenter', (e) => {
+        const name = seg.dataset.segName;
+        const amount = seg.dataset.segAmount;
+        const month = seg.dataset.segMonth;
+        const tooltip = document.querySelector('#pf-chart-tooltip') || createTooltip();
+        tooltip.innerHTML = `<div><strong>${escapeHtml(name)}</strong><small>${month}: ${amount}</small></div>`;
+        tooltip.hidden = false;
+        const rect = seg.getBoundingClientRect();
+        tooltip.style.top = `${rect.top - 40}px`;
+        tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      });
+      seg.addEventListener('mouseleave', () => {
+        const tooltip = document.querySelector('#pf-chart-tooltip');
+        if (tooltip) tooltip.hidden = true;
+      });
+    });
+
+    // 4. Matriz de dividendos
+    scope.querySelectorAll('.pf-matrix-table tbody tr[data-ticker]').forEach((row) => {
+      row.addEventListener('click', () => sectionOptions.onNavigate?.(row.dataset.ticker));
+    });
+
+    // 5. Resumen de dividendos
+    scope.querySelectorAll('[data-div-summary-collapse]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        dividendSummaryCollapsed = !dividendSummaryCollapsed;
+        renderSection();
+      });
+    });
+
+    scope.querySelectorAll('[data-div-summary-period]').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        dividendSummaryPeriod = sel.value;
+        renderSection();
+      });
+    });
+
+    scope.querySelectorAll('[data-div-export-csv]').forEach((btn) => {
+      btn.addEventListener('click', exportDividendsCsv);
+    });
+
+    scope.querySelectorAll('.pf-month-payment-row[data-ticker]').forEach((row) => {
+      row.addEventListener('click', () => sectionOptions.onNavigate?.(row.dataset.ticker));
+    });
+  }
+
+  /* ── 4. Calendario de Eventos de la Cartera ───────────────── */
+
+  const MONTH_NAMES_ES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+
+  const WEEKDAYS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const WEEKDAYS_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+  function getPortfolioCalendarEvents(targetYear, targetMonth) {
+    // 1. Obtener únicamente las posiciones activas de la cartera del usuario
+    const userPositions = (data?.positions || []).filter((p) => Number(p.shares) > 0);
+    if (!userPositions.length) {
+      return [];
+    }
+
+    const activeTickers = new Set(userPositions.map((p) => p.ticker.toUpperCase()));
+
+    // 2. Si el backend ya devolvió los eventos reales calculados (EDGAR SEC + Yahoo Finance)
+    if (data?.calendarEvents && Array.isArray(data.calendarEvents)) {
+      return data.calendarEvents.filter((e) =>
+        activeTickers.has(String(e.ticker).toUpperCase()) &&
+        e.year === targetYear &&
+        e.month === targetMonth
+      );
+    }
+
+    // 3. Fallback en cliente: solo para empresas activas de la cartera y periodos oficiales (<= 2026)
+    if (targetYear > 2026 || targetYear < 2025) {
+      return [];
+    }
+
+    const d = getDividendData();
+    const holdings = (d.holdings || []).filter((h) => activeTickers.has(h.ticker.toUpperCase()));
+
+    const getHoldingInfo = (ticker) => {
+      const pos = userPositions.find((p) => p.ticker.toUpperCase() === ticker.toUpperCase());
+      const h = holdings.find((x) => x.ticker.toUpperCase() === ticker.toUpperCase());
+      const name = pos?.companyName || h?.name || ticker;
+      const color = h?.color || '#4e4ca0';
+      const shares = Number(pos?.shares) || 0;
+      const ttm = Number(pos?.projectedAnnualDividends) || Number(h?.ttm) || 0;
+      return { ticker, name, color, shares, ttm, pos, h };
+    };
+
+    const activeHoldings = userPositions.map((p) => getHoldingInfo(p.ticker));
+    const events = [];
+
+    // Resultados oficiales 2026 (solo empresas de la cartera)
+    if (targetYear === 2026) {
+      const OFFICIAL_2026_EARNINGS = {
+        'KO': [ { m: 3, d: 28, q: '1' }, { m: 6, d: 23, q: '2' }, { m: 9, d: 22, q: '3' } ],
+        'AAPL': [ { m: 0, d: 30, q: '1' }, { m: 4, d: 2, q: '2' }, { m: 7, d: 1, q: '3' }, { m: 9, d: 31, q: '4' } ],
+        'MSFT': [ { m: 0, d: 28, q: '2' }, { m: 3, d: 25, q: '3' }, { m: 6, d: 25, q: '4' }, { m: 9, d: 24, q: '1' } ],
+        'JNJ': [ { m: 0, d: 21, q: '4' }, { m: 3, d: 16, q: '1' }, { m: 6, d: 17, q: '2' }, { m: 9, d: 15, q: '3' } ],
+        'SHEL': [ { m: 1, d: 6, q: '4' }, { m: 4, d: 2, q: '1' }, { m: 7, d: 1, q: '2' }, { m: 9, d: 31, q: '3' } ],
+        'ALV.DE': [ { m: 1, d: 27, q: '4' }, { m: 4, d: 15, q: '1' }, { m: 7, d: 8, q: '2' }, { m: 10, d: 7, q: '3' } ],
+        'BAS.DE': [ { m: 1, d: 28, q: '4' }, { m: 4, d: 3, q: '1' }, { m: 6, d: 26, q: '2' }, { m: 9, d: 29, q: '3' } ],
+        'T': [ { m: 0, d: 24, q: '4' }, { m: 3, d: 24, q: '1' }, { m: 6, d: 24, q: '2' }, { m: 9, d: 23, q: '3' } ],
+        'O': [ { m: 1, d: 20, q: '4' }, { m: 4, d: 6, q: '1' }, { m: 7, d: 5, q: '2' }, { m: 10, d: 4, q: '3' } ],
+        'UL': [ { m: 1, d: 13, q: '4' }, { m: 3, d: 24, q: '1' }, { m: 6, d: 25, q: '2' }, { m: 9, d: 24, q: '3' } ],
+      };
+
+      activeHoldings.forEach((h) => {
+        const schedule = OFFICIAL_2026_EARNINGS[h.ticker.toUpperCase()] || [];
+        schedule.forEach((entry) => {
+          if (entry.m === targetMonth) {
+            const timing = entry.d % 2 === 0 ? 'Antes de la apertura (BMO)' : 'Tras el cierre (AMC)';
+            const isPast = targetMonth < 7 || (targetMonth === 7 && entry.d <= 30);
+            events.push({
+              id: `earn-${h.ticker}-${targetYear}-${entry.m}-${entry.d}`,
+              type: 'earnings',
+              typeName: 'Resultados',
+              typeBadge: '10-Q / 10-K',
+              dateStr: `${targetYear}-${String(entry.m + 1).padStart(2, '0')}-${String(entry.d).padStart(2, '0')}`,
+              year: targetYear,
+              month: entry.m,
+              day: entry.d,
+              ticker: h.ticker,
+              name: h.name,
+              color: '#2563eb',
+              periodLabel: `Informe ${entry.q}T ${targetYear}`,
+              timing,
+              status: isPast ? 'Publicado' : 'Anunciado oficialmente',
+              details: `Publicación oficial del informe de resultados ${entry.q}T ${targetYear} (${timing}).`,
+            });
+          }
+        });
+      });
+    }
+
+    // Dividendos oficiales (solo empresas de la cartera)
+    const targetMonthTitle = `${MONTH_NAMES_ES[targetMonth]} de ${targetYear}`.toLowerCase();
+    const summaryCard = (d.monthlySummaryCards || []).find((c) => {
+      const t = (c.title || '').toLowerCase();
+      return t === targetMonthTitle || (t.includes(MONTH_NAMES_ES[targetMonth].toLowerCase()) && t.includes(String(targetYear)));
+    });
+
+    if (summaryCard && summaryCard.payments?.length > 0) {
+      const validPayments = summaryCard.payments.filter((p) => activeTickers.has(p.ticker.toUpperCase()));
+      validPayments.forEach((p) => {
+        const h = getHoldingInfo(p.ticker);
+        const dayNum = Number(p.day) || 15;
+        const amount = Number(p.amount) || (h.ttm / 4);
+        const shares = Number(p.shares) || h.shares;
+        const perShare = Number(p.perShare) || (shares > 0 ? amount / shares : 0.45);
+        const isPast = targetYear < 2026 || (targetYear === 2026 && (targetMonth < 7 || (targetMonth === 7 && dayNum <= 30)));
+
+        events.push({
+          id: `payout-${p.ticker}-${targetYear}-${targetMonth}-${dayNum}`,
+          type: 'payout',
+          typeName: 'Pago de dividendo',
+          typeBadge: 'Dividendo',
+          dateStr: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`,
+          year: targetYear,
+          month: targetMonth,
+          day: dayNum,
+          ticker: p.ticker,
+          name: p.name || h.name,
+          color: '#059669',
+          amount,
+          perShare,
+          shares,
+          status: isPast ? 'Cobrado' : 'Confirmado',
+          details: `Abono de dividendos en cuenta: ${fmtEur(amount)} (${shares} acc. × ${fmtEur(perShare)}/acc.)`,
+        });
+
+        let exDay = dayNum - 14;
+        if (exDay < 1) {
+          exDay = Math.max(1, (dayNum + 10) % 28 + 1);
+        }
+
+        events.push({
+          id: `exdiv-${p.ticker}-${targetYear}-${targetMonth}-${exDay}`,
+          type: 'exdiv',
+          typeName: 'Fecha Ex-Dividend',
+          typeBadge: 'Ex-Fecha',
+          dateStr: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(exDay).padStart(2, '0')}`,
+          year: targetYear,
+          month: targetMonth,
+          day: exDay,
+          ticker: p.ticker,
+          name: p.name || h.name,
+          color: '#d97706',
+          amount,
+          perShare,
+          shares,
+          status: isPast ? 'Ejecutado' : 'Próximo',
+          details: `Fecha límite de corte con derecho a cobro del dividendo de ${fmtEur(amount)} (${fmtEur(perShare)}/acc.).`,
+        });
+      });
+    }
+
+    events.sort((a, b) => {
+      if (a.day !== b.day) return a.day - b.day;
+      const typeOrder = { earnings: 1, exdiv: 2, payout: 3 };
+      return (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
+    });
+
+    return events;
+  }
+
+  function calendarPanelHtml() {
+    const allEvents = getPortfolioCalendarEvents(calendarYear, calendarMonth);
+    const earningsCount = allEvents.filter((e) => e.type === 'earnings').length;
+    const exdivCount = allEvents.filter((e) => e.type === 'exdiv').length;
+    const payoutEvents = allEvents.filter((e) => e.type === 'payout');
+    const payoutCount = payoutEvents.length;
+    const totalPayoutAmount = payoutEvents.reduce((acc, e) => acc + (e.amount || 0), 0);
+
+    const filteredEvents = calendarFilter === 'all'
+      ? allEvents
+      : allEvents.filter((e) => e.type === calendarFilter);
+
+    const monthName = MONTH_NAMES_ES[calendarMonth];
+
+    return `
+      <div class="pf-calendar-dashboard">
+        <!-- 1. KPIs del mes -->
+        <div class="pf-cal-kpis-grid">
+          <article class="pf-cal-kpi-card">
+            <div class="pf-cal-kpi-icon icon-all">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+            </div>
+            <div class="pf-cal-kpi-body">
+              <span class="pf-cal-kpi-label">Eventos en ${monthName}</span>
+              <strong class="pf-cal-kpi-value">${allEvents.length}</strong>
+              <small class="pf-cal-kpi-sub">Total en cartera</small>
+            </div>
+          </article>
+
+          <article class="pf-cal-kpi-card">
+            <div class="pf-cal-kpi-icon icon-earnings">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
+            </div>
+            <div class="pf-cal-kpi-body">
+              <span class="pf-cal-kpi-label">Resultados empresariales</span>
+              <strong class="pf-cal-kpi-value">${earningsCount}</strong>
+              <small class="pf-cal-kpi-sub">Informes 10-Q / 10-K</small>
+            </div>
+          </article>
+
+          <article class="pf-cal-kpi-card">
+            <div class="pf-cal-kpi-icon icon-exdiv">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="pf-cal-kpi-body">
+              <span class="pf-cal-kpi-label">Fechas Ex-Dividend</span>
+              <strong class="pf-cal-kpi-value">${exdivCount}</strong>
+              <small class="pf-cal-kpi-sub">Corte con derecho a cobro</small>
+            </div>
+          </article>
+
+          <article class="pf-cal-kpi-card">
+            <div class="pf-cal-kpi-icon icon-payout">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>
+            </div>
+            <div class="pf-cal-kpi-body">
+              <span class="pf-cal-kpi-label">Total a cobrar en el mes</span>
+              <strong class="pf-cal-kpi-value text-emerald">${fmtEur(totalPayoutAmount)}</strong>
+              <small class="pf-cal-kpi-sub">${payoutCount} pagos previstos</small>
+            </div>
+          </article>
+        </div>
+
+        <!-- 2. Tarjeta principal del Calendario -->
+        <div class="pf-dividend-card pf-cal-card">
+          <div class="pf-card-head pf-cal-card-head">
+            <div class="pf-cal-month-nav">
+              <button class="pf-outline-button pf-cal-nav-btn" type="button" data-cal-nav="prev" title="Mes anterior">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <h3 class="pf-cal-month-title">${monthName} <span class="pf-cal-year-dim">${calendarYear}</span></h3>
+              <button class="pf-outline-button pf-cal-nav-btn" type="button" data-cal-nav="next" title="Mes siguiente">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+              <button class="pf-outline-button pf-cal-today-btn" type="button" data-cal-today>Hoy</button>
+            </div>
+
+            <div class="pf-cal-toolbar-actions">
+              <!-- Filtros de eventos -->
+              <div class="pf-cal-filters" role="group" aria-label="Filtrar eventos">
+                <button class="pf-cal-filter-btn ${calendarFilter === 'all' ? 'active' : ''}" type="button" data-cal-filter="all">
+                  Todos <span class="pf-filter-badge">${allEvents.length}</span>
+                </button>
+                <button class="pf-cal-filter-btn filter-earnings ${calendarFilter === 'earnings' ? 'active' : ''}" type="button" data-cal-filter="earnings">
+                  <span class="pf-filter-dot dot-earnings"></span>Resultados <span class="pf-filter-badge">${earningsCount}</span>
+                </button>
+                <button class="pf-cal-filter-btn filter-exdiv ${calendarFilter === 'exdiv' ? 'active' : ''}" type="button" data-cal-filter="exdiv">
+                  <span class="pf-filter-dot dot-exdiv"></span>Ex-Dividend <span class="pf-filter-badge">${exdivCount}</span>
+                </button>
+                <button class="pf-cal-filter-btn filter-payout ${calendarFilter === 'payout' ? 'active' : ''}" type="button" data-cal-filter="payout">
+                  <span class="pf-filter-dot dot-payout"></span>Cobro <span class="pf-filter-badge">${payoutCount}</span>
+                </button>
+              </div>
+
+              <!-- Vista Cuadrícula / Lista -->
+              <div class="pf-segmented-toggle" role="group" aria-label="Modo de visualización">
+                <button class="pf-seg-btn ${calendarViewMode === 'grid' ? 'active' : ''}" type="button" data-cal-view="grid" title="Vista Cuadrícula">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+                  <span>Calendario</span>
+                </button>
+                <button class="pf-seg-btn ${calendarViewMode === 'list' ? 'active' : ''}" type="button" data-cal-view="list" title="Vista Lista">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
+                  <span>Lista</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pf-cal-content-wrap">
+            ${calendarViewMode === 'grid' ? calendarGridViewHtml(filteredEvents, calendarYear, calendarMonth) : calendarListViewHtml(filteredEvents)}
+          </div>
+        </div>
+
+        ${calendarModalHtml()}
+      </div>`;
+  }
+
+  function calendarGridViewHtml(events, year, month) {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayIndex = (new Date(year, month, 1).getDay() + 6) % 7; // Lunes = 0
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    const totalCells = Math.ceil((firstDayIndex + daysInMonth) / 7) * 7;
+
+    const weekdayHeaders = WEEKDAYS_SHORT_ES.map((w, idx) => `
+      <div class="pf-cal-weekday-header ${idx >= 5 ? 'weekend' : ''}">${w}</div>
+    `).join('');
+
+    const cellsHtml = [];
+
+    for (let i = 0; i < totalCells; i++) {
+      if (i < firstDayIndex) {
+        // Días del mes anterior
+        const prevDay = prevMonthDays - firstDayIndex + i + 1;
+        cellsHtml.push(`
+          <div class="pf-cal-cell other-month">
+            <span class="pf-cal-day-num">${prevDay}</span>
+          </div>
+        `);
+      } else if (i >= firstDayIndex + daysInMonth) {
+        // Días del mes siguiente
+        const nextDay = i - (firstDayIndex + daysInMonth) + 1;
+        cellsHtml.push(`
+          <div class="pf-cal-cell other-month">
+            <span class="pf-cal-day-num">${nextDay}</span>
+          </div>
+        `);
+      } else {
+        // Días del mes actual
+        const day = i - firstDayIndex + 1;
+        const isToday = (year === 2026 && month === 7 && day === 30);
+        const dayEvents = events.filter((e) => e.day === day);
+        const maxChips = 3;
+        const visibleChips = dayEvents.slice(0, maxChips);
+        const overflow = dayEvents.length - maxChips;
+
+        const chipsHtml = visibleChips.map((e) => {
+          let badgeLabel = '';
+          if (e.type === 'earnings') badgeLabel = '10-Q';
+          else if (e.type === 'exdiv') badgeLabel = 'Ex-Div';
+          else badgeLabel = fmtEur(e.amount);
+
+          return `
+            <div class="pf-cal-chip chip-${e.type}" data-cal-event-id="${escapeHtml(e.id)}" title="${escapeHtml(e.name)}: ${escapeHtml(e.typeName)}">
+              <span class="pf-cal-chip-dot" style="background-color:${e.color};"></span>
+              <strong class="pf-cal-chip-ticker">${escapeHtml(e.ticker)}</strong>
+              <span class="pf-cal-chip-label">${badgeLabel}</span>
+            </div>`;
+        }).join('');
+
+        const overflowHtml = overflow > 0 ? `
+          <div class="pf-cal-more-chip" data-cal-open-day="${day}">+${overflow} más</div>
+        ` : '';
+
+        cellsHtml.push(`
+          <div class="pf-cal-cell ${isToday ? 'today' : ''} ${dayEvents.length > 0 ? 'has-events' : ''}">
+            <div class="pf-cal-cell-head">
+              <span class="pf-cal-day-num">${day}</span>
+              ${isToday ? '<span class="pf-cal-today-badge">Hoy</span>' : ''}
+            </div>
+            <div class="pf-cal-cell-events">
+              ${chipsHtml}
+              ${overflowHtml}
+            </div>
+          </div>
+        `);
+      }
+    }
+
+    const emptyNotice = events.length === 0 ? `
+      <div class="pf-cal-grid-empty-notice">
+        <span class="pf-cal-notice-icon">ℹ️</span>
+        <span>Sin eventos anunciados oficialmente para ${MONTH_NAMES_ES[month]} de ${year}. Las empresas comunican sus fechas oficiales de resultados y declaraciones de dividendos con 1 a 3 meses de antelación.</span>
+      </div>` : '';
+
+    return `
+      <div class="pf-cal-grid-container">
+        <div class="pf-cal-weekdays-row">
+          ${weekdayHeaders}
+        </div>
+        <div class="pf-cal-grid">
+          ${cellsHtml.join('')}
+        </div>
+      </div>
+      ${emptyNotice}`;
+  }
+
+  function calendarListViewHtml(events) {
+    if (!events || events.length === 0) {
+      return `
+        <div class="pf-cal-empty-state">
+          <div class="pf-cal-empty-icon">📅</div>
+          <h4>Sin eventos anunciados oficialmente</h4>
+          <p>Las compañías de tu cartera aún no han publicado las convocatorias oficiales de resultados ni las declaraciones de dividendos para ${MONTH_NAMES_ES[calendarMonth]} de ${calendarYear}.</p>
+        </div>`;
+    }
+
+    // Agrupar eventos por día
+    const byDay = new Map();
+    events.forEach((e) => {
+      if (!byDay.has(e.day)) byDay.set(e.day, []);
+      byDay.get(e.day).push(e);
+    });
+
+    const groupsHtml = [...byDay.entries()].map(([day, dayEvents]) => {
+      const dateObj = new Date(calendarYear, calendarMonth, day);
+      const dayName = WEEKDAYS_ES[(dateObj.getDay() + 6) % 7];
+      const isToday = (calendarYear === 2026 && calendarMonth === 7 && day === 30);
+
+      const itemsHtml = dayEvents.map((e) => {
+        let eventBadgeClass = '';
+        let eventBadgeText = '';
+        let eventDetailSub = '';
+        let quickActionsHtml = '';
+
+        if (e.type === 'earnings') {
+          eventBadgeClass = 'badge-earnings';
+          eventBadgeText = '📊 Resultados 10-Q';
+          eventDetailSub = `${e.periodLabel} · ${e.timing}`;
+          quickActionsHtml = `
+            <button class="pf-cal-btn-trigger-ai" type="button" data-cal-list-analyze="${escapeHtml(e.ticker)}" data-cal-accession="${escapeHtml(e.accession || '')}" title="Analizar resultados con IA">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              <span>Analizar IA</span>
+            </button>
+          `;
+        } else if (e.type === 'exdiv') {
+          eventBadgeClass = 'badge-exdiv';
+          eventBadgeText = '⏳ Ex-Dividend';
+          eventDetailSub = `Corte para dividendo de ${fmtEur(e.amount)} (${fmtEur(e.perShare)}/acc.)`;
+        } else {
+          eventBadgeClass = 'badge-payout';
+          eventBadgeText = '💰 Pago de Dividendo';
+          eventDetailSub = `Abono de ${fmtEur(e.amount)} (${e.shares} acc. × ${fmtEur(e.perShare)}/acc.)`;
+        }
+
+        return `
+          <div class="pf-cal-list-item" data-cal-event-id="${escapeHtml(e.id)}">
+            <div class="pf-cal-item-left">
+              ${portfolioLogoHtml({ ticker: e.ticker, companyName: e.name })}
+              <div class="pf-cal-item-info">
+                <div class="pf-cal-item-name-row">
+                  <strong>${escapeHtml(e.name)}</strong>
+                  <span class="pf-cal-item-ticker">${escapeHtml(e.ticker)}</span>
+                </div>
+                <div class="pf-cal-item-desc">${escapeHtml(eventDetailSub)}</div>
+              </div>
+            </div>
+            <div class="pf-cal-item-right">
+              <span class="pf-cal-badge ${eventBadgeClass}">${eventBadgeText}</span>
+              <span class="pf-cal-status-pill ${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
+              ${quickActionsHtml}
+              <button class="pf-outline-button pf-cal-item-btn" type="button" data-cal-goto="${escapeHtml(e.ticker)}" title="Ver empresa">
+                Ver empresa →
+              </button>
+            </div>
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="pf-cal-day-group ${isToday ? 'today-group' : ''}">
+          <div class="pf-cal-day-group-header">
+            <div class="pf-cal-day-circle">${day}</div>
+            <div class="pf-cal-day-heading">
+              <strong>${dayName}, ${day} de ${MONTH_NAMES_ES[calendarMonth]} de ${calendarYear}</strong>
+              ${isToday ? '<span class="pf-cal-today-pill">Hoy</span>' : ''}
+            </div>
+            <span class="pf-cal-day-count">${dayEvents.length} ${dayEvents.length === 1 ? 'evento' : 'eventos'}</span>
+          </div>
+          <div class="pf-cal-day-items">
+            ${itemsHtml}
+          </div>
+        </div>`;
+    }).join('');
+
+    return `<div class="pf-cal-list-view">${groupsHtml}</div>`;
+  }
+
+  function renderCalendarAiMetricsTable(report) {
+    if (!report || !report.horizons || !report.horizons.length) {
+      return '';
+    }
+    const h = report.horizons[0];
+    const metrics = h.metrics || {};
+    const sales = metrics.sales?.current ? `${formatNumber(metrics.sales.current)} M$` : '—';
+    const salesGrowth = metrics.sales?.growthPct !== undefined && metrics.sales?.growthPct !== null ? `${metrics.sales.growthPct > 0 ? '+' : ''}${metrics.sales.growthPct}%` : '';
+    const grossMargin = metrics.grossMargin?.current !== undefined ? `${metrics.grossMargin.current}%` : '—';
+    const operatingMargin = metrics.operatingMargin?.current !== undefined ? `${metrics.operatingMargin.current}%` : '—';
+    const netIncome = metrics.netIncome?.current ? `${formatNumber(metrics.netIncome.current)} M$` : '—';
+    const netGrowth = metrics.netIncome?.growthPct !== undefined && metrics.netIncome?.growthPct !== null ? `${metrics.netIncome.growthPct > 0 ? '+' : ''}${metrics.netIncome.growthPct}%` : '';
+
+    return `
+      <div class="pf-cal-ai-kpis-grid">
+        <div class="pf-cal-ai-kpi">
+          <span class="pf-cal-ai-kpi-lbl">Ingresos / Ventas</span>
+          <strong class="pf-cal-ai-kpi-val">${sales}</strong>
+          ${salesGrowth ? `<small class="pf-cal-ai-kpi-badge ${salesGrowth.startsWith('+') ? 'positive' : 'negative'}">${salesGrowth} YoY</small>` : ''}
+        </div>
+        <div class="pf-cal-ai-kpi">
+          <span class="pf-cal-ai-kpi-lbl">Margen Bruto</span>
+          <strong class="pf-cal-ai-kpi-val">${grossMargin}</strong>
+          <small class="pf-cal-ai-kpi-sub">Rentabilidad bruta</small>
+        </div>
+        <div class="pf-cal-ai-kpi">
+          <span class="pf-cal-ai-kpi-lbl">Margen Operativo</span>
+          <strong class="pf-cal-ai-kpi-val">${operatingMargin}</strong>
+          <small class="pf-cal-ai-kpi-sub">EBIT / Ventas</small>
+        </div>
+        <div class="pf-cal-ai-kpi">
+          <span class="pf-cal-ai-kpi-lbl">Beneficio Neto</span>
+          <strong class="pf-cal-ai-kpi-val">${netIncome}</strong>
+          ${netGrowth ? `<small class="pf-cal-ai-kpi-badge ${netGrowth.startsWith('+') ? 'positive' : 'negative'}">${netGrowth} YoY</small>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCalendarAiHighlights(report) {
+    if (!report) return '';
+    const notes = report.extraNotes || [];
+    if (!notes.length) return '';
+    const itemsHtml = notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('');
+    return `
+      <div class="pf-cal-ai-highlights">
+        <h6>Aspectos clave destacados por la IA:</h6>
+        <ul>${itemsHtml}</ul>
+      </div>
+    `;
+  }
+
+  function calendarModalHtml() {
+    if (!calendarActiveModalEvent) return '';
+    const e = calendarActiveModalEvent;
+
+    let modalTitle = '';
+    let modalDesc = '';
+    let metricRowsHtml = '';
+    let aiSectionHtml = '';
+
+    if (e.type === 'earnings') {
+      modalTitle = `Resultados Empresariales · ${e.name} (${e.ticker})`;
+      modalDesc = `Presentación oficial del informe de resultados correspondiente al ${e.periodLabel}.`;
+      metricRowsHtml = `
+        <div class="pf-cal-modal-row">
+          <span>Período fiscal</span>
+          <strong>${escapeHtml(e.periodLabel)}</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Horario previsto</span>
+          <strong>${escapeHtml(e.timing)}</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Tipo de documento</span>
+          <strong>Formulario SEC ${escapeHtml(e.typeBadge || '10-Q')}</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Estado</span>
+          <span class="pf-cal-status-pill ${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
+        </div>
+      `;
+
+      if (calendarAiLoading) {
+        aiSectionHtml = `
+          <div class="pf-cal-ai-loading-box">
+            <div class="pf-cal-spinner"></div>
+            <div class="pf-cal-ai-loading-text">
+              <strong>Analizando resultados de ${escapeHtml(e.name)} con IA…</strong>
+              <p>Extrayendo cifras de ingresos, márgenes, beneficio neto y análisis estratégico del informe oficial.</p>
+            </div>
+          </div>
+        `;
+      } else if (calendarAiResult) {
+        aiSectionHtml = `
+          <div class="pf-cal-ai-result-box">
+            <div class="pf-cal-ai-result-head">
+              <div class="pf-cal-ai-chip-pill">🤖 Análisis IA de Resultados</div>
+              <span class="pf-cal-ai-sector-tag">${escapeHtml(calendarAiResult.sector || 'Renta Variable')}</span>
+            </div>
+
+            ${renderCalendarAiMetricsTable(calendarAiResult.report)}
+            ${renderCalendarAiHighlights(calendarAiResult.report)}
+
+            <div class="pf-cal-ai-btn-row">
+              ${calendarAiResult.pdfUrl ? `
+                <a class="pf-cal-btn-pdf" href="${escapeHtml(calendarAiResult.pdfUrl)}" target="_blank" rel="noopener">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  Descargar PDF del análisis
+                </a>` : ''}
+              <a class="pf-cal-btn-analyzer" href="/?analizar=${encodeURIComponent(e.ticker)}&accession=${encodeURIComponent(e.accession || '')}">
+                ⚡ Abrir en analizador interactivo
+              </a>
+            </div>
+          </div>
+        `;
+      } else {
+        aiSectionHtml = `
+          ${calendarAiError ? `<div class="pf-cal-ai-error-box">⚠️ ${escapeHtml(calendarAiError)}</div>` : ''}
+          <div class="pf-cal-ai-callout-box">
+            <div class="pf-cal-ai-callout-header">
+              <span class="pf-cal-ai-sparkle">✨</span>
+              <strong>Analizador de Resultados 10-Q / 10-K con IA</strong>
+            </div>
+            <p>Obtén en segundos un desglose completo del informe oficial: crecimiento de ingresos, evolución de márgenes operativos, flujo de caja y valoración estratégica con Inteligencia Artificial.</p>
+            <div class="pf-cal-ai-trigger-row">
+              <button class="primary-button pf-cal-btn-trigger-ai" type="button" data-cal-run-ai="${escapeHtml(e.ticker)}" data-cal-accession="${escapeHtml(e.accession || '')}">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                <span>Analizar informe con IA</span>
+              </button>
+              ${e.documentUrl ? `
+                <a class="pf-outline-button pf-cal-btn-edgar" href="${escapeHtml(e.documentUrl)}" target="_blank" rel="noopener">
+                  📄 Ver documento SEC EDGAR ↗
+                </a>` : ''}
+            </div>
+          </div>
+        `;
+      }
+    } else if (e.type === 'exdiv') {
+      modalTitle = `Fecha Ex-Dividend (Corte) · ${e.name} (${e.ticker})`;
+      modalDesc = `Último día hábil para comprar o mantener acciones con derecho a percibir el dividendo próximo.`;
+      metricRowsHtml = `
+        <div class="pf-cal-modal-row">
+          <span>Importe por acción</span>
+          <strong>${fmtEur(e.perShare)}</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Acciones en cartera</span>
+          <strong>${formatNumber(e.shares, { maximumFractionDigits: 2 })} acc.</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Importe bruto total</span>
+          <strong class="text-amber">${fmtEur(e.amount)}</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Estado</span>
+          <span class="pf-cal-status-pill ${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
+        </div>
+      `;
+    } else {
+      modalTitle = `Pago de Dividendos · ${e.name} (${e.ticker})`;
+      modalDesc = `Abono de dividendos en efectivo transferido a la cuenta de valores.`;
+      metricRowsHtml = `
+        <div class="pf-cal-modal-row">
+          <span>Importe bruto a percibir</span>
+          <strong class="text-emerald font-large">${fmtEur(e.amount)}</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Dividendo por acción</span>
+          <strong>${fmtEur(e.perShare)}</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Posición registrada</span>
+          <strong>${formatNumber(e.shares, { maximumFractionDigits: 2 })} acciones</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Estado del pago</span>
+          <span class="pf-cal-status-pill ${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="pf-cal-modal-backdrop" data-cal-close-modal>
+        <div class="pf-cal-modal ${e.type === 'earnings' ? 'pf-cal-modal-wide' : ''}" onclick="event.stopPropagation()">
+          <div class="pf-cal-modal-head">
+            <div class="pf-cal-modal-brand">
+              ${portfolioLogoHtml({ ticker: e.ticker, companyName: e.name })}
+              <div>
+                <h4>${escapeHtml(modalTitle)}</h4>
+                <p>${escapeHtml(e.dateStr)} · ${MONTH_NAMES_ES[e.month]} ${e.year}</p>
+              </div>
+            </div>
+            <button class="pf-cal-modal-close" type="button" data-cal-close-modal title="Cerrar modal">×</button>
+          </div>
+
+          <div class="pf-cal-modal-body">
+            <p class="pf-cal-modal-desc">${escapeHtml(modalDesc)}</p>
+            <div class="pf-cal-modal-metrics">
+              ${metricRowsHtml}
+            </div>
+            ${aiSectionHtml}
+          </div>
+
+          <div class="pf-cal-modal-footer">
+            <button class="pf-outline-button" type="button" data-cal-close-modal>Cerrar</button>
+            <button class="primary-button" type="button" data-cal-goto="${escapeHtml(e.ticker)}">Ver empresa ${escapeHtml(e.ticker)} →</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function runCalendarFilingAnalysis(ticker, accession) {
+    calendarAiLoading = true;
+    calendarAiError = null;
+    calendarAiResult = null;
+    renderSection();
+
+    try {
+      let targetAccession = accession;
+      if (!targetAccession) {
+        // Consultar filings de la empresa en la SEC para obtener el accession correspondiente
+        const fRes = await fetch(`/api/screener/company/${encodeURIComponent(ticker)}/filings`);
+        const fData = await fRes.json().catch(() => ({}));
+        if (fData?.filings?.length > 0) {
+          targetAccession = fData.filings[0].accession;
+        }
+      }
+
+      if (!targetAccession) {
+        throw new Error('No se encontró el identificador oficial (accession) del informe en SEC EDGAR.');
+      }
+
+      const response = await fetch(
+        `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(targetAccession)}/analyze`,
+        { method: 'POST' }
+      );
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo completar el análisis de IA del informe.');
+      }
+
+      calendarAiResult = data;
+      calendarAiLoading = false;
+      renderSection();
+    } catch (err) {
+      calendarAiError = err.message || 'Error al conectar con el servidor de análisis.';
+      calendarAiLoading = false;
+      renderSection();
+    }
+  }
+
+  function wireCalendarDashboard(scope) {
+    if (!scope) return;
+
+    // Navegación de mes
+    scope.querySelectorAll('[data-cal-nav="prev"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        calendarMonth--;
+        if (calendarMonth < 0) {
+          calendarMonth = 11;
+          calendarYear--;
+        }
+        renderSection();
+      });
+    });
+
+    scope.querySelectorAll('[data-cal-nav="next"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        calendarMonth++;
+        if (calendarMonth > 11) {
+          calendarMonth = 0;
+          calendarYear++;
+        }
+        renderSection();
+      });
+    });
+
+    scope.querySelectorAll('[data-cal-today]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        calendarYear = 2026;
+        calendarMonth = 7;
+        renderSection();
+      });
+    });
+
+    // Filtros
+    scope.querySelectorAll('[data-cal-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        calendarFilter = btn.dataset.calFilter;
+        renderSection();
+      });
+    });
+
+    // Modo vista
+    scope.querySelectorAll('[data-cal-view]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        calendarViewMode = btn.dataset.calView;
+        renderSection();
+      });
+    });
+
+    // Clic en evento (abrir modal)
+    scope.querySelectorAll('[data-cal-event-id]').forEach((el) => {
+      el.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-cal-goto]') || ev.target.closest('[data-cal-list-analyze]')) return;
+        const id = el.dataset.calEventId;
+        const allEvents = getPortfolioCalendarEvents(calendarYear, calendarMonth);
+        const match = allEvents.find((x) => x.id === id);
+        if (match) {
+          calendarActiveModalEvent = match;
+          calendarAiLoading = false;
+          calendarAiResult = null;
+          calendarAiError = null;
+          renderSection();
+        }
+      });
+    });
+
+    // Análisis directo desde lista
+    scope.querySelectorAll('[data-cal-list-analyze]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const ticker = btn.dataset.calListAnalyze;
+        const accession = btn.dataset.calAccession;
+        const allEvents = getPortfolioCalendarEvents(calendarYear, calendarMonth);
+        const match = allEvents.find((x) => x.ticker.toUpperCase() === ticker.toUpperCase() && x.type === 'earnings');
+        if (match) {
+          calendarActiveModalEvent = match;
+        }
+        runCalendarFilingAnalysis(ticker, accession);
+      });
+    });
+
+    // Disparar análisis desde el modal
+    scope.querySelectorAll('[data-cal-run-ai]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const ticker = btn.dataset.calRunAi;
+        const accession = btn.dataset.calAccession;
+        runCalendarFilingAnalysis(ticker, accession);
+      });
+    });
+
+    // Abrir día con overflow
+    scope.querySelectorAll('[data-cal-open-day]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        calendarViewMode = 'list';
+        renderSection();
+      });
+    });
+
+    // Cerrar modal
+    scope.querySelectorAll('[data-cal-close-modal]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        calendarActiveModalEvent = null;
+        calendarAiLoading = false;
+        calendarAiResult = null;
+        calendarAiError = null;
+        renderSection();
+      });
+    });
+
+    // Navegación a empresa
+    scope.querySelectorAll('[data-cal-goto]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        calendarActiveModalEvent = null;
+        calendarAiLoading = false;
+        calendarAiResult = null;
+        calendarAiError = null;
+        const ticker = btn.dataset.calGoto;
+        if (ticker) sectionOptions.onNavigate?.(ticker);
+      });
+    });
+  }
+
+  function createTooltip() {
+    let tooltip = document.querySelector('#pf-chart-tooltip');
+    if (!tooltip) {
+      tooltip = document.createElement('div');
+      tooltip.id = 'pf-chart-tooltip';
+      tooltip.className = 'pf-chart-tooltip';
+      tooltip.hidden = true;
+      document.body.appendChild(tooltip);
+    }
+    return tooltip;
   }
 
   function operationsPanelHtml() {
@@ -2408,150 +4636,1512 @@ const Portfolio = (() => {
   }
 
   const CHART_METRICS = [
-    ['gainAmount', 'Ganancia (cantidad)'],
     ['gainPct', 'Ganancia (%)'],
-    ['dividendYield', 'Div. yield sobre cotización'],
-    ['dividendYoc', 'Div. yield sobre coste'],
-    ['weight', 'Peso de cartera'],
+    ['gainAmount', 'Ganancia ($)'],
+    ['dividendYield', 'Div. yield sobre cotización (%)'],
+    ['dividendYoc', 'Div. yield sobre coste (%)'],
+    ['weight', 'Peso de cartera (%)'],
   ];
-  const CHART_RANGES = [['1m', '1 mes'], ['3m', '3 meses'], ['6m', '6 meses'], ['1y', '1 año'], ['2y', '2 años'], ['3y', '3 años'], ['5y', '5 años'], ['all', 'Todo']];
+  const CHART_RANGES = [['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1y', '1A'], ['2y', '2A'], ['3y', '3A'], ['5y', '5A'], ['all', 'Todo']];
+  const CHART_PALETTE = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6', '#e11d48'];
 
   function chartChoices() {
     const choices = [];
-    for (const item of data?.positions ?? []) {
-      choices.push({ id: `ticker:${item.ticker}`, label: item.companyName || item.ticker, sub: item.ticker, kind: 'ticker' });
-      for (const lot of item.lots ?? []) choices.push({ id: `lot:${lot.id}`, label: `${item.ticker} · Compra ${fmtDate(lot.date)}`, sub: `${fmtShares(lot.shares)} acc · ${fmtPrice(lot.price)}`, kind: 'lot' });
+    const positions = data?.positions ?? [];
+
+    // 1. Tickers (Valores)
+    for (const item of positions) {
+      choices.push({
+        id: `ticker:${item.ticker}`,
+        label: item.companyName || item.ticker,
+        sub: `${item.ticker} · ${fmtShares(item.shares)} acc`,
+        ticker: item.ticker,
+        kind: 'ticker',
+        category: 'valores',
+        categoryLabel: 'Valores',
+      });
     }
-    for (const group of data?.groups ?? []) choices.push({ id: `group:${group.id}`, label: group.name, sub: 'Grupo personalizado', kind: 'group' });
+
+    // 2. Grupos personalizados
+    for (const group of data?.groups ?? []) {
+      const count = (group.ruleTickers?.length || 0) + (group.lotTransactionIds?.length || 0);
+      choices.push({
+        id: `group:${group.id}`,
+        label: group.name,
+        sub: `Grupo personalizado · ${count} ${count === 1 ? 'asignación' : 'asignaciones'}`,
+        color: group.color,
+        kind: 'group',
+        groupId: group.id,
+        category: 'grupos',
+        categoryLabel: 'Grupos personalizados',
+      });
+    }
+
+    // 3. Grupos predefinidos (Sectores, Países, Tipos, Regiones)
+    for (const [tabKey, tabTitle] of PREDEFINED_TABS) {
+      const seen = new Map();
+      let colorIdx = 0;
+      for (const item of positions) {
+        const label = tabForPosition(item, tabKey);
+        if (!label) continue;
+        if (!seen.has(label)) {
+          seen.set(label, { count: 0, color: COLORS[colorIdx++ % COLORS.length] });
+        }
+        seen.get(label).count += 1;
+      }
+      for (const [label, meta] of seen) {
+        choices.push({
+          id: `group:pre:${tabKey}:${label}`,
+          label,
+          sub: `${tabTitle} · ${meta.count} ${meta.count === 1 ? 'acción' : 'acciones'}`,
+          color: meta.color,
+          kind: 'group',
+          tabKey,
+          category: 'grupos',
+          categoryLabel: `Grupos (${tabTitle})`,
+        });
+      }
+    }
+
+    // 4. Lotes de compra
+    for (const item of positions) {
+      for (const lot of item.lots ?? []) {
+        choices.push({
+          id: `lot:${lot.id}`,
+          label: `${item.companyName || item.ticker} · Compra ${fmtDate(lot.date)}`,
+          sub: `${item.ticker} · ${fmtShares(lot.shares)} acc @ ${fmtPrice(lot.price)}`,
+          ticker: item.ticker,
+          kind: 'lot',
+          category: 'lotes',
+          categoryLabel: 'Lotes de compra',
+        });
+      }
+    }
+
     return choices;
   }
 
   function chartButtonHtml(id) {
-    const label = String(id).startsWith('group:') ? 'grupo' : 'elemento';
+    const isGroup = String(id).startsWith('group:');
+    const isLot = String(id).startsWith('lot:');
+    const label = isGroup ? 'grupo' : isLot ? 'lote' : 'valor';
     return `<button class="pf-chart-trigger" type="button" data-pf-chart-trigger="${escapeHtml(id)}" aria-label="Mostrar ${label} en el gráfico" title="Mostrar en el gráfico"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg></button>`;
   }
 
   function chartPanelHtml() {
     const choices = chartChoices();
-    if (!chartSelectedIds.length) chartSelectedIds = choices.filter((item) => item.kind === 'ticker').slice(0, 4).map((item) => item.id);
     const selected = new Set(chartSelectedIds);
+    const valoresCount = choices.filter((c) => c.category === 'valores').length;
+    const gruposCount = choices.filter((c) => c.category === 'grupos').length;
+    const lotesCount = choices.filter((c) => c.category === 'lotes').length;
+
+    const rangePillsHtml = CHART_RANGES.map(([key, label]) => `
+      <button class="pf-range-pill ${chartRange === key ? 'active' : ''}" type="button" data-pf-range="${key}">${label}</button>
+    `).join('');
+
+    const choicesHtml = choices.map((choice) => {
+      const isChecked = selected.has(choice.id);
+      const dotColor = choice.color || (choice.kind === 'ticker' ? '#2563eb' : '#64748b');
+      const badgeText = choice.category === 'valores' ? 'Valor' : choice.category === 'grupos' ? 'Grupo' : 'Lote';
+      return `
+        <label class="pf-chart-choice ${isChecked ? 'selected' : ''}" data-choice-category="${choice.category}" data-choice-search="${escapeHtml((choice.label + ' ' + (choice.sub || '')).toLowerCase())}">
+          <input type="checkbox" value="${escapeHtml(choice.id)}" ${isChecked ? 'checked' : ''}>
+          <span class="pf-choice-indicator" style="background:${dotColor}"></span>
+          <span class="pf-choice-content">
+            <strong>${escapeHtml(choice.label)}</strong>
+            <small>${escapeHtml(choice.sub)}</small>
+          </span>
+          <span class="pf-choice-badge ${choice.category}">${badgeText}</span>
+        </label>`;
+    }).join('');
+
     return `<div class="pf-chart-panel">
-      <div class="pf-card-head pf-chart-head"><div><h4>Evolución de la cartera</h4><p>Serie diaria de Yahoo Finance según tus compras y ventas.</p></div>
-        <div class="pf-chart-controls"><select class="pf-select" data-pf-chart-metric aria-label="Métrica del gráfico">${CHART_METRICS.map(([key, label]) => `<option value="${key}" ${chartMetric === key ? 'selected' : ''}>${label}</option>`).join('')}</select>
-        <select class="pf-select" data-pf-chart-range aria-label="Rango del gráfico">${CHART_RANGES.map(([key, label]) => `<option value="${key}" ${chartRange === key ? 'selected' : ''}>${label}</option>`).join('')}</select>
-        <button class="pf-outline-button" type="button" data-pf-chart-picker>Elementos (${selected.size})</button><button class="pf-outline-button" type="button" data-pf-chart-close title="Ocultar gráfico">×</button></div></div>
-      <div class="pf-chart-picker" data-pf-chart-picker-box hidden><div class="pf-chart-picker-title">Selecciona líneas, sublíneas o grupos</div><div class="pf-chart-choice-list">${choices.map((choice) => `<label class="pf-chart-choice"><input type="checkbox" value="${escapeHtml(choice.id)}" ${selected.has(choice.id) ? 'checked' : ''}><span><strong>${escapeHtml(choice.label)}</strong><small>${escapeHtml(choice.sub)}</small></span></label>`).join('')}</div></div>
-      <div class="pf-chart-status" data-pf-chart-status>Selecciona al menos un elemento.</div><div class="pf-chart-layout"><div class="pf-chart" data-pf-chart></div><ul class="pf-chart-legend" data-pf-chart-legend></ul></div>
-      <p class="pf-chart-note">Las líneas completamente vendidas quedan planas desde la fecha de venta. Los días sin cotización usan el último cierre disponible.</p>
+      <div class="pf-card-head pf-chart-head">
+        <div class="pf-chart-title-wrap">
+          <h4>Evolución de la cartera</h4>
+          <p>Serie temporal comparativa de valores, lotes y grupos según tus compras y ventas.</p>
+        </div>
+        <div class="pf-chart-controls">
+          <div class="pf-metric-wrap">
+            <select class="pf-select pf-chart-metric-select" data-pf-chart-metric aria-label="Métrica del gráfico">
+              ${CHART_METRICS.map(([key, label]) => `<option value="${key}" ${chartMetric === key ? 'selected' : ''}>${label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="pf-range-pills" role="group" aria-label="Rango temporal">
+            ${rangePillsHtml}
+          </div>
+          <div class="pf-chart-zoom-group" role="group" aria-label="Zoom del gráfico">
+            <button class="pf-zoom-btn" type="button" data-pf-zoom="in" title="Acercar zoom (+)" aria-label="Acercar zoom">
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6"/><path d="M13.5 13.5 18 18M9 6v6M6 9h6"/></svg>
+            </button>
+            <button class="pf-zoom-btn" type="button" data-pf-zoom="out" title="Alejar zoom (−)" aria-label="Alejar zoom">
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6"/><path d="M13.5 13.5 18 18M6 9h6"/></svg>
+            </button>
+            <button class="pf-zoom-btn pf-zoom-reset" type="button" data-pf-zoom="reset" title="Restablecer vista completa" aria-label="Restablecer vista">
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 1 0 2-4.9L3 7"/><path d="M3 3v4h4"/></svg>
+            </button>
+          </div>
+          <button class="pf-outline-button pf-chart-picker-btn" type="button" data-pf-chart-picker aria-expanded="false">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"></rect><rect x="11" y="3" width="6" height="6" rx="1"></rect><rect x="11" y="11" width="6" height="6" rx="1"></rect><rect x="3" y="11" width="6" height="6" rx="1"></rect></svg>
+            <span>Elementos (${selected.size})</span>
+          </button>
+          <button class="pf-outline-button pf-chart-close-btn" type="button" data-pf-chart-close title="Ocultar gráfico" aria-label="Cerrar gráfico">×</button>
+        </div>
+      </div>
+
+      <div class="pf-chart-picker-panel" data-pf-chart-picker-box hidden>
+        <div class="pf-picker-topbar">
+          <div class="pf-picker-tabs" role="tablist">
+            <button type="button" class="pf-picker-tab active" data-picker-tab="all">Todos <span class="pf-picker-pill">${choices.length}</span></button>
+            <button type="button" class="pf-picker-tab" data-picker-tab="valores">Valores <span class="pf-picker-pill">${valoresCount}</span></button>
+            <button type="button" class="pf-picker-tab" data-picker-tab="grupos">Grupos <span class="pf-picker-pill">${gruposCount}</span></button>
+            <button type="button" class="pf-picker-tab" data-picker-tab="lotes">Lotes <span class="pf-picker-pill">${lotesCount}</span></button>
+          </div>
+          <div class="pf-picker-search-wrap">
+            <input type="search" class="pf-picker-search-input" placeholder="Buscar valor, grupo o lote…" data-picker-search aria-label="Buscar elementos">
+          </div>
+          <div class="pf-picker-actions">
+            <button type="button" class="pf-picker-act-btn" data-picker-quick="top">Valores</button>
+            <button type="button" class="pf-picker-act-btn" data-picker-quick="groups">Grupos</button>
+            <button type="button" class="pf-picker-act-btn" data-picker-quick="clear">Desmarcar</button>
+            <span class="pf-picker-count-badge" data-picker-counter>${selected.size} / 20 seleccionados</span>
+          </div>
+        </div>
+        <div class="pf-chart-choice-list" data-picker-choice-list>
+          ${choicesHtml}
+        </div>
+      </div>
+
+      <div class="pf-chart-status-bar">
+        <span class="pf-chart-status-info" data-pf-chart-status>Cargando datos…</span>
+        <span class="pf-chart-source-tag">Yahoo Finance · Cotizaciones ajustadas</span>
+      </div>
+
+      <div class="pf-chart-layout">
+        <div class="pf-chart-main">
+          <div class="pf-chart-canvas-wrap" data-pf-chart></div>
+        </div>
+        <div class="pf-chart-sidebar">
+          <div class="pf-chart-legend-title">Elementos en el gráfico</div>
+          <ul class="pf-chart-legend" data-pf-chart-legend></ul>
+        </div>
+      </div>
+
+      <p class="pf-chart-note">Las líneas completamente vendidas mantienen constante su ganancia realizada desde la fecha de venta. Días sin cotización usan el último cierre disponible.</p>
     </div>`;
+  }
+
+  function computeNiceStep(val) {
+    if (!Number.isFinite(val) || val <= 0) return 1;
+    const exponent = Math.floor(Math.log10(val));
+    const fraction = val / Math.pow(10, exponent);
+    let niceFraction;
+    if (fraction <= 1) niceFraction = 1;
+    else if (fraction <= 2) niceFraction = 2;
+    else if (fraction <= 2.5) niceFraction = 2.5;
+    else if (fraction <= 5) niceFraction = 5;
+    else niceFraction = 10;
+    return niceFraction * Math.pow(10, exponent);
   }
 
   function chartFormat(value) {
     if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
-    return chartMetric === 'gainAmount' ? fmtSigned(value) : fmtPct(value);
+    if (chartMetric === 'gainPct') return fmtSignedPct(value);
+    if (chartMetric === 'gainAmount') return fmtSigned(value);
+    return fmtPct(value);
   }
 
   function chartAxisFormat(value) {
     if (!Number.isFinite(Number(value))) return '—';
-    const formatted = formatNumber(Number(value), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return chartMetric === 'gainAmount' ? `$${formatted}` : `${formatted} %`;
+    const num = Math.abs(value) < 1e-9 ? 0 : Number(value);
+    const formatted = formatNumber(Math.abs(num), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    if (chartMetric === 'gainAmount') {
+      if (num > 0) return `+$${formatted}`;
+      if (num < 0) return `-$${formatted}`;
+      return `$${formatted}`;
+    }
+    if (chartMetric === 'gainPct') {
+      if (num > 0) return `+${formatted} %`;
+      if (num < 0) return `-${formatted} %`;
+      return `${formatted} %`;
+    }
+    return `${formatted} %`;
+  }
+
+  const RANGE_DAYS = { '1m': 31, '3m': 93, '6m': 186, '1y': 365, '2y': 730, '3y': 1095, '5y': 1825 };
+  const SPANISH_MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  function formatTradingViewHoverDate(isoDate) {
+    if (!isoDate) return '';
+    const parts = String(isoDate).split('-');
+    if (parts.length !== 3) return isoDate;
+    const year = parts[0];
+    const mIdx = parseInt(parts[1], 10) - 1;
+    const day = parts[2];
+    const m = SPANISH_MONTHS[mIdx] || parts[1];
+    return `${day} ${m} ${year}`;
+  }
+
+  function fmtDateDisplay(isoDate) {
+    if (!isoDate) return '—';
+    return formatTradingViewHoverDate(isoDate);
+  }
+
+  function getTradingViewDateTicks(points, xFunc, pad, width) {
+    if (!points || !points.length) return [];
+    const n = points.length;
+    if (n === 1) {
+      return [{ index: 0, x: xFunc(0), label: formatTradingViewHoverDate(points[0].date), isMajor: true, date: points[0].date }];
+    }
+
+    const parsed = points.map((p, i) => {
+      const [y, m, d] = String(p.date).split('-').map(Number);
+      return { index: i, date: p.date, year: y, month: m - 1, day: d };
+    });
+
+    const first = parsed[0];
+    const last = parsed[n - 1];
+    const startDate = new Date(`${first.date}T00:00:00Z`);
+    const endDate = new Date(`${last.date}T00:00:00Z`);
+    const totalDays = Math.max(1, (endDate - startDate) / (1000 * 60 * 60 * 24));
+
+    const ticks = [];
+    const minSpacing = 58;
+
+    if (totalDays > 1000) {
+      // Multi-year (> 3 years): Major ticks on Years (e.g. 2021, 2022, 2023, 2024, 2025)
+      const yearStep = totalDays > 3650 ? 3 : totalDays > 2000 ? 2 : 1;
+      let lastRecordedYear = null;
+
+      parsed.forEach((pt) => {
+        if (lastRecordedYear === null || pt.year !== lastRecordedYear) {
+          if (lastRecordedYear === null || (pt.year - lastRecordedYear) >= yearStep) {
+            ticks.push({
+              index: pt.index,
+              x: xFunc(pt.index),
+              label: String(pt.year),
+              isMajor: true,
+              date: pt.date,
+            });
+            lastRecordedYear = pt.year;
+          }
+        }
+      });
+
+      if (ticks.length <= 3 && totalDays <= 2200) {
+        parsed.forEach((pt) => {
+          if (pt.month === 6 && pt.day <= 10) {
+            ticks.push({
+              index: pt.index,
+              x: xFunc(pt.index),
+              label: `Jul '${String(pt.year).slice(2)}`,
+              isMajor: false,
+              date: pt.date,
+            });
+          }
+        });
+        ticks.sort((a, b) => a.index - b.index);
+      }
+    } else if (totalDays > 240) {
+      // 8 months to 3 years: Month or bi-monthly ticks
+      const monthStep = totalDays > 600 ? 3 : totalDays > 400 ? 2 : 1;
+      let prevYear = null;
+      let lastMonthDiff = -999;
+
+      parsed.forEach((pt, i) => {
+        const monthDiff = (pt.year - first.year) * 12 + pt.month;
+        const isNewMonth = i === 0 || pt.month !== parsed[i - 1].month;
+        if (isNewMonth) {
+          if (monthDiff - lastMonthDiff >= monthStep || pt.month === 0) {
+            const isYearStart = pt.month === 0 || (prevYear !== null && pt.year !== prevYear);
+            const label = isYearStart ? String(pt.year) : SPANISH_MONTHS[pt.month];
+            ticks.push({
+              index: pt.index,
+              x: xFunc(pt.index),
+              label,
+              isMajor: isYearStart,
+              date: pt.date,
+            });
+            lastMonthDiff = monthDiff;
+            prevYear = pt.year;
+          }
+        }
+      });
+    } else if (totalDays > 45) {
+      // 1.5 to 8 months: 1st of month and 15th
+      let addedMidForMonth = null;
+
+      parsed.forEach((pt, i) => {
+        const isNewMonth = i === 0 || pt.month !== parsed[i - 1].month;
+        if (isNewMonth) {
+          const isYearStart = pt.month === 0;
+          const label = isYearStart ? String(pt.year) : SPANISH_MONTHS[pt.month];
+          ticks.push({
+            index: pt.index,
+            x: xFunc(pt.index),
+            label,
+            isMajor: true,
+            date: pt.date,
+          });
+        } else if (pt.day >= 15 && addedMidForMonth !== pt.month) {
+          ticks.push({
+            index: pt.index,
+            x: xFunc(pt.index),
+            label: totalDays > 120 ? '15' : `15 ${SPANISH_MONTHS[pt.month]}`,
+            isMajor: false,
+            date: pt.date,
+          });
+          addedMidForMonth = pt.month;
+        }
+      });
+    } else if (totalDays > 14) {
+      // 2 weeks to 1.5 months: Weekly ticks
+      let lastDay = -999;
+      parsed.forEach((pt, i) => {
+        const isNewMonth = i === 0 || pt.month !== parsed[i - 1].month;
+        if (isNewMonth) {
+          ticks.push({
+            index: pt.index,
+            x: xFunc(pt.index),
+            label: SPANISH_MONTHS[pt.month],
+            isMajor: true,
+            date: pt.date,
+          });
+          lastDay = pt.day;
+        } else if (Math.abs(pt.day - lastDay) >= 6) {
+          ticks.push({
+            index: pt.index,
+            x: xFunc(pt.index),
+            label: `${pt.day} ${SPANISH_MONTHS[pt.month]}`,
+            isMajor: false,
+            date: pt.date,
+          });
+          lastDay = pt.day;
+        }
+      });
+    } else {
+      // Very short range (< 14 days): Every 2-3 trading days
+      const step = n > 8 ? 2 : 1;
+      parsed.forEach((pt, i) => {
+        if (i % step === 0 || i === n - 1) {
+          const isNewMonth = i === 0 || pt.month !== parsed[i - 1]?.month;
+          ticks.push({
+            index: pt.index,
+            x: xFunc(pt.index),
+            label: `${pt.day} ${SPANISH_MONTHS[pt.month]}`,
+            isMajor: isNewMonth,
+            date: pt.date,
+          });
+        }
+      });
+    }
+
+    if (ticks.length < 2) {
+      const step = Math.max(1, Math.floor(n / 4));
+      for (let i = 0; i < n; i += step) {
+        const pt = parsed[i];
+        ticks.push({
+          index: pt.index,
+          x: xFunc(pt.index),
+          label: `${pt.day} ${SPANISH_MONTHS[pt.month]}`,
+          isMajor: i === 0,
+          date: pt.date,
+        });
+      }
+      if (ticks[ticks.length - 1].index !== n - 1) {
+        const pt = parsed[n - 1];
+        ticks.push({
+          index: pt.index,
+          x: xFunc(pt.index),
+          label: `${pt.day} ${SPANISH_MONTHS[pt.month]}`,
+          isMajor: false,
+          date: pt.date,
+        });
+      }
+    }
+
+    // Filter overlapping ticks
+    const filtered = [];
+    ticks.forEach((t) => {
+      if (!filtered.length) {
+        filtered.push(t);
+        return;
+      }
+      const prev = filtered[filtered.length - 1];
+      if (t.x - prev.x >= minSpacing) {
+        filtered.push(t);
+      } else if (t.isMajor && !prev.isMajor) {
+        filtered[filtered.length - 1] = t;
+      }
+    });
+
+    return filtered;
+  }
+
+  function computeSliceIndicesForRange(allPoints, rangeKey) {
+    if (!allPoints || !allPoints.length) return { start: 0, end: 0 };
+    const total = allPoints.length;
+    if (rangeKey === 'all' || !RANGE_DAYS[rangeKey]) {
+      return { start: 0, end: total - 1 };
+    }
+    const days = RANGE_DAYS[rangeKey];
+    const lastDateStr = allPoints[total - 1].date;
+    const lastDate = new Date(`${lastDateStr}T00:00:00Z`);
+    const cutoff = new Date(lastDate);
+    cutoff.setUTCDate(cutoff.getUTCDate() - days);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    let startIdx = allPoints.findIndex((pt) => pt.date >= cutoffStr);
+    if (startIdx < 0) startIdx = 0;
+    return { start: startIdx, end: total - 1 };
+  }
+
+  function updateQuickRangeButtonsUi(panel) {
+    if (!chartCachedData?.points?.length) return;
+    const total = chartCachedData.points.length;
+    let matchingKey = null;
+    if (chartSliceStart === 0 && chartSliceEnd === total - 1) {
+      matchingKey = 'all';
+    } else {
+      for (const [key] of CHART_RANGES) {
+        if (key === 'all') continue;
+        const { start, end } = computeSliceIndicesForRange(chartCachedData.points, key);
+        if (Math.abs(start - chartSliceStart) <= 1 && Math.abs(end - chartSliceEnd) <= 1) {
+          matchingKey = key;
+          break;
+        }
+      }
+    }
+    panel.querySelectorAll('[data-pf-range]').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.pfRange === matchingKey);
+    });
+  }
+
+  function updateTimelineSliderUi(panel) {
+    if (!chartCachedData?.points?.length) return;
+    const total = chartCachedData.points.length;
+    const pStart = chartSliceStart / Math.max(1, total - 1);
+    const pEnd = chartSliceEnd / Math.max(1, total - 1);
+
+    const windowEl = panel.querySelector('[data-timeline-window]');
+    const maskLeft = panel.querySelector('[data-timeline-mask-left]');
+    const maskRight = panel.querySelector('[data-timeline-mask-right]');
+    const fromDateEl = panel.querySelector('[data-timeline-from-date]');
+    const toDateEl = panel.querySelector('[data-timeline-to-date]');
+
+    if (windowEl) {
+      windowEl.style.left = `${(pStart * 100).toFixed(3)}%`;
+      windowEl.style.width = `${Math.max(0.5, (pEnd - pStart) * 100).toFixed(3)}%`;
+    }
+    if (maskLeft) {
+      maskLeft.style.width = `${(pStart * 100).toFixed(3)}%`;
+    }
+    if (maskRight) {
+      maskRight.style.left = `${(pEnd * 100).toFixed(3)}%`;
+      maskRight.style.width = `${Math.max(0, (1 - pEnd) * 100).toFixed(3)}%`;
+    }
+    if (fromDateEl && chartCachedData.points[chartSliceStart]) {
+      fromDateEl.textContent = fmtDateDisplay(chartCachedData.points[chartSliceStart].date);
+    }
+    if (toDateEl && chartCachedData.points[chartSliceEnd]) {
+      toDateEl.textContent = fmtDateDisplay(chartCachedData.points[chartSliceEnd].date);
+    }
+  }
+
+  function scheduleChartRedraw(panel) {
+    if (chartRedrawRaf) return;
+    chartRedrawRaf = requestAnimationFrame(() => {
+      chartRedrawRaf = null;
+      renderChartMainSvg(panel);
+      updateTimelineSliderUi(panel);
+    });
+  }
+
+  function renderTimelineSparkline(panel, allPoints, labels) {
+    const sparklineSvg = panel.querySelector('[data-timeline-sparkline]');
+    if (!sparklineSvg || !allPoints.length) return;
+
+    const vals = allPoints.map((pt) => {
+      const v = pt.series?.find((val) => val !== null && val !== undefined && Number.isFinite(Number(val)));
+      return v !== undefined ? Number(v) : null;
+    });
+
+    const validVals = vals.filter((v) => v !== null);
+    if (!validVals.length) return;
+
+    const isCenteredMetric = chartMetric === 'gainPct' || chartMetric === 'gainAmount';
+    let min;
+    let max;
+
+    if (isCenteredMetric) {
+      const maxAbs = Math.max(...validVals.map((v) => Math.abs(v)), 0);
+      const bound = maxAbs > 0 ? maxAbs * 1.1 : 10;
+      min = -bound;
+      max = bound;
+    } else {
+      const maxVal = Math.max(...validVals, 0);
+      min = 0;
+      max = maxVal > 0 ? maxVal * 1.1 : 5;
+    }
+
+    const w = 760;
+    const h = 32;
+    let d = '';
+    let areaD = '';
+    let inSeg = false;
+    let lastX = 0;
+    const baseY = (h - 2 - ((Math.max(0, min) - min) / (max - min)) * (h - 6)).toFixed(1);
+
+    vals.forEach((v, i) => {
+      const px = ((i / Math.max(1, vals.length - 1)) * w).toFixed(1);
+      if (v !== null) {
+        const py = (h - 2 - ((v - min) / (max - min)) * (h - 6)).toFixed(1);
+        if (!inSeg) {
+          d += `${d ? ' ' : ''}M${px},${py}`;
+          areaD += `${areaD ? ' ' : ''}M${px},${baseY} L${px},${py}`;
+          inSeg = true;
+        } else {
+          d += ` L${px},${py}`;
+          areaD += ` L${px},${py}`;
+        }
+        lastX = px;
+      } else {
+        if (inSeg) {
+          areaD += ` L${lastX},${baseY} Z`;
+          inSeg = false;
+        }
+      }
+    });
+    if (inSeg) {
+      areaD += ` L${lastX},${baseY} Z`;
+    }
+
+    sparklineSvg.innerHTML = `
+      <defs>
+        <linearGradient id="pf-spark-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.30"/>
+          <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.05"/>
+        </linearGradient>
+      </defs>
+      ${areaD ? `<path d="${areaD}" fill="url(#pf-spark-grad)"/>` : ''}
+      ${d ? `<path d="${d}" fill="none" stroke="#93c5fd" stroke-width="1.2" stroke-linejoin="round"/>` : ''}`;
+  }
+
+  function renderChartMainSvg(panel) {
+    if (!chartCachedData) return;
+    const canvasInner = panel.querySelector('[data-pf-chart-canvas-inner]');
+    const legend = panel.querySelector('[data-pf-chart-legend]');
+    if (!canvasInner) return;
+
+    const allPoints = chartCachedData.points ?? [];
+    if (!allPoints.length) return;
+
+    const points = allPoints.slice(chartSliceStart, chartSliceEnd + 1);
+    if (!points.length) return;
+
+    const values = points.flatMap((point) => point.series).filter((value) => value !== null && value !== undefined && Number.isFinite(Number(value))).map(Number);
+    if (!values.length) {
+      canvasInner.innerHTML = '<div class="pf-chart-empty"><p>No hay cotizaciones para el rango seleccionado.</p></div>';
+      return;
+    }
+
+    const isCenteredMetric = chartMetric === 'gainPct' || chartMetric === 'gainAmount';
+    let min;
+    let max;
+    let ticks;
+
+    if (isCenteredMetric) {
+      const maxAbs = Math.max(...values.map((v) => Math.abs(v)), 0);
+      const minStep = maxAbs > 0 ? (maxAbs * 1.05) / 2 : (chartMetric === 'gainAmount' ? 50 : 5);
+      const step = computeNiceStep(minStep);
+      const bound = step * 2;
+      min = -bound;
+      max = bound;
+      ticks = [-bound, -step, 0, step, bound];
+    } else {
+      const maxVal = Math.max(...values, 0);
+      const minStep = maxVal > 0 ? (maxVal * 1.05) / 4 : (chartMetric === 'weight' ? 5 : 1);
+      const step = computeNiceStep(minStep);
+      const bound = step * 4;
+      min = 0;
+      max = bound;
+      ticks = [0, step, step * 2, step * 3, bound];
+    }
+
+    const width = 760;
+    const height = 270;
+    const pad = { left: 58, right: 16, top: 16, bottom: 28 };
+    const innerWidth = width - pad.left - pad.right;
+    const innerHeight = height - pad.top - pad.bottom;
+
+    const x = (index) => pad.left + (index / Math.max(1, points.length - 1)) * innerWidth;
+    const y = (value) => pad.top + (1 - (value - min) / (max - min)) * innerHeight;
+
+    const seriesColors = chartCachedData.labels.map((label, idx) => label.color || CHART_PALETTE[idx % CHART_PALETTE.length]);
+
+    const svgGradients = chartCachedData.labels.map((_, i) => `
+      <linearGradient id="pf-chart-grad-${i}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${seriesColors[i]}" stop-opacity="0.20"/>
+        <stop offset="100%" stop-color="${seriesColors[i]}" stop-opacity="0.00"/>
+      </linearGradient>
+    `).join('');
+
+    const pathsSvg = chartCachedData.labels.map((label, seriesIdx) => {
+      let d = '';
+      let areaD = '';
+      let inSeg = false;
+      let lastValidIdx = 0;
+
+      points.forEach((point, index) => {
+        const val = point.series?.[seriesIdx];
+        if (val !== null && val !== undefined && Number.isFinite(Number(val))) {
+          const px = x(index).toFixed(1);
+          const py = y(Number(val)).toFixed(1);
+          if (!inSeg) {
+            d += `${d ? ' ' : ''}M${px},${py}`;
+            const baseY = y(Math.max(0, min)).toFixed(1);
+            areaD += `${areaD ? ' ' : ''}M${px},${baseY} L${px},${py}`;
+            inSeg = true;
+          } else {
+            d += ` L${px},${py}`;
+            areaD += ` L${px},${py}`;
+          }
+          lastValidIdx = index;
+        } else {
+          if (inSeg) {
+            const lastPx = x(lastValidIdx).toFixed(1);
+            const baseY = y(Math.max(0, min)).toFixed(1);
+            areaD += ` L${lastPx},${baseY} Z`;
+            inSeg = false;
+          }
+        }
+      });
+
+      if (inSeg) {
+        const lastPx = x(lastValidIdx).toFixed(1);
+        const baseY = y(Math.max(0, min)).toFixed(1);
+        areaD += ` L${lastPx},${baseY} Z`;
+      }
+
+      const color = seriesColors[seriesIdx];
+      const isSingle = chartCachedData.labels.length === 1;
+      const areaEl = isSingle && areaD ? `<path d="${areaD}" fill="url(#pf-chart-grad-${seriesIdx})" class="pf-chart-area" data-series-index="${seriesIdx}"/>` : '';
+      const lineEl = d ? `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" class="pf-chart-line" data-series-index="${seriesIdx}"/>` : '';
+
+      return `${areaEl}${lineEl}`;
+    }).join('');
+
+    const tickCount = 5;
+    const gridLines = ticks.map((value) => {
+      const tickY = y(value);
+      return `
+        <line x1="${pad.left}" y1="${tickY.toFixed(1)}" x2="${width - pad.right}" y2="${tickY.toFixed(1)}" class="pf-chart-grid-line"/>
+        <text x="${pad.left - 8}" y="${(tickY + 3.5).toFixed(1)}" class="pf-chart-y-label" text-anchor="end">${escapeHtml(chartAxisFormat(value))}</text>`;
+    }).join('');
+
+    const zeroLine = (min <= 0 && max >= 0 && isCenteredMetric)
+      ? `<line x1="${pad.left}" y1="${y(0).toFixed(1)}" x2="${width - pad.right}" y2="${y(0).toFixed(1)}" class="pf-chart-zero"/>`
+      : '';
+
+    const dateTicks = getTradingViewDateTicks(points, x, pad, width);
+
+    const vGridLines = dateTicks.map((tick) => `
+      <line x1="${tick.x.toFixed(1)}" y1="${pad.top}" x2="${tick.x.toFixed(1)}" y2="${height - pad.bottom}" class="pf-chart-vgrid-line"/>
+      <line x1="${tick.x.toFixed(1)}" y1="${height - pad.bottom}" x2="${tick.x.toFixed(1)}" y2="${(height - pad.bottom + 4).toFixed(1)}" class="pf-chart-tick-mark"/>
+      <text x="${tick.x.toFixed(1)}" y="${height - 8}" class="pf-chart-x-label ${tick.isMajor ? 'major' : ''}" text-anchor="middle">${escapeHtml(tick.label)}</text>
+    `).join('');
+
+    const axisBaselines = `
+      <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" class="pf-chart-axis-baseline"/>
+      <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" class="pf-chart-axis-baseline"/>
+    `;
+
+    canvasInner.innerHTML = `
+      <svg class="pf-chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Evolución histórica">
+        <defs>${svgGradients}</defs>
+        ${gridLines}
+        ${vGridLines}
+        ${axisBaselines}
+        ${zeroLine}
+        ${pathsSvg}
+        <g class="pf-chart-hover-layer" hidden>
+          <line class="pf-chart-crosshair pf-chart-crosshair-v" x1="0" y1="${pad.top}" x2="0" y2="${height - pad.bottom}"/>
+          <line class="pf-chart-crosshair pf-chart-crosshair-h" x1="${pad.left}" y1="0" x2="${width - pad.right}" y2="0"/>
+          <g class="pf-chart-hover-dots"></g>
+          <g class="pf-chart-x-badge" transform="translate(0, ${height - pad.bottom})">
+            <rect class="pf-chart-x-badge-bg" x="-42" y="2" width="84" height="20" rx="4" ry="4"/>
+            <text class="pf-chart-x-badge-text" x="0" y="16" text-anchor="middle">--</text>
+          </g>
+        </g>
+        <rect class="pf-chart-overlay" x="${pad.left}" y="${pad.top}" width="${innerWidth}" height="${innerHeight}" fill="transparent" cursor="crosshair"/>
+      </svg>`;
+
+    // Update legend chips
+    if (legend) {
+      legend.innerHTML = chartCachedData.labels.map((label, index) => {
+        const color = seriesColors[index];
+        let latestVal = null;
+        for (let i = points.length - 1; i >= 0; i--) {
+          const v = points[i]?.series?.[index];
+          if (v !== null && v !== undefined && Number.isFinite(Number(v))) {
+            latestVal = Number(v);
+            break;
+          }
+        }
+        const valClass = latestVal !== null ? (latestVal > 0 ? 'positive' : latestVal < 0 ? 'negative' : '') : '';
+        return `
+          <li class="pf-legend-chip" data-legend-series="${index}">
+            <span class="pf-legend-dot" style="background:${color}"></span>
+            <span class="pf-legend-name" title="${escapeHtml(label.label)}">${escapeHtml(label.label)}</span>
+            ${latestVal !== null ? `<span class="pf-legend-val ${valClass}">${escapeHtml(chartFormat(latestVal))}</span>` : ''}
+            <button type="button" class="pf-legend-remove" data-remove-id="${escapeHtml(label.id)}" title="Quitar ${escapeHtml(label.label)}" aria-label="Quitar">×</button>
+          </li>`;
+      }).join('');
+
+      // Wire legend hover
+      legend.querySelectorAll('.pf-legend-chip').forEach((chip) => {
+        const sIdx = chip.dataset.legendSeries;
+        chip.addEventListener('mouseenter', () => {
+          canvasInner.querySelectorAll('.pf-chart-line, .pf-chart-area').forEach((line) => {
+            if (line.dataset.seriesIndex === sIdx) {
+              line.style.opacity = '1';
+              line.style.strokeWidth = '3.2';
+            } else {
+              line.style.opacity = '0.18';
+            }
+          });
+        });
+        chip.addEventListener('mouseleave', () => {
+          canvasInner.querySelectorAll('.pf-chart-line, .pf-chart-area').forEach((line) => {
+            line.style.opacity = '1';
+            line.style.strokeWidth = '2.2';
+          });
+        });
+      });
+
+      // Wire legend remove
+      legend.querySelectorAll('.pf-legend-remove').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const removeId = btn.dataset.removeId;
+          chartSelectedIds = chartSelectedIds.filter((id) => id !== removeId);
+          syncPickerChecked(panel);
+          loadPortfolioChart(panel);
+        });
+      });
+    }
+  }
+
+  function zoomChartByStep(panel, direction) {
+    if (!chartCachedData?.points?.length) return;
+    const total = chartCachedData.points.length;
+    if (total <= 3) return;
+
+    if (direction === 'reset') {
+      chartSliceStart = 0;
+      chartSliceEnd = total - 1;
+      chartRange = 'all';
+      scheduleChartRedraw(panel);
+      updateTimelineSliderUi(panel);
+      updateQuickRangeButtonsUi(panel);
+      return;
+    }
+
+    const currentSpan = chartSliceEnd - chartSliceStart;
+    const factor = direction === 'in' ? 0.70 : 1.40;
+    let newSpan = Math.round(currentSpan * factor);
+    if (direction === 'in' && newSpan >= currentSpan) newSpan = currentSpan - 1;
+    if (direction === 'out' && newSpan <= currentSpan) newSpan = currentSpan + 1;
+
+    const minSpan = Math.min(3, total - 1);
+    const maxSpan = total - 1;
+    newSpan = Math.max(minSpan, Math.min(maxSpan, newSpan));
+
+    if (newSpan === currentSpan) return;
+
+    const centerIdx = chartSliceStart + currentSpan / 2;
+    let newStart = Math.round(centerIdx - newSpan / 2);
+    let newEnd = newStart + newSpan;
+
+    if (newStart < 0) {
+      newStart = 0;
+      newEnd = Math.min(total - 1, newSpan);
+    } else if (newEnd > total - 1) {
+      newEnd = total - 1;
+      newStart = Math.max(0, total - 1 - newSpan);
+    }
+
+    chartSliceStart = newStart;
+    chartSliceEnd = newEnd;
+    scheduleChartRedraw(panel);
+    updateTimelineSliderUi(panel);
+    updateQuickRangeButtonsUi(panel);
+  }
+
+  function attachChartCanvasInteractions(panel) {
+    const canvasInner = panel.querySelector('[data-pf-chart-canvas-inner]');
+    if (!canvasInner) return;
+
+    let isPanning = false;
+    let panStartX = 0;
+    let panInitStart = 0;
+    let panInitEnd = 0;
+    let panMoved = false;
+
+    // Accumulator-based progressive Wheel Zoom (in / out) centered around cursor
+    let zoomAccumulator = 0;
+    let zoomResetTimer = null;
+
+    canvasInner.addEventListener('wheel', (event) => {
+      if (!chartCachedData?.points?.length) return;
+      const total = chartCachedData.points.length;
+      if (total <= 3) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = canvasInner.getBoundingClientRect();
+      if (!rect || rect.width <= 0) return;
+
+      const width = 760;
+      const pad = { left: 58, right: 16 };
+      const innerWidth = width - pad.left - pad.right;
+
+      const cursorSvgX = ((event.clientX - rect.left) / rect.width) * width;
+      const ratio = Math.max(0, Math.min(1, (cursorSvgX - pad.left) / innerWidth));
+
+      // Normalize delta across input devices (mouse wheel vs trackpad)
+      let rawDelta = event.deltaY;
+      if (event.deltaMode === 1) rawDelta *= 16;
+      else if (event.deltaMode === 2) rawDelta *= 100;
+
+      zoomAccumulator += rawDelta;
+      if (zoomResetTimer) clearTimeout(zoomResetTimer);
+      zoomResetTimer = setTimeout(() => { zoomAccumulator = 0; }, 140);
+
+      // Only step once accumulated delta reaches threshold
+      const threshold = 35;
+      if (Math.abs(zoomAccumulator) < threshold) return;
+
+      const steps = Math.trunc(zoomAccumulator / threshold);
+      zoomAccumulator -= steps * threshold;
+
+      const currentSpan = chartSliceEnd - chartSliceStart;
+      // 4% zoom change per step
+      const factor = Math.pow(1.04, steps);
+      let newSpan = Math.round(currentSpan * factor);
+
+      if (steps < 0 && newSpan >= currentSpan) newSpan = currentSpan - 1;
+      if (steps > 0 && newSpan <= currentSpan) newSpan = currentSpan + 1;
+
+      const minSpan = Math.min(3, total - 1);
+      const maxSpan = total - 1;
+      newSpan = Math.max(minSpan, Math.min(maxSpan, newSpan));
+
+      if (newSpan === currentSpan) return;
+
+      const pivotIdx = chartSliceStart + ratio * currentSpan;
+      let newStart = Math.round(pivotIdx - ratio * newSpan);
+      let newEnd = newStart + newSpan;
+
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = Math.min(total - 1, newSpan);
+      } else if (newEnd > total - 1) {
+        newEnd = total - 1;
+        newStart = Math.max(0, total - 1 - newSpan);
+      }
+
+      if (newStart !== chartSliceStart || newEnd !== chartSliceEnd) {
+        chartSliceStart = newStart;
+        chartSliceEnd = newEnd;
+        scheduleChartRedraw(panel);
+        updateTimelineSliderUi(panel);
+        updateQuickRangeButtonsUi(panel);
+      }
+    }, { passive: false });
+
+    // Double-click on chart to zoom in or reset
+    canvasInner.addEventListener('dblclick', (event) => {
+      event.preventDefault();
+      if (!chartCachedData?.points?.length) return;
+      const total = chartCachedData.points.length;
+      if (chartSliceStart === 0 && chartSliceEnd === total - 1) {
+        const rect = canvasInner.getBoundingClientRect();
+        const width = 760;
+        const pad = { left: 58, right: 16 };
+        const innerWidth = width - pad.left - pad.right;
+        const cursorSvgX = ((event.clientX - rect.left) / rect.width) * width;
+        const ratio = Math.max(0, Math.min(1, (cursorSvgX - pad.left) / innerWidth));
+        const newSpan = Math.max(10, Math.round(total * 0.4));
+        const pivotIdx = Math.round(ratio * (total - 1));
+        let newStart = Math.round(pivotIdx - newSpan / 2);
+        let newEnd = newStart + newSpan;
+        if (newStart < 0) { newStart = 0; newEnd = Math.min(total - 1, newSpan); }
+        else if (newEnd > total - 1) { newEnd = total - 1; newStart = Math.max(0, total - 1 - newSpan); }
+        chartSliceStart = newStart;
+        chartSliceEnd = newEnd;
+      } else {
+        chartSliceStart = 0;
+        chartSliceEnd = total - 1;
+        chartRange = 'all';
+      }
+      scheduleChartRedraw(panel);
+      updateTimelineSliderUi(panel);
+      updateQuickRangeButtonsUi(panel);
+    });
+
+    // Pointer Pan (drag left / right)
+    canvasInner.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      if (!chartCachedData?.points?.length) return;
+      const total = chartCachedData.points.length;
+      if (total <= 1) return;
+
+      isPanning = true;
+      panMoved = false;
+      panStartX = event.clientX;
+      panInitStart = chartSliceStart;
+      panInitEnd = chartSliceEnd;
+      canvasInner.classList.add('panning');
+
+      window.addEventListener('pointermove', onWindowPointerMove);
+      window.addEventListener('pointerup', onWindowPointerUp);
+      window.addEventListener('pointercancel', onWindowPointerUp);
+    });
+
+    function onWindowPointerMove(event) {
+      if (!isPanning || !chartCachedData?.points?.length) return;
+      const deltaX = event.clientX - panStartX;
+      if (Math.abs(deltaX) > 4) {
+        panMoved = true;
+        const hoverLayer = canvasInner.querySelector('.pf-chart-hover-layer');
+        if (hoverLayer) hoverLayer.hidden = true;
+        hideChartTooltip();
+      }
+      if (!panMoved) return;
+
+      const total = chartCachedData.points.length;
+      const rect = canvasInner.getBoundingClientRect();
+      if (!rect || rect.width <= 0) return;
+
+      const width = 760;
+      const pad = { left: 58, right: 16 };
+      const innerWidth = width - pad.left - pad.right;
+      const innerWidthPx = rect.width * (innerWidth / width);
+
+      const span = panInitEnd - panInitStart;
+      const deltaRatio = deltaX / Math.max(1, innerWidthPx);
+      const deltaIdx = Math.round(deltaRatio * span);
+
+      // Drag left (deltaX < 0) => move forward in time (newStart increases)
+      // Drag right (deltaX > 0) => move back in time (newStart decreases)
+      let newStart = panInitStart - deltaIdx;
+      let newEnd = panInitEnd - deltaIdx;
+
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = Math.min(total - 1, span);
+      } else if (newEnd > total - 1) {
+        newEnd = total - 1;
+        newStart = Math.max(0, total - 1 - span);
+      }
+
+      if (newStart !== chartSliceStart || newEnd !== chartSliceEnd) {
+        chartSliceStart = newStart;
+        chartSliceEnd = newEnd;
+        scheduleChartRedraw(panel);
+        updateTimelineSliderUi(panel);
+        updateQuickRangeButtonsUi(panel);
+      }
+    }
+
+    function onWindowPointerUp(event) {
+      if (!isPanning) return;
+      isPanning = false;
+      canvasInner.classList.remove('panning');
+      window.removeEventListener('pointermove', onWindowPointerMove);
+      window.removeEventListener('pointerup', onWindowPointerUp);
+      window.removeEventListener('pointercancel', onWindowPointerUp);
+    }
+
+    // Hover tooltip & crosshair (active when not dragging)
+    canvasInner.addEventListener('mousemove', (event) => {
+      if (isPanning && panMoved) return;
+      if (!chartCachedData?.points?.length) return;
+
+      const allPoints = chartCachedData.points;
+      const points = allPoints.slice(chartSliceStart, chartSliceEnd + 1);
+      if (!points.length) return;
+
+      const svgEl = canvasInner.querySelector('.pf-chart-svg');
+      const hoverLayer = canvasInner.querySelector('.pf-chart-hover-layer');
+      const crosshair = canvasInner.querySelector('.pf-chart-crosshair');
+      const hoverDots = canvasInner.querySelector('.pf-chart-hover-dots');
+      if (!svgEl || !hoverLayer || !crosshair || !hoverDots) return;
+
+      const rect = svgEl.getBoundingClientRect();
+      const width = 760;
+      const height = 270;
+      const pad = { left: 58, right: 16, top: 16, bottom: 28 };
+      const innerWidth = width - pad.left - pad.right;
+      const innerHeight = height - pad.top - pad.bottom;
+
+      const cursorSvgX = ((event.clientX - rect.left) / rect.width) * width;
+      const cursorSvgY = ((event.clientY - rect.top) / rect.height) * height;
+      if (cursorSvgX < pad.left || cursorSvgX > width - pad.right || cursorSvgY < pad.top || cursorSvgY > height - pad.bottom) {
+        hoverLayer.hidden = true;
+        hideChartTooltip();
+        return;
+      }
+
+      const ratio = Math.max(0, Math.min(1, (cursorSvgX - pad.left) / innerWidth));
+      const index = Math.round(ratio * (points.length - 1));
+      const point = points[index];
+      if (!point) return;
+
+      const values = points.flatMap((p) => p.series).filter((v) => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+      const isCenteredMetric = chartMetric === 'gainPct' || chartMetric === 'gainAmount';
+      let min;
+      let max;
+      if (isCenteredMetric) {
+        const maxAbs = Math.max(...values.map((v) => Math.abs(v)), 0);
+        const minStep = maxAbs > 0 ? (maxAbs * 1.05) / 2 : (chartMetric === 'gainAmount' ? 50 : 5);
+        const step = computeNiceStep(minStep);
+        const bound = step * 2;
+        min = -bound;
+        max = bound;
+      } else {
+        const maxVal = Math.max(...values, 0);
+        const minStep = maxVal > 0 ? (maxVal * 1.05) / 4 : (chartMetric === 'weight' ? 5 : 1);
+        const step = computeNiceStep(minStep);
+        const bound = step * 4;
+        min = 0;
+        max = bound;
+      }
+
+      const x = (idx) => pad.left + (idx / Math.max(1, points.length - 1)) * innerWidth;
+      const y = (val) => pad.top + (1 - (val - min) / (max - min)) * innerHeight;
+      const seriesColors = chartCachedData.labels.map((label, idx) => label.color || CHART_PALETTE[idx % CHART_PALETTE.length]);
+
+      const crosshairV = canvasInner.querySelector('.pf-chart-crosshair-v') || crosshair;
+      const crosshairH = canvasInner.querySelector('.pf-chart-crosshair-h');
+      const hoverXBadge = hoverLayer.querySelector('.pf-chart-x-badge');
+      const hoverXBadgeBg = hoverLayer.querySelector('.pf-chart-x-badge-bg');
+      const hoverXBadgeText = hoverLayer.querySelector('.pf-chart-x-badge-text');
+
+      const cx = x(index);
+      hoverLayer.hidden = false;
+      crosshairV.setAttribute('x1', cx.toFixed(1));
+      crosshairV.setAttribute('x2', cx.toFixed(1));
+      if (crosshairH) {
+        crosshairH.setAttribute('y1', cursorSvgY.toFixed(1));
+        crosshairH.setAttribute('y2', cursorSvgY.toFixed(1));
+      }
+
+      if (hoverXBadge && hoverXBadgeBg && hoverXBadgeText) {
+        const badgeText = formatTradingViewHoverDate(point.date);
+        const badgeWidth = Math.max(76, badgeText.length * 7 + 16);
+        const clampedX = Math.max(pad.left + badgeWidth / 2, Math.min(width - pad.right - badgeWidth / 2, cx));
+        hoverXBadge.setAttribute('transform', `translate(${clampedX.toFixed(1)}, ${height - pad.bottom})`);
+        hoverXBadgeBg.setAttribute('x', (-badgeWidth / 2).toFixed(1));
+        hoverXBadgeBg.setAttribute('width', badgeWidth.toFixed(1));
+        hoverXBadgeText.textContent = badgeText;
+      }
+
+      let dotsHtml = '';
+      const tooltipRows = [];
+
+      chartCachedData.labels.forEach((label, sIdx) => {
+        const val = point.series?.[sIdx];
+        const color = seriesColors[sIdx];
+        if (val !== null && val !== undefined && Number.isFinite(Number(val))) {
+          const cy = y(Number(val));
+          dotsHtml += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.5" fill="${color}" stroke="#ffffff" stroke-width="2" class="pf-chart-dot"/>`;
+          tooltipRows.push({
+            label: label.label,
+            val: Number(val),
+            color,
+          });
+        }
+      });
+
+      hoverDots.innerHTML = dotsHtml;
+
+      if (tooltipRows.length > 0) {
+        const tip = ensureChartTooltip();
+        const formattedDate = formatTradingViewHoverDate(point.date);
+        tip.innerHTML = `
+          <div class="pf-chart-tooltip-header">${escapeHtml(formattedDate)}</div>
+          <div class="pf-chart-tooltip-rows">
+            ${tooltipRows.map((r) => `
+              <div class="pf-chart-tooltip-row">
+                <span class="pf-chart-tooltip-dot" style="background:${r.color}"></span>
+                <span class="pf-chart-tooltip-name">${escapeHtml(r.label)}</span>
+                <span class="pf-chart-tooltip-val ${r.val > 0 ? 'positive' : r.val < 0 ? 'negative' : ''}">${escapeHtml(chartFormat(r.val))}</span>
+              </div>`).join('')}
+          </div>`;
+        tip.hidden = false;
+        positionChartTooltip(tip, event.clientX, event.clientY);
+      }
+    });
+
+    canvasInner.addEventListener('mouseleave', () => {
+      const hoverLayer = canvasInner.querySelector('.pf-chart-hover-layer');
+      if (hoverLayer) hoverLayer.hidden = true;
+      hideChartTooltip();
+    });
+  }
+
+  function attachTimelineEvents(panel) {
+    const track = panel.querySelector('[data-timeline-track]');
+    const windowEl = panel.querySelector('[data-timeline-window]');
+    const handleLeft = panel.querySelector('[data-timeline-handle="left"]');
+    const handleRight = panel.querySelector('[data-timeline-handle="right"]');
+    const windowBody = panel.querySelector('[data-timeline-window-body]');
+    if (!track || !windowEl || !handleLeft || !handleRight) return;
+
+    let dragMode = null; // 'left' | 'right' | 'window'
+    let dragStartX = 0;
+    let initStartIdx = 0;
+    let initEndIdx = 0;
+
+    function onPointerDown(mode, event) {
+      if (event.button !== 0) return;
+      dragMode = mode;
+      dragStartX = event.clientX;
+      initStartIdx = chartSliceStart;
+      initEndIdx = chartSliceEnd;
+      event.target.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      event.stopPropagation();
+      windowEl.classList.add('dragging');
+      if (mode === 'left') handleLeft.classList.add('active');
+      if (mode === 'right') handleRight.classList.add('active');
+    }
+
+    handleLeft.addEventListener('pointerdown', (e) => onPointerDown('left', e));
+    handleRight.addEventListener('pointerdown', (e) => onPointerDown('right', e));
+    windowBody?.addEventListener('pointerdown', (e) => onPointerDown('window', e));
+
+    function onPointerMove(event) {
+      if (!dragMode || !chartCachedData?.points?.length) return;
+      const total = chartCachedData.points.length;
+      if (total <= 1) return;
+
+      const rect = track.getBoundingClientRect();
+      if (rect.width <= 0) return;
+
+      if (dragMode === 'left') {
+        const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        const targetIdx = Math.round(ratio * (total - 1));
+        const maxStart = Math.max(0, chartSliceEnd - 2);
+        const newStart = Math.max(0, Math.min(maxStart, targetIdx));
+        if (newStart !== chartSliceStart) {
+          chartSliceStart = newStart;
+          scheduleChartRedraw(panel);
+          updateTimelineSliderUi(panel);
+          updateQuickRangeButtonsUi(panel);
+        }
+      } else if (dragMode === 'right') {
+        const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        const targetIdx = Math.round(ratio * (total - 1));
+        const minEnd = Math.min(total - 1, chartSliceStart + 2);
+        const newEnd = Math.min(total - 1, Math.max(minEnd, targetIdx));
+        if (newEnd !== chartSliceEnd) {
+          chartSliceEnd = newEnd;
+          scheduleChartRedraw(panel);
+          updateTimelineSliderUi(panel);
+          updateQuickRangeButtonsUi(panel);
+        }
+      } else if (dragMode === 'window') {
+        const deltaX = event.clientX - dragStartX;
+        const deltaRatio = deltaX / rect.width;
+        const deltaIdx = Math.round(deltaRatio * (total - 1));
+        const span = initEndIdx - initStartIdx;
+        let newStart = initStartIdx + deltaIdx;
+        let newEnd = initEndIdx + deltaIdx;
+
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = Math.min(total - 1, span);
+        } else if (newEnd > total - 1) {
+          newEnd = total - 1;
+          newStart = Math.max(0, total - 1 - span);
+        }
+
+        if (newStart !== chartSliceStart || newEnd !== chartSliceEnd) {
+          chartSliceStart = newStart;
+          chartSliceEnd = newEnd;
+          scheduleChartRedraw(panel);
+          updateTimelineSliderUi(panel);
+          updateQuickRangeButtonsUi(panel);
+        }
+      }
+    }
+
+    function onPointerEnd(event) {
+      if (!dragMode) return;
+      try {
+        event.target.releasePointerCapture(event.pointerId);
+      } catch {}
+      dragMode = null;
+      windowEl.classList.remove('dragging');
+      handleLeft.classList.remove('active');
+      handleRight.classList.remove('active');
+    }
+
+    handleLeft.addEventListener('pointermove', onPointerMove);
+    handleRight.addEventListener('pointermove', onPointerMove);
+    windowBody?.addEventListener('pointermove', onPointerMove);
+
+    handleLeft.addEventListener('pointerup', onPointerEnd);
+    handleRight.addEventListener('pointerup', onPointerEnd);
+    windowBody?.addEventListener('pointerup', onPointerEnd);
+
+    handleLeft.addEventListener('pointercancel', onPointerEnd);
+    handleRight.addEventListener('pointercancel', onPointerEnd);
+    windowBody?.addEventListener('pointercancel', onPointerEnd);
+
+    // Track click to shift window
+    track.addEventListener('click', (event) => {
+      if (event.target.closest('[data-timeline-window]')) return;
+      const total = chartCachedData?.points?.length;
+      if (!total || total <= 1) return;
+      const rect = track.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+      const clickIdx = Math.round(ratio * (total - 1));
+      const span = chartSliceEnd - chartSliceStart;
+      let newStart = Math.round(clickIdx - span / 2);
+      let newEnd = newStart + span;
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = Math.min(total - 1, span);
+      } else if (newEnd > total - 1) {
+        newEnd = total - 1;
+        newStart = Math.max(0, total - 1 - span);
+      }
+      chartSliceStart = newStart;
+      chartSliceEnd = newEnd;
+      scheduleChartRedraw(panel);
+      updateTimelineSliderUi(panel);
+      updateQuickRangeButtonsUi(panel);
+    });
   }
 
   function drawPortfolioChart(scope, chart) {
-    const root = scope.querySelector('[data-pf-chart]');
-    const legend = scope.querySelector('[data-pf-chart-legend]');
+    const panel = scope.querySelector('.pf-chart-panel') || scope;
+    const root = panel.querySelector('[data-pf-chart]');
+    const legend = panel.querySelector('[data-pf-chart-legend]');
     if (!root || !legend) return;
+
+    chartCachedData = chart;
     const allPoints = chart.points ?? [];
-    const lastIndex = Math.max(0, allPoints.length - 1);
-    const months = [...new Set(allPoints.map((point) => String(point.date).slice(0, 7)))];
-    const lastMonthIndex = Math.max(0, months.length - 1);
-    const startMonth = Math.max(0, Math.min(chartFromMonth, lastMonthIndex));
-    const endMonth = Math.max(startMonth, Math.min(chartToMonth ?? lastMonthIndex, lastMonthIndex));
-    const startIndex = Math.max(0, allPoints.findIndex((point) => String(point.date).slice(0, 7) === months[startMonth]));
-    const endIndex = Math.max(startIndex, allPoints.length - 1 - [...allPoints].reverse().findIndex((point) => String(point.date).slice(0, 7) === months[endMonth]));
-    const points = allPoints.slice(startIndex, endIndex + 1);
-    const width = 760; const height = 270; const pad = { left: 46, right: 14, top: 16, bottom: 28 };
-    const values = points.flatMap((point) => point.series).filter((value) => Number.isFinite(Number(value))).map(Number);
-    if (!values.length) { root.innerHTML = '<div class="pf-chart-empty">No hay datos históricos disponibles para la selección.</div>'; legend.innerHTML = ''; return; }
-    let min = Math.min(0, ...values); let max = Math.max(0, ...values); if (min === max) { min -= 1; max += 1; }
-    const x = (index) => pad.left + (index / Math.max(1, points.length - 1)) * (width - pad.left - pad.right);
-    const y = (value) => pad.top + (1 - (value - min) / (max - min)) * (height - pad.top - pad.bottom);
-    const colors = ['#2563eb', '#e11d48', '#16a34a', '#f59e0b', '#7c3aed', '#0891b2', '#a16207', '#4b5563'];
-    const paths = chart.labels.map((label, seriesIndex) => {
-      const path = points.map((point, index) => Number.isFinite(Number(point.series[seriesIndex])) ? `${index ? 'L' : 'M'}${x(index).toFixed(1)},${y(Number(point.series[seriesIndex])).toFixed(1)}` : '').filter(Boolean).join(' ');
-      return `<path d="${path}" fill="none" stroke="${colors[seriesIndex % colors.length]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-    }).join('');
-    const hitPaths = chart.labels.map((label, seriesIndex) => {
-      const path = points.map((point, index) => Number.isFinite(Number(point.series[seriesIndex])) ? `${index ? 'L' : 'M'}${x(index).toFixed(1)},${y(Number(point.series[seriesIndex])).toFixed(1)}` : '').filter(Boolean).join(' ');
-      return `<path d="${path}" fill="none" stroke="transparent" stroke-width="12" stroke-linecap="round" data-chart-series="${seriesIndex}"/>`;
-    }).join('');
-    const tickCount = 5;
-    const ticks = Array.from({ length: tickCount }, (_, index) => min + ((max - min) * index) / (tickCount - 1));
-    const gridLines = ticks.map((value) => {
-      const tickY = y(value);
-      return `<line x1="${pad.left}" y1="${tickY.toFixed(1)}" x2="${width - pad.right}" y2="${tickY.toFixed(1)}" class="pf-chart-grid-line"/><text x="${pad.left - 7}" y="${(tickY + 3).toFixed(1)}" class="pf-chart-y-label" text-anchor="end">${escapeHtml(chartAxisFormat(value))}</text>`;
-    }).join('');
-    const monthLabel = (month) => month ? `${month.slice(5)}/${month.slice(0, 4)}` : '—';
-    const dateBar = months.length > 1 ? `<div class="pf-chart-date-bar"><label><span>Desde</span><input type="range" min="0" max="${lastMonthIndex}" value="${startMonth}" data-pf-chart-from></label><strong>${monthLabel(months[startMonth])}</strong><label><span>Hasta</span><input type="range" min="0" max="${lastMonthIndex}" value="${endMonth}" data-pf-chart-to></label><strong>${monthLabel(months[endMonth])}</strong></div>` : '';
-    root.innerHTML = `<svg class="pf-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evolución histórica"><line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" class="pf-chart-axis-line"/><line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" class="pf-chart-axis-line"/>${gridLines}<line x1="${pad.left}" y1="${y(0)}" x2="${width - pad.right}" y2="${y(0)}" class="pf-chart-zero"/>${paths}${hitPaths}</svg><div class="pf-chart-axis"><span>${escapeHtml(points[0]?.date ?? '')}</span><span>${escapeHtml(points.at(-1)?.date ?? '')}</span></div>${dateBar}`;
-    legend.innerHTML = chart.labels.map((label, index) => `<li><span class="pf-chart-legend-dot" style="background:${colors[index % colors.length]}"></span>${escapeHtml(label.label)}</li>`).join('');
-    root.querySelectorAll('[data-chart-series]').forEach((hitPath) => {
-      hitPath.addEventListener('mousemove', (event) => {
-        const rect = root.querySelector('.pf-chart-svg').getBoundingClientRect();
-        const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-        const index = Math.round(ratio * (points.length - 1));
-        const point = points[index];
-        const seriesIndex = Number(hitPath.dataset.chartSeries);
-        const label = chart.labels[seriesIndex]?.label ?? 'Elemento';
-        const value = point?.series?.[seriesIndex];
-        const tip = ensureChartTooltip();
-        tip.innerHTML = `<strong>${escapeHtml(label)}</strong><small>${escapeHtml(point?.date ?? '')} · ${escapeHtml(chartFormat(value))}</small>`;
-        tip.hidden = false;
-        positionChartTooltip(tip, event.clientX, event.clientY);
-      });
-      hitPath.addEventListener('mouseleave', hideChartTooltip);
+    if (!allPoints.length) {
+      root.innerHTML = '<div class="pf-chart-empty"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg><p>No hay datos históricos disponibles para la selección.</p></div>';
+      legend.innerHTML = '';
+      return;
+    }
+
+    const total = allPoints.length;
+    if (chartSliceEnd === null || chartSliceEnd >= total || chartSliceStart < 0 || chartSliceStart >= total || chartSliceStart >= chartSliceEnd) {
+      const { start, end } = computeSliceIndicesForRange(allPoints, chartRange);
+      chartSliceStart = start;
+      chartSliceEnd = end;
+    }
+
+    root.innerHTML = `
+      <div data-pf-chart-canvas-inner></div>
+      <div class="pf-timeline-bar-wrap" data-timeline-wrap>
+        <div class="pf-timeline-info">
+          <div class="pf-timeline-date-chip">
+            <span class="pf-timeline-chip-title">Desde</span>
+            <strong data-timeline-from-date>—</strong>
+          </div>
+          <div class="pf-timeline-hint">Rueda del ratón para zoom · Arrastra el gráfico o la barra para desplazar</div>
+          <div class="pf-timeline-date-chip">
+            <span class="pf-timeline-chip-title">Hasta</span>
+            <strong data-timeline-to-date>—</strong>
+          </div>
+        </div>
+        <div class="pf-timeline-track" data-timeline-track>
+          <svg class="pf-timeline-sparkline" viewBox="0 0 760 32" preserveAspectRatio="none" data-timeline-sparkline></svg>
+          <div class="pf-timeline-mask left" data-timeline-mask-left></div>
+          <div class="pf-timeline-window" data-timeline-window>
+            <div class="pf-timeline-handle left" data-timeline-handle="left" title="Arrastra para ajustar fecha de inicio">
+              <span class="pf-handle-grip"></span>
+            </div>
+            <div class="pf-timeline-window-body" data-timeline-window-body title="Arrastra para desplazar el período"></div>
+            <div class="pf-timeline-handle right" data-timeline-handle="right" title="Arrastra para ajustar fecha de fin">
+              <span class="pf-handle-grip"></span>
+            </div>
+          </div>
+          <div class="pf-timeline-mask right" data-timeline-mask-right></div>
+        </div>
+      </div>`;
+
+    renderTimelineSparkline(panel, allPoints, chart.labels);
+    renderChartMainSvg(panel);
+    updateTimelineSliderUi(panel);
+    attachChartCanvasInteractions(panel);
+    attachTimelineEvents(panel);
+  }
+
+  function syncPickerChecked(panel) {
+    const pickerBox = panel.querySelector('[data-pf-chart-picker-box]');
+    if (!pickerBox) return;
+    const selected = new Set(chartSelectedIds);
+    pickerBox.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      const isChecked = selected.has(input.value);
+      input.checked = isChecked;
+      input.closest('.pf-chart-choice')?.classList.toggle('selected', isChecked);
     });
-    root.querySelector('[data-pf-chart-from]')?.addEventListener('input', (event) => {
-      chartFromMonth = Math.min(Number(event.target.value), chartToMonth ?? lastMonthIndex);
-      drawPortfolioChart(scope, chart);
-    });
-    root.querySelector('[data-pf-chart-to]')?.addEventListener('input', (event) => {
-      chartToMonth = Math.max(Number(event.target.value), chartFromMonth);
-      drawPortfolioChart(scope, chart);
-    });
+    const pickerBtn = panel.querySelector('[data-pf-chart-picker]');
+    if (pickerBtn) pickerBtn.querySelector('span').textContent = `Elementos (${chartSelectedIds.length})`;
+    const counterBadge = pickerBox.querySelector('[data-picker-counter]');
+    if (counterBadge) counterBadge.textContent = `${chartSelectedIds.length} / 20 seleccionados`;
   }
 
   async function loadPortfolioChart(scope) {
-    const status = scope.querySelector('[data-pf-chart-status]');
-    if (!chartSelectedIds.length) return;
+    const panel = scope.querySelector('.pf-chart-panel') || scope;
+    const status = panel.querySelector('[data-pf-chart-status]');
+    if (!status) return;
+    if (!chartSelectedIds.length) {
+      status.textContent = 'Sin elementos seleccionados';
+      const root = panel.querySelector('[data-pf-chart]');
+      const legend = panel.querySelector('[data-pf-chart-legend]');
+      if (root) root.innerHTML = `
+        <div class="pf-chart-empty pf-chart-empty-clean">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          <p><strong>El gráfico no tiene elementos seleccionados.</strong></p>
+          <p class="pf-chart-empty-sub">Pulsa el icono <span class="pf-inline-chart-icon"><svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg></span> en cualquier valor o grupo de la tabla para compararlo, o pulsa <strong>«Mostrar todo»</strong> en la cabecera.</p>
+        </div>`;
+      if (legend) legend.innerHTML = '<li class="pf-legend-empty-hint">Ninguna línea seleccionada</li>';
+      return;
+    }
     const requestId = ++chartRequestId;
     status.textContent = 'Cargando histórico…';
     try {
-      const query = new URLSearchParams({ ids: chartSelectedIds.join(','), metric: chartMetric, range: chartRange });
+      const query = new URLSearchParams({ ids: chartSelectedIds.join(','), metric: chartMetric, range: 'all' });
       const payload = await api(`/api/portfolio/chart?${query}`);
       if (requestId !== chartRequestId) return;
-      chartFromMonth = 0;
-      chartToMonth = new Set((payload.chart.points ?? []).map((point) => String(point.date).slice(0, 7))).size - 1;
-      drawPortfolioChart(scope, payload.chart);
-      status.textContent = `Yahoo Finance · ${payload.chart.points.length} días`;
-    } catch (error) { if (requestId === chartRequestId) status.textContent = error.message || 'No se pudo cargar el histórico.'; }
+      chartCachedData = payload.chart;
+      const { start, end } = computeSliceIndicesForRange(chartCachedData.points, chartRange);
+      chartSliceStart = start;
+      chartSliceEnd = end;
+      drawPortfolioChart(panel, payload.chart);
+      status.textContent = `Yahoo Finance · ${payload.chart.points.length} sesiones`;
+    } catch (error) {
+      if (requestId === chartRequestId) status.textContent = error.message || 'No se pudo cargar el histórico.';
+    }
   }
 
   function wirePortfolioChart(scope) {
-    const panel = scope.querySelector('.pf-chart-panel'); if (!panel) return;
-    const picker = panel.querySelector('[data-pf-chart-picker]'); const pickerBox = panel.querySelector('[data-pf-chart-picker-box]');
-    picker?.addEventListener('click', () => { pickerBox.hidden = !pickerBox.hidden; });
-    panel.querySelector('[data-pf-chart-close]')?.addEventListener('click', () => { chartOpen = false; renderSection(); });
-    panel.querySelector('[data-pf-chart-metric]')?.addEventListener('change', (event) => { chartMetric = event.target.value; loadPortfolioChart(panel); });
-    panel.querySelector('[data-pf-chart-range]')?.addEventListener('change', (event) => { chartRange = event.target.value; loadPortfolioChart(panel); });
-    pickerBox?.querySelectorAll('input[type="checkbox"]').forEach((input) => input.addEventListener('change', () => {
-      chartSelectedIds = [...pickerBox.querySelectorAll('input:checked')].map((item) => item.value).slice(0, 20); picker.textContent = `Elementos (${chartSelectedIds.length})`; loadPortfolioChart(panel);
-    }));
+    const panel = scope.querySelector('.pf-chart-panel');
+    if (!panel) return;
+    const picker = panel.querySelector('[data-pf-chart-picker]');
+    const pickerBox = panel.querySelector('[data-pf-chart-picker-box]');
+
+    picker?.addEventListener('click', () => {
+      const isOpen = !pickerBox.hidden;
+      pickerBox.hidden = isOpen;
+      picker.setAttribute('aria-expanded', String(!isOpen));
+      picker.classList.toggle('active', !isOpen);
+    });
+
+    panel.querySelector('[data-pf-chart-close]')?.addEventListener('click', () => {
+      chartOpen = false;
+      renderSection();
+    });
+
+    panel.querySelector('[data-pf-chart-metric]')?.addEventListener('change', (event) => {
+      chartMetric = event.target.value;
+      loadPortfolioChart(panel);
+    });
+
+    panel.querySelectorAll('[data-pf-range]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.pfRange;
+        chartRange = key;
+        panel.querySelectorAll('[data-pf-range]').forEach((b) => b.classList.toggle('active', b === btn));
+        if (chartCachedData?.points?.length) {
+          const { start, end } = computeSliceIndicesForRange(chartCachedData.points, key);
+          chartSliceStart = start;
+          chartSliceEnd = end;
+          scheduleChartRedraw(panel);
+          updateTimelineSliderUi(panel);
+        } else {
+          loadPortfolioChart(panel);
+        }
+      });
+    });
+
+    panel.querySelectorAll('[data-pf-zoom]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const dir = btn.dataset.pfZoom;
+        zoomChartByStep(panel, dir);
+      });
+    });
+
+    // Picker Category Tabs
+    pickerBox?.querySelectorAll('[data-picker-tab]').forEach((tabBtn) => {
+      tabBtn.addEventListener('click', () => {
+        const cat = tabBtn.dataset.pickerTab;
+        pickerBox.querySelectorAll('[data-picker-tab]').forEach((b) => b.classList.toggle('active', b === tabBtn));
+        const searchVal = (pickerBox.querySelector('[data-picker-search]')?.value || '').toLowerCase().trim();
+        filterPickerChoices(pickerBox, cat, searchVal);
+      });
+    });
+
+    // Picker Search Input
+    pickerBox?.querySelector('[data-picker-search]')?.addEventListener('input', (event) => {
+      const searchVal = (event.target.value || '').toLowerCase().trim();
+      const activeTab = pickerBox.querySelector('[data-picker-tab].active')?.dataset.pickerTab || 'all';
+      filterPickerChoices(pickerBox, activeTab, searchVal);
+    });
+
+    function filterPickerChoices(box, cat, search) {
+      box.querySelectorAll('.pf-chart-choice').forEach((choice) => {
+        const matchCat = cat === 'all' || choice.dataset.choiceCategory === cat;
+        const matchSearch = !search || choice.dataset.choiceSearch.includes(search);
+        choice.hidden = !(matchCat && matchSearch);
+      });
+    }
+
+    // Picker Quick Action Buttons
+    pickerBox?.querySelector('[data-picker-quick="top"]')?.addEventListener('click', () => {
+      const allChoices = chartChoices();
+      chartSelectedIds = allChoices.filter((c) => c.category === 'valores').slice(0, 10).map((c) => c.id);
+      syncPickerChecked(panel);
+      loadPortfolioChart(panel);
+    });
+
+    pickerBox?.querySelector('[data-picker-quick="groups"]')?.addEventListener('click', () => {
+      const allChoices = chartChoices();
+      chartSelectedIds = allChoices.filter((c) => c.category === 'grupos').slice(0, 10).map((c) => c.id);
+      syncPickerChecked(panel);
+      loadPortfolioChart(panel);
+    });
+
+    pickerBox?.querySelector('[data-picker-quick="clear"]')?.addEventListener('click', () => {
+      chartSelectedIds = [];
+      syncPickerChecked(panel);
+      loadPortfolioChart(panel);
+    });
+
+    // Checkbox change listener
+    pickerBox?.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        chartSelectedIds = [...pickerBox.querySelectorAll('input:checked')].map((item) => item.value).slice(0, 20);
+        syncPickerChecked(panel);
+        loadPortfolioChart(panel);
+      });
+    });
+
     loadPortfolioChart(panel);
   }
 
   function portfolioContentHtml() {
-    if (portfolioTab === 'cartera') return `${allocationPanelHtml()}${positionsPanelHtml()}${chartOpen ? chartPanelHtml() : ''}`;
+    if (portfolioTab === 'cartera') return `${allocationPanelHtml()}${chartOpen ? chartPanelHtml() : ''}${positionsPanelHtml()}`;
     if (portfolioTab === 'dividendos') return dividendPanelHtml();
     if (portfolioTab === 'operaciones') return operationsPanelHtml();
     return '';
@@ -2665,6 +6255,14 @@ const Portfolio = (() => {
     });
   }
 
+  function portfolioContentHtml() {
+    if (portfolioTab === 'cartera') return `${allocationPanelHtml()}${chartOpen ? chartPanelHtml() : ''}${positionsPanelHtml()}`;
+    if (portfolioTab === 'dividendos') return dividendPanelHtml();
+    if (portfolioTab === 'calendario') return calendarPanelHtml();
+    if (portfolioTab === 'operaciones') return operationsPanelHtml();
+    return '';
+  }
+
   function wirePortfolioDashboard(scope) {
     scope.querySelectorAll('[data-pf-tab]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -2742,10 +6340,42 @@ const Portfolio = (() => {
         }
       });
     });
-    scope.querySelectorAll('.pf-dividend-table tbody tr[data-ticker]').forEach((row) => {
-      row.addEventListener('click', () => sectionOptions.onNavigate?.(row.dataset.ticker));
-      row.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' && !event.target.closest('a, button')) sectionOptions.onNavigate?.(row.dataset.ticker);
+    scope.querySelectorAll('[data-pf-chart-toggle]').forEach((button) => {
+      button.addEventListener('click', () => {
+        chartOpen = !chartOpen;
+        renderSection();
+        if (chartOpen) {
+          requestAnimationFrame(() => sectionRoot?.querySelector('.pf-chart-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        }
+      });
+    });
+    scope.querySelectorAll('[data-pf-chart-show-all]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const mode = button.dataset.pfChartShowAll;
+        const allChoices = chartChoices();
+        if (mode === 'valores') {
+          chartSelectedIds = allChoices.filter((c) => c.kind === 'ticker').slice(0, 20).map((c) => c.id);
+        } else if (mode === 'grupos') {
+          const isCustom = activeTab?.type === 'custom';
+          const isPredefined = activeTab?.type === 'predefined';
+          let tabChoices = null;
+          if (isPredefined) {
+            tabChoices = allChoices.filter((c) => c.kind === 'group' && c.tabKey === activeTab.key);
+          } else if (isCustom) {
+            const currentTabObj = tabById(activeTab.id);
+            const groupIds = new Set((currentTabObj?.groups ?? []).map((g) => g.id));
+            tabChoices = allChoices.filter((c) => c.kind === 'group' && groupIds.has(c.groupId));
+          }
+          if (!tabChoices || !tabChoices.length) {
+            tabChoices = allChoices.filter((c) => c.kind === 'group');
+          }
+          chartSelectedIds = tabChoices.slice(0, 20).map((c) => c.id);
+        }
+        chartOpen = true;
+        portfolioTab = 'cartera';
+        renderSection();
+        requestAnimationFrame(() => sectionRoot?.querySelector('.pf-chart-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
       });
     });
     scope.querySelectorAll('[data-pf-chart-trigger]').forEach((button) => {
@@ -2755,6 +6385,7 @@ const Portfolio = (() => {
         if (!id) return;
         if (!chartSelectedIds.includes(id)) chartSelectedIds = [...chartSelectedIds, id].slice(-20);
         chartOpen = true;
+        portfolioTab = 'cartera';
         renderSection();
         requestAnimationFrame(() => sectionRoot?.querySelector('.pf-chart-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
       });
@@ -2765,6 +6396,8 @@ const Portfolio = (() => {
     wireDonutTooltips(scope);
     wireGroupFeatures(scope);
     wirePortfolioChart(scope);
+    wireDividendDashboard(scope);
+    wireCalendarDashboard(scope);
   }
 
   /* ── Sección principal ───────────────────────────────────── */

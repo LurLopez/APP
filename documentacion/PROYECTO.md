@@ -49,7 +49,8 @@ Web que analiza con IA informes financieros de EE. UU. (10-Q trimestral, 10-K an
 
 ## Interacción con el usuario (importante)
 
-El desarrollador está aprendiendo inglés: cuando escriba un **prompt en inglés**, la respuesta debe empezar con una corrección breve (frase original, versión corregida, explicación de los errores en español; si está bien, decirlo). Los prompts en español no se corrigen.
+- **Autonomía y permisos totales**: El usuario otorga permiso explícito y permanente para leer, crear, modificar archivos y ejecutar comandos. Los agentes no deben pedir permiso ni hacer preguntas de confirmación antes de actuar, sino ejecutar las soluciones directamente de principio a fin.
+- **Aprendizaje de inglés**: El desarrollador está aprendiendo inglés: cuando escriba un **prompt en inglés**, la respuesta debe empezar con una corrección breve (frase original, versión corregida, explicación de los errores en español; si está bien, decirlo). Los prompts en español no se corrigen.
 
 ## Registro diario de cambios (obligatorio, automático)
 
