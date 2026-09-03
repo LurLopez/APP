@@ -68,16 +68,85 @@ function goToCompany(ticker) {
   window.location.href = `/empresa/${encodeURIComponent(ticker)}`;
 }
 
+function getHighlightClass(noteNumber) {
+  const num = parseInt(noteNumber, 10);
+  if (isNaN(num)) return 'highlight-c1';
+  const palette = ['highlight-c1', 'highlight-c2', 'highlight-c3', 'highlight-c4', 'highlight-c5', 'highlight-c6'];
+  return palette[(num - 1) % palette.length];
+}
+
 function renderNotes(notes) {
   const list = (Array.isArray(notes) ? notes : []).filter(Boolean);
   if (!list.length) return '';
-  return `<ul class="report-notes">${list.map((note) => `<li>${escapeHtml(note)}</li>`).join('')}</ul>`;
+  return `<ul class="report-notes">${list.map((note) => {
+    const raw = String(note ?? '');
+    const match = raw.match(/^\*(\d+):?\s*(.*)$/);
+    if (match) {
+      const num = match[1];
+      const cls = getHighlightClass(num);
+      return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${escapeHtml(match[2])}</li>`;
+    }
+    return `<li>${escapeHtml(raw)}</li>`;
+  }).join('')}</ul>`;
 }
 
-function renderTable(headers, rows) {
-  const thead = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('');
+function renderTable(headers, rows, metaRows = []) {
+  const thead = headers.map((header) => {
+    const isBoldCol = header === 'Ajustado' || header === 'Normal';
+    const cls = isBoldCol ? ' class="cell-bold"' : '';
+    return `<th${cls}>${escapeHtml(header)}</th>`;
+  }).join('');
+
+  let adjustedIndex = 0;
   const tbody = rows
-    .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell ?? '—')}</td>`).join('')}</tr>`)
+    .map((row, rowIdx) => {
+      const meta = metaRows[rowIdx] || {};
+      const isSalesTable = headers.length === 7 && headers[1] === 'Ajustado' && headers[4] === 'Normal';
+      const isRowAdjusted = isSalesTable && (
+        meta.isAdjusted === true ||
+        (row[1] && row[4] && String(row[1]).trim() !== String(row[4]).trim() && row[1] !== '—' && row[4] !== '—')
+      );
+
+      let colorCls = 'highlight-c1';
+      if (isRowAdjusted) {
+        adjustedIndex++;
+        const noteMatch = String(meta.adjustedNote || '').match(/\*(\d+)/);
+        if (noteMatch) {
+          colorCls = getHighlightClass(noteMatch[1]);
+        } else {
+          colorCls = getHighlightClass(adjustedIndex);
+        }
+      }
+
+      const cells = row.map((cell, colIdx) => {
+        const header = headers[colIdx];
+        const isBoldCol = header === 'Ajustado' || header === 'Normal';
+        const isPctCol = header === '% Aj.' || header === '% N.' || header === '%';
+        const isAdjustedCell = isSalesTable && colIdx === 1 && isRowAdjusted;
+
+        let classes = [];
+        if (isBoldCol) classes.push('cell-bold');
+
+        if (isPctCol && cell) {
+          const str = String(cell).trim();
+          if (str.startsWith('-')) {
+            classes.push('pct-negative');
+          } else if (str.startsWith('+') || /^[0-9]/.test(str)) {
+            classes.push('pct-positive');
+          }
+        }
+
+        let content = escapeHtml(cell ?? '—');
+        if (isAdjustedCell) {
+          content = `<mark class="highlight-adjust ${colorCls}">${content}</mark>`;
+        }
+
+        const clsAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
+        return `<td${clsAttr}>${content}</td>`;
+      }).join('');
+
+      return `<tr>${cells}</tr>`;
+    })
     .join('');
   return `<div class="table-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
 }
@@ -92,6 +161,7 @@ function renderHorizon(horizon) {
     html += renderTable(
       ['Métrica', 'Ajustado', 'Anterior Aj.', '% Aj.', 'Normal', 'Anterior N.', '% N.'],
       sales.rows.map((row) => [row.name, row.adjusted, row.prevAdjusted, row.pctAdjusted, row.normal, row.prevNormal, row.pctNormal]),
+      sales.rows
     );
     const extras = [];
     if (sales.shares) extras.push(`ACCIONES: ${escapeHtml(sales.shares)}`);
@@ -251,7 +321,9 @@ function failAnalysis(data) {
   const failedAgent = data.code === 'NOT_DEFENSIVE_CONSUMER' ? 'sector'
     : data.code === 'INVALID_MODEL_RESPONSE' || data.code === 'INVALID_REPORT_STRUCTURE' ? 'analyst'
       : 'origin';
-  showAnalysisError(data.error || 'No se pudo analizar el documento. Inténtalo de nuevo.', failedAgent);
+  const message = data.error || 'No se pudo analizar el documento. Inténtalo de nuevo.';
+  showAnalysisError(message, failedAgent);
+  showToast(message);
 }
 
 function finishAnalysis(data) {
@@ -277,6 +349,15 @@ function finishAnalysis(data) {
 }
 
 async function runRealAnalysis() {
+  if (!selectedFile) {
+    if (fileInput.files && fileInput.files[0]) {
+      setFile(fileInput.files[0]);
+    } else {
+      showToast('Selecciona un archivo PDF antes de iniciar el análisis.');
+      return;
+    }
+  }
+
   pendingFiling = null;
   startAnalysisUi('Verificando el documento...');
   startProcessingHints();
@@ -527,40 +608,103 @@ document.querySelector('#history-clear').addEventListener('click', () => {
 document.querySelector('#history-refresh').addEventListener('click', fetchAnalyses);
 historyLoginButton.addEventListener('click', () => window.openModal?.('login'));
 
-/* ── Navegación por secciones ──────────────────────────────── */
+/* ── Navegación por secciones y URLs ─────────────────────────── */
 
 const homeMenu = document.querySelector('#home-menu');
 const homeSections = {
   seguimiento: document.querySelector('#favoritos'),
+  alertas: document.querySelector('#alertas'),
   cartera: document.querySelector('#cartera'),
   analisis: document.querySelector('#analisis'),
 };
 
-function closeHomeSection() {
+const SECTION_TITLES = {
+  seguimiento: 'Cifra Terminal | Seguimiento',
+  alertas: 'Cifra Terminal | Alertas de Precio',
+  cartera: 'Cifra Terminal | Cartera',
+  analisis: 'Cifra Terminal | Análisis',
+};
+
+const SECTION_PATHS = {
+  seguimiento: '/seguimiento',
+  alertas: '/alertas',
+  cartera: '/cartera',
+  analisis: '/analisis',
+};
+
+function normalizeSection(nameOrPath) {
+  const clean = String(nameOrPath ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
+  if (clean === 'seguimiento' || clean === 'favoritos') return 'seguimiento';
+  if (clean === 'alertas' || clean === 'alertas-precio') return 'alertas';
+  if (clean === 'cartera' || clean === 'portfolio') return 'cartera';
+  if (clean === 'analisis' || clean === 'análisis') return 'analisis';
+  return null;
+}
+
+function showHomeOverview({ updateUrl = true, pushHistory = true } = {}) {
   homeMenu.hidden = false;
-  Object.values(homeSections).forEach((section) => { section.hidden = true; });
+  Object.values(homeSections).forEach((section) => { if (section) section.hidden = true; });
   document.querySelectorAll('.home-top-link').forEach((button) => button.classList.remove('active'));
+  document.title = 'Cifra Terminal | Inicio';
+
+  if (updateUrl && window.location.pathname !== '/') {
+    if (pushHistory) history.pushState(null, '', '/');
+    else history.replaceState(null, '', '/');
+  }
 }
 
-function openHomeSection(name, { scroll = true } = {}) {
-  const section = homeSections[name];
+function openHomeSection(name, { updateUrl = true, pushHistory = true, scroll = false } = {}) {
+  const sectionKey = normalizeSection(name);
+  if (!sectionKey) {
+    showHomeOverview({ updateUrl, pushHistory });
+    return;
+  }
+
+  const section = homeSections[sectionKey];
   if (!section) return;
+
   homeMenu.hidden = true;
-  Object.entries(homeSections).forEach(([key, other]) => { other.hidden = key !== name; });
-  document.querySelectorAll('.home-top-link').forEach((button) => {
-    button.classList.toggle('active', button.dataset.section === name);
+  Object.entries(homeSections).forEach(([key, other]) => {
+    if (other) other.hidden = key !== sectionKey;
   });
-  if (scroll) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  document.querySelectorAll('.home-top-link').forEach((button) => {
+    button.classList.toggle('active', button.dataset.section === sectionKey);
+  });
+
+  document.title = SECTION_TITLES[sectionKey] || 'Cifra Terminal';
+
+  const targetPath = SECTION_PATHS[sectionKey] || `/${sectionKey}`;
+  if (updateUrl && window.location.pathname !== targetPath) {
+    if (pushHistory) history.pushState(null, '', targetPath);
+    else history.replaceState(null, '', targetPath);
+  }
+
+  if (scroll) {
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
-document.querySelectorAll('.home-top-link, .home-menu-card').forEach((button) => {
-  button.addEventListener('click', () => {
-    if (button.classList.contains('active')) {
-      closeHomeSection();
+document.querySelectorAll('.home-top-link, .home-menu-card').forEach((link) => {
+  link.addEventListener('click', (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
       return;
     }
-    openHomeSection(button.dataset.section);
+    event.preventDefault();
+    openHomeSection(link.dataset.section, { updateUrl: true, pushHistory: true, scroll: false });
   });
+});
+
+document.querySelector('.home-brand')?.addEventListener('click', (event) => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return;
+  }
+  event.preventDefault();
+  showHomeOverview({ updateUrl: true, pushHistory: true });
 });
 
 /* ── Listas de seguimiento ─────────────────────────────────── */
@@ -574,11 +718,17 @@ Portfolio.mountSection(document.querySelector('#portfolio-section'), {
   onNavigate: goToCompany,
 });
 
+PriceAlerts.mountSection?.(document.querySelector('#price-alerts-section'), {
+  countEl: document.querySelector('#price-alerts-count'),
+  onNavigate: goToCompany,
+});
+
 window.addEventListener('auth:change', (event) => {
   currentUser = Boolean(event.detail?.user);
   Watchlists.setAuthenticated(currentUser);
   if (currentUser) Watchlists.refresh();
   Portfolio.setAuthenticated(currentUser);
+  PriceAlerts.loadAlerts?.();
   fetchAnalyses();
 });
 
@@ -613,12 +763,16 @@ function renderSearchResults(query) {
       return;
     }
 
-    searchResults.innerHTML = matches.map((company) => `
+    searchResults.innerHTML = matches.map((company) => {
+      const inPortfolio = typeof Portfolio !== 'undefined' && Boolean(Portfolio.hasPosition?.(company.ticker));
+      return `
       <button class="search-result" type="button" data-ticker="${escapeHtml(company.ticker)}">
         <img class="search-result-logo" src="https://companiesmarketcap.com/img/company-logos/64/${escapeHtml(company.ticker)}.webp" alt="" loading="lazy" data-letter="${escapeHtml((company.name || company.ticker || '?').slice(0, 1).toUpperCase())}">
-        <span>${escapeHtml(company.name)}</span><strong>${escapeHtml(company.ticker)}</strong>
-      </button>
-    `).join('');
+        <span class="search-result-name">${escapeHtml(company.name)}</span>
+        ${inPortfolio ? '<span class="search-result-pf-badge" title="En tu cartera">💼 Cartera</span>' : ''}
+        <strong>${escapeHtml(company.ticker)}</strong>
+      </button>`;
+    }).join('');
     searchResults.hidden = false;
 
     searchResults.querySelectorAll('.search-result').forEach((result) => {
@@ -662,18 +816,36 @@ document.addEventListener('click', (event) => {
   if (!event.target.closest('.search-wrap')) searchResults.hidden = true;
 });
 
-const urlParams = new URLSearchParams(window.location.search);
-const pendingTicker = (urlParams.get('analizar') ?? '').trim().toUpperCase();
-const pendingAccession = urlParams.get('accession') ?? '';
-if (/^[A-Z0-9.-]{1,10}$/.test(pendingTicker) && /^\d{10}-\d{2}-\d{6}$/.test(pendingAccession)) {
-  history.replaceState(null, '', window.location.pathname);
-  openHomeSection('analisis', { scroll: false });
-  document.querySelector('#nuevo').scrollIntoView({ behavior: 'auto', block: 'start' });
-  runFilingAnalysis(pendingTicker, pendingAccession);
-} else if (urlParams.get('cartera') === '1') {
-  history.replaceState(null, '', window.location.pathname);
-  openHomeSection('cartera', { scroll: false });
-  Portfolio.openSection();
-} else {
-  openHomeSection('seguimiento', { scroll: false });
+function handleLocationRoute() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const pendingTicker = (urlParams.get('analizar') ?? '').trim().toUpperCase();
+  const pendingAccession = urlParams.get('accession') ?? '';
+
+  if (/^[A-Z0-9.-]{1,10}$/.test(pendingTicker) && /^\d{10}-\d{2}-\d{6}$/.test(pendingAccession)) {
+    history.replaceState(null, '', '/analisis');
+    openHomeSection('analisis', { updateUrl: false, scroll: false });
+    document.querySelector('#nuevo')?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    runFilingAnalysis(pendingTicker, pendingAccession);
+    return;
+  }
+
+  if (urlParams.get('cartera') === '1') {
+    history.replaceState(null, '', '/cartera');
+    openHomeSection('cartera', { updateUrl: false, scroll: false });
+    Portfolio.openSection();
+    return;
+  }
+
+  const sectionKey = normalizeSection(window.location.pathname);
+  if (sectionKey) {
+    openHomeSection(sectionKey, { updateUrl: false, scroll: false });
+  } else {
+    showHomeOverview({ updateUrl: false });
+  }
 }
+
+window.addEventListener('popstate', () => {
+  handleLocationRoute();
+});
+
+handleLocationRoute();

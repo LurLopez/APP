@@ -1,4 +1,5 @@
 import * as portfolioRepository from '../../db/repositories/portfolioRepository.js';
+import { listCalendarTickers } from '../../db/repositories/watchlistRepository.js';
 import { getMarketQuote, getDividendHistory, getHistoricalPrices } from './market.service.js';
 import { getCompanyOrigin, getCompanyFilings } from './edgar.service.js';
 
@@ -464,11 +465,12 @@ export async function getPortfolio(userId) {
   const now = todayIso();
   const ttmFrom = daysAgoIso(365);
 
-  const [tabs, groups, rules, lotAssignments] = await Promise.all([
+  const [tabs, groups, rules, lotAssignments, calendarItems] = await Promise.all([
     portfolioRepository.listTabs(userId),
     portfolioRepository.listGroups(userId),
     portfolioRepository.listGroupRules(userId),
     portfolioRepository.listGroupLots(userId),
+    listCalendarTickers(userId),
   ]);
 
   const groupsById = new Map(groups.map((group) => [group.id, group]));
@@ -489,7 +491,10 @@ export async function getPortfolio(userId) {
     explicitLotGroups.set(assignment.buyTransactionId, list);
   }
 
-  const tickers = [...new Set(state.map((item) => item.ticker))];
+  const portfolioTickers = [...new Set(state.map((item) => item.ticker))];
+  const calendarTickers = [...new Set((calendarItems || []).map((item) => String(item.ticker).toUpperCase()))];
+  const tickers = [...new Set([...portfolioTickers, ...calendarTickers])];
+
   const minBuyDate = new Map();
   for (const transaction of transactions) {
     if (transaction.type !== 'buy') continue;
@@ -689,7 +694,7 @@ export async function getPortfolio(userId) {
   }
 
   const dividendDashboardData = buildPortfolioDividends(positions, state, dividendMap, ttmFrom, now);
-  const calendarEvents = buildPortfolioCalendarEvents(positions, dividendMap, filingsMap);
+  const calendarEvents = buildPortfolioCalendarEvents(positions, calendarItems, dividendMap, filingsMap, quoteMap);
 
   return {
     summary: {
@@ -720,19 +725,42 @@ export async function getPortfolio(userId) {
   };
 }
 
-function buildPortfolioCalendarEvents(positions, dividendMap, filingsMap) {
+function buildPortfolioCalendarEvents(positions, calendarItems, dividendMap, filingsMap, quoteMap) {
   const events = [];
-  const activePositions = (positions || []).filter((p) => Number(p.shares) > 0);
   const nowIso = todayIso();
 
+  // 1. Tickers de la cartera activa
+  const activePositions = (positions || []).filter((p) => Number(p.shares) > 0);
+  const portfolioTickers = new Set(activePositions.map((p) => p.ticker.toUpperCase()));
+
+  // 2. Combinar cartera activa (SIEMPRE en calendario) + empresas de seguimiento en calendario
+  const allEntries = [];
+
   for (const pos of activePositions) {
-    const ticker = pos.ticker;
-    const name = pos.companyName || ticker;
-    const shares = Number(pos.shares) || 0;
-    if (shares <= 0) continue;
+    allEntries.push({
+      ticker: pos.ticker.toUpperCase(),
+      name: pos.companyName || pos.ticker,
+      shares: Number(pos.shares) || 0,
+      isPortfolio: true,
+    });
+  }
+
+  for (const calItem of (calendarItems || [])) {
+    const ticker = String(calItem.ticker ?? '').toUpperCase();
+    if (!ticker || portfolioTickers.has(ticker)) continue;
+    allEntries.push({
+      ticker,
+      name: calItem.companyName || quoteMap?.get(ticker)?.name || ticker,
+      shares: 0,
+      isPortfolio: false,
+    });
+  }
+
+  for (const entry of allEntries) {
+    const { ticker, name, shares, isPortfolio } = entry;
 
     // 1. Resultados reales desde filings oficiales de EDGAR SEC
-    const filings = filingsMap.get(ticker) ?? [];
+    const filings = filingsMap?.get(ticker) ?? [];
     for (const filing of filings) {
       if (!filing.filedAt) continue;
       const filingDate = String(filing.filedAt).slice(0, 10);
@@ -752,19 +780,23 @@ function buildPortfolioCalendarEvents(positions, dividendMap, filingsMap) {
         day: fDay,
         ticker,
         name,
+        isPortfolio,
+        shares,
         color: '#2563eb',
         accession: filing.accession ?? null,
-        documentUrl: filing.documentUrl ?? null,
-        documentName: filing.documentName ?? null,
+        documentUrl: filing.accession ? `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(filing.accession)}/document` : (filing.documentUrl ?? null),
+        documentName: filing.documentName ?? `${ticker.toLowerCase()}-${(filing.formType || '10q').toLowerCase()}-${fYear}.pdf`,
         periodLabel: filing.periodLabel || `Informe ${filing.formType}`,
         timing: 'Publicación oficial SEC EDGAR',
         status: isPast ? 'Publicado' : 'Convocado',
-        details: `Publicación oficial del informe ${filing.formType} (${filing.periodLabel || 'Resultados trimestrales'}) en la SEC.`,
+        details: isPortfolio
+          ? `Publicación oficial del informe ${filing.formType} (${filing.periodLabel || 'Resultados trimestrales'}) en la SEC para ${name} (${shares} acc. en cartera).`
+          : `Publicación oficial del informe ${filing.formType} (${filing.periodLabel || 'Resultados trimestrales'}) en la SEC para ${name} (en seguimiento).`,
       });
     }
 
     // 2. Dividendos reales desde historial de Yahoo Finance / mercado
-    const divs = dividendMap.get(ticker) ?? [];
+    const divs = dividendMap?.get(ticker) ?? [];
     for (const div of divs) {
       if (!div.date) continue;
       const exDateStr = String(div.date).slice(0, 10);
@@ -773,7 +805,7 @@ function buildPortfolioCalendarEvents(positions, dividendMap, filingsMap) {
       const [dYear, dMonth, dDay] = parts;
 
       const amountPerShare = Number(div.amount) || 0;
-      const totalAmount = round(amountPerShare * shares, 2);
+      const totalAmount = isPortfolio ? round(amountPerShare * shares, 2) : null;
       const isPast = exDateStr <= nowIso;
 
       // Evento Ex-Dividend real
@@ -788,12 +820,15 @@ function buildPortfolioCalendarEvents(positions, dividendMap, filingsMap) {
         day: dDay,
         ticker,
         name,
+        isPortfolio,
+        shares,
         color: '#d97706',
         amount: totalAmount,
         perShare: amountPerShare,
-        shares,
         status: isPast ? 'Ejecutado' : 'Anunciado',
-        details: `Fecha de corte oficial para el dividendo de ${totalAmount} € (${amountPerShare} €/acc.).`,
+        details: isPortfolio
+          ? `Fecha de corte oficial para el dividendo de ${totalAmount} € (${amountPerShare} €/acc. × ${shares} acc.).`
+          : `Fecha de corte oficial para el dividendo de ${amountPerShare} €/acc. para ${name} (en seguimiento).`,
       });
 
       // Evento Pago de dividendo real (estimado ~14 días tras la ex-fecha oficial)
@@ -815,12 +850,15 @@ function buildPortfolioCalendarEvents(positions, dividendMap, filingsMap) {
         day: payDay,
         ticker,
         name,
+        isPortfolio,
+        shares,
         color: '#059669',
         amount: totalAmount,
         perShare: amountPerShare,
-        shares,
-        status: payDateStr <= nowIso ? 'Cobrado' : 'Confirmado',
-        details: `Abono de ${totalAmount} € (${shares} acc. × ${amountPerShare} €/acc.) en cuenta de valores.`,
+        status: payDateStr <= nowIso ? (isPortfolio ? 'Cobrado' : 'Abonado') : 'Confirmado',
+        details: isPortfolio
+          ? `Abono estimado de ${totalAmount} € (${shares} acc. × ${amountPerShare} €/acc.) en cuenta de valores.`
+          : `Pago de dividendo de ${amountPerShare} €/acc. para ${name} (en seguimiento).`,
       });
     }
   }

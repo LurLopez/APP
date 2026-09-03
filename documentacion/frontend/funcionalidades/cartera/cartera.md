@@ -46,7 +46,7 @@ La vista Tabla contiene: Valor (logo, nombre, ticker y sector), Acciones, Coste,
 
 ### Distribución
 
-- Un **donut SVG grande** (`.pf-allocation-donut`, `viewBox 160`, segmentos con `stroke-dasharray`) por empresa, con leyenda de color, nombre y porcentaje.
+- Un **donut SVG** (`.pf-allocation-donut`, `viewBox 160`, sectores anulares geométricos `<path>` con separación limpia de 2px e interacción hover sincronizada) por empresa, con leyenda de color, nombre y porcentaje.
 - El conmutador Coste/Valor recalcula los pesos en el frontend a partir de `costBasis` o `value`.
 - El enlace Tabla cambia a la vista broker; Exportar CSV descarga las posiciones y sus métricas.
 

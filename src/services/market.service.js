@@ -358,3 +358,163 @@ export async function getMarketProfile(ticker) {
   marketCache.set(ticker, { data, at: Date.now() });
   return data;
 }
+
+const COUNTRY_RULES = [
+  { pattern: /\b(australia|dfa australia|macquarie)\b/i, code: 'AU', flag: '🇦🇺', name: 'Australia' },
+  { pattern: /\b(u\.?k\.?|british|baillie gifford|schroders|legal & general|barclays|hsbc|abrdn|man group)\b/i, code: 'GB', flag: '🇬🇧', name: 'Reino Unido' },
+  { pattern: /\b(norges|norway)\b/i, code: 'NO', flag: '🇳🇴', name: 'Noruega' },
+  { pattern: /\b(ubs|credit suisse|pictet|vontobel|swiss|switzerland)\b/i, code: 'CH', flag: '🇨🇭', name: 'Suiza' },
+  { pattern: /\b(rbc|royal bank of canada|td asset|toronto dominion|bmo|scotiabank|brookfield|canada)\b/i, code: 'CA', flag: '🇨🇦', name: 'Canadá' },
+  { pattern: /\b(amundi|bnp paribas|societe generale|crédit agricole|natixis|carmignac|france)\b/i, code: 'FR', flag: '🇫🇷', name: 'Francia' },
+  { pattern: /\b(allianz|dws|deutsche|flossbach|germany)\b/i, code: 'DE', flag: '🇩🇪', name: 'Alemania' },
+  { pattern: /\b(nomura|sumitomo|mizuho|mitsubishi|daiwa|japan)\b/i, code: 'JP', flag: '🇯🇵', name: 'Japón' },
+  { pattern: /\b(temasek|gic|singapore)\b/i, code: 'SG', flag: '🇸🇬', name: 'Singapur' },
+  { pattern: /\b(blackrock|vanguard|state street|dodge & cox|aqr|fidelity|geode|jpmorgan|morgan stanley|capital world|capital research|t\.? rowe|invesco|franklin|wellington|lsv|northern trust|bank of america|goldman sachs|wells fargo|berkshire)\b/i, code: 'US', flag: '🇺🇸', name: 'Estados Unidos' },
+];
+
+function detectHolderCountry(name) {
+  if (!name) return { code: 'US', flag: '🇺🇸', name: 'Estados Unidos' };
+  for (const r of COUNTRY_RULES) {
+    if (r.pattern.test(name)) return { code: r.code, flag: r.flag, name: r.name };
+  }
+  return { code: 'US', flag: '🇺🇸', name: 'Estados Unidos' };
+}
+
+let yahooSession = { cookie: null, crumb: null, at: 0 };
+const SESSION_TTL = 6 * 60 * 60 * 1000;
+const HOLDERS_TTL = 12 * 60 * 60 * 1000;
+const holdersCache = new Map();
+
+async function getYahooSession(forceRefresh = false) {
+  if (!forceRefresh && yahooSession.cookie && yahooSession.crumb && (Date.now() - yahooSession.at < SESSION_TTL)) {
+    return yahooSession;
+  }
+  try {
+    const cookieRes = await fetch('https://fc.yahoo.com', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      signal: AbortSignal.timeout(MARKET_TIMEOUT),
+    }).catch((err) => err);
+    const rawCookie = cookieRes.headers?.get('set-cookie') || '';
+    const cookie = rawCookie.split(';')[0];
+
+    const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        Cookie: cookie,
+      },
+      signal: AbortSignal.timeout(MARKET_TIMEOUT),
+    });
+    if (!crumbRes.ok) throw new Error(`Yahoo crumb respondió ${crumbRes.status}`);
+    const crumb = await crumbRes.text();
+    if (!crumb || crumb.includes('error') || crumb.includes('Invalid') || crumb.includes('Unauthorized')) {
+      throw new Error('Crumb de Yahoo Finance inválido');
+    }
+    yahooSession = { cookie, crumb, at: Date.now() };
+    return yahooSession;
+  } catch (err) {
+    yahooSession = { cookie: null, crumb: null, at: 0 };
+    throw err;
+  }
+}
+
+export async function getCompanyHolders(ticker) {
+  const normalizedTicker = String(ticker).trim().toUpperCase();
+  const cached = holdersCache.get(normalizedTicker);
+  if (cached && Date.now() - cached.at < HOLDERS_TTL) {
+    return cached.data;
+  }
+
+  let session = await getYahooSession();
+  const modules = 'institutionOwnership,fundOwnership,majorHoldersBreakdown,insiderHolders';
+  let url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(normalizedTicker)}?crumb=${encodeURIComponent(session.crumb)}&modules=${modules}`;
+
+  let res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      Cookie: session.cookie,
+      Accept: 'application/json',
+    },
+    signal: AbortSignal.timeout(MARKET_TIMEOUT),
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    session = await getYahooSession(true);
+    url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(normalizedTicker)}?crumb=${encodeURIComponent(session.crumb)}&modules=${modules}`;
+    res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        Cookie: session.cookie,
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(MARKET_TIMEOUT),
+    });
+  }
+
+  if (!res.ok) {
+    throw new Error(`Yahoo Finance respondió ${res.status} al consultar accionariado`);
+  }
+
+  const json = await res.json();
+  const summary = json?.quoteSummary?.result?.[0];
+  if (!summary) {
+    throw new Error('No se encontraron datos de accionariado');
+  }
+
+  const breakdownRaw = summary.majorHoldersBreakdown ?? {};
+  const breakdown = {
+    insidersPercent: breakdownRaw.insidersPercentHeld?.raw ?? null,
+    institutionsPercent: breakdownRaw.institutionsPercentHeld?.raw ?? null,
+    institutionsFloatPercent: breakdownRaw.institutionsFloatPercentHeld?.raw ?? null,
+    institutionsCount: breakdownRaw.institutionsCount?.raw ?? null,
+  };
+
+  const institutions = (summary.institutionOwnership?.ownershipList ?? []).map((item) => ({
+    name: item.organization,
+    country: detectHolderCountry(item.organization),
+    shares: item.position?.raw ?? null,
+    sharesFormatted: item.position?.fmt ?? null,
+    percentage: item.pctHeld?.raw ?? null,
+    percentageFormatted: item.pctHeld?.fmt ?? null,
+    value: item.value?.raw ?? null,
+    valueFormatted: item.value?.fmt ?? null,
+    changePercent: item.pctChange?.raw ?? null,
+    changePercentFormatted: item.pctChange?.fmt ?? null,
+    reportDate: item.reportDate?.fmt ?? null,
+  }));
+
+  const funds = (summary.fundOwnership?.ownershipList ?? []).map((item) => ({
+    name: item.organization,
+    country: detectHolderCountry(item.organization),
+    shares: item.position?.raw ?? null,
+    sharesFormatted: item.position?.fmt ?? null,
+    percentage: item.pctHeld?.raw ?? null,
+    percentageFormatted: item.pctHeld?.fmt ?? null,
+    value: item.value?.raw ?? null,
+    valueFormatted: item.value?.fmt ?? null,
+    changePercent: item.pctChange?.raw ?? null,
+    changePercentFormatted: item.pctChange?.fmt ?? null,
+    reportDate: item.reportDate?.fmt ?? null,
+  }));
+
+  const insiders = (summary.insiderHolders?.holders ?? []).map((item) => ({
+    name: item.name,
+    relation: item.relation,
+    position: item.positionDirect?.raw ?? null,
+    positionFormatted: item.positionDirect?.fmt ?? null,
+    transactionDescription: item.transactionDescription ?? null,
+    reportDate: item.latestTransDate?.fmt ?? null,
+  }));
+
+  const data = {
+    ticker: normalizedTicker,
+    breakdown,
+    institutions,
+    funds,
+    insiders,
+    source: 'SEC Form 13F / Yahoo Finance',
+    updatedAt: new Date().toISOString(),
+  };
+
+  holdersCache.set(normalizedTicker, { data, at: Date.now() });
+  return data;
+}

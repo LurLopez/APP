@@ -78,7 +78,7 @@ Normaliza, ordena: **coincidencia exacta de ticker** → **empieza por la consul
 
 ### Series financieras (`getCompanyResults(ticker, { authenticated })`)
 
-1. Resuelve la empresa; 2. descarga `companyfacts`; 3. `buildSeries`; 4. añade `profile`; 5. devuelve 10 anuales y 8 trimestrales.
+1. Resuelve la empresa; 2. descarga `companyfacts`; 3. `buildSeries`; 4. añade `profile`; 5. devuelve las series completas (anuales y trimestrales disponibles desde ~2007 en adelante).
 
 ### Construcción de series (`buildSeries`) — fases (revisado 2026-08-15)
 
@@ -109,7 +109,7 @@ Normaliza, ordena: **coincidencia exacta de ticker** → **empieza por la consul
 
 ### Valores derivados por fila
 
-Resultados: beneficio bruto, gastos operativos, EBT incl. extraordinarios, EBITDA/EBITDAR, neto a acciones comunes. Balance: efectivo e inversiones a CP, cuentas por cobrar, inmovilizado neto, pasivo/fondos propios, valor contable (tangible), deuda total/neto. Cash flow: CFI/CFF, variación neta, FCF, saldos, flujo por acción. Normalización de signos (`negative: true`, `tone: 'negative'`, `invertSign: true` para ganancias que se restan en la conciliación; `IncreaseDecreaseInOperatingCapital` invertido).
+Resultados: beneficio bruto, gastos operativos, beneficio operativo ajustado (`operatingIncomeAdjusted = pretaxIncome + netInterestExpense`), margen operativo ajustado (`operatingIncomeAdjustedMargin`), EBT incl. extraordinarios, EBITDA/EBITDAR, neto a acciones comunes. Balance: efectivo e inversiones a CP, cuentas por cobrar, inmovilizado neto, pasivo/fondos propios, valor contable (tangible), deuda total/neto. Cash flow: CFI/CFF, variación neta, FCF, saldos, flujo por acción. Normalización de signos (`negative: true`, `tone: 'negative'`, `invertSign: true` para ganancias que se restan en la conciliación; `IncreaseDecreaseInOperatingCapital` invertido).
 
 ### Catálogo `STATEMENTS` (alineado con las capturas de TIKR)
 
@@ -194,6 +194,11 @@ Sin dependencias npm nuevas (fetch nativo; Chrome y pdftoppm como binarios exter
 | **Fusión de tags por frame (`pickConceptData`)** | Si la empresa cambia de tag, se conservan todos los años (antes desaparecían los del tag antiguo). |
 | **`buildSeries` en fases con `periodEnd` moda** | Elimina filas duplicadas, Q4 erróneos y etiquetas sucias en años fiscales no calendario. |
 | **Rescate desde instancias XBRL** | `companyfacts` no expone tags de extensión; sin esto, muchas líneas de KO y otras quedaban en "—" para siempre. Solo se dispara si falta algo (evita 36 peticiones extra por empresa). |
+| **Ponderación por clases de acciones (`scoreMember`)** | Empresas con múltiples clases de acciones (ej. Constellation Brands `STZ`, Berkshire Hathaway `BRK-B`) reportan sus acciones en circulación y BPA bajo dimensiones XBRL (`StatementClassOfStockAxis`). `mergeInstanceFacts` prioriza la clase principal de la acción cotizada (`CommonClassAMember` o `Class B` para tickers `-B`), evitando descartar métricas per-share y acciones diluidas. |
+| **Aislamiento de frames 10-Q en series anuales** | En `buildSeries`, entradas con frames trailing (ej. `CY2026`) procedentes de 10-Q intermedios no crean ni contaminan filas del año fiscal anual. Se filtran también filas con `periodEnd === null`. |
+| **Normalización de deterioros e inversiones (`InvestmentIncomeNet`, `OtherAssetImpairmentCharges`)** | En empresas con ajustes no operativos o deterioros masivos de participadas (ej. la inversión en Canopy Growth de Constellation Brands `STZ`), los deterioros se reportan bajo `InvestmentIncomeNet` o `OtherAssetImpairmentCharges`. Se integraron y combinaron en `gainLossOnInvestments` y `assetImpairment`, permitiendo que el beneficio ajustado normalice las pérdidas extraordinarias ($2.04B en 2023, $1.64B en 2022) y el BPA normalizado refleje la capacidad real operativa (~10-12 $ en lugar de 1,44 $). |
+| **Propagación de acciones y continuidad TTM (`propagateMissingShares`, `pointInTimeSnapshot`)** | Rellena el número de acciones diluidas en trimestres históricos a partir de los 10-K auditados o trimestres adyacentes para permitir el cálculo de BPA y BPA normalizado en ventanas rodantes de 4 trimestres. Además, `pointInTimeSnapshot` calcula el TTM a partir de los beneficios netos acumulados y aplica propagación hacia adelante/atrás para evitar huecos (`null`) en el gráfico de valoración por sesión. |
+| **Mapa de excepciones de CIK y formato ticker** | Resuelve tickers con holding recién constituido en la SEC (ej. `XOM` mapeado a CIK 34088) y normaliza tickers con punto/guión (`BRK.B` / `BRK-B`, `BF.B` / `BF-B`). |
 | **PDF real o generado con Chrome (con UA)** | Los filings modernos no traen PDF; la SEC bloqueaba a Chrome headless sin User-Agent declarado. |
 | **Preview con pdftoppm** | El visor PDF de Chrome dentro de iframe no renderiza; las imágenes funcionan en cualquier navegador. |
 | **Timeout cancelado al recibir cabeceras** | Un fallo a mitad del streaming ya no tumba el proceso Node. |
@@ -202,6 +207,15 @@ Sin dependencias npm nuevas (fetch nativo; Chrome y pdftoppm como binarios exter
 ## 9. Pruebas realizadas (datos reales)
 
 - Búsquedas `ko`/`coca`; 404 ticker inexistente; 400 sin `q`.
+- **STZ (Constellation Brands)**: Rescate completo de acciones diluidas (172,4 M), BPA diluido (9,61 $), BPA normalizado (10,92 $), FCF/acc (10,64 $), EV (32,74 B $), EV/EBITDA (9,84x), PER normalizado (11,85x), P/FCF (12,16x), Dividendo/acc (4,08 $), Yield (3,15 %), Payout ajustado (37,36 %) y serie de múltiplos histórica a 5 años (1254 puntos sin huecos).
+- **Pruebas multi-sectoriales**:
+  - *Consumo defensivo y bebidas*: STZ (EV/EBITDA 9,8x, PER 11,8x), KO (25,0x, 26,7x), PEP (11,7x, 15,6x), TAP (6,2x, 6,5x), KHC (9,1x, 10,3x).
+  - *Tecnología*: AAPL (28,7x, 37,4x), MSFT (18,4x, 28,8x), NVDA (27,1x, 32,6x), GOOGL (24,2x, 16,9x).
+  - *Consumo discrecional / E-commerce*: AMZN (16,8x, 20,3x, sin fila anual 2026 prematura).
+  - *Financiero / Conglomerado*: BRK-B (5,1x, 40,0x con BPA Clase B de 31,04 $).
+  - *Salud / Farmacia*: JNJ (20,4x, 27,6x).
+  - *Industrial*: CAT (25,2x, 32,9x).
+  - *Energía*: XOM (10,9x, 28,8x con CIK 34088 consolidado), CVX (8,57x), COP (7,29x), SLB (12,17x).
 - **KO**: FY2025 ingresos 47.941 M$, B. neto 13.107 M$, BPA 3,04 $, activo 104.816 M$, pretax 15.998 M$, reservas 80.382 M$, autocartera 56.423 M$, variación neta de caja −478 M$; cash anual 10,27B, cashBeginning 10,75B; **adquisiciones −461 M$ y desinversiones 3.567 M$ rescatadas del XBRL**; pensiones 785 M$ (segmentos); trimestral con resta YTD correcta.
 - **19 tickers de consumo defensivo** (KHC, WMT, KO, PG, PM, COST, TGT, CL, GIS, MDLZ, PEP, HRL, SYY, KR, MKC, SJM, CPB, HSY, MCD): 0 filas anuales con valores faltantes y 0 Q4 fiscales faltantes (excepto per-share no derivables, "—" a propósito). KHC 2019 revenue 24,9B (antes 6,5B); WMT sin filas duplicadas 2025/2026.
 - **PG** (cierre junio) e intangibles agregados; **PEP** combinado finite+indefinite y CAPEX; **TAP** pérdidas y acciones diluidas; TGT/KR sin fx porque sus 10-K no presentan la línea (correcto).

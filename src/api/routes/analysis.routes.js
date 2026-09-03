@@ -17,7 +17,7 @@ const upload = multer({
 router.post('/upload', upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
-      res.status(400).json({ error: 'No se recibió ningún archivo.' });
+      res.status(400).json({ error: 'No se recibió ningún archivo. Selecciona o arrastra un PDF válido.' });
       return;
     }
 

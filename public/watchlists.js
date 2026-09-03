@@ -5,6 +5,8 @@ const Watchlists = (() => {
   let lists = [];
   let byId = new Map();
   let membership = new Map();
+  let calendarTickers = new Set();
+  let emailAlerts = new Map();
   let popover = null;
   let openContext = null;
   let confirmListId = null;
@@ -26,6 +28,18 @@ const Watchlists = (() => {
         membership.get(ticker).add(list.id);
       });
     });
+    calendarTickers = new Set((data?.calendarTickers ?? []).map((t) => String(t).toUpperCase()));
+    emailAlerts = new Map();
+    if (data?.emailAlerts && typeof data.emailAlerts === 'object') {
+      Object.entries(data.emailAlerts).forEach(([t, alert]) => {
+        emailAlerts.set(t.toUpperCase(), {
+          enabled: Boolean(alert.enabled),
+          notifyEarnings: Boolean(alert.notifyEarnings),
+          notifyExdiv: Boolean(alert.notifyExdiv),
+          notifyPayout: Boolean(alert.notifyPayout),
+        });
+      });
+    }
   }
 
   async function api(path, options) {
@@ -39,6 +53,8 @@ const Watchlists = (() => {
     lists = [];
     byId = new Map();
     membership = new Map();
+    calendarTickers = new Set();
+    emailAlerts = new Map();
     close();
     emitChange();
   }
@@ -74,6 +90,23 @@ const Watchlists = (() => {
     return membership.get(String(ticker ?? '').toUpperCase()) ?? new Set();
   }
 
+  function isInCalendar(ticker) {
+    return calendarTickers.has(String(ticker ?? '').toUpperCase());
+  }
+
+  function getEmailAlert(ticker) {
+    const t = String(ticker ?? '').toUpperCase();
+    if (emailAlerts.has(t)) {
+      return emailAlerts.get(t);
+    }
+    return {
+      enabled: false,
+      notifyEarnings: true,
+      notifyExdiv: true,
+      notifyPayout: true,
+    };
+  }
+
   function getList(listId) {
     return byId.get(Number(listId));
   }
@@ -88,6 +121,106 @@ const Watchlists = (() => {
     return new Set(list.tickers.map((item) => String(item.ticker).toUpperCase()));
   }
 
+  async function toggleCalendar(ticker, companyName) {
+    if (!userLogged) {
+      showToast?.('Inicia sesión para gestionar el calendario.');
+      window.openModal?.('login');
+      return;
+    }
+    ticker = String(ticker).toUpperCase();
+    if (typeof Portfolio !== 'undefined' && Portfolio.hasPosition?.(ticker)) {
+      showToast?.(`${ticker} está en tu cartera y siempre aparece en el calendario.`);
+      return;
+    }
+    const adding = !calendarTickers.has(ticker);
+    if (adding) calendarTickers.add(ticker);
+    else calendarTickers.delete(ticker);
+
+    emitChange();
+    if (popover) renderPopover();
+    window.dispatchEvent(new CustomEvent('portfolio:change'));
+
+    try {
+      if (adding) {
+        await api('/api/watchlists/calendar/items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker, companyName }),
+        });
+        showToast?.(`${ticker} añadida al calendario.`);
+      } else {
+        await api(`/api/watchlists/calendar/items/${encodeURIComponent(ticker)}`, { method: 'DELETE' });
+        showToast?.(`${ticker} quitada del calendario.`);
+      }
+      await refresh();
+      window.dispatchEvent(new CustomEvent('portfolio:change'));
+    } catch (error) {
+      await refresh();
+      showToast?.(error.message);
+    }
+  }
+
+  let emailAlertDebounceMap = new Map();
+  function saveEmailAlert(ticker, companyName, newAlert) {
+    if (!userLogged) {
+      showToast?.('Inicia sesión para configurar alertas por email.');
+      window.openModal?.('login');
+      return;
+    }
+    const t = String(ticker).toUpperCase();
+    emailAlerts.set(t, newAlert);
+    emitChange();
+    if (popover) renderPopover();
+
+    if (emailAlertDebounceMap.has(t)) {
+      clearTimeout(emailAlertDebounceMap.get(t));
+    }
+    const timer = setTimeout(async () => {
+      emailAlertDebounceMap.delete(t);
+      try {
+        await api('/api/watchlists/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticker: t,
+            companyName,
+            enabled: newAlert.enabled,
+            notifyEarnings: newAlert.notifyEarnings,
+            notifyExdiv: newAlert.notifyExdiv,
+            notifyPayout: newAlert.notifyPayout,
+          }),
+        });
+      } catch (error) {
+        console.error('Error al guardar alertas:', error);
+      }
+    }, 250);
+    emailAlertDebounceMap.set(t, timer);
+  }
+
+  async function toggleEmailMain(ticker, companyName) {
+    const current = getEmailAlert(ticker);
+    const newEnabled = !current.enabled;
+    const allSubsOff = !current.notifyEarnings && !current.notifyExdiv && !current.notifyPayout;
+    const newAlert = {
+      enabled: newEnabled,
+      notifyEarnings: newEnabled ? (allSubsOff ? true : current.notifyEarnings) : current.notifyEarnings,
+      notifyExdiv: newEnabled ? (allSubsOff ? true : current.notifyExdiv) : current.notifyExdiv,
+      notifyPayout: newEnabled ? (allSubsOff ? true : current.notifyPayout) : current.notifyPayout,
+    };
+    saveEmailAlert(ticker, companyName, newAlert);
+  }
+
+  async function toggleEmailSub(ticker, companyName, subType) {
+    const current = getEmailAlert(ticker);
+    const newAlert = { ...current };
+    if (subType === 'earnings') newAlert.notifyEarnings = !newAlert.notifyEarnings;
+    if (subType === 'exdiv') newAlert.notifyExdiv = !newAlert.notifyExdiv;
+    if (subType === 'payout') newAlert.notifyPayout = !newAlert.notifyPayout;
+
+    newAlert.enabled = Boolean(newAlert.notifyEarnings || newAlert.notifyExdiv || newAlert.notifyPayout);
+    saveEmailAlert(ticker, companyName, newAlert);
+  }
+
   async function toggle(listId, ticker, companyName) {
     if (!userLogged) {
       showToast?.('Inicia sesión para guardar acciones en listas de seguimiento.');
@@ -99,8 +232,24 @@ const Watchlists = (() => {
     const ids = listsContaining(ticker);
     const adding = !ids.has(listId);
 
-    if (adding) ids.add(listId);
-    else ids.delete(listId);
+    if (adding) {
+      ids.add(listId);
+      // Al añadir a cualquier lista, por defecto se activa el calendario
+      if (!calendarTickers.has(ticker)) {
+        calendarTickers.add(ticker);
+      }
+      // Y por defecto se activan las alertas por email con las 3 subcasillas
+      if (!emailAlerts.has(ticker)) {
+        emailAlerts.set(ticker, {
+          enabled: true,
+          notifyEarnings: true,
+          notifyExdiv: true,
+          notifyPayout: true,
+        });
+      }
+    } else {
+      ids.delete(listId);
+    }
     emitChange();
     if (popover) renderPopover();
 
@@ -114,8 +263,8 @@ const Watchlists = (() => {
       } else {
         await api(`/api/watchlists/${listId}/items/${encodeURIComponent(ticker)}`, { method: 'DELETE' });
       }
-      showToast?.(adding ? `${ticker} añadida a la lista.` : `${ticker} quitada de la lista.`);
       await refresh();
+      window.dispatchEvent(new CustomEvent('portfolio:change'));
     } catch (error) {
       await refresh();
       showToast?.(error.message);
@@ -123,6 +272,112 @@ const Watchlists = (() => {
   }
 
   /* ── Popover ─────────────────────────────────────────────── */
+
+  function attachPopoverEvents() {
+    if (!popover) return;
+
+    popover.addEventListener('click', (event) => {
+      if (!openContext) return;
+      const { ticker, companyName } = openContext;
+
+      if (event.target.closest('.watch-popover-close')) {
+        close();
+        return;
+      }
+      const calRow = event.target.closest('[data-action="toggle-calendar"]');
+      if (calRow) {
+        toggleCalendar(ticker, companyName);
+        return;
+      }
+      const emailMain = event.target.closest('[data-action="toggle-email-main"]');
+      if (emailMain) {
+        toggleEmailMain(ticker, companyName);
+        return;
+      }
+      const subEarn = event.target.closest('[data-action="toggle-sub-earnings"]');
+      if (subEarn) {
+        toggleEmailSub(ticker, companyName, 'earnings');
+        return;
+      }
+      const subEx = event.target.closest('[data-action="toggle-sub-exdiv"]');
+      if (subEx) {
+        toggleEmailSub(ticker, companyName, 'exdiv');
+        return;
+      }
+      const subPay = event.target.closest('[data-action="toggle-sub-payout"]');
+      if (subPay) {
+        toggleEmailSub(ticker, companyName, 'payout');
+        return;
+      }
+      const deleteButton = event.target.closest('.watch-popover-delete');
+      if (deleteButton) {
+        handleDelete(deleteButton);
+        return;
+      }
+      const row = event.target.closest('.watch-popover-row');
+      if (row && !event.target.closest('button')) toggle(row.dataset.listId, ticker, companyName);
+    });
+
+    popover.addEventListener('keydown', (event) => {
+      if (!openContext) return;
+      const { ticker, companyName } = openContext;
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        const calRow = event.target.closest('[data-action="toggle-calendar"]');
+        if (calRow) {
+          event.preventDefault();
+          toggleCalendar(ticker, companyName);
+          return;
+        }
+        const emailMain = event.target.closest('[data-action="toggle-email-main"]');
+        if (emailMain) {
+          event.preventDefault();
+          toggleEmailMain(ticker, companyName);
+          return;
+        }
+        const subEarn = event.target.closest('[data-action="toggle-sub-earnings"]');
+        if (subEarn) {
+          event.preventDefault();
+          toggleEmailSub(ticker, companyName, 'earnings');
+          return;
+        }
+        const subEx = event.target.closest('[data-action="toggle-sub-exdiv"]');
+        if (subEx) {
+          event.preventDefault();
+          toggleEmailSub(ticker, companyName, 'exdiv');
+          return;
+        }
+        const subPay = event.target.closest('[data-action="toggle-sub-payout"]');
+        if (subPay) {
+          event.preventDefault();
+          toggleEmailSub(ticker, companyName, 'payout');
+          return;
+        }
+        const row = event.target.closest('.watch-popover-row');
+        if (row && !event.target.closest('button')) {
+          event.preventDefault();
+          toggle(row.dataset.listId, ticker, companyName);
+        }
+      }
+    });
+
+    popover.addEventListener('submit', (event) => {
+      const form = event.target.closest('.watch-popover-create');
+      if (form) {
+        event.preventDefault();
+        const input = form.querySelector('.watch-popover-create-input');
+        if (input) handleCreate(input);
+      }
+    });
+
+    popover.addEventListener('input', (event) => {
+      const input = event.target.closest('.watch-popover-create-input');
+      if (input) {
+        const createButton = popover.querySelector('.watch-popover-create-btn');
+        if (createButton) createButton.disabled = !input.value.trim();
+      }
+    });
+  }
 
   function open(anchor, ticker, companyName) {
     if (!userLogged) {
@@ -135,7 +390,8 @@ const Watchlists = (() => {
     popover = document.createElement('div');
     popover.className = 'watch-popover';
     popover.setAttribute('role', 'dialog');
-    popover.setAttribute('aria-label', 'Listas de seguimiento');
+    popover.setAttribute('aria-label', 'Listas y Notificaciones');
+    attachPopoverEvents();
     document.body.appendChild(popover);
     renderPopover();
     positionPopover();
@@ -188,6 +444,7 @@ const Watchlists = (() => {
     if (!popover || !openContext) return;
     const listContainer = popover.querySelector('.watch-popover-list');
     const previousScrollTop = listContainer?.scrollTop ?? 0;
+    const previousInputValue = popover.querySelector('.watch-popover-create-input')?.value ?? '';
     const { ticker, companyName } = openContext;
     const inListIds = listsContaining(ticker);
     const rows = lists.map((list) => {
@@ -205,16 +462,60 @@ const Watchlists = (() => {
         </div>`;
     }).join('');
 
+    const isHeld = typeof Portfolio !== 'undefined' && Boolean(Portfolio.hasPosition?.(ticker));
+    const inCal = isHeld || isInCalendar(ticker);
+    const alertSettings = getEmailAlert(ticker);
+
     popover.innerHTML = `
       <div class="watch-popover-head">
         <div>
-          <strong>Listas de seguimiento</strong>
+          <strong>Listas y Notificaciones</strong>
           <span class="watch-popover-sub">${escapeHtml(ticker)}${companyName ? ` · ${escapeHtml(companyName)}` : ''}</span>
         </div>
         <button class="watch-popover-close" type="button" aria-label="Cerrar">×</button>
       </div>
       <div class="watch-popover-list">
         ${lists.length ? rows : '<div class="watch-popover-empty">Aún no tienes listas. Crea la primera abajo.</div>'}
+      </div>
+      <div class="watch-popover-calendar-section">
+        <div class="watch-popover-calendar-row ${inCal ? 'checked' : ''} ${isHeld ? 'locked' : ''}" data-action="toggle-calendar" role="button" tabindex="0" aria-pressed="${inCal}" ${isHeld ? 'aria-disabled="true" title="Esta empresa está en tu cartera y siempre aparece en el calendario"' : ''}>
+          <span class="watch-popover-check" aria-hidden="true">${inCal ? '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>' : ''}</span>
+          <div class="watch-popover-calendar-copy">
+            <span class="watch-popover-calendar-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+              ${isHeld ? 'Incluido en calendario' : 'Añadir a calendario'}
+              ${isHeld ? '<span class="watch-popover-cal-badge-held">💼 En Cartera</span>' : ''}
+            </span>
+            <small class="watch-popover-calendar-desc">${isHeld ? 'Activo automáticamente por estar en tu cartera' : 'Resultados trimestrales y dividendos'}</small>
+          </div>
+          ${isHeld ? '<span class="watch-popover-lock-icon" title="Bloqueado: Incluido por cartera">🔒</span>' : ''}
+        </div>
+      </div>
+      <div class="watch-popover-email-section">
+        <div class="watch-popover-email-main ${alertSettings.enabled ? 'checked' : ''}" data-action="toggle-email-main" role="button" tabindex="0" aria-pressed="${alertSettings.enabled}">
+          <span class="watch-popover-check" aria-hidden="true">${alertSettings.enabled ? '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>' : ''}</span>
+          <div class="watch-popover-calendar-copy">
+            <span class="watch-popover-calendar-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Avisos al email
+            </span>
+            <small class="watch-popover-calendar-desc">Notificaciones automáticas a tu correo</small>
+          </div>
+        </div>
+        <div class="watch-popover-email-subs ${alertSettings.enabled ? 'expanded' : 'collapsed'}">
+          <div class="watch-popover-sub-item ${alertSettings.notifyEarnings ? 'checked' : ''}" data-action="toggle-sub-earnings" role="checkbox" aria-checked="${alertSettings.notifyEarnings}" tabindex="0">
+            <span class="watch-popover-sub-check" aria-hidden="true">${alertSettings.notifyEarnings ? '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>' : ''}</span>
+            <span class="watch-popover-sub-label">📊 Resultados 10-Q / 10-K</span>
+          </div>
+          <div class="watch-popover-sub-item ${alertSettings.notifyExdiv ? 'checked' : ''}" data-action="toggle-sub-exdiv" role="checkbox" aria-checked="${alertSettings.notifyExdiv}" tabindex="0">
+            <span class="watch-popover-sub-check" aria-hidden="true">${alertSettings.notifyExdiv ? '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>' : ''}</span>
+            <span class="watch-popover-sub-label">⏳ Fecha Ex-Dividend (Corte)</span>
+          </div>
+          <div class="watch-popover-sub-item ${alertSettings.notifyPayout ? 'checked' : ''}" data-action="toggle-sub-payout" role="checkbox" aria-checked="${alertSettings.notifyPayout}" tabindex="0">
+            <span class="watch-popover-sub-check" aria-hidden="true">${alertSettings.notifyPayout ? '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>' : ''}</span>
+            <span class="watch-popover-sub-label">💰 Pago de Dividendos</span>
+          </div>
+        </div>
       </div>
       <form class="watch-popover-create" novalidate>
         <input class="watch-popover-create-input" type="text" maxlength="40" placeholder="Nueva lista..." aria-label="Nombre de la nueva lista">
@@ -225,35 +526,12 @@ const Watchlists = (() => {
     const newListContainer = popover.querySelector('.watch-popover-list');
     if (newListContainer && previousScrollTop) newListContainer.scrollTop = previousScrollTop;
 
-    popover.addEventListener('click', (event) => {
-      if (event.target.closest('.watch-popover-close')) {
-        close();
-        return;
-      }
-      const deleteButton = event.target.closest('.watch-popover-delete');
-      if (deleteButton) {
-        handleDelete(deleteButton);
-        return;
-      }
-      const row = event.target.closest('.watch-popover-row');
-      if (row && !event.target.closest('button')) toggle(row.dataset.listId, ticker, companyName);
-    });
-    popover.addEventListener('keydown', (event) => {
-      const row = event.target.closest('.watch-popover-row');
-      if (row && (event.key === 'Enter' || event.key === ' ')) {
-        event.preventDefault();
-        toggle(row.dataset.listId, ticker, companyName);
-      }
-    });
-
-    const form = popover.querySelector('.watch-popover-create');
-    const input = popover.querySelector('.watch-popover-create-input');
-    const createButton = popover.querySelector('.watch-popover-create-btn');
-    input.addEventListener('input', () => { createButton.disabled = !input.value.trim(); });
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      handleCreate(input);
-    });
+    if (previousInputValue) {
+      const input = popover.querySelector('.watch-popover-create-input');
+      const createButton = popover.querySelector('.watch-popover-create-btn');
+      if (input) input.value = previousInputValue;
+      if (createButton) createButton.disabled = !previousInputValue.trim();
+    }
   }
 
   async function handleCreate(input) {
@@ -638,6 +916,12 @@ const Watchlists = (() => {
     toggle,
     isInAnyList,
     listsContaining,
+    isInCalendar,
+    toggleCalendar,
+    getEmailAlert,
+    saveEmailAlert,
+    toggleEmailMain,
+    toggleEmailSub,
     listItems,
     getList,
     defaultList,

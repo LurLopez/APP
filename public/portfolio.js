@@ -38,7 +38,7 @@ const Portfolio = (() => {
   let chartCachedData = null;
   let chartRedrawRaf = null;
 
-  const COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0d9488', '#e11d48', '#65a30d', '#a16207', '#4b5563', '#0891b2', '#9333ea', '#ca8a04', '#64748b'];
+  const COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#e11d48', '#4f46e5', '#16a34a', '#ca8a04', '#9333ea', '#0d9488', '#ea580c', '#6366f1', '#64748b'];
 
   function emitChange() {
     window.dispatchEvent(new CustomEvent('portfolio:change'));
@@ -177,6 +177,11 @@ const Portfolio = (() => {
 
   function getPosition(ticker) {
     return (data?.positions ?? []).find((item) => item.ticker === String(ticker ?? '').toUpperCase()) ?? null;
+  }
+
+  function hasPosition(ticker) {
+    const pos = getPosition(ticker);
+    return Boolean(pos && Number(pos.shares) > 0);
   }
 
   function openSection() {
@@ -384,24 +389,61 @@ const Portfolio = (() => {
 
   /* ── Gráficos circulares ─────────────────────────────────── */
 
+  function describeAnnularSector(cx, cy, rInner, rOuter, startAngle, endAngle) {
+    const p1x = cx + rOuter * Math.cos(startAngle);
+    const p1y = cy + rOuter * Math.sin(startAngle);
+    const p2x = cx + rOuter * Math.cos(endAngle);
+    const p2y = cy + rOuter * Math.sin(endAngle);
+    const p3x = cx + rInner * Math.cos(endAngle);
+    const p3y = cy + rInner * Math.sin(endAngle);
+    const p4x = cx + rInner * Math.cos(startAngle);
+    const p4y = cy + rInner * Math.sin(startAngle);
+    const largeArc = (endAngle - startAngle > Math.PI) ? 1 : 0;
+    return `M ${p1x.toFixed(3)} ${p1y.toFixed(3)} A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${p2x.toFixed(3)} ${p2y.toFixed(3)} L ${p3x.toFixed(3)} ${p3y.toFixed(3)} A ${rInner} ${rInner} 0 ${largeArc} 0 ${p4x.toFixed(3)} ${p4y.toFixed(3)} Z`;
+  }
+
   function donutSvg(items, { className = 'pf-donut', ariaLabel = 'Distribución de la cartera' } = {}) {
-    const radius = 60;
-    const center = 80;
-    const circumference = 2 * Math.PI * radius;
-    let offset = 0;
-    const segments = items.map((item) => {
-      const fraction = Math.max(0, Math.min(1, (Number(item.percent) || 0) / 100));
-      const length = fraction * circumference;
-      const segment = `
-        <circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="${item.color}" style="stroke:${item.color}"
-          stroke-width="22"
-          stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}"
-          stroke-linecap="butt" transform="rotate(-90 ${center} ${center})"
-          data-label="${escapeHtml(item.label)}" data-pct="${escapeHtml(fmtPct(item.percent))}" data-amount="${escapeHtml(fmtMoney(item.amount ?? item.value))}">
-        </circle>`;
-      offset += length;
-      return segment;
+    const validItems = (items || []).filter((item) => {
+      const val = Number(item.percent ?? item.value ?? item.amount ?? 0);
+      return Number.isFinite(val) && val > 0;
     });
+
+    const total = validItems.reduce((sum, item) => sum + (Number(item.percent) || 0), 0);
+    if (!validItems.length || total <= 0) {
+      return `<svg class="${escapeHtml(className)}" viewBox="0 0 160 160" role="img" aria-label="${escapeHtml(ariaLabel)}">
+        <circle cx="80" cy="80" r="59.5" fill="none" stroke="#e2e8f0" stroke-width="23" />
+      </svg>`;
+    }
+
+    if (validItems.length === 1 || validItems.some((i) => (Number(i.percent) / total) >= 0.9999)) {
+      const single = validItems[0];
+      const segment = `
+        <circle class="pf-donut-slice" cx="80" cy="80" r="59.5" fill="none" stroke="${single.color}" stroke-width="23"
+          data-label="${escapeHtml(single.label || '')}" data-label-key="${escapeHtml(single.labelKey || single.label || '')}"
+          data-pct="100 %" data-amount="${escapeHtml(fmtMoney(single.amount ?? single.value))}">
+        </circle>`;
+      return `<svg class="${escapeHtml(className)}" viewBox="0 0 160 160" role="img" aria-label="${escapeHtml(ariaLabel)}">${segment}</svg>`;
+    }
+
+    const cx = 80;
+    const cy = 80;
+    const rInner = 48;
+    const rOuter = 71;
+    let curAngle = -Math.PI / 2;
+
+    const segments = validItems.map((item, idx) => {
+      const fraction = (Number(item.percent) || 0) / total;
+      const angleSpan = fraction * 2 * Math.PI;
+      const endAngle = (idx === validItems.length - 1) ? (-Math.PI / 2 + 2 * Math.PI) : (curAngle + angleSpan);
+      const d = describeAnnularSector(cx, cy, rInner, rOuter, curAngle, endAngle);
+      curAngle = endAngle;
+      return `
+        <path class="pf-donut-slice" d="${d}" fill="${item.color}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"
+          data-label="${escapeHtml(item.label || '')}" data-label-key="${escapeHtml(item.labelKey || item.label || '')}"
+          data-pct="${escapeHtml(fmtPct(fraction * 100))}" data-amount="${escapeHtml(fmtMoney(item.amount ?? item.value))}">
+        </path>`;
+    });
+
     return `<svg class="${escapeHtml(className)}" viewBox="0 0 160 160" role="img" aria-label="${escapeHtml(ariaLabel)}">${segments.join('')}</svg>`;
   }
 
@@ -457,11 +499,14 @@ const Portfolio = (() => {
   }
 
   function wireDonutTooltips(scope) {
-    scope?.querySelectorAll('circle[data-label]').forEach((segment) => {
+    scope?.querySelectorAll('.pf-donut-slice, circle[data-label], path[data-label]').forEach((segment) => {
       segment.addEventListener('mousemove', (event) => {
         const tip = ensureChartTooltip();
+        const color = (segment.getAttribute('fill') && segment.getAttribute('fill') !== 'none')
+          ? segment.getAttribute('fill')
+          : (segment.getAttribute('stroke') || segment.style.stroke || '#2563eb');
         tip.innerHTML = `
-          <span class="pf-chart-tooltip-dot" style="background:${segment.getAttribute('stroke')}"></span>
+          <span class="pf-chart-tooltip-dot" style="background:${color}"></span>
           <div>
             <strong>${segment.dataset.label}</strong>
             <small>${segment.dataset.pct} · ${segment.dataset.amount}</small>
@@ -470,6 +515,39 @@ const Portfolio = (() => {
         positionChartTooltip(tip, event.clientX, event.clientY);
       });
       segment.addEventListener('mouseleave', hideChartTooltip);
+    });
+  }
+
+  function wireAllocationHover(scope) {
+    const card = scope?.querySelector('.pf-allocation-card');
+    if (!card) return;
+    const slices = card.querySelectorAll('.pf-donut-slice');
+    const legendItems = card.querySelectorAll('.pf-allocation-legend-item');
+    const visual = card.querySelector('.pf-allocation-visual');
+    const legend = card.querySelector('.pf-allocation-legend');
+
+    function setActiveKey(key) {
+      if (!key) {
+        visual?.classList.remove('has-hover');
+        legend?.classList.remove('has-hover');
+        slices.forEach((el) => el.classList.remove('hovered'));
+        legendItems.forEach((el) => el.classList.remove('hovered'));
+        return;
+      }
+      visual?.classList.add('has-hover');
+      legend?.classList.add('has-hover');
+      slices.forEach((el) => el.classList.toggle('hovered', el.dataset.labelKey === key));
+      legendItems.forEach((el) => el.classList.toggle('hovered', el.dataset.labelKey === key));
+    }
+
+    slices.forEach((slice) => {
+      slice.addEventListener('mouseenter', () => setActiveKey(slice.dataset.labelKey));
+      slice.addEventListener('mouseleave', () => setActiveKey(null));
+    });
+
+    legendItems.forEach((item) => {
+      item.addEventListener('mouseenter', () => setActiveKey(item.dataset.labelKey));
+      item.addEventListener('mouseleave', () => setActiveKey(null));
     });
   }
 
@@ -562,7 +640,7 @@ const Portfolio = (() => {
     const basisLabel = allocationBasis === 'cost' ? 'Coste de la cartera' : 'Valor de la cartera';
     const colors = new Map(items.map((item, index) => [item.labelKey, COLORS[index % COLORS.length]]));
     const legend = items.map((item) => `
-      <li class="pf-allocation-legend-item">
+      <li class="pf-allocation-legend-item" data-label-key="${escapeHtml(item.labelKey)}">
         <span class="pf-allocation-swatch" style="background:${colors.get(item.labelKey)}"></span>
         <span class="pf-allocation-legend-label" title="${escapeHtml(item.label)}">${escapeHtml(item.label)}</span>
         <strong>${fmtPct(item.percent)}</strong>
@@ -3788,7 +3866,15 @@ const Portfolio = (() => {
   const WEEKDAYS_SHORT_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
   function getPortfolioCalendarEvents(targetYear, targetMonth) {
-    // 1. Obtener únicamente las posiciones activas de la cartera del usuario
+    // 1. Si el backend ya devolvió los eventos reales calculados (EDGAR SEC + Yahoo Finance)
+    if (data?.calendarEvents && Array.isArray(data.calendarEvents)) {
+      return data.calendarEvents.filter((e) =>
+        e.year === targetYear &&
+        e.month === targetMonth
+      );
+    }
+
+    // 2. Fallback en cliente: solo para empresas activas de la cartera y periodos oficiales (<= 2026)
     const userPositions = (data?.positions || []).filter((p) => Number(p.shares) > 0);
     if (!userPositions.length) {
       return [];
@@ -3796,16 +3882,6 @@ const Portfolio = (() => {
 
     const activeTickers = new Set(userPositions.map((p) => p.ticker.toUpperCase()));
 
-    // 2. Si el backend ya devolvió los eventos reales calculados (EDGAR SEC + Yahoo Finance)
-    if (data?.calendarEvents && Array.isArray(data.calendarEvents)) {
-      return data.calendarEvents.filter((e) =>
-        activeTickers.has(String(e.ticker).toUpperCase()) &&
-        e.year === targetYear &&
-        e.month === targetMonth
-      );
-    }
-
-    // 3. Fallback en cliente: solo para empresas activas de la cartera y periodos oficiales (<= 2026)
     if (targetYear > 2026 || targetYear < 2025) {
       return [];
     }
@@ -3858,6 +3934,8 @@ const Portfolio = (() => {
               day: entry.d,
               ticker: h.ticker,
               name: h.name,
+              isPortfolio: true,
+              shares: h.shares,
               color: '#2563eb',
               periodLabel: `Informe ${entry.q}T ${targetYear}`,
               timing,
@@ -3878,65 +3956,62 @@ const Portfolio = (() => {
 
     if (summaryCard && summaryCard.payments?.length > 0) {
       const validPayments = summaryCard.payments.filter((p) => activeTickers.has(p.ticker.toUpperCase()));
-      validPayments.forEach((p) => {
+      validPayments.forEach((p, idx) => {
         const h = getHoldingInfo(p.ticker);
-        const dayNum = Number(p.day) || 15;
-        const amount = Number(p.amount) || (h.ttm / 4);
-        const shares = Number(p.shares) || h.shares;
-        const perShare = Number(p.perShare) || (shares > 0 ? amount / shares : 0.45);
-        const isPast = targetYear < 2026 || (targetYear === 2026 && (targetMonth < 7 || (targetMonth === 7 && dayNum <= 30)));
+        const day = ((idx * 7 + 5) % 28) + 1;
+        const isPast = targetMonth < 7 || (targetMonth === 7 && day <= 30);
+        const totalAmount = Number(p.amount) || (h.shares * 0.45);
+        const perShare = h.shares > 0 ? (totalAmount / h.shares) : 0.45;
 
+        // Evento pago
         events.push({
-          id: `payout-${p.ticker}-${targetYear}-${targetMonth}-${dayNum}`,
+          id: `payout-${h.ticker}-${targetYear}-${targetMonth}-${day}`,
           type: 'payout',
           typeName: 'Pago de dividendo',
           typeBadge: 'Dividendo',
-          dateStr: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`,
+          dateStr: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
           year: targetYear,
           month: targetMonth,
-          day: dayNum,
-          ticker: p.ticker,
-          name: p.name || h.name,
-          color: '#059669',
-          amount,
+          day,
+          ticker: h.ticker,
+          name: h.name,
+          isPortfolio: true,
+          shares: h.shares,
+          color: h.color,
+          amount: totalAmount,
           perShare,
-          shares,
           status: isPast ? 'Cobrado' : 'Confirmado',
-          details: `Abono de dividendos en cuenta: ${fmtEur(amount)} (${shares} acc. × ${fmtEur(perShare)}/acc.)`,
+          details: `Abono de ${fmtEur(totalAmount)} (${h.shares} acc. × ${fmtEur(perShare)}/acc.) en cuenta de valores.`,
         });
 
-        let exDay = dayNum - 14;
-        if (exDay < 1) {
-          exDay = Math.max(1, (dayNum + 10) % 28 + 1);
+        // Evento ex-date (~14 días antes)
+        if (day > 14) {
+          const exDay = day - 14;
+          const isExPast = targetMonth < 7 || (targetMonth === 7 && exDay <= 30);
+          events.push({
+            id: `exdiv-${h.ticker}-${targetYear}-${targetMonth}-${exDay}`,
+            type: 'exdiv',
+            typeName: 'Fecha Ex-Dividend',
+            typeBadge: 'Ex-Fecha',
+            dateStr: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(exDay).padStart(2, '0')}`,
+            year: targetYear,
+            month: targetMonth,
+            day: exDay,
+            ticker: h.ticker,
+            name: h.name,
+            isPortfolio: true,
+            shares: h.shares,
+            color: '#d97706',
+            amount: totalAmount,
+            perShare,
+            status: isExPast ? 'Ejecutado' : 'Anunciado',
+            details: `Fecha de corte oficial para el dividendo de ${fmtEur(totalAmount)} (${fmtEur(perShare)}/acc.).`,
+          });
         }
-
-        events.push({
-          id: `exdiv-${p.ticker}-${targetYear}-${targetMonth}-${exDay}`,
-          type: 'exdiv',
-          typeName: 'Fecha Ex-Dividend',
-          typeBadge: 'Ex-Fecha',
-          dateStr: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(exDay).padStart(2, '0')}`,
-          year: targetYear,
-          month: targetMonth,
-          day: exDay,
-          ticker: p.ticker,
-          name: p.name || h.name,
-          color: '#d97706',
-          amount,
-          perShare,
-          shares,
-          status: isPast ? 'Ejecutado' : 'Próximo',
-          details: `Fecha límite de corte con derecho a cobro del dividendo de ${fmtEur(amount)} (${fmtEur(perShare)}/acc.).`,
-        });
       });
     }
 
-    events.sort((a, b) => {
-      if (a.day !== b.day) return a.day - b.day;
-      const typeOrder = { earnings: 1, exdiv: 2, payout: 3 };
-      return (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
-    });
-
+    events.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
     return events;
   }
 
@@ -4098,12 +4173,17 @@ const Portfolio = (() => {
         const chipsHtml = visibleChips.map((e) => {
           let badgeLabel = '';
           if (e.type === 'earnings') badgeLabel = '10-Q';
-          else if (e.type === 'exdiv') badgeLabel = 'Ex-Div';
-          else badgeLabel = fmtEur(e.amount);
+          else if (e.type === 'exdiv') badgeLabel = e.isPortfolio ? 'Ex-Div' : `${fmtEur(e.perShare)}/acc.`;
+          else badgeLabel = e.isPortfolio ? fmtEur(e.amount) : `${fmtEur(e.perShare)}/acc.`;
+
+          const pfIndicator = e.isPortfolio
+            ? '<span class="pf-cal-chip-origin-icon portfolio" title="Posición en cartera">💼</span>'
+            : '<span class="pf-cal-chip-origin-icon watchlist" title="En seguimiento">👁️</span>';
 
           return `
-            <div class="pf-cal-chip chip-${e.type}" data-cal-event-id="${escapeHtml(e.id)}" title="${escapeHtml(e.name)}: ${escapeHtml(e.typeName)}">
+            <div class="pf-cal-chip chip-${e.type} ${e.isPortfolio ? 'chip-is-portfolio' : 'chip-is-watchlist'}" data-cal-event-id="${escapeHtml(e.id)}" title="${escapeHtml(e.name)}: ${escapeHtml(e.typeName)} (${e.isPortfolio ? 'En Cartera' : 'Seguimiento'})">
               <span class="pf-cal-chip-dot" style="background-color:${e.color};"></span>
+              ${pfIndicator}
               <strong class="pf-cal-chip-ticker">${escapeHtml(e.ticker)}</strong>
               <span class="pf-cal-chip-label">${badgeLabel}</span>
             </div>`;
@@ -4152,7 +4232,7 @@ const Portfolio = (() => {
         <div class="pf-cal-empty-state">
           <div class="pf-cal-empty-icon">📅</div>
           <h4>Sin eventos anunciados oficialmente</h4>
-          <p>Las compañías de tu cartera aún no han publicado las convocatorias oficiales de resultados ni las declaraciones de dividendos para ${MONTH_NAMES_ES[calendarMonth]} de ${calendarYear}.</p>
+          <p>Las compañías de tu cartera y seguimiento aún no han publicado convocatorias oficiales para ${MONTH_NAMES_ES[calendarMonth]} de ${calendarYear}.</p>
         </div>`;
     }
 
@@ -4173,12 +4253,15 @@ const Portfolio = (() => {
         let eventBadgeText = '';
         let eventDetailSub = '';
         let quickActionsHtml = '';
-
         if (e.type === 'earnings') {
           eventBadgeClass = 'badge-earnings';
           eventBadgeText = '📊 Resultados 10-Q';
           eventDetailSub = `${e.periodLabel} · ${e.timing}`;
           quickActionsHtml = `
+            ${e.documentUrl ? `
+              <button class="pf-outline-button pf-cal-item-btn" type="button" data-cal-preview-doc="${escapeHtml(e.documentUrl)}" data-cal-preview-name="${escapeHtml(e.name + ' · ' + (e.periodLabel || '10-Q'))}" title="Vista previa del informe oficial">
+                👁️ Vista previa
+              </button>` : ''}
             <button class="pf-cal-btn-trigger-ai" type="button" data-cal-list-analyze="${escapeHtml(e.ticker)}" data-cal-accession="${escapeHtml(e.accession || '')}" title="Analizar resultados con IA">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
               <span>Analizar IA</span>
@@ -4187,21 +4270,30 @@ const Portfolio = (() => {
         } else if (e.type === 'exdiv') {
           eventBadgeClass = 'badge-exdiv';
           eventBadgeText = '⏳ Ex-Dividend';
-          eventDetailSub = `Corte para dividendo de ${fmtEur(e.amount)} (${fmtEur(e.perShare)}/acc.)`;
+          eventDetailSub = e.isPortfolio
+            ? `Corte para dividendo de ${fmtEur(e.amount)} (${fmtEur(e.perShare)}/acc. × ${e.shares} acc.)`
+            : `Fecha de corte oficial para dividendo anunciado de ${fmtEur(e.perShare)}/acc.`;
         } else {
           eventBadgeClass = 'badge-payout';
           eventBadgeText = '💰 Pago de Dividendo';
-          eventDetailSub = `Abono de ${fmtEur(e.amount)} (${e.shares} acc. × ${fmtEur(e.perShare)}/acc.)`;
+          eventDetailSub = e.isPortfolio
+            ? `Abono de ${fmtEur(e.amount)} (${e.shares} acc. × ${fmtEur(e.perShare)}/acc.)`
+            : `Pago anunciado de dividendo de ${fmtEur(e.perShare)}/acc.`;
         }
 
+        const sourceBadgeHtml = e.isPortfolio
+          ? `<span class="pf-cal-source-badge portfolio" title="Posición en tu cartera"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg> Cartera (${e.shares} acc.)</span>`
+          : `<span class="pf-cal-source-badge watchlist" title="Empresa en seguimiento"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg> Seguimiento</span>`;
+
         return `
-          <div class="pf-cal-list-item" data-cal-event-id="${escapeHtml(e.id)}">
+          <div class="pf-cal-list-item ${e.isPortfolio ? 'item-portfolio' : 'item-watchlist'}" data-cal-event-id="${escapeHtml(e.id)}">
             <div class="pf-cal-item-left">
               ${portfolioLogoHtml({ ticker: e.ticker, companyName: e.name })}
               <div class="pf-cal-item-info">
                 <div class="pf-cal-item-name-row">
                   <strong>${escapeHtml(e.name)}</strong>
                   <span class="pf-cal-item-ticker">${escapeHtml(e.ticker)}</span>
+                  ${sourceBadgeHtml}
                 </div>
                 <div class="pf-cal-item-desc">${escapeHtml(eventDetailSub)}</div>
               </div>
@@ -4245,31 +4337,27 @@ const Portfolio = (() => {
     const sales = metrics.sales?.current ? `${formatNumber(metrics.sales.current)} M$` : '—';
     const salesGrowth = metrics.sales?.growthPct !== undefined && metrics.sales?.growthPct !== null ? `${metrics.sales.growthPct > 0 ? '+' : ''}${metrics.sales.growthPct}%` : '';
     const grossMargin = metrics.grossMargin?.current !== undefined ? `${metrics.grossMargin.current}%` : '—';
-    const operatingMargin = metrics.operatingMargin?.current !== undefined ? `${metrics.operatingMargin.current}%` : '—';
     const netIncome = metrics.netIncome?.current ? `${formatNumber(metrics.netIncome.current)} M$` : '—';
-    const netGrowth = metrics.netIncome?.growthPct !== undefined && metrics.netIncome?.growthPct !== null ? `${metrics.netIncome.growthPct > 0 ? '+' : ''}${metrics.netIncome.growthPct}%` : '';
+    const fcf = metrics.fcf?.current ? `${formatNumber(metrics.fcf.current)} M$` : '—';
 
     return `
-      <div class="pf-cal-ai-kpis-grid">
-        <div class="pf-cal-ai-kpi">
-          <span class="pf-cal-ai-kpi-lbl">Ingresos / Ventas</span>
-          <strong class="pf-cal-ai-kpi-val">${sales}</strong>
-          ${salesGrowth ? `<small class="pf-cal-ai-kpi-badge ${salesGrowth.startsWith('+') ? 'positive' : 'negative'}">${salesGrowth} YoY</small>` : ''}
+      <div class="pf-cal-ai-metrics-grid">
+        <div class="pf-cal-ai-metric-cell">
+          <span class="pf-cal-ai-metric-label">Ingresos</span>
+          <span class="pf-cal-ai-metric-val">${sales}</span>
+          ${salesGrowth ? `<span class="pf-cal-ai-metric-growth ${metrics.sales?.growthPct >= 0 ? 'growth-pos' : 'growth-neg'}">${salesGrowth}</span>` : ''}
         </div>
-        <div class="pf-cal-ai-kpi">
-          <span class="pf-cal-ai-kpi-lbl">Margen Bruto</span>
-          <strong class="pf-cal-ai-kpi-val">${grossMargin}</strong>
-          <small class="pf-cal-ai-kpi-sub">Rentabilidad bruta</small>
+        <div class="pf-cal-ai-metric-cell">
+          <span class="pf-cal-ai-metric-label">Margen Bruto</span>
+          <span class="pf-cal-ai-metric-val">${grossMargin}</span>
         </div>
-        <div class="pf-cal-ai-kpi">
-          <span class="pf-cal-ai-kpi-lbl">Margen Operativo</span>
-          <strong class="pf-cal-ai-kpi-val">${operatingMargin}</strong>
-          <small class="pf-cal-ai-kpi-sub">EBIT / Ventas</small>
+        <div class="pf-cal-ai-metric-cell">
+          <span class="pf-cal-ai-metric-label">Beneficio Neto</span>
+          <span class="pf-cal-ai-metric-val">${netIncome}</span>
         </div>
-        <div class="pf-cal-ai-kpi">
-          <span class="pf-cal-ai-kpi-lbl">Beneficio Neto</span>
-          <strong class="pf-cal-ai-kpi-val">${netIncome}</strong>
-          ${netGrowth ? `<small class="pf-cal-ai-kpi-badge ${netGrowth.startsWith('+') ? 'positive' : 'negative'}">${netGrowth} YoY</small>` : ''}
+        <div class="pf-cal-ai-metric-cell">
+          <span class="pf-cal-ai-metric-label">Flujo de Caja Libre</span>
+          <span class="pf-cal-ai-metric-val">${fcf}</span>
         </div>
       </div>
     `;
@@ -4297,6 +4385,10 @@ const Portfolio = (() => {
     let metricRowsHtml = '';
     let aiSectionHtml = '';
 
+    const originBadgeHtml = e.isPortfolio
+      ? `<span class="pf-cal-modal-origin-pill portfolio"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg> Empresa en cartera (${formatNumber(e.shares, { maximumFractionDigits: 2 })} acciones)</span>`
+      : `<span class="pf-cal-modal-origin-pill watchlist"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg> Empresa en seguimiento (Calendario)</span>`;
+
     if (e.type === 'earnings') {
       modalTitle = `Resultados Empresariales · ${e.name} (${e.ticker})`;
       modalDesc = `Presentación oficial del informe de resultados correspondiente al ${e.periodLabel}.`;
@@ -4316,6 +4408,10 @@ const Portfolio = (() => {
         <div class="pf-cal-modal-row">
           <span>Estado</span>
           <span class="pf-cal-status-pill ${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Origen</span>
+          ${originBadgeHtml}
         </div>
       `;
 
@@ -4346,7 +4442,11 @@ const Portfolio = (() => {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                   Descargar PDF del análisis
                 </a>` : ''}
-              <a class="pf-cal-btn-analyzer" href="/?analizar=${encodeURIComponent(e.ticker)}&accession=${encodeURIComponent(e.accession || '')}">
+              ${e.documentUrl ? `
+                <button class="pf-outline-button pf-cal-btn-edgar" type="button" data-cal-preview-doc="${escapeHtml(e.documentUrl)}" data-cal-preview-name="${escapeHtml(e.name + ' · ' + e.periodLabel)}">
+                  👁️ Vista previa del informe
+                </button>` : ''}
+              <a class="pf-cal-btn-analyzer" href="/analisis?analizar=${encodeURIComponent(e.ticker)}&accession=${encodeURIComponent(e.accession || '')}">
                 ⚡ Abrir en analizador interactivo
               </a>
             </div>
@@ -4367,8 +4467,11 @@ const Portfolio = (() => {
                 <span>Analizar informe con IA</span>
               </button>
               ${e.documentUrl ? `
+                <button class="pf-outline-button pf-cal-btn-edgar" type="button" data-cal-preview-doc="${escapeHtml(e.documentUrl)}" data-cal-preview-name="${escapeHtml(e.name + ' · ' + e.periodLabel)}">
+                  👁️ Vista previa del informe
+                </button>
                 <a class="pf-outline-button pf-cal-btn-edgar" href="${escapeHtml(e.documentUrl)}" target="_blank" rel="noopener">
-                  📄 Ver documento SEC EDGAR ↗
+                  Abrir documento ↗
                 </a>` : ''}
             </div>
           </div>
@@ -4377,7 +4480,7 @@ const Portfolio = (() => {
     } else if (e.type === 'exdiv') {
       modalTitle = `Fecha Ex-Dividend (Corte) · ${e.name} (${e.ticker})`;
       modalDesc = `Último día hábil para comprar o mantener acciones con derecho a percibir el dividendo próximo.`;
-      metricRowsHtml = `
+      metricRowsHtml = e.isPortfolio ? `
         <div class="pf-cal-modal-row">
           <span>Importe por acción</span>
           <strong>${fmtEur(e.perShare)}</strong>
@@ -4394,11 +4497,32 @@ const Portfolio = (() => {
           <span>Estado</span>
           <span class="pf-cal-status-pill ${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
         </div>
+        <div class="pf-cal-modal-row">
+          <span>Origen</span>
+          ${originBadgeHtml}
+        </div>
+      ` : `
+        <div class="pf-cal-modal-row">
+          <span>Importe por acción</span>
+          <strong class="text-amber font-large">${fmtEur(e.perShare)}</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Posición en cartera</span>
+          <span class="pf-cal-modal-unheld">Sin posición actual (En seguimiento)</span>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Estado</span>
+          <span class="pf-cal-status-pill ${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Origen</span>
+          ${originBadgeHtml}
+        </div>
       `;
     } else {
       modalTitle = `Pago de Dividendos · ${e.name} (${e.ticker})`;
       modalDesc = `Abono de dividendos en efectivo transferido a la cuenta de valores.`;
-      metricRowsHtml = `
+      metricRowsHtml = e.isPortfolio ? `
         <div class="pf-cal-modal-row">
           <span>Importe bruto a percibir</span>
           <strong class="text-emerald font-large">${fmtEur(e.amount)}</strong>
@@ -4414,6 +4538,27 @@ const Portfolio = (() => {
         <div class="pf-cal-modal-row">
           <span>Estado del pago</span>
           <span class="pf-cal-status-pill ${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Origen</span>
+          ${originBadgeHtml}
+        </div>
+      ` : `
+        <div class="pf-cal-modal-row">
+          <span>Dividendo por acción</span>
+          <strong class="text-emerald font-large">${fmtEur(e.perShare)}</strong>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Posición registrada</span>
+          <span class="pf-cal-modal-unheld">Sin acciones en cartera (En seguimiento)</span>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Estado del pago</span>
+          <span class="pf-cal-status-pill ${e.status.toLowerCase()}">${escapeHtml(e.status)}</span>
+        </div>
+        <div class="pf-cal-modal-row">
+          <span>Origen</span>
+          ${originBadgeHtml}
         </div>
       `;
     }
@@ -4446,6 +4591,75 @@ const Portfolio = (() => {
           </div>
         </div>
       </div>`;
+  }
+
+  let calPreviewLoadTimeout = null;
+
+  function openCalendarFilingPreview(url, name) {
+    if (!url) return;
+    const backdrop = document.querySelector('#filings-preview-backdrop');
+    if (!backdrop) {
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    const title = document.querySelector('#filings-preview-title');
+    const loading = document.querySelector('#filings-preview-loading');
+    const pages = document.querySelector('#filings-preview-pages');
+    const openLink = document.querySelector('#filings-preview-open');
+
+    clearTimeout(calPreviewLoadTimeout);
+    if (title) title.textContent = `Vista previa · ${name || 'Informe'}`;
+    if (openLink) openLink.href = url;
+    if (pages) {
+      pages.hidden = true;
+      pages.innerHTML = '';
+    }
+    if (loading) {
+      loading.hidden = false;
+      loading.textContent = 'Generando páginas del documento…';
+    }
+    backdrop.hidden = false;
+    document.body.style.overflow = 'hidden';
+
+    calPreviewLoadTimeout = setTimeout(() => {
+      if (loading && !loading.hidden) {
+        loading.textContent = 'La vista previa tarda demasiado. Puedes abrir el documento en una pestaña nueva.';
+      }
+    }, 30000);
+
+    const previewUrl = url.replace(/\/document$/, '/preview');
+    fetch(previewUrl)
+      .then((response) => response.json().catch(() => ({})))
+      .then((data) => {
+        clearTimeout(calPreviewLoadTimeout);
+        if (!data || data.ok !== true || !data.pages) {
+          if (loading) loading.textContent = 'No se pudo generar la vista previa. Abre el documento en una pestaña nueva.';
+          return;
+        }
+        if (loading) loading.hidden = true;
+        const pageWord = data.pages === 1 ? 'página' : 'páginas';
+        if (title) title.textContent = `Vista previa · ${name || 'Informe'} · ${data.pages} ${pageWord}`;
+        const base = previewUrl.replace(/\/preview$/, '/preview/pages');
+        if (pages) {
+          pages.innerHTML = Array.from({ length: data.pages }, (_, index) => (
+            `<img src="${base}/${index + 1}" alt="Página ${index + 1}" loading="lazy">`
+          )).join('');
+          pages.hidden = false;
+        }
+      })
+      .catch(() => {
+        clearTimeout(calPreviewLoadTimeout);
+        if (loading) loading.textContent = 'No se pudo conectar con el servidor. Abre el documento en una pestaña nueva.';
+      });
+  }
+
+  function closeCalendarFilingPreview() {
+    clearTimeout(calPreviewLoadTimeout);
+    const backdrop = document.querySelector('#filings-preview-backdrop');
+    if (backdrop) backdrop.hidden = true;
+    const pages = document.querySelector('#filings-preview-pages');
+    if (pages) pages.innerHTML = '';
+    document.body.style.overflow = '';
   }
 
   async function runCalendarFilingAnalysis(ticker, accession) {
@@ -4542,7 +4756,7 @@ const Portfolio = (() => {
     // Clic en evento (abrir modal)
     scope.querySelectorAll('[data-cal-event-id]').forEach((el) => {
       el.addEventListener('click', (ev) => {
-        if (ev.target.closest('[data-cal-goto]') || ev.target.closest('[data-cal-list-analyze]')) return;
+        if (ev.target.closest('[data-cal-goto]') || ev.target.closest('[data-cal-list-analyze]') || ev.target.closest('[data-cal-preview-doc]')) return;
         const id = el.dataset.calEventId;
         const allEvents = getPortfolioCalendarEvents(calendarYear, calendarMonth);
         const match = allEvents.find((x) => x.id === id);
@@ -4553,6 +4767,16 @@ const Portfolio = (() => {
           calendarAiError = null;
           renderSection();
         }
+      });
+    });
+
+    // Vista previa de informe desde el calendario
+    scope.querySelectorAll('[data-cal-preview-doc]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const docUrl = btn.dataset.calPreviewDoc;
+        const name = btn.dataset.calPreviewName;
+        openCalendarFilingPreview(docUrl, name);
       });
     });
 
@@ -4611,6 +4835,24 @@ const Portfolio = (() => {
         const ticker = btn.dataset.calGoto;
         if (ticker) sectionOptions.onNavigate?.(ticker);
       });
+    });
+
+    // Eventos de cierre del visor de vista previa
+    const previewCloseBtn = document.querySelector('#filings-preview-close');
+    if (previewCloseBtn) {
+      previewCloseBtn.onclick = closeCalendarFilingPreview;
+    }
+    const previewBackdrop = document.querySelector('#filings-preview-backdrop');
+    if (previewBackdrop) {
+      previewBackdrop.onclick = (event) => {
+        if (event.target === previewBackdrop) closeCalendarFilingPreview();
+      };
+    }
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        const bd = document.querySelector('#filings-preview-backdrop');
+        if (bd && !bd.hidden) closeCalendarFilingPreview();
+      }
     });
   }
 
@@ -4781,9 +5023,17 @@ const Portfolio = (() => {
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 1 0 2-4.9L3 7"/><path d="M3 3v4h4"/></svg>
             </button>
           </div>
+          <button class="pf-outline-button pf-measure-tool-btn" type="button" data-pf-chart-measure title="Regla / Cuadrícula de medición (clic y arrastrar en el gráfico, o clic derecho)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.3 15.3 8.7 2.7a2.41 2.41 0 0 0-3.4 0L2.7 5.3a2.41 2.41 0 0 0 0 3.4l12.6 12.6a2.41 2.41 0 0 0 3.4 0l2.6-2.6a2.41 2.41 0 0 0 0-3.4Z"/><path d="m14.5 5.5 2 2M11.5 8.5l2 2M8.5 11.5l2 2M5.5 14.5l2 2"/></svg>
+            <span>Medir</span>
+          </button>
           <button class="pf-outline-button pf-chart-picker-btn" type="button" data-pf-chart-picker aria-expanded="false">
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"></rect><rect x="11" y="3" width="6" height="6" rx="1"></rect><rect x="11" y="11" width="6" height="6" rx="1"></rect><rect x="3" y="11" width="6" height="6" rx="1"></rect></svg>
             <span>Elementos (${selected.size})</span>
+          </button>
+          <button class="pf-outline-button pf-chart-fullscreen-btn" type="button" data-pf-chart-fullscreen title="Pantalla completa (F o clic)" aria-label="Pantalla completa">
+            <svg class="pf-icon-maximize" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V3h4M17 7V3h-4M3 13v4h4M17 13v4h-4"/></svg>
+            <svg class="pf-icon-minimize" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none"><path d="M7 3v4H3M13 3v4h4M7 17v-4H3M13 17v-4h4"/></svg>
           </button>
           <button class="pf-outline-button pf-chart-close-btn" type="button" data-pf-chart-close title="Ocultar gráfico" aria-label="Cerrar gráfico">×</button>
         </div>
@@ -4842,6 +5092,53 @@ const Portfolio = (() => {
     else if (fraction <= 5) niceFraction = 5;
     else niceFraction = 10;
     return niceFraction * Math.pow(10, exponent);
+  }
+
+  function computeChartScale(values, isCenteredMetric, metric) {
+    if (!values || !values.length) {
+      return { min: -10, max: 10, ticks: [-10, -5, 0, 5, 10], step: 5 };
+    }
+    if (isCenteredMetric) {
+      const maxAbs = Math.max(...values.map((v) => Math.abs(v)), 0);
+      if (maxAbs <= 0.001) {
+        const bound = metric === 'gainAmount' ? 50 : 5;
+        return { min: -bound, max: bound, ticks: [-bound, -bound / 2, 0, bound / 2, bound], step: bound / 2 };
+      }
+      const targetStep = (maxAbs * 1.08) / 3;
+      const step = computeNiceStep(targetStep);
+      const numSteps = Math.max(1, Math.ceil((maxAbs * 1.04) / step));
+      const bound = step * numSteps;
+      const ticks = [];
+      for (let i = -numSteps; i <= numSteps; i++) {
+        ticks.push(i * step);
+      }
+      return { min: -bound, max: bound, ticks, step };
+    } else {
+      const maxVal = Math.max(...values, 0);
+      if (maxVal <= 0.001) {
+        const bound = metric === 'weight' ? 10 : 5;
+        return { min: 0, max: bound, ticks: [0, bound / 4, bound / 2, bound * 0.75, bound], step: bound / 4 };
+      }
+      const targetStep = (maxVal * 1.08) / 4;
+      const step = computeNiceStep(targetStep);
+      const numSteps = Math.max(1, Math.ceil((maxVal * 1.04) / step));
+      const bound = step * numSteps;
+      const ticks = [];
+      for (let i = 0; i <= numSteps; i++) {
+        ticks.push(i * step);
+      }
+      return { min: 0, max: bound, ticks, step };
+    }
+  }
+
+  function getActiveChartGeometry(panel) {
+    const isFs = panel?.classList.contains('is-fullscreen') || document.fullscreenElement === panel;
+    const width = isFs ? 1080 : 820;
+    const height = isFs ? 460 : 310;
+    const pad = isFs ? { left: 68, right: 20, top: 22, bottom: 32 } : { left: 60, right: 16, top: 18, bottom: 28 };
+    const innerWidth = width - pad.left - pad.right;
+    const innerHeight = height - pad.top - pad.bottom;
+    return { isFs, width, height, pad, innerWidth, innerHeight };
   }
 
   function chartFormat(value) {
@@ -5245,33 +5542,8 @@ const Portfolio = (() => {
     }
 
     const isCenteredMetric = chartMetric === 'gainPct' || chartMetric === 'gainAmount';
-    let min;
-    let max;
-    let ticks;
-
-    if (isCenteredMetric) {
-      const maxAbs = Math.max(...values.map((v) => Math.abs(v)), 0);
-      const minStep = maxAbs > 0 ? (maxAbs * 1.05) / 2 : (chartMetric === 'gainAmount' ? 50 : 5);
-      const step = computeNiceStep(minStep);
-      const bound = step * 2;
-      min = -bound;
-      max = bound;
-      ticks = [-bound, -step, 0, step, bound];
-    } else {
-      const maxVal = Math.max(...values, 0);
-      const minStep = maxVal > 0 ? (maxVal * 1.05) / 4 : (chartMetric === 'weight' ? 5 : 1);
-      const step = computeNiceStep(minStep);
-      const bound = step * 4;
-      min = 0;
-      max = bound;
-      ticks = [0, step, step * 2, step * 3, bound];
-    }
-
-    const width = 760;
-    const height = 270;
-    const pad = { left: 58, right: 16, top: 16, bottom: 28 };
-    const innerWidth = width - pad.left - pad.right;
-    const innerHeight = height - pad.top - pad.bottom;
+    const { isFs, width, height, pad, innerWidth, innerHeight } = getActiveChartGeometry(panel);
+    const { min, max, ticks } = computeChartScale(values, isCenteredMetric, chartMetric);
 
     const x = (index) => pad.left + (index / Math.max(1, points.length - 1)) * innerWidth;
     const y = (value) => pad.top + (1 - (value - min) / (max - min)) * innerHeight;
@@ -5324,18 +5596,21 @@ const Portfolio = (() => {
 
       const color = seriesColors[seriesIdx];
       const isSingle = chartCachedData.labels.length === 1;
+      const strokeW = isFs ? '2.8' : '2.2';
       const areaEl = isSingle && areaD ? `<path d="${areaD}" fill="url(#pf-chart-grad-${seriesIdx})" class="pf-chart-area" data-series-index="${seriesIdx}"/>` : '';
-      const lineEl = d ? `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" class="pf-chart-line" data-series-index="${seriesIdx}"/>` : '';
+      const lineEl = d ? `<path d="${d}" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linejoin="round" stroke-linecap="round" class="pf-chart-line" data-series-index="${seriesIdx}"/>` : '';
 
       return `${areaEl}${lineEl}`;
     }).join('');
 
-    const tickCount = 5;
+    const yLabelFontSize = isFs ? '11px' : '9.5px';
+    const xLabelFontSize = isFs ? '11px' : '10px';
+
     const gridLines = ticks.map((value) => {
       const tickY = y(value);
       return `
         <line x1="${pad.left}" y1="${tickY.toFixed(1)}" x2="${width - pad.right}" y2="${tickY.toFixed(1)}" class="pf-chart-grid-line"/>
-        <text x="${pad.left - 8}" y="${(tickY + 3.5).toFixed(1)}" class="pf-chart-y-label" text-anchor="end">${escapeHtml(chartAxisFormat(value))}</text>`;
+        <text x="${pad.left - 8}" y="${(tickY + 3.5).toFixed(1)}" class="pf-chart-y-label" font-size="${yLabelFontSize}" text-anchor="end">${escapeHtml(chartAxisFormat(value))}</text>`;
     }).join('');
 
     const zeroLine = (min <= 0 && max >= 0 && isCenteredMetric)
@@ -5347,7 +5622,7 @@ const Portfolio = (() => {
     const vGridLines = dateTicks.map((tick) => `
       <line x1="${tick.x.toFixed(1)}" y1="${pad.top}" x2="${tick.x.toFixed(1)}" y2="${height - pad.bottom}" class="pf-chart-vgrid-line"/>
       <line x1="${tick.x.toFixed(1)}" y1="${height - pad.bottom}" x2="${tick.x.toFixed(1)}" y2="${(height - pad.bottom + 4).toFixed(1)}" class="pf-chart-tick-mark"/>
-      <text x="${tick.x.toFixed(1)}" y="${height - 8}" class="pf-chart-x-label ${tick.isMajor ? 'major' : ''}" text-anchor="middle">${escapeHtml(tick.label)}</text>
+      <text x="${tick.x.toFixed(1)}" y="${height - 8}" class="pf-chart-x-label ${tick.isMajor ? 'major' : ''}" font-size="${xLabelFontSize}" text-anchor="middle">${escapeHtml(tick.label)}</text>
     `).join('');
 
     const axisBaselines = `
@@ -5357,12 +5632,24 @@ const Portfolio = (() => {
 
     canvasInner.innerHTML = `
       <svg class="pf-chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Evolución histórica">
-        <defs>${svgGradients}</defs>
+        <defs>
+          ${svgGradients}
+        </defs>
         ${gridLines}
         ${vGridLines}
         ${axisBaselines}
         ${zeroLine}
         ${pathsSvg}
+        <g class="pf-chart-measure-layer" style="display:none;">
+          <rect class="pf-chart-measure-box" x="0" y="0" width="0" height="0" fill="rgba(239, 68, 68, 0.08)" stroke="rgba(220, 38, 38, 0.65)" stroke-width="1.4" stroke-dasharray="4 3" rx="2" ry="2"/>
+          <line class="pf-chart-measure-diagonal" x1="0" y1="0" x2="0" y2="0" stroke="rgba(220, 38, 38, 0.85)" stroke-width="1.8" stroke-dasharray="5 3"/>
+          <circle class="pf-chart-measure-pt1" cx="0" cy="0" r="4" fill="#dc2626" stroke="#ffffff" stroke-width="1.4"/>
+          <circle class="pf-chart-measure-pt2" cx="0" cy="0" r="4" fill="#dc2626" stroke="#ffffff" stroke-width="1.4"/>
+          <g class="pf-chart-measure-badge" transform="translate(0, 0)">
+            <rect class="pf-chart-measure-badge-bg" x="-54" y="-12" width="108" height="24" rx="5" ry="5" fill="#1e1b1b" fill-opacity="0.94" stroke="rgba(239, 68, 68, 0.35)" stroke-width="0.9"/>
+            <text class="pf-chart-measure-badge-text" x="0" y="4" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="600">--</text>
+          </g>
+        </g>
         <g class="pf-chart-hover-layer" hidden>
           <line class="pf-chart-crosshair pf-chart-crosshair-v" x1="0" y1="${pad.top}" x2="0" y2="${height - pad.bottom}"/>
           <line class="pf-chart-crosshair pf-chart-crosshair-h" x1="${pad.left}" y1="0" x2="${width - pad.right}" y2="0"/>
@@ -5590,12 +5877,289 @@ const Portfolio = (() => {
       updateQuickRangeButtonsUi(panel);
     });
 
-    // Pointer Pan (drag left / right)
+    // Prevent context menu on chart canvas
+    canvasInner.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    panel.addEventListener('contextmenu', (event) => {
+      if (isMeasuring || isMeasureToolActive || event.target.closest('.pf-chart-svg, .pf-chart-canvas-wrap, [data-pf-chart-canvas-inner]')) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, true);
+
+    canvasInner.addEventListener('mousedown', (event) => {
+      if (event.button === 2) {
+        event.preventDefault();
+      }
+    });
+
+    let isMeasureToolActive = false;
+    const measureBtn = panel.querySelector('[data-pf-chart-measure]');
+    if (measureBtn) {
+      measureBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isMeasureToolActive = !isMeasureToolActive;
+        measureBtn.classList.toggle('active', isMeasureToolActive);
+        measureBtn.setAttribute('aria-pressed', isMeasureToolActive ? 'true' : 'false');
+        canvasInner.classList.toggle('measuring-active', isMeasureToolActive);
+      });
+    }
+
+    let isMeasuring = false;
+    let measureStartButton = 2;
+    let measureStartSvgX = 0;
+    let measureStartSvgY = 0;
+    let measureCurrentSvgX = 0;
+    let measureCurrentSvgY = 0;
+
+    function updateMeasurementView(clientX, clientY) {
+      if (!isMeasuring || !chartCachedData?.points?.length) return;
+
+      const allPoints = chartCachedData.points;
+      const points = allPoints.slice(chartSliceStart, chartSliceEnd + 1);
+      if (!points.length) return;
+
+      const svgEl = canvasInner.querySelector('.pf-chart-svg');
+      const measureLayer = canvasInner.querySelector('.pf-chart-measure-layer');
+      if (!svgEl || !measureLayer) return;
+
+      const rect = svgEl.getBoundingClientRect();
+      const { width, height, pad, innerWidth, innerHeight } = getActiveChartGeometry(panel);
+
+      if (clientX !== undefined && clientY !== undefined && rect.width > 0 && rect.height > 0) {
+        const curX = ((clientX - rect.left) / rect.width) * width;
+        const curY = ((clientY - rect.top) / rect.height) * height;
+        measureCurrentSvgX = Math.max(pad.left, Math.min(width - pad.right, curX));
+        measureCurrentSvgY = Math.max(pad.top, Math.min(height - pad.bottom, curY));
+      }
+
+      const values = points.flatMap((p) => p.series).filter((v) => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+      const isCenteredMetric = chartMetric === 'gainPct' || chartMetric === 'gainAmount';
+      const { min, max } = computeChartScale(values, isCenteredMetric, chartMetric);
+
+      const x1 = measureStartSvgX;
+      const y1 = measureStartSvgY;
+      const x2 = measureCurrentSvgX;
+      const y2 = measureCurrentSvgY;
+
+      const leftX = Math.min(x1, x2);
+      const rightX = Math.max(x1, x2);
+      const topY = Math.min(y1, y2);
+      const bottomY = Math.max(y1, y2);
+      const boxW = Math.max(1, rightX - leftX);
+      const boxH = Math.max(1, bottomY - topY);
+
+      // Convert Y coordinates to Metric Values (spatial Y1 to Y2)
+      const ratioY1 = Math.max(0, Math.min(1, (y1 - pad.top) / innerHeight));
+      const ratioY2 = Math.max(0, Math.min(1, (y2 - pad.top) / innerHeight));
+      const val1 = max - ratioY1 * (max - min);
+      const val2 = max - ratioY2 * (max - min);
+      const deltaVal = val2 - val1;
+
+      // Convert X coordinates to Dates & Indices (spatial X1 to X2)
+      const ratioX1 = Math.max(0, Math.min(1, (x1 - pad.left) / innerWidth));
+      const ratioX2 = Math.max(0, Math.min(1, (x2 - pad.left) / innerWidth));
+      const idx1 = Math.max(0, Math.min(points.length - 1, Math.round(ratioX1 * (points.length - 1))));
+      const idx2 = Math.max(0, Math.min(points.length - 1, Math.round(ratioX2 * (points.length - 1))));
+      const pt1 = points[idx1] || points[0];
+      const pt2 = points[idx2] || points[points.length - 1];
+
+      const d1 = new Date(`${pt1.date}T00:00:00Z`);
+      const d2 = new Date(`${pt2.date}T00:00:00Z`);
+      const diffDays = Math.round(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24));
+      const sessions = Math.abs(idx2 - idx1) + 1;
+
+      // Update measure box & diagonal line (single clean rectangle, discreet styling)
+      const boxEl = measureLayer.querySelector('.pf-chart-measure-box');
+      const diagEl = measureLayer.querySelector('.pf-chart-measure-diagonal');
+      const pt1El = measureLayer.querySelector('.pf-chart-measure-pt1');
+      const pt2El = measureLayer.querySelector('.pf-chart-measure-pt2');
+      const badge = measureLayer.querySelector('.pf-chart-measure-badge');
+      const badgeBg = measureLayer.querySelector('.pf-chart-measure-badge-bg');
+      const badgeText = measureLayer.querySelector('.pf-chart-measure-badge-text');
+
+      if (boxEl) {
+        boxEl.setAttribute('x', leftX.toFixed(1));
+        boxEl.setAttribute('y', topY.toFixed(1));
+        boxEl.setAttribute('width', boxW.toFixed(1));
+        boxEl.setAttribute('height', boxH.toFixed(1));
+      }
+      if (diagEl) {
+        diagEl.setAttribute('x1', x1.toFixed(1));
+        diagEl.setAttribute('y1', y1.toFixed(1));
+        diagEl.setAttribute('x2', x2.toFixed(1));
+        diagEl.setAttribute('y2', y2.toFixed(1));
+      }
+      if (pt1El) {
+        pt1El.setAttribute('cx', x1.toFixed(1));
+        pt1El.setAttribute('cy', y1.toFixed(1));
+      }
+      if (pt2El) {
+        pt2El.setAttribute('cx', x2.toFixed(1));
+        pt2El.setAttribute('cy', y2.toFixed(1));
+      }
+
+      // Badge on SVG
+      if (badge && badgeBg && badgeText) {
+        let badgeStr = '';
+        if (chartMetric === 'gainPct') {
+          badgeStr = `${fmtSignedPct(deltaVal)} · ${diffDays}d`;
+        } else if (chartMetric === 'gainAmount') {
+          badgeStr = `${fmtSigned(deltaVal)} · ${diffDays}d`;
+        } else {
+          badgeStr = `${fmtSignedPct(deltaVal)} · ${diffDays}d`;
+        }
+
+        const badgeW = Math.max(86, badgeStr.length * 7 + 18);
+        const midBadgeX = Math.max(pad.left + badgeW / 2 + 4, Math.min(width - pad.right - badgeW / 2 - 4, (x1 + x2) / 2));
+        const badgeY = Math.max(pad.top + 14, Math.min(height - pad.bottom - 14, topY - 10 < pad.top + 8 ? bottomY + 12 : topY - 10));
+
+        badge.setAttribute('transform', `translate(${midBadgeX.toFixed(1)}, ${badgeY.toFixed(1)})`);
+        badgeBg.setAttribute('x', (-badgeW / 2).toFixed(1));
+        badgeBg.setAttribute('width', badgeW.toFixed(1));
+        badgeText.textContent = badgeStr;
+      }
+
+      measureLayer.style.display = 'inline';
+      measureLayer.removeAttribute('hidden');
+
+      // Update floating detailed tooltip
+      const tip = ensureChartTooltip();
+      const startStr = formatTradingViewHoverDate(pt1.date);
+      const endStr = formatTradingViewHoverDate(pt2.date);
+      const daysLabel = diffDays === 1 ? '1 día' : `${diffDays} días`;
+      const sessionsLabel = sessions === 1 ? '1 sesión' : `${sessions} sesiones`;
+
+      const valClass = deltaVal > 0 ? 'positive' : deltaVal < 0 ? 'negative' : '';
+      let deltaFormatted = '';
+      if (chartMetric === 'gainPct') deltaFormatted = fmtSignedPct(deltaVal);
+      else if (chartMetric === 'gainAmount') deltaFormatted = fmtSigned(deltaVal);
+      else deltaFormatted = fmtSignedPct(deltaVal);
+
+      tip.innerHTML = `
+        <div class="pf-measure-tooltip-head">
+          <div class="pf-measure-badge-tag negative">📏 Medición de rango</div>
+          <div class="pf-measure-period">${escapeHtml(startStr)} → ${escapeHtml(endStr)}</div>
+          <div class="pf-measure-sub">${daysLabel} naturales · ${sessionsLabel}</div>
+        </div>
+        <div class="pf-measure-tooltip-body">
+          <div class="pf-measure-row">
+            <div class="pf-measure-row-left">
+              <span class="pf-chart-tooltip-dot" style="background:#ef4444"></span>
+              <span class="pf-measure-name">Nivel inicial</span>
+            </div>
+            <div class="pf-measure-row-right">
+              <strong class="pf-measure-diff">${escapeHtml(chartAxisFormat(val1))}</strong>
+            </div>
+          </div>
+          <div class="pf-measure-row">
+            <div class="pf-measure-row-left">
+              <span class="pf-chart-tooltip-dot" style="background:#ef4444"></span>
+              <span class="pf-measure-name">Nivel actual</span>
+            </div>
+            <div class="pf-measure-row-right">
+              <strong class="pf-measure-diff">${escapeHtml(chartAxisFormat(val2))}</strong>
+            </div>
+          </div>
+          <div class="pf-measure-row" style="border-top: 1px solid rgba(255,255,255,0.12); padding-top: 5px; margin-top: 2px;">
+            <div class="pf-measure-row-left">
+              <span class="pf-measure-name" style="font-weight: 700; color: #ffffff;">Variación (Δ)</span>
+            </div>
+            <div class="pf-measure-row-right">
+              <strong class="pf-measure-diff ${valClass}" style="font-size: 12.5px;">${escapeHtml(deltaFormatted)}</strong>
+            </div>
+          </div>
+        </div>`;
+      tip.hidden = false;
+      if (clientX !== undefined && clientY !== undefined) {
+        positionChartTooltip(tip, clientX, clientY);
+      }
+    }
+
+    function onMeasurePointerMove(event) {
+      if (!isMeasuring) return;
+      if (event.buttons === 0) {
+        onMeasurePointerUp(event);
+        return;
+      }
+      updateMeasurementView(event.clientX, event.clientY);
+    }
+
+    function onMeasurePointerUp(event) {
+      if (!isMeasuring) return;
+      if (event && event.button !== undefined && event.button !== measureStartButton && event.button !== 0 && event.button !== 2 && event.buttons !== 0) return;
+      isMeasuring = false;
+      canvasInner.classList.remove('measuring');
+      window.removeEventListener('pointermove', onMeasurePointerMove);
+      window.removeEventListener('mousemove', onMeasurePointerMove);
+      window.removeEventListener('pointerup', onMeasurePointerUp);
+      window.removeEventListener('mouseup', onMeasurePointerUp);
+
+      const measureLayer = canvasInner.querySelector('.pf-chart-measure-layer');
+      if (measureLayer) {
+        measureLayer.style.display = 'none';
+        measureLayer.setAttribute('hidden', '');
+      }
+      hideChartTooltip();
+    }
+
+    // Pointer Pan (drag left / right with left button) & Measurement (right button, shift+left, or measure tool)
     canvasInner.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
       if (!chartCachedData?.points?.length) return;
       const total = chartCachedData.points.length;
       if (total <= 1) return;
+
+      const isRightClick = event.button === 2;
+      const isShiftLeftClick = event.button === 0 && event.shiftKey;
+      const isToolActiveClick = event.button === 0 && isMeasureToolActive;
+
+      if (isRightClick || isShiftLeftClick || isToolActiveClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.button === 0) {
+          try { event.target.setPointerCapture(event.pointerId); } catch {}
+        }
+
+        const allPoints = chartCachedData.points;
+        const points = allPoints.slice(chartSliceStart, chartSliceEnd + 1);
+        if (!points.length) return;
+
+        const svgEl = canvasInner.querySelector('.pf-chart-svg');
+        if (!svgEl) return;
+        const rect = svgEl.getBoundingClientRect();
+        const { width, height, pad } = getActiveChartGeometry(panel);
+
+        const curX = ((event.clientX - rect.left) / rect.width) * width;
+        const curY = ((event.clientY - rect.top) / rect.height) * height;
+        const startX = Math.max(pad.left, Math.min(width - pad.right, curX));
+        const startY = Math.max(pad.top, Math.min(height - pad.bottom, curY));
+
+        isMeasuring = true;
+        measureStartButton = event.button;
+        measureStartSvgX = startX;
+        measureStartSvgY = startY;
+        measureCurrentSvgX = startX;
+        measureCurrentSvgY = startY;
+        canvasInner.classList.add('measuring');
+
+        const hoverLayer = canvasInner.querySelector('.pf-chart-hover-layer');
+        if (hoverLayer) {
+          hoverLayer.style.display = 'none';
+          hoverLayer.hidden = true;
+        }
+
+        updateMeasurementView(event.clientX, event.clientY);
+
+        window.addEventListener('pointermove', onMeasurePointerMove);
+        window.addEventListener('mousemove', onMeasurePointerMove);
+        window.addEventListener('pointerup', onMeasurePointerUp);
+        window.addEventListener('mouseup', onMeasurePointerUp);
+        return;
+      }
+
+      if (event.button !== 0) return;
 
       isPanning = true;
       panMoved = false;
@@ -5624,9 +6188,7 @@ const Portfolio = (() => {
       const rect = canvasInner.getBoundingClientRect();
       if (!rect || rect.width <= 0) return;
 
-      const width = 760;
-      const pad = { left: 58, right: 16 };
-      const innerWidth = width - pad.left - pad.right;
+      const { width, pad, innerWidth } = getActiveChartGeometry(panel);
       const innerWidthPx = rect.width * (innerWidth / width);
 
       const span = panInitEnd - panInitStart;
@@ -5664,8 +6226,9 @@ const Portfolio = (() => {
       window.removeEventListener('pointercancel', onWindowPointerUp);
     }
 
-    // Hover tooltip & crosshair (active when not dragging)
+    // Hover tooltip & crosshair (active when not dragging and not measuring)
     canvasInner.addEventListener('mousemove', (event) => {
+      if (isMeasuring) return;
       if (isPanning && panMoved) return;
       if (!chartCachedData?.points?.length) return;
 
@@ -5680,11 +6243,7 @@ const Portfolio = (() => {
       if (!svgEl || !hoverLayer || !crosshair || !hoverDots) return;
 
       const rect = svgEl.getBoundingClientRect();
-      const width = 760;
-      const height = 270;
-      const pad = { left: 58, right: 16, top: 16, bottom: 28 };
-      const innerWidth = width - pad.left - pad.right;
-      const innerHeight = height - pad.top - pad.bottom;
+      const { width, height, pad, innerWidth, innerHeight } = getActiveChartGeometry(panel);
 
       const cursorSvgX = ((event.clientX - rect.left) / rect.width) * width;
       const cursorSvgY = ((event.clientY - rect.top) / rect.height) * height;
@@ -5701,23 +6260,7 @@ const Portfolio = (() => {
 
       const values = points.flatMap((p) => p.series).filter((v) => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
       const isCenteredMetric = chartMetric === 'gainPct' || chartMetric === 'gainAmount';
-      let min;
-      let max;
-      if (isCenteredMetric) {
-        const maxAbs = Math.max(...values.map((v) => Math.abs(v)), 0);
-        const minStep = maxAbs > 0 ? (maxAbs * 1.05) / 2 : (chartMetric === 'gainAmount' ? 50 : 5);
-        const step = computeNiceStep(minStep);
-        const bound = step * 2;
-        min = -bound;
-        max = bound;
-      } else {
-        const maxVal = Math.max(...values, 0);
-        const minStep = maxVal > 0 ? (maxVal * 1.05) / 4 : (chartMetric === 'weight' ? 5 : 1);
-        const step = computeNiceStep(minStep);
-        const bound = step * 4;
-        min = 0;
-        max = bound;
-      }
+      const { min, max } = computeChartScale(values, isCenteredMetric, chartMetric);
 
       const x = (idx) => pad.left + (idx / Math.max(1, points.length - 1)) * innerWidth;
       const y = (val) => pad.top + (1 - (val - min) / (max - min)) * innerHeight;
@@ -5786,6 +6329,7 @@ const Portfolio = (() => {
     });
 
     canvasInner.addEventListener('mouseleave', () => {
+      if (isMeasuring) return;
       const hoverLayer = canvasInner.querySelector('.pf-chart-hover-layer');
       if (hoverLayer) hoverLayer.hidden = true;
       hideChartTooltip();
@@ -5957,7 +6501,7 @@ const Portfolio = (() => {
             <span class="pf-timeline-chip-title">Desde</span>
             <strong data-timeline-from-date>—</strong>
           </div>
-          <div class="pf-timeline-hint">Rueda del ratón para zoom · Arrastra el gráfico o la barra para desplazar</div>
+          <div class="pf-timeline-hint">Rueda: zoom · Arrastrar: desplazar · <strong>Clic derecho mantenido: medir variación</strong></div>
           <div class="pf-timeline-date-chip">
             <span class="pf-timeline-chip-title">Hasta</span>
             <strong data-timeline-to-date>—</strong>
@@ -6048,7 +6592,82 @@ const Portfolio = (() => {
       picker.classList.toggle('active', !isOpen);
     });
 
+    const fsBtn = panel.querySelector('[data-pf-chart-fullscreen]');
+    const maxIcon = fsBtn?.querySelector('.pf-icon-maximize');
+    const minIcon = fsBtn?.querySelector('.pf-icon-minimize');
+
+    function syncFullscreenUi(isFs) {
+      if (maxIcon) maxIcon.style.display = isFs ? 'none' : 'inline-block';
+      if (minIcon) minIcon.style.display = isFs ? 'inline-block' : 'none';
+      if (fsBtn) {
+        fsBtn.title = isFs ? 'Salir de pantalla completa (Esc o F)' : 'Pantalla completa (F o clic)';
+        fsBtn.classList.toggle('active', isFs);
+      }
+    }
+
+    async function toggleFullscreen() {
+      const isCurrentlyFs = document.fullscreenElement === panel || panel.classList.contains('is-fullscreen');
+      if (!isCurrentlyFs) {
+        try {
+          if (panel.requestFullscreen) {
+            await panel.requestFullscreen();
+          } else {
+            panel.classList.add('is-fullscreen');
+          }
+        } catch {
+          panel.classList.add('is-fullscreen');
+        }
+        syncFullscreenUi(true);
+      } else {
+        try {
+          if (document.fullscreenElement) {
+            await document.exitFullscreen();
+          }
+        } catch {}
+        panel.classList.remove('is-fullscreen');
+        syncFullscreenUi(false);
+      }
+      setTimeout(() => {
+        scheduleChartRedraw(panel);
+        updateTimelineSliderUi(panel);
+      }, 80);
+    }
+
+    fsBtn?.addEventListener('click', () => {
+      toggleFullscreen();
+    });
+
+    const onFullscreenChange = () => {
+      const isFs = document.fullscreenElement === panel || panel.classList.contains('is-fullscreen');
+      panel.classList.toggle('is-fullscreen', isFs);
+      syncFullscreenUi(isFs);
+      scheduleChartRedraw(panel);
+      updateTimelineSliderUi(panel);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+
+    const onKeyDownFs = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+      if (e.key === 'f' || e.key === 'F') {
+        const isHovered = panel.matches(':hover') || panel.classList.contains('is-fullscreen');
+        if (isHovered) {
+          e.preventDefault();
+          toggleFullscreen();
+        }
+      } else if (e.key === 'Escape' && panel.classList.contains('is-fullscreen')) {
+        panel.classList.remove('is-fullscreen');
+        syncFullscreenUi(false);
+        scheduleChartRedraw(panel);
+        updateTimelineSliderUi(panel);
+      }
+    };
+    window.addEventListener('keydown', onKeyDownFs);
+
     panel.querySelector('[data-pf-chart-close]')?.addEventListener('click', () => {
+      if (panel.classList.contains('is-fullscreen')) {
+        try { if (document.fullscreenElement) document.exitFullscreen(); } catch {}
+        panel.classList.remove('is-fullscreen');
+      }
       chartOpen = false;
       renderSection();
     });
@@ -6140,12 +6759,6 @@ const Portfolio = (() => {
     loadPortfolioChart(panel);
   }
 
-  function portfolioContentHtml() {
-    if (portfolioTab === 'cartera') return `${allocationPanelHtml()}${chartOpen ? chartPanelHtml() : ''}${positionsPanelHtml()}`;
-    if (portfolioTab === 'dividendos') return dividendPanelHtml();
-    if (portfolioTab === 'operaciones') return operationsPanelHtml();
-    return '';
-  }
 
   function exportPortfolioCsv() {
     const view = positionsView;
@@ -6394,6 +7007,7 @@ const Portfolio = (() => {
     wireTransactionForm(scope.querySelector('.pf-form'));
     wireHistoryWidget(scope);
     wireDonutTooltips(scope);
+    wireAllocationHover(scope);
     wireGroupFeatures(scope);
     wirePortfolioChart(scope);
     wireDividendDashboard(scope);
@@ -6511,7 +7125,7 @@ const Portfolio = (() => {
       <div class="pf-panel">
         <div class="pf-panel-head">
           <h4>Tu posición en ${escapeHtml(ticker)}</h4>
-          <a class="text-button" href="/?cartera=1">Ver cartera completa <span>↗</span></a>
+          <a class="text-button" href="/cartera">Ver cartera completa <span>↗</span></a>
         </div>
         ${positionHtml}
         <div class="pf-panel-head pf-sub-head"><h5>Nueva operación</h5></div>
@@ -6546,6 +7160,7 @@ const Portfolio = (() => {
     reset,
     setAuthenticated,
     getPosition,
+    hasPosition,
     openSection,
     mountSection,
     registerCompanyPanel,

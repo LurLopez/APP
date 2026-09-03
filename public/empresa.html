@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#242424">
   <meta name="description" content="Cifra: perfil y análisis fundamental de empresas.">
   <title>Cifra Terminal | Empresa</title>
-  <link rel="stylesheet" href="/styles.css?v=55">
+  <link rel="stylesheet" href="/styles.css?v=72">
 </head>
 <body class="company-page">
   <div class="app-shell">
@@ -52,8 +52,8 @@
             <span>Seguimiento</span>
           </a>
           <a class="nav-link" href="#" data-section="alertas">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2.5h-15L6 16ZM10 20a2 2 0 0 0 4 0"/></svg>
-            <span>Alertas de precio</span><b class="new-badge">NUEVO</b>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <span>Alertas de precio</span>
           </a>
           <a class="nav-link" href="#" data-section="cartera">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
@@ -77,10 +77,6 @@
           <a class="nav-link" href="#" data-section="informes">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10v14H7zM9 8h6M9 12h6"/></svg>
             <span>Informes trimestrales</span>
-          </a>
-          <a class="nav-link" href="#" data-section="valoracion">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4-8 4-8-4 8-4ZM4 12l8 4 8-4M4 17l8 4 8-4"/></svg>
-            <span>Valoración</span>
           </a>
           <a class="nav-link" href="#" data-section="datos">
             <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/></svg>
@@ -129,9 +125,8 @@
                   <button class="icon-chip" type="button" id="company-filings-shortcut" aria-label="Ver informes">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10v14H7zM9 8h6M9 12h6"/></svg>
                   </button>
-                  <button class="icon-chip" type="button" id="company-alert" aria-label="Crear alerta">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2.5h-15L6 16ZM10 20a2 2 0 0 0 4 0"/></svg>
-                    <b class="new-badge">NUEVO</b>
+                  <button class="icon-chip" type="button" id="company-alert" aria-label="Crear alerta" title="Crear alerta de precio">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                   </button>
                 </div>
               </div>
@@ -170,11 +165,14 @@
                 </dl>
               </article>
 
-              <article class="panel chart-block">
-                <div class="chart-head">
-                  <h5>Precio</h5>
+              <article class="panel chart-block pf-chart-panel" id="company-chart-block">
+                <div class="chart-head pf-chart-head">
+                  <div class="chart-head-left">
+                    <h5 id="chart-title">Precio</h5>
+                  </div>
                   <div class="chart-head-actions">
-                    <div class="chart-ranges" role="group" aria-label="Rango del gráfico">
+                    <div class="chart-ranges pf-ranges-group" role="group" aria-label="Rango del gráfico">
+                      <button type="button" data-range="1m">1M</button>
                       <button type="button" data-range="3m">3M</button>
                       <button type="button" data-range="6m">6M</button>
                       <button type="button" data-range="1y">1Y</button>
@@ -183,18 +181,63 @@
                       <button type="button" data-range="10y">10Y</button>
                       <button type="button" data-range="all">ALL</button>
                     </div>
+                    <div class="pf-chart-zoom-group" role="group" aria-label="Zoom del gráfico">
+                      <button class="pf-zoom-btn" type="button" id="chart-zoom-in" data-chart-zoom="in" title="Acercar zoom (+)" aria-label="Acercar zoom">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                      </button>
+                      <button class="pf-zoom-btn" type="button" id="chart-zoom-out" data-chart-zoom="out" title="Alejar zoom (−)" aria-label="Alejar zoom">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                      </button>
+                      <button class="pf-zoom-btn pf-zoom-reset" type="button" id="chart-zoom-reset" data-chart-zoom="reset" title="Restablecer vista completa" aria-label="Restablecer vista">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                      </button>
+                    </div>
                     <div class="chart-tools" role="group" aria-label="Opciones del gráfico">
+                      <button type="button" id="chart-measure-btn" class="pf-measure-tool-btn" title="Herramienta de medición (o clic derecho mantenido)">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M21.3 8.7 8.7 21.3a2.12 2.12 0 0 1-3-3L18.3 5.7a2.12 2.12 0 0 1 3 3Z"></path>
+                          <path d="m14.5 9.5 2 2"></path>
+                          <path d="m11.5 12.5 2 2"></path>
+                          <path d="m8.5 15.5 2 2"></path>
+                        </svg>
+                        <span>Medir</span>
+                      </button>
                       <button type="button" id="chart-ma-toggle" aria-pressed="false" title="Media móvil de 100 sesiones">MA 100</button>
-                      <button type="button" id="chart-fullscreen" class="chart-fs" aria-label="Pantalla completa" title="Pantalla completa">
+                      <button type="button" id="chart-fullscreen" class="chart-fs pf-chart-fullscreen-btn" aria-label="Pantalla completa (F)" title="Pantalla completa (F)">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg>
                       </button>
                     </div>
                   </div>
                 </div>
-                <div class="chart-body" id="chart-body">
+                <div class="chart-body pf-chart-canvas-wrap" id="chart-body">
                   <div class="chart-message" id="chart-message" hidden></div>
-                  <svg id="price-chart" viewBox="0 0 720 300" preserveAspectRatio="none" role="img" aria-label="Gráfico de cotización"></svg>
-                  <div class="chart-tooltip" id="chart-tooltip" hidden></div>
+                  <div data-chart-canvas-inner class="company-chart-canvas-inner" style="position:relative; width:100%;">
+                    <svg id="price-chart" class="pf-chart-svg" viewBox="0 0 960 380" role="img" aria-label="Gráfico de cotización"></svg>
+                  </div>
+                </div>
+                <!-- Dual-handle timeline slider bar -->
+                <div class="pf-timeline-bar-wrap" id="chart-timeline-wrap">
+                  <div class="pf-timeline-info">
+                    <div class="pf-timeline-date-chip">
+                      <span class="pf-timeline-chip-title">Desde</span>
+                      <strong id="chart-timeline-start">—</strong>
+                    </div>
+                    <span class="pf-timeline-hint" id="chart-timeline-span">Rueda: zoom · Arrastrar: desplazar · <strong>Clic derecho: medir</strong></span>
+                    <div class="pf-timeline-date-chip">
+                      <span class="pf-timeline-chip-title">Hasta</span>
+                      <strong id="chart-timeline-end">—</strong>
+                    </div>
+                  </div>
+                  <div class="pf-timeline-track" id="chart-timeline-track" role="region" aria-label="Selector de rango temporal">
+                    <svg class="pf-timeline-sparkline" id="chart-timeline-sparkline" preserveAspectRatio="none" viewBox="0 0 100 32" aria-hidden="true"></svg>
+                    <div class="pf-timeline-mask left" id="chart-timeline-mask-l"></div>
+                    <div class="pf-timeline-mask right" id="chart-timeline-mask-r"></div>
+                    <div class="pf-timeline-window" id="chart-timeline-window" title="Arrastra para mover la ventana temporal">
+                      <div class="pf-timeline-handle left" id="chart-handle-l" tabindex="0" role="slider" aria-label="Inicio del rango temporal"><div class="pf-handle-grip"></div></div>
+                      <div class="pf-timeline-window-body"></div>
+                      <div class="pf-timeline-handle right" id="chart-handle-r" tabindex="0" role="slider" aria-label="Fin del rango temporal"><div class="pf-handle-grip"></div></div>
+                    </div>
+                  </div>
                 </div>
               </article>
             </div>
@@ -240,8 +283,29 @@
           <section class="company-section" id="section-datos" hidden>
             <div class="panel metrics-chart-block" id="metrics-chart-block" hidden>
               <div class="metrics-chart-head">
-                <h5>Gráfico de métricas <span class="metrics-chart-hint">Haz clic en una fila de la tabla para añadirla al gráfico</span></h5>
-                <button type="button" class="metrics-chart-clear" id="metrics-chart-clear" hidden>Limpiar</button>
+                <div class="metrics-chart-head-left">
+                  <h5>Gráfico de métricas <span class="metrics-chart-hint">Haz clic en una fila de la tabla para añadirla al gráfico</span></h5>
+                </div>
+                <div class="metrics-chart-head-actions">
+                  <div class="metrics-compare-bar" id="metrics-compare-bar">
+                    <span class="metrics-compare-label">Comparar:</span>
+                    <div class="metrics-compare-chips" id="metrics-compare-chips"></div>
+                    <div class="metrics-compare-add-wrap">
+                      <button type="button" class="metrics-compare-add-btn" id="metrics-compare-add-btn" title="Añadir otra empresa para comparar">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        <span>Añadir empresa</span>
+                      </button>
+                      <div class="metrics-compare-popover" id="metrics-compare-popover" hidden>
+                        <div class="metrics-compare-search-box">
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
+                          <input type="search" id="metrics-compare-input" placeholder="Ticker o empresa (ej: KHC)..." autocomplete="off" />
+                        </div>
+                        <div class="metrics-compare-results" id="metrics-compare-results" hidden></div>
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" class="metrics-chart-clear" id="metrics-chart-clear" hidden>Limpiar</button>
+                </div>
               </div>
               <div class="metrics-chart-legend" id="metrics-chart-legend"></div>
               <div class="metrics-palette" id="metrics-palette" hidden></div>
@@ -257,26 +321,386 @@
                   <button type="button" data-series="annual" class="active">Anual</button>
                   <button type="button" data-series="quarterly">Trimestral</button>
                 </div>
+                <button type="button" class="screener-compare-btn" id="screener-compare-shortcut-btn" title="Comparar con otras empresas en el gráfico">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                  <span>Comparar empresa</span>
+                </button>
               </div>
             </div>
             <div class="screener-tabs" role="tablist" aria-label="Estado financiero">
-              <button class="screener-tab active" type="button" role="tab" data-statement="income">Cuenta de resultados</button>
+              <button class="screener-tab active" type="button" role="tab" data-statement="valuation">Valoración</button>
+              <button class="screener-tab" type="button" role="tab" data-statement="income">Cuenta de resultados</button>
               <button class="screener-tab" type="button" role="tab" data-statement="balance">Balance</button>
               <button class="screener-tab" type="button" role="tab" data-statement="cashflow">Estado de Flujo de Efectivo</button>
             </div>
+
+            <!-- Resumen de valoración (tarjetas de múltiplos) visible en pestaña Valoración -->
+            <div class="val-summary-block" id="val-summary-block">
+              <div class="val-grid">
+                <!-- Tarjeta 1: EV / EBITDA -->
+                <article class="panel val-card">
+                  <div class="val-card-header">
+                    <div class="val-card-title-wrap">
+                      <h4 class="val-card-title">EV / EBITDA</h4>
+                      <span class="val-card-tag">Empresa</span>
+                    </div>
+                    <span class="profile-info-dot" title="Enterprise Value (Capitalización + Deuda neta) dividido entre el EBITDA">i</span>
+                  </div>
+                  <div class="val-card-body">
+                    <div class="val-metric-display">
+                      <span class="val-main-val" id="val-ev-ebitda">—</span>
+                    </div>
+                    <div class="val-breakdown-pills">
+                      <div class="val-pill">
+                        <span class="val-pill-label">Enterprise Value (EV)</span>
+                        <strong class="val-pill-val" id="val-ev">—</strong>
+                      </div>
+                      <div class="val-pill">
+                        <span class="val-pill-label">EBITDA</span>
+                        <strong class="val-pill-val" id="val-ebitda">—</strong>
+                      </div>
+                    </div>
+                    <p class="val-card-desc">Valor total de la compañía respecto a su beneficio operativo antes de depreciaciones y amortizaciones.</p>
+                  </div>
+                </article>
+
+                <!-- Tarjeta 2: PER -->
+                <article class="panel val-card">
+                  <div class="val-card-header">
+                    <div class="val-card-title-wrap">
+                      <h4 class="val-card-title">PER</h4>
+                      <span class="val-card-tag">Beneficios</span>
+                      <label class="val-adjust-checkbox-label" title="Calcular usando el BPA ajustado (sumando depreciaciones/amortizaciones de intangibles y goodwill)">
+                        <input type="checkbox" id="val-pe-adjusted-toggle" checked>
+                        <span class="val-adjust-checkbox-text">Ajustado</span>
+                      </label>
+                    </div>
+                    <span class="profile-info-dot" title="Price to Earnings: Cotización de la acción dividida entre el BPA diluido">i</span>
+                  </div>
+                  <div class="val-card-body">
+                    <div class="val-metric-display">
+                      <span class="val-main-val" id="val-pe">—</span>
+                    </div>
+                    <div class="val-breakdown-pills">
+                      <div class="val-pill">
+                        <span class="val-pill-label">Cotización</span>
+                        <strong class="val-pill-val" id="val-pe-price">—</strong>
+                      </div>
+                      <div class="val-pill">
+                        <span class="val-pill-label" id="val-eps-label">BPA ajustado</span>
+                        <strong class="val-pill-val" id="val-eps">—</strong>
+                      </div>
+                    </div>
+                    <p class="val-card-desc">Veces que se paga el beneficio neto anual por cada acción según la cotización actual.</p>
+                  </div>
+                </article>
+
+                <!-- Tarjeta 3: P / FCF -->
+                <article class="panel val-card">
+                  <div class="val-card-header">
+                    <div class="val-card-title-wrap">
+                      <h4 class="val-card-title">P / FCF</h4>
+                      <span class="val-card-tag">Flujo de caja</span>
+                    </div>
+                    <span class="profile-info-dot" title="Price to Free Cash Flow: Cotización de la acción dividida entre el Flujo de Caja Libre (FCF) por acción">i</span>
+                  </div>
+                  <div class="val-card-body">
+                    <div class="val-metric-display">
+                      <span class="val-main-val" id="val-pfcf">—</span>
+                    </div>
+                    <div class="val-breakdown-pills">
+                      <div class="val-pill">
+                        <span class="val-pill-label">Cotización</span>
+                        <strong class="val-pill-val" id="val-pfcf-price">—</strong>
+                      </div>
+                      <div class="val-pill">
+                        <span class="val-pill-label">FCF / acción</span>
+                        <strong class="val-pill-val" id="val-fcf-share">—</strong>
+                      </div>
+                    </div>
+                    <p class="val-card-desc">Veces que se paga el flujo de caja libre anual por cada acción según la cotización actual.</p>
+                  </div>
+                </article>
+
+                <!-- Tarjeta 4: Yield del dividendo -->
+                <article class="panel val-card">
+                  <div class="val-card-header">
+                    <div class="val-card-title-wrap">
+                      <h4 class="val-card-title">Yield del dividendo</h4>
+                      <span class="val-card-tag">Rentabilidad</span>
+                    </div>
+                    <span class="profile-info-dot" title="Dividendo anual por acción respecto al precio actual de cotización">i</span>
+                  </div>
+                  <div class="val-card-body">
+                    <div class="val-metric-display">
+                      <span class="val-main-val" id="val-dividend-yield">—</span>
+                    </div>
+                    <div class="val-breakdown-pills">
+                      <div class="val-pill">
+                        <span class="val-pill-label">Dividendo / acción</span>
+                        <strong class="val-pill-val" id="val-dps">—</strong>
+                      </div>
+                      <div class="val-pill">
+                        <span class="val-pill-label">Cotización</span>
+                        <strong class="val-pill-val" id="val-yield-price">—</strong>
+                      </div>
+                    </div>
+                    <p class="val-card-desc">Retorno por dividendo estimado en porcentaje respecto a la cotización actual en bolsa.</p>
+                  </div>
+                </article>
+
+                <!-- Tarjeta 5: Payout del dividendo -->
+                <article class="panel val-card">
+                  <div class="val-card-header">
+                    <div class="val-card-title-wrap">
+                      <h4 class="val-card-title">Payout del dividendo</h4>
+                      <span class="val-card-tag">Dividendo</span>
+                      <label class="val-adjust-checkbox-label" title="Calcular usando el BPA ajustado (sumando depreciaciones/amortizaciones de intangibles y goodwill)">
+                        <input type="checkbox" id="val-payout-adjusted-toggle" checked>
+                        <span class="val-adjust-checkbox-text">Ajustado</span>
+                      </label>
+                    </div>
+                    <span class="profile-info-dot" title="Payout Ratio: Porcentaje del beneficio neto / BPA que se destina al pago de dividendos">i</span>
+                  </div>
+                  <div class="val-card-body">
+                    <div class="val-metric-display">
+                      <span class="val-main-val" id="val-payout-ratio">—</span>
+                    </div>
+                    <div class="val-breakdown-pills">
+                      <div class="val-pill">
+                        <span class="val-pill-label">Dividendo / acción</span>
+                        <strong class="val-pill-val" id="val-payout-dps">—</strong>
+                      </div>
+                      <div class="val-pill">
+                        <span class="val-pill-label" id="val-payout-eps-label">BPA ajustado</span>
+                        <strong class="val-pill-val" id="val-payout-eps">—</strong>
+                      </div>
+                    </div>
+                    <p class="val-card-desc">Porcentaje del beneficio neto por acción destinado al reparto de dividendos.</p>
+                  </div>
+                </article>
+
+                <!-- Tarjeta 6: Deuda Neta / EBITDA -->
+                <article class="panel val-card">
+                  <div class="val-card-header">
+                    <div class="val-card-title-wrap">
+                      <h4 class="val-card-title">Deuda Neta / EBITDA</h4>
+                      <span class="val-card-tag">Apalancamiento</span>
+                    </div>
+                    <span class="profile-info-dot" title="Deuda financiera neta (Deuda total - Efectivo/inversiones CP) dividida entre el EBITDA">i</span>
+                  </div>
+                  <div class="val-card-body">
+                    <div class="val-metric-display">
+                      <span class="val-main-val" id="val-netdebt-ebitda">—</span>
+                    </div>
+                    <div class="val-breakdown-pills">
+                      <div class="val-pill">
+                        <span class="val-pill-label">Deuda Neta</span>
+                        <strong class="val-pill-val" id="val-netdebt">—</strong>
+                      </div>
+                      <div class="val-pill">
+                        <span class="val-pill-label">EBITDA</span>
+                        <strong class="val-pill-val" id="val-ebitda-nd">—</strong>
+                      </div>
+                    </div>
+                    <p class="val-card-desc">Años de EBITDA necesarios para repagar la deuda neta. Valores negativos indican caja neta.</p>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div class="panel val-chart-block" id="val-chart-block" hidden>
+              <div class="val-chart-head">
+                <div class="val-chart-head-left">
+                  <h5>Evolución del múltiplo por sesión</h5>
+                  <span class="metrics-chart-hint">Cotización diaria frente a los últimos datos financieros (TTM)</span>
+                </div>
+                <div class="val-chart-tools">
+                  <label class="val-adjust-checkbox-label" id="val-chart-pe-adjust-toggle" title="Calcular con métrica ajustada (sumando depreciaciones/amortizaciones de intangibles y goodwill)" style="display:none;">
+                    <input type="checkbox" id="val-chart-adjusted-checkbox" checked>
+                    <span class="val-adjust-checkbox-text">Ajustado</span>
+                  </label>
+                  <div class="val-chart-metrics" role="group" aria-label="Métrica del gráfico">
+                    <button type="button" class="active" data-vmetric="evEbitda">EV/EBITDA</button>
+                    <button type="button" data-vmetric="peRatio">PER</button>
+                    <button type="button" data-vmetric="priceToFcf">P/FCF</button>
+                    <button type="button" data-vmetric="dividendYield">Yield</button>
+                    <button type="button" data-vmetric="payoutRatio">Payout</button>
+                    <button type="button" data-vmetric="netDebtToEbitda">Deuda Neta/EBITDA</button>
+                  </div>
+                  <div class="val-chart-ranges" role="group" aria-label="Rango del gráfico">
+                    <button type="button" data-vrange="1m">1M</button>
+                    <button type="button" data-vrange="3m">3M</button>
+                    <button type="button" data-vrange="6m">6M</button>
+                    <button type="button" data-vrange="1y">1Y</button>
+                    <button type="button" data-vrange="3y">3Y</button>
+                    <button type="button" data-vrange="5y" class="active">5Y</button>
+                    <button type="button" data-vrange="10y">10Y</button>
+                    <button type="button" data-vrange="all">ALL</button>
+                  </div>
+                  <div class="pf-chart-zoom-group" id="val-zoom-group" role="group" aria-label="Zoom del gráfico">
+                    <button class="pf-zoom-btn" type="button" id="val-zoom-in" data-val-zoom="in" title="Acercar zoom (+)" aria-label="Acercar zoom">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                    </button>
+                    <button class="pf-zoom-btn" type="button" id="val-zoom-out" data-val-zoom="out" title="Alejar zoom (−)" aria-label="Alejar zoom">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+                    </button>
+                    <button class="pf-zoom-btn pf-zoom-reset" type="button" id="val-zoom-reset" data-val-zoom="reset" title="Restablecer vista completa" aria-label="Restablecer vista">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                    </button>
+                  </div>
+                  <div class="chart-tools" role="group" aria-label="Opciones del gráfico">
+                    <button type="button" id="val-measure-btn" class="pf-measure-tool-btn" title="Herramienta de medición (o clic derecho mantenido)">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21.3 8.7 8.7 21.3a2.12 2.12 0 0 1-3-3L18.3 5.7a2.12 2.12 0 0 1 3 3Z"></path>
+                        <path d="m14.5 9.5 2 2"></path>
+                        <path d="m11.5 12.5 2 2"></path>
+                        <path d="m8.5 15.5 2 2"></path>
+                      </svg>
+                      <span>Medir</span>
+                    </button>
+                    <button type="button" id="val-fullscreen" class="chart-fs pf-chart-fullscreen-btn" aria-label="Pantalla completa (F)" title="Pantalla completa (F)">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="val-chart-stats" id="val-chart-stats">
+                <div class="val-stat-pill"><span class="val-stat-label">Último:</span> <strong id="val-stat-current">—</strong></div>
+                <div class="val-stat-pill"><span class="val-stat-label">Media:</span> <strong id="val-stat-avg">—</strong></div>
+                <div class="val-stat-pill"><span class="val-stat-label">Mínimo:</span> <strong id="val-stat-min">—</strong></div>
+                <div class="val-stat-pill"><span class="val-stat-label">Máximo:</span> <strong id="val-stat-max">—</strong></div>
+              </div>
+              <div class="val-chart-body pf-chart-canvas-wrap" id="val-chart-body">
+                <div class="chart-message" id="val-chart-message" hidden></div>
+                <div data-val-canvas-inner class="company-chart-canvas-inner" style="position:relative; width:100%;">
+                  <svg id="val-chart" class="pf-chart-svg" viewBox="0 0 960 380" role="img" aria-label="Gráfico de múltiplos de valoración por sesión"></svg>
+                </div>
+              </div>
+              <!-- Dual-handle timeline slider bar -->
+              <div class="pf-timeline-bar-wrap" id="val-timeline-wrap">
+                <div class="pf-timeline-info">
+                  <div class="pf-timeline-date-chip">
+                    <span class="pf-timeline-chip-title">Desde</span>
+                    <strong id="val-timeline-start">—</strong>
+                  </div>
+                  <span class="pf-timeline-hint" id="val-timeline-span">Rueda: zoom · Arrastrar: desplazar · <strong>Clic derecho: medir</strong></span>
+                  <div class="pf-timeline-date-chip">
+                    <span class="pf-timeline-chip-title">Hasta</span>
+                    <strong id="val-timeline-end">—</strong>
+                  </div>
+                </div>
+                <div class="pf-timeline-track" id="val-timeline-track" role="region" aria-label="Selector de rango temporal">
+                  <svg class="pf-timeline-sparkline" id="val-timeline-sparkline" preserveAspectRatio="none" viewBox="0 0 100 32" aria-hidden="true"></svg>
+                  <div class="pf-timeline-mask left" id="val-timeline-mask-l"></div>
+                  <div class="pf-timeline-mask right" id="val-timeline-mask-r"></div>
+                  <div class="pf-timeline-window" id="val-timeline-window" title="Arrastra para mover la ventana temporal">
+                    <div class="pf-timeline-handle left" id="val-handle-l" tabindex="0" role="slider" aria-label="Inicio del rango temporal"><div class="pf-handle-grip"></div></div>
+                    <div class="pf-timeline-window-body"></div>
+                    <div class="pf-timeline-handle right" id="val-handle-r" tabindex="0" role="slider" aria-label="Fin del rango temporal"><div class="pf-handle-grip"></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="screener-range" id="screener-range" hidden>
               <span class="screener-range-label">Historial</span>
               <div class="screener-range-inputs">
                 <div class="screener-range-track" id="screener-range-track"></div>
-                <input type="range" id="screener-range-min" min="2016" max="2026" step="1" value="2016" aria-label="Año inicial del historial">
-                <input type="range" id="screener-range-max" min="2016" max="2026" step="1" value="2026" aria-label="Año final del historial">
+                <input type="range" id="screener-range-min" min="2007" max="2026" step="1" value="2016" aria-label="Año inicial del historial">
+                <input type="range" id="screener-range-max" min="2007" max="2026" step="1" value="2026" aria-label="Año final del historial">
               </div>
               <span class="screener-range-values" id="screener-range-values">—</span>
             </div>
-            <div class="screener-block">
-              <div class="screener-toolbar"><span class="screener-units">USD · Millones</span><span class="screener-period-range" id="screener-period-range">—</span><div class="screener-tools" role="group" aria-label="Opciones de tabla"><button type="button" data-precision="0">0</button><button type="button" data-precision="1">.0</button><button type="button" data-precision="2" class="active">.00</button><button type="button" data-table-action="transpose" aria-label="Compactar tabla">↔</button><button type="button" data-table-action="empty" aria-label="Ocultar filas vacías">◉</button></div></div>
+            <div class="screener-block" id="screener-block">
+              <div class="screener-toolbar"><span class="screener-units">USD · Millones</span><span class="screener-period-range" id="screener-period-range">—</span><div class="screener-tools" role="group" aria-label="Opciones de tabla"><button type="button" data-precision="0">0</button><button type="button" data-precision="1">.0</button><button type="button" data-precision="2" class="active">.00</button><button type="button" data-table-action="transpose" aria-label="Compactar tabla">↔</button><button type="button" data-table-action="empty" class="active" aria-label="Ocultar filas vacías" title="Ocultar filas vacías (activado)">◉</button></div></div>
+              <div class="screener-margins-bar" id="screener-margins-bar" hidden>
+                <span class="screener-margins-label">Márgenes en gráfico:</span>
+                <div class="screener-margins-list" role="group" aria-label="Seleccionar márgenes para el gráfico de líneas">
+                  <button type="button" class="screener-margin-chip" data-margin-key="grossProfitMargin" title="Añadir/quitar Margen bruto al gráfico de líneas">
+                    <span class="margin-chip-dot"></span>Margen bruto
+                  </button>
+                  <button type="button" class="screener-margin-chip" data-margin-key="operatingIncomeMargin" title="Añadir/quitar Margen operativo al gráfico de líneas">
+                    <span class="margin-chip-dot"></span>Margen operativo
+                  </button>
+                  <button type="button" class="screener-margin-chip" data-margin-key="operatingIncomeAdjustedMargin" title="Añadir/quitar Margen operativo ajustado al gráfico de líneas">
+                    <span class="margin-chip-dot"></span>Margen op. ajustado
+                  </button>
+                  <button type="button" class="screener-margin-chip" data-margin-key="netIncomeMargin" title="Añadir/quitar Margen neto al gráfico de líneas">
+                    <span class="margin-chip-dot"></span>Margen neto
+                  </button>
+                  <button type="button" class="screener-margin-chip" data-margin-key="netIncomeAdjustedMargin" title="Añadir/quitar Margen neto ajustado al gráfico de líneas">
+                    <span class="margin-chip-dot"></span>Margen neto ajustado
+                  </button>
+                  <button type="button" class="screener-margin-chip" data-margin-key="ebitdaMargin" title="Añadir/quitar Margen EBITDA al gráfico de líneas">
+                    <span class="margin-chip-dot"></span>Margen EBITDA
+                  </button>
+                </div>
+              </div>
               <div class="screener-table-title" id="screener-table-title" hidden>Cuenta de resultados | Cifra</div>
               <div class="table-wrap"><table id="screener-statement-table"><thead></thead><tbody></tbody></table></div>
+            </div>
+          </section>
+
+          <section class="company-section" id="section-alertas" hidden>
+            <div class="panel pa-company-panel">
+              <div class="section-title-row pa-company-title-row">
+                <div>
+                  <span class="eyebrow">OBJETIVOS DE COTIZACIÓN</span>
+                  <h2>Alertas de precio</h2>
+                  <p class="section-subtitle">Recibe un correo electrónico automático en cuanto la cotización cumpla tu objetivo.</p>
+                </div>
+              </div>
+              <div id="company-price-alerts-container"></div>
+            </div>
+          </section>
+
+          <section class="company-section" id="section-accionariado" hidden>
+            <div class="panel accionariado-panel">
+              <div class="accionariado-header-row">
+                <div class="accionariado-title-group">
+                  <span class="eyebrow">ESTRUCTURA DE PROPIEDAD</span>
+                  <h2 id="accionariado-title">Principales Accionistas: <span id="accionariado-company-name">—</span></h2>
+                  <p class="section-subtitle">Posiciones institucionales declaradas ante la SEC (Formulario 13F / Proxy Statements).</p>
+                </div>
+              </div>
+
+              <div class="accionariado-kpi-grid" id="accionariado-kpis">
+                <div class="accionariado-kpi-card">
+                  <span class="accionariado-kpi-label">Top 10 Institucional</span>
+                  <strong class="accionariado-kpi-value" id="kpi-institutions-pct">—</strong>
+                  <small class="accionariado-kpi-sub">Suma de los 10 mayores fondos</small>
+                </div>
+                <div class="accionariado-kpi-card">
+                  <span class="accionariado-kpi-label">Propiedad Interna (Insiders)</span>
+                  <strong class="accionariado-kpi-value" id="kpi-insiders-pct">—</strong>
+                  <small class="accionariado-kpi-sub">Directivos y fundadores</small>
+                </div>
+                <div class="accionariado-kpi-card">
+                  <span class="accionariado-kpi-label">Gestoras Declarantes</span>
+                  <strong class="accionariado-kpi-value" id="kpi-institutions-count">—</strong>
+                  <small class="accionariado-kpi-sub">Fondos e instituciones en 13F</small>
+                </div>
+              </div>
+
+              <div class="screener-tabs accionariado-tabs" role="tablist" aria-label="Tipo de accionista">
+                <button class="screener-tab active" type="button" data-holders-tab="institutions">Institucionales</button>
+                <button class="screener-tab" type="button" data-holders-tab="funds">Fondos y ETFs</button>
+                <button class="screener-tab" type="button" data-holders-tab="insiders">Directivos / Insiders</button>
+              </div>
+
+              <div class="company-loading" id="accionariado-loading" hidden>Cargando accionariado…</div>
+              <p class="screener-error" id="accionariado-error" hidden></p>
+
+              <div class="table-wrap" id="accionariado-table-wrap">
+                <table class="accionariado-table" id="accionariado-table">
+                  <thead id="accionariado-thead"></thead>
+                  <tbody id="accionariado-tbody"></tbody>
+                </table>
+              </div>
+              <div class="accionariado-footer">
+                <span class="screener-period-range" id="accionariado-source-note">Fuente: SEC EDGAR (Formulario 13F / DEF 14A) · Yahoo Finance</span>
+              </div>
             </div>
           </section>
 
@@ -360,9 +784,134 @@
     </div>
   </div>
 
-  <script src="/watchlists.js?v=4"></script>
-  <script src="/portfolio.js?v=44"></script>
-  <script src="/empresa.js?v=21"></script>
+  <div class="modal-backdrop settings-modal-backdrop" id="settings-modal-backdrop" hidden>
+    <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+      <button class="modal-close" id="settings-modal-close" type="button" aria-label="Cerrar">×</button>
+      <div class="settings-modal-header">
+        <h3 class="modal-title" id="settings-modal-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px;margin-right:6px"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V4a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2.9Z"/></svg>
+          Ajustes y Preferencias
+        </h3>
+        <p class="modal-subtitle">Configura los comportamientos predeterminados para nuevas acciones.</p>
+      </div>
+
+      <form class="settings-form" id="settings-form">
+        <!-- Sección 1: Listas de seguimiento / Favoritos -->
+        <div class="settings-group">
+          <div class="settings-group-header">
+            <span class="settings-group-icon">⭐</span>
+            <div>
+              <h4 class="settings-group-title">Al agregar a Favoritos / Seguimiento</h4>
+              <p class="settings-group-desc">Reglas automáticas al guardar una acción en listas.</p>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <label class="settings-checkbox-row">
+              <input type="checkbox" id="pref-wl-calendar" name="watchlistAutoCalendar">
+              <span class="settings-check-custom"></span>
+              <div class="settings-check-copy">
+                <strong>Añadir al calendario automáticamente</strong>
+                <small>Mostrar resultados y dividendos en tu calendario</small>
+              </div>
+            </label>
+
+            <label class="settings-checkbox-row">
+              <input type="checkbox" id="pref-wl-notify" name="watchlistAutoNotify">
+              <span class="settings-check-custom"></span>
+              <div class="settings-check-copy">
+                <strong>Enviar avisos por email por defecto</strong>
+                <small>Recibir notificaciones en tu correo electrónico</small>
+              </div>
+            </label>
+
+            <div class="settings-subs" id="pref-wl-subs">
+              <span class="settings-subs-title">¿Qué avisos enviar para acciones en seguimiento?</span>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-wl-earnings" name="watchlistNotifyEarnings">
+                <span class="settings-check-custom small"></span>
+                <span>📊 Resultados 10-Q / 10-K</span>
+              </label>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-wl-exdiv" name="watchlistNotifyExdiv">
+                <span class="settings-check-custom small"></span>
+                <span>⏳ Fecha Ex-Dividend (Corte)</span>
+              </label>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-wl-payout" name="watchlistNotifyPayout">
+                <span class="settings-check-custom small"></span>
+                <span>💰 Pago de Dividendos</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sección 2: Cartera -->
+        <div class="settings-group">
+          <div class="settings-group-header">
+            <span class="settings-group-icon">💼</span>
+            <div>
+              <h4 class="settings-group-title">Al añadir a la Cartera</h4>
+              <p class="settings-group-desc">Reglas automáticas al comprar o registrar una posición.</p>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-locked-row">
+              <span class="settings-check-custom locked">✓</span>
+              <div class="settings-check-copy">
+                <strong>Incluido en el calendario permanentemente</strong>
+                <small>Las empresas con posición en cartera siempre aparecen en el calendario</small>
+              </div>
+              <span class="settings-locked-badge">💼 Cartera</span>
+            </div>
+
+            <label class="settings-checkbox-row">
+              <input type="checkbox" id="pref-pf-notify" name="portfolioAutoNotify">
+              <span class="settings-check-custom"></span>
+              <div class="settings-check-copy">
+                <strong>Enviar avisos por email por defecto</strong>
+                <small>Recibir notificaciones en tu correo electrónico</small>
+              </div>
+            </label>
+
+            <div class="settings-subs" id="pref-pf-subs">
+              <span class="settings-subs-title">¿Qué avisos enviar para acciones en cartera?</span>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-pf-earnings" name="portfolioNotifyEarnings">
+                <span class="settings-check-custom small"></span>
+                <span>📊 Resultados 10-Q / 10-K</span>
+              </label>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-pf-exdiv" name="portfolioNotifyExdiv">
+                <span class="settings-check-custom small"></span>
+                <span>⏳ Fecha Ex-Dividend (Corte)</span>
+              </label>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-pf-payout" name="portfolioNotifyPayout">
+                <span class="settings-check-custom small"></span>
+                <span>💰 Pago de Dividendos</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-note">
+          💡 <strong>Regla de unificación (OR)</strong>: Si una empresa está tanto en seguimiento como en cartera, se unifican las notificaciones seleccionadas. Puedes personalizar cada acción individualmente desde su menú de seguimiento.
+        </div>
+
+        <div class="settings-actions">
+          <button class="primary-button settings-save-btn" id="settings-save-btn" type="submit">Guardar preferencias</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/watchlists.js?v=8"></script>
+  <script src="/portfolio.js?v=56"></script>
+  <script src="/settings.js?v=1"></script>
+  <script src="/priceAlerts.js?v=4"></script>
+  <script src="/empresa.js?v=39"></script>
   <script src="/auth.js?v=6"></script>
 </body>
 </html>

@@ -6,23 +6,27 @@
   <meta name="theme-color" content="#242424">
   <meta name="description" content="Cifra: análisis fundamental de informes financieros 10-Q y 10-K.">
   <title>Cifra Terminal | Inicio</title>
-  <link rel="stylesheet" href="/styles.css?v=57">
+  <link rel="stylesheet" href="/styles.css?v=69">
 </head>
 <body class="home-page">
   <header class="topbar home-topbar">
     <nav class="home-top-links" aria-label="Secciones">
-      <button class="home-top-link" type="button" data-section="seguimiento">
+      <a class="home-top-link" href="/seguimiento" data-section="seguimiento">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
         <span>Seguimiento</span>
-      </button>
-      <button class="home-top-link" type="button" data-section="cartera">
+      </a>
+      <a class="home-top-link" href="/cartera" data-section="cartera">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
         <span>Cartera</span>
-      </button>
-      <button class="home-top-link" type="button" data-section="analisis">
+      </a>
+      <a class="home-top-link" href="/analisis" data-section="analisis">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5"/><path d="M10 12h6M10 16h6"/></svg>
         <span>Análisis</span>
-      </button>
+      </a>
+      <a class="home-top-link" href="/alertas" data-section="alertas">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        <span>Alertas</span>
+      </a>
     </nav>
 
     <div class="topbar-actions">
@@ -59,21 +63,26 @@
     </section>
 
     <section class="home-menu-section" id="home-menu" aria-label="Secciones de Cifra">
-      <button class="home-menu-card" type="button" data-section="seguimiento">
+      <a class="home-menu-card" href="/seguimiento" data-section="seguimiento">
         <span class="home-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg></span>
         <span class="home-menu-copy"><strong>Seguimiento</strong><small>Las acciones que te gustan, en tus listas.</small></span>
         <span class="home-menu-arrow" aria-hidden="true">→</span>
-      </button>
-      <button class="home-menu-card" type="button" data-section="cartera">
+      </a>
+      <a class="home-menu-card" href="/cartera" data-section="cartera">
         <span class="home-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></span>
         <span class="home-menu-copy"><strong>Cartera</strong><small>Tu cartera de dividendos y posiciones.</small></span>
         <span class="home-menu-arrow" aria-hidden="true">→</span>
-      </button>
-      <button class="home-menu-card" type="button" data-section="analisis">
+      </a>
+      <a class="home-menu-card" href="/analisis" data-section="analisis">
         <span class="home-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7zM14 3v5h5"/><path d="M10 12h6M10 16h6"/></svg></span>
         <span class="home-menu-copy"><strong>Análisis</strong><small>Sube un 10-Q / 10-K y consulta tu historial.</small></span>
         <span class="home-menu-arrow" aria-hidden="true">→</span>
-      </button>
+      </a>
+      <a class="home-menu-card" href="/alertas" data-section="alertas">
+        <span class="home-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+        <span class="home-menu-copy"><strong>Alertas de precio</strong><small>Avisos automáticos por correo al alcanzar tu objetivo.</small></span>
+        <span class="home-menu-arrow" aria-hidden="true">→</span>
+      </a>
     </section>
 
     <section class="home-grid-section" id="favoritos" hidden aria-label="Tus acciones en seguimiento">
@@ -82,6 +91,14 @@
         <span class="scope-badge" id="favorites-count">0</span>
       </div>
       <div id="watchlists-section"></div>
+    </section>
+
+    <section class="home-grid-section price-alerts-page-section" id="alertas" hidden aria-label="Tus alertas de precio">
+      <div class="section-title-row">
+        <div><span class="eyebrow">OBJETIVOS DE COTIZACIÓN</span><h2>Alertas de precio</h2><p class="section-subtitle">Recibe un correo electrónico automático en cuanto la cotización cumpla tu objetivo.</p></div>
+        <span class="scope-badge" id="price-alerts-count">0</span>
+      </div>
+      <div id="price-alerts-section"></div>
     </section>
 
     <section class="home-grid-section portfolio-page-section" id="cartera" hidden aria-label="Tu cartera de inversión">
@@ -183,9 +200,150 @@
     </div>
   </div>
 
-  <script src="/watchlists.js?v=4"></script>
-  <script src="/portfolio.js?v=47"></script>
-  <script src="/app.js?v=19"></script>
+  <div class="filings-preview-backdrop" id="filings-preview-backdrop" hidden>
+    <div class="filings-preview" role="dialog" aria-modal="true" aria-labelledby="filings-preview-title">
+      <div class="filings-preview-head">
+        <strong id="filings-preview-title">Vista previa del informe</strong>
+        <div class="filings-preview-actions">
+          <a id="filings-preview-open" href="#" target="_blank" rel="noopener">Abrir en pestaña nueva ↗</a>
+          <button class="filings-preview-close" id="filings-preview-close" type="button" aria-label="Cerrar">×</button>
+        </div>
+      </div>
+      <div class="filings-preview-frame-wrap">
+        <div class="filings-preview-loading" id="filings-preview-loading"><span class="loading-spinner"></span> Cargando…</div>
+        <div class="filings-preview-pages" id="filings-preview-pages" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop settings-modal-backdrop" id="settings-modal-backdrop" hidden>
+    <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+      <button class="modal-close" id="settings-modal-close" type="button" aria-label="Cerrar">×</button>
+      <div class="settings-modal-header">
+        <h3 class="modal-title" id="settings-modal-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px;margin-right:6px"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V4a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2.9Z"/></svg>
+          Ajustes y Preferencias
+        </h3>
+        <p class="modal-subtitle">Configura los comportamientos predeterminados para nuevas acciones.</p>
+      </div>
+
+      <form class="settings-form" id="settings-form">
+        <!-- Sección 1: Listas de seguimiento / Favoritos -->
+        <div class="settings-group">
+          <div class="settings-group-header">
+            <span class="settings-group-icon">⭐</span>
+            <div>
+              <h4 class="settings-group-title">Al agregar a Favoritos / Seguimiento</h4>
+              <p class="settings-group-desc">Reglas automáticas al guardar una acción en listas.</p>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <label class="settings-checkbox-row">
+              <input type="checkbox" id="pref-wl-calendar" name="watchlistAutoCalendar">
+              <span class="settings-check-custom"></span>
+              <div class="settings-check-copy">
+                <strong>Añadir al calendario automáticamente</strong>
+                <small>Mostrar resultados y dividendos en tu calendario</small>
+              </div>
+            </label>
+
+            <label class="settings-checkbox-row">
+              <input type="checkbox" id="pref-wl-notify" name="watchlistAutoNotify">
+              <span class="settings-check-custom"></span>
+              <div class="settings-check-copy">
+                <strong>Enviar avisos por email por defecto</strong>
+                <small>Recibir notificaciones en tu correo electrónico</small>
+              </div>
+            </label>
+
+            <div class="settings-subs" id="pref-wl-subs">
+              <span class="settings-subs-title">¿Qué avisos enviar para acciones en seguimiento?</span>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-wl-earnings" name="watchlistNotifyEarnings">
+                <span class="settings-check-custom small"></span>
+                <span>📊 Resultados 10-Q / 10-K</span>
+              </label>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-wl-exdiv" name="watchlistNotifyExdiv">
+                <span class="settings-check-custom small"></span>
+                <span>⏳ Fecha Ex-Dividend (Corte)</span>
+              </label>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-wl-payout" name="watchlistNotifyPayout">
+                <span class="settings-check-custom small"></span>
+                <span>💰 Pago de Dividendos</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sección 2: Cartera -->
+        <div class="settings-group">
+          <div class="settings-group-header">
+            <span class="settings-group-icon">💼</span>
+            <div>
+              <h4 class="settings-group-title">Al añadir a la Cartera</h4>
+              <p class="settings-group-desc">Reglas automáticas al comprar o registrar una posición.</p>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-locked-row">
+              <span class="settings-check-custom locked">✓</span>
+              <div class="settings-check-copy">
+                <strong>Incluido en el calendario permanentemente</strong>
+                <small>Las empresas con posición en cartera siempre aparecen en el calendario</small>
+              </div>
+              <span class="settings-locked-badge">💼 Cartera</span>
+            </div>
+
+            <label class="settings-checkbox-row">
+              <input type="checkbox" id="pref-pf-notify" name="portfolioAutoNotify">
+              <span class="settings-check-custom"></span>
+              <div class="settings-check-copy">
+                <strong>Enviar avisos por email por defecto</strong>
+                <small>Recibir notificaciones en tu correo electrónico</small>
+              </div>
+            </label>
+
+            <div class="settings-subs" id="pref-pf-subs">
+              <span class="settings-subs-title">¿Qué avisos enviar para acciones en cartera?</span>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-pf-earnings" name="portfolioNotifyEarnings">
+                <span class="settings-check-custom small"></span>
+                <span>📊 Resultados 10-Q / 10-K</span>
+              </label>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-pf-exdiv" name="portfolioNotifyExdiv">
+                <span class="settings-check-custom small"></span>
+                <span>⏳ Fecha Ex-Dividend (Corte)</span>
+              </label>
+              <label class="settings-sub-checkbox-row">
+                <input type="checkbox" id="pref-pf-payout" name="portfolioNotifyPayout">
+                <span class="settings-check-custom small"></span>
+                <span>💰 Pago de Dividendos</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-note">
+          💡 <strong>Regla de unificación (OR)</strong>: Si una empresa está tanto en seguimiento como en cartera, se unifican las notificaciones seleccionadas. Puedes personalizar cada acción individualmente desde su menú de seguimiento.
+        </div>
+
+        <div class="settings-actions">
+          <button class="primary-button settings-save-btn" id="settings-save-btn" type="submit">Guardar preferencias</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/watchlists.js?v=8"></script>
+  <script src="/portfolio.js?v=56"></script>
+  <script src="/settings.js?v=1"></script>
+  <script src="/priceAlerts.js?v=4"></script>
+  <script src="/app.js?v=23"></script>
   <script src="/auth.js?v=6"></script>
 </body>
 </html>

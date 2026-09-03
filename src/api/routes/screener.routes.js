@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import {
   searchCompanies,
   getCompanyResults,
+  getValuationSeries,
   getCompanyFilings,
   getFilingDocumentStream,
   getFilingPreview,
@@ -10,13 +11,22 @@ import {
 } from '../../services/edgar.service.js';
 import { analyzePdf, analyzeText, htmlToText } from '../../services/analysis.service.js';
 import { AgentError } from '../../agents/baseAgent.js';
-import { getChartSeries } from '../../services/market.service.js';
+import { getChartSeries, getCompanyHolders } from '../../services/market.service.js';
 import { resolveUser } from '../../middleware/auth.middleware.js';
 
 const router = express.Router();
 
 const TICKER_PATTERN = /^[A-Z0-9.-]{1,10}$/;
-const ACCESSION_PATTERN = /^\d{10}-\d{2}-\d{6}$/;
+const ACCESSION_PATTERN = /^\d{10}-?\d{2}-?\d{6}$/;
+
+function normalizeAccession(acc) {
+  const clean = String(acc ?? '').trim();
+  if (/^\d{18}$/.test(clean)) {
+    return `${clean.slice(0, 10)}-${clean.slice(10, 12)}-${clean.slice(12)}`;
+  }
+  return clean;
+}
+
 const PAGE_PATTERN = /^\d{1,4}$/;
 const PREVIEWS_DIR = new URL('../../../uploads/generated/filings/previews/', import.meta.url).pathname;
 
@@ -77,6 +87,21 @@ router.get('/company/:ticker/chart', async (req, res, next) => {
   }
 });
 
+router.get('/company/:ticker/valuation', async (req, res, next) => {
+  try {
+    const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
+    if (!TICKER_PATTERN.test(ticker)) {
+      res.status(400).json({ error: 'Ticker no válido.' });
+      return;
+    }
+    const range = String(req.query.range ?? '5y');
+    const result = await getValuationSeries(ticker, range);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    handleEdgarError(error, res, next);
+  }
+});
+
 router.get('/company/:ticker/filings', async (req, res, next) => {
   try {
     const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
@@ -85,6 +110,20 @@ router.get('/company/:ticker/filings', async (req, res, next) => {
       return;
     }
     const result = await getCompanyFilings(ticker);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    handleEdgarError(error, res, next);
+  }
+});
+
+router.get('/company/:ticker/holders', async (req, res, next) => {
+  try {
+    const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
+    if (!TICKER_PATTERN.test(ticker)) {
+      res.status(400).json({ error: 'Ticker no válido.' });
+      return;
+    }
+    const result = await getCompanyHolders(ticker);
     res.json({ ok: true, ...result });
   } catch (error) {
     handleEdgarError(error, res, next);
@@ -129,7 +168,7 @@ router.get('/company/:ticker/filings/:accession/document', async (req, res, next
 router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next) => {
   try {
     const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
-    const accession = String(req.params.accession ?? '');
+    const accession = normalizeAccession(req.params.accession);
     if (!TICKER_PATTERN.test(ticker) || !ACCESSION_PATTERN.test(accession)) {
       res.status(400).json({ error: 'Parámetros no válidos.' });
       return;
@@ -168,7 +207,7 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
 router.get('/company/:ticker/filings/:accession/preview', async (req, res, next) => {
   try {
     const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
-    const accession = String(req.params.accession ?? '');
+    const accession = normalizeAccession(req.params.accession);
     if (!TICKER_PATTERN.test(ticker) || !ACCESSION_PATTERN.test(accession)) {
       res.status(400).json({ error: 'Parámetros no válidos.' });
       return;
@@ -191,7 +230,7 @@ router.get('/company/:ticker/filings/:accession/preview', async (req, res, next)
 router.get('/company/:ticker/filings/:accession/preview/pages/:page', async (req, res, next) => {
   try {
     const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
-    const accession = String(req.params.accession ?? '');
+    const accession = normalizeAccession(req.params.accession);
     const page = String(req.params.page ?? '');
     if (!TICKER_PATTERN.test(ticker) || !ACCESSION_PATTERN.test(accession) || !PAGE_PATTERN.test(page)) {
       res.status(400).json({ error: 'Parámetros no válidos.' });

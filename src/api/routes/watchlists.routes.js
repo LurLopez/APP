@@ -3,6 +3,7 @@ import { requireAuth } from '../../middleware/auth.middleware.js';
 import * as watchlistRepository from '../../../db/repositories/watchlistRepository.js';
 import { getCompanyByTicker } from '../../services/edgar.service.js';
 import { getMarketQuote } from '../../services/market.service.js';
+import { checkAndDispatchAlerts } from '../../services/alertScanner.service.js';
 
 const router = Router();
 
@@ -27,7 +28,20 @@ function handleWatchlistError(error, res, next) {
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const watchlists = await watchlistRepository.listWatchlists(req.user.id);
+    const [watchlists, calendarList, emailAlertsList] = await Promise.all([
+      watchlistRepository.listWatchlists(req.user.id),
+      watchlistRepository.listCalendarTickers(req.user.id),
+      watchlistRepository.listEmailAlerts(req.user.id),
+    ]);
+    const emailAlerts = {};
+    for (const alert of emailAlertsList) {
+      emailAlerts[alert.ticker] = {
+        enabled: alert.enabled,
+        notifyEarnings: alert.notifyEarnings,
+        notifyExdiv: alert.notifyExdiv,
+        notifyPayout: alert.notifyPayout,
+      };
+    }
     res.json({
       ok: true,
       watchlists: watchlists.map((watchlist) => ({
@@ -41,6 +55,8 @@ router.get('/', requireAuth, async (req, res, next) => {
           companyName: item.companyName,
         })),
       })),
+      calendarTickers: calendarList.map((c) => c.ticker),
+      emailAlerts,
     });
   } catch (error) {
     next(error);
@@ -68,6 +84,136 @@ router.post('/', requireAuth, async (req, res, next) => {
     });
   } catch (error) {
     handleWatchlistError(error, res, next);
+  }
+});
+
+router.get('/preferences', requireAuth, async (req, res, next) => {
+  try {
+    const preferences = await watchlistRepository.getUserPreferences(req.user.id);
+    res.json({ ok: true, preferences });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/preferences', requireAuth, async (req, res, next) => {
+  try {
+    const preferences = await watchlistRepository.updateUserPreferences(req.user.id, req.body ?? {});
+    res.json({ ok: true, preferences });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/calendar/tickers', requireAuth, async (req, res, next) => {
+  try {
+    const list = await watchlistRepository.listCalendarTickers(req.user.id);
+    res.json({ ok: true, tickers: list.map((c) => c.ticker) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/calendar/items', requireAuth, async (req, res, next) => {
+  try {
+    const ticker = String(req.body?.ticker ?? '').trim().toUpperCase();
+    if (!TICKER_PATTERN.test(ticker)) {
+      res.status(400).json({ error: 'Ticker no válido.' });
+      return;
+    }
+    let companyName = String(req.body?.companyName ?? '').trim();
+    if (!companyName) {
+      try {
+        const company = await getCompanyByTicker(ticker);
+        companyName = company?.name || ticker;
+      } catch {
+        companyName = ticker;
+      }
+    }
+    const item = await watchlistRepository.addCalendarTicker(req.user.id, ticker, companyName);
+    res.status(201).json({ ok: true, item });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/calendar/items/:ticker', requireAuth, async (req, res, next) => {
+  try {
+    const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
+    if (!TICKER_PATTERN.test(ticker)) {
+      res.status(400).json({ error: 'Ticker no válido.' });
+      return;
+    }
+    await watchlistRepository.removeCalendarTicker(req.user.id, ticker);
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/notifications', requireAuth, async (req, res, next) => {
+  try {
+    const list = await watchlistRepository.listEmailAlerts(req.user.id);
+    res.json({ ok: true, alerts: list });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/notifications', requireAuth, async (req, res, next) => {
+  try {
+    const ticker = String(req.body?.ticker ?? '').trim().toUpperCase();
+    if (!TICKER_PATTERN.test(ticker)) {
+      res.status(400).json({ error: 'Ticker no válido.' });
+      return;
+    }
+    let companyName = String(req.body?.companyName ?? '').trim();
+    if (!companyName) {
+      try {
+        const company = await getCompanyByTicker(ticker);
+        companyName = company?.name || ticker;
+      } catch {
+        companyName = ticker;
+      }
+    }
+    const enabled = req.body?.enabled !== undefined ? Boolean(req.body.enabled) : true;
+    const notifyEarnings = req.body?.notifyEarnings !== undefined ? Boolean(req.body.notifyEarnings) : true;
+    const notifyExdiv = req.body?.notifyExdiv !== undefined ? Boolean(req.body.notifyExdiv) : true;
+    const notifyPayout = req.body?.notifyPayout !== undefined ? Boolean(req.body.notifyPayout) : true;
+
+    const alert = await watchlistRepository.upsertEmailAlert(req.user.id, ticker, {
+      companyName,
+      enabled,
+      notifyEarnings,
+      notifyExdiv,
+      notifyPayout,
+    });
+    res.json({ ok: true, alert });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/notifications/:ticker', requireAuth, async (req, res, next) => {
+  try {
+    const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
+    if (!TICKER_PATTERN.test(ticker)) {
+      res.status(400).json({ error: 'Ticker no válido.' });
+      return;
+    }
+    await watchlistRepository.deleteEmailAlert(req.user.id, ticker);
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/notifications/check-now', requireAuth, async (req, res, next) => {
+  try {
+    const result = await checkAndDispatchAlerts();
+    res.json({ ok: true, result });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -187,6 +333,10 @@ router.post('/:id/items', requireAuth, async (req, res, next) => {
       res.status(404).json({ error: 'La lista no existe.' });
       return;
     }
+
+    // Al añadir a cualquier lista, se aplican las reglas por defecto (calendario y unión OR de notificaciones)
+    await watchlistRepository.applyWatchlistAddDefaults(req.user.id, ticker, companyName);
+
     res.status(201).json({ ok: true, item });
   } catch (error) {
     handleWatchlistError(error, res, next);

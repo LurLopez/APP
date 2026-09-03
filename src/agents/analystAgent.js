@@ -3,8 +3,40 @@ import { BaseAgent, AgentError } from './baseAgent.js';
 import { chatJson } from '../services/ai/modelProvider.js';
 
 const MAX_CHARS = 80000;
+const KNOWLEDGE_DIR = new URL('./knowledge/', import.meta.url);
 const PROMPTS_DIR = new URL('./prompts/', import.meta.url);
 const SECTOR_FILES = { defensive_consumer: 'consumo-defensivo' };
+
+async function loadKnowledgeRules(sector, subsector) {
+  let generalRules = '';
+  try {
+    generalRules = await readFile(new URL('general.md', KNOWLEDGE_DIR), 'utf8');
+  } catch {}
+
+  const sectorSlug = SECTOR_FILES[sector] ?? sector;
+  let sectorRules = '';
+  try {
+    sectorRules = await readFile(new URL(`${sectorSlug}/sector.md`, KNOWLEDGE_DIR), 'utf8');
+  } catch {
+    try {
+      sectorRules = await readFile(new URL(`${sectorSlug}.md`, PROMPTS_DIR), 'utf8');
+    } catch {}
+  }
+
+  let subsectorRules = '';
+  if (subsector) {
+    try {
+      subsectorRules = await readFile(new URL(`${sectorSlug}/subsectores/${subsector}/subsector.md`, KNOWLEDGE_DIR), 'utf8');
+    } catch {}
+  }
+
+  const parts = [];
+  if (generalRules) parts.push(`### REGLAS GENERALES Y FORMATO:\n${generalRules}`);
+  if (sectorRules) parts.push(`### REGLAS DEL SECTOR (${sectorSlug}):\n${sectorRules}`);
+  if (subsectorRules) parts.push(`### REGLAS DEL SUBSECTOR (${subsector}):\n${subsectorRules}`);
+
+  return parts.join('\n\n---\n\n') || sectorRules;
+}
 
 function buildAnalysisText(text) {
   const financialMarkers = [
@@ -100,11 +132,11 @@ const OUTPUT_SCHEMA = `{
       "label": "ÚLTIMOS 3 MESES",
       "sales": {
         "rows": [
-          { "name": "Ventas", "adjusted": "6237M", "prevAdjusted": "6383M", "pctAdjusted": "-2,29 %", "normal": "6237M", "prevNormal": "6383M", "pctNormal": "-2,29 %" },
-          { "name": "Beneficio Bruto", "adjusted": "1990M", "prevAdjusted": "2186M", "pctAdjusted": "-8,97 %", "normal": "1990M", "prevNormal": "2186M", "pctNormal": "-8,97 %" },
-          { "name": "Beneficio Operativo", "adjusted": "1060M", "prevAdjusted": "1327M", "pctAdjusted": "-20,12 %", "normal": "1025M", "prevNormal": "-101M", "pctNormal": "-" },
-          { "name": "EBT", "adjusted": "807M", "prevAdjusted": "1145M", "pctAdjusted": "-29,52 %", "normal": "807M", "prevNormal": "-283M", "pctNormal": "-" },
-          { "name": "Beneficio Neto", "adjusted": "613M", "prevAdjusted": "880M", "pctAdjusted": "-30,34 %", "normal": "613M", "prevNormal": "-290M", "pctNormal": "-" }
+          { "name": "Ventas", "adjusted": "6237M", "prevAdjusted": "6383M", "pctAdjusted": "-2,29 %", "normal": "6237M", "prevNormal": "6383M", "pctNormal": "-2,29 %", "isAdjusted": false },
+          { "name": "Beneficio Bruto", "adjusted": "1990M", "prevAdjusted": "2186M", "pctAdjusted": "-8,97 %", "normal": "1990M", "prevNormal": "2186M", "pctNormal": "-8,97 %", "isAdjusted": false },
+          { "name": "Beneficio Operativo", "adjusted": "1060M", "prevAdjusted": "1327M", "pctAdjusted": "-20,12 %", "normal": "1025M", "prevNormal": "-101M", "pctNormal": "-", "isAdjusted": true, "adjustedNote": "*1" },
+          { "name": "EBT", "adjusted": "807M", "prevAdjusted": "1145M", "pctAdjusted": "-29,52 %", "normal": "807M", "prevNormal": "-283M", "pctNormal": "-", "isAdjusted": false },
+          { "name": "Beneficio Neto", "adjusted": "613M", "prevAdjusted": "880M", "pctAdjusted": "-30,34 %", "normal": "613M", "prevNormal": "-290M", "pctNormal": "-", "isAdjusted": false }
         ],
         "notes": ["*1: El año anterior tuvieron un impairment de 1428M", "*2: ..."],
         "shares": "1183M",
@@ -141,9 +173,9 @@ const OUTPUT_SCHEMA = `{
   ]
 }`;
 
-const SYSTEM_PROMPT = `Eres el analista principal de Cifra, un analizador de informes financieros 10-Q / 10-K de empresas de EE. UU. del sector de consumo defensivo.
+const SYSTEM_PROMPT = `Eres el analista principal de Cifra, un analizador de informes financieros 10-Q / 10-K de empresas de EE. UU.
 
-Recibirás un JSON con las cifras clave extraídas del informe financiero (en millones de USD). A partir de esas cifras y de las reglas del sector, elabora el análisis estructurado siguiendo EXACTAMENTE estas reglas:
+Recibirás un JSON con las cifras clave extraídas del informe financiero (en millones de USD). A partir de esas cifras y de las reglas jerárquicas aplicables (Generales + Sector + Subsector), elabora el análisis estructurado siguiendo EXACTAMENTE estas reglas:
 
 {REGLAS}
 
@@ -151,16 +183,21 @@ Responde ÚNICAMENTE con un JSON válido con esta forma exacta (sin texto fuera 
 
 {SCHEMA}
 
-Instrucciones:
+Instrucciones prioritarias:
 - IMPORTANTE: los valores del esquema de ejemplo son de OTRA empresa y otro periodo. Usa EXCLUSIVAMENTE los datos del JSON de extracción recibido. Nunca copies los valores del ejemplo.
 - "company", "ticker", "periodTitle" y "reportingPeriod" (fecha de fin del periodo en formato AAAA-MM-DD) se copian tal cual del JSON de extracción.
-- Dos horizontes: el trimestre más reciente y el acumulado del año en curso (usa "EN TODO EL AÑO (X MESES)" con los meses indicados). Si solo hay datos de un horizonte, usa uno solo.
+- HORIZONTES TEMPORALES (REGLA SEGÚN TRIMESTRE):
+  * Si el informe es de un primer trimestre (Q1 o fiscalQuarter === 1): genera UN SOLO horizonte con la etiqueta "ÚLTIMOS 3 MESES (Q1)". Omite el bloque acumulado de "EN TODO EL AÑO" ya que 3 meses concluyen todo el ejercicio hasta la fecha.
+  * Si es Q2, Q3 o Q4: genera obligatoriamente dos horizontes en este orden: 1. "ÚLTIMOS 3 MESES" (datos exclusivos del trimestre) y 2. "EN TODO EL AÑO (X MESES)" (datos acumulados hasta la fecha con los meses indicados).
+- AJUSTES EN VENTAS Y NOTAS EXPLICATIVAS:
+  * Si en una fila de "sales.rows" la cifra de "adjusted" difiere de "normal" por un ajuste (impuestos normalizados, intangibles a 0, extraordinarios), asigna "isAdjusted": true y añade la nota correspondiente con formato "*1: [Explicación detallada: motivo del ajuste, cifra teórica esperada vs reportada y diferencia neta]". Si no hay ajuste contable, "isAdjusted": false.
+- CASH FLOW TRIMESTRAL POR DEDUCCIÓN (YTD):
+  * Si el informe solo proporciona flujos de efectivo acumulados del año (YTD), calcula las cifras de los últimos 3 meses deduciendo el acumulado precedente: Trimestre Actual = Acumulado Actual - Acumulado Precedente (para Cash Flow operativo, CAPEX, componentes de Working Capital, dividendo, recompras y deuda).
 - Calcula las variaciones porcentuales con los datos extraídos ("prev" es el periodo anterior). No inventes cifras: si falta un dato usa "—".
 - "sales.rows" en orden: Ventas, Beneficio Bruto, Beneficio Operativo, EBT, Beneficio Neto.
-- Para "cashFlow": "Cash Flow" = flujo de operaciones, "CAPEX" = capital expenditures, "FCF" = Cash Flow - CAPEX, "FCF/Acción" = FCF / acciones, "Dividendo" = dividendos pagados, "Libre" = FCF - Dividendo. Si el informe solo tiene el acumulado, deja el horizonte trimestral con "—".
-- Para "capital": "Libre" (del cash flow), "Caja" (variación de efectivo, usa la cifra de deuda o caja disponible si la hay), "En total" (suma con signo). Incluye "Deuda" y "Recompras" solo si hay datos.
-- Notas en español con asteriscos (*1, *2...) explicando cada ajuste: impairments, amortización de intangibles, impuestos normalizados, ventas de negocios, etc.
-- Porcentajes en español con coma decimal y signo (ej. "-2,29 %"). Cifras en millones con sufijo M (ej. "6237M").`;
+- Para "cashFlow": "Cash Flow" = flujo de operaciones, "CAPEX" = capital expenditures, "FCF" = Cash Flow - CAPEX, "FCF/Acción" = FCF / acciones, "Dividendo" = dividendos pagados, "Libre" = FCF - Dividendo. Si el informe solo tiene el acumulado y no hay datos para deducir el trimestre, usa "—".
+- Para "capital": "Libre" (del cash flow), "Caja" (variación de efectivo), "En total" (suma con signo). Incluye "Deuda" y "Recompras" solo si hay datos. Comprueba explícitamente si cuadra ("El resultado cuadra." o "Más o menos cuadra...").
+- Porcentajes en español con coma decimal y signo (ej. "+16,67 %", "-2,29 %"). Cifras en millones con sufijo M (ej. "6237M").`;
 
 export class AnalystAgent extends BaseAgent {
   constructor() {
@@ -176,10 +213,10 @@ export class AnalystAgent extends BaseAgent {
     }
 
     const sector = input.sector ?? 'defensive_consumer';
-    const rulesFile = SECTOR_FILES[sector] ?? sector;
+    const subsector = input.subsector ?? null;
     let rules;
     try {
-      rules = await readFile(new URL(`${rulesFile}.md`, PROMPTS_DIR), 'utf8');
+      rules = await loadKnowledgeRules(sector, subsector);
     } catch {
       throw new AgentError(`No hay reglas de análisis definidas para el sector ${sector}.`, 'NO_SECTOR_RULES');
     }

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.middleware.js';
 import * as portfolioService from '../../services/portfolio.service.js';
 import { getCompanyByTicker } from '../../services/edgar.service.js';
+import { applyPortfolioAddDefaults } from '../../../db/repositories/watchlistRepository.js';
 
 const router = Router();
 
@@ -106,6 +107,14 @@ router.post('/transactions', requireAuth, async (req, res, next) => {
     const transaction = type === 'buy'
       ? await portfolioService.addBuy(req.user.id, { ticker, companyName, shares, price, tradeDate })
       : await portfolioService.addSell(req.user.id, { ticker, companyName, shares, price, tradeDate });
+
+    if (type === 'buy') {
+      try {
+        await applyPortfolioAddDefaults(req.user.id, ticker, companyName);
+      } catch (err) {
+        console.warn('Could not apply portfolio add defaults:', err.message);
+      }
+    }
 
     res.status(201).json({ ok: true, transaction });
   } catch (error) {

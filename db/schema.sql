@@ -94,6 +94,79 @@ CREATE INDEX IF NOT EXISTS idx_watchlists_user ON watchlists (user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_items_watchlist ON watchlist_items (watchlist_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_items_ticker ON watchlist_items (ticker);
 
+CREATE TABLE IF NOT EXISTS user_calendar_tickers (
+    id           SERIAL PRIMARY KEY,
+    user_id      INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ticker       TEXT NOT NULL,
+    company_name TEXT NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, ticker)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_calendar_tickers_user ON user_calendar_tickers (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_calendar_tickers_ticker ON user_calendar_tickers (ticker);
+
+CREATE TABLE IF NOT EXISTS user_email_alerts (
+    id              SERIAL PRIMARY KEY,
+    user_id         INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ticker          TEXT NOT NULL,
+    company_name    TEXT NOT NULL,
+    enabled         BOOLEAN NOT NULL DEFAULT true,
+    notify_earnings BOOLEAN NOT NULL DEFAULT true,
+    notify_exdiv    BOOLEAN NOT NULL DEFAULT true,
+    notify_payout   BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, ticker)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_email_alerts_user ON user_email_alerts (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_email_alerts_ticker ON user_email_alerts (ticker);
+
+CREATE TABLE IF NOT EXISTS sent_email_alerts (
+    id          SERIAL PRIMARY KEY,
+    user_id     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ticker      TEXT NOT NULL,
+    event_type  TEXT NOT NULL,
+    event_key   TEXT NOT NULL,
+    sent_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, event_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sent_email_alerts_user_key ON sent_email_alerts (user_id, event_key);
+
+CREATE TABLE IF NOT EXISTS user_price_alerts (
+    id              SERIAL PRIMARY KEY,
+    user_id         INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ticker          TEXT NOT NULL,
+    company_name    TEXT NOT NULL,
+    target_price    NUMERIC(18, 4) NOT NULL CHECK (target_price > 0),
+    condition       TEXT NOT NULL CHECK (condition IN ('gte', 'lte')),
+    status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'triggered', 'cancelled')),
+    triggered_at    TIMESTAMPTZ,
+    triggered_price NUMERIC(18, 4),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_price_alerts_user ON user_price_alerts (user_id, status);
+CREATE INDEX IF NOT EXISTS idx_user_price_alerts_pending ON user_price_alerts (status);
+
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id                   INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    watchlist_auto_calendar   BOOLEAN NOT NULL DEFAULT true,
+    watchlist_auto_notify     BOOLEAN NOT NULL DEFAULT true,
+    watchlist_notify_earnings BOOLEAN NOT NULL DEFAULT true,
+    watchlist_notify_exdiv    BOOLEAN NOT NULL DEFAULT false,
+    watchlist_notify_payout   BOOLEAN NOT NULL DEFAULT false,
+    portfolio_auto_notify     BOOLEAN NOT NULL DEFAULT true,
+    portfolio_notify_earnings BOOLEAN NOT NULL DEFAULT true,
+    portfolio_notify_exdiv    BOOLEAN NOT NULL DEFAULT true,
+    portfolio_notify_payout   BOOLEAN NOT NULL DEFAULT true,
+    created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS portfolio_transactions (
     id           SERIAL PRIMARY KEY,
     user_id      INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

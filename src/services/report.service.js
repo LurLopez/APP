@@ -12,6 +12,21 @@ function sanitize(value) {
   return String(value).replaceAll('−', '-');
 }
 
+const PDF_HIGHLIGHT_PALETTE = [
+  { bg: '#fef08a', text: '#854d0e' }, // 1: Amarillo
+  { bg: '#bae6fd', text: '#0369a1' }, // 2: Celeste
+  { bg: '#fed7aa', text: '#c2410c' }, // 3: Naranja
+  { bg: '#fbcfe8', text: '#be185d' }, // 4: Rosa
+  { bg: '#bbf7d0', text: '#15803d' }, // 5: Verde menta
+  { bg: '#e9d5ff', text: '#7e22ce' }, // 6: Violeta
+];
+
+function getPdfHighlightColor(noteNumber) {
+  const num = parseInt(noteNumber, 10);
+  if (isNaN(num)) return PDF_HIGHLIGHT_PALETTE[0];
+  return PDF_HIGHLIGHT_PALETTE[(num - 1) % PDF_HIGHLIGHT_PALETTE.length];
+}
+
 function drawTable(doc, columns, rows, options = {}) {
   const { startY, colWidths, nameColWidth = 140, headerBg = '#1f2937', headerColor = '#ffffff' } = options;
   const margin = doc.page.margins.left;
@@ -45,6 +60,9 @@ function drawTable(doc, columns, rows, options = {}) {
 
   drawHeaderRow();
 
+  const isSalesTable = columns.length === 7 && columns[1] === 'Ajustado' && columns[4] === 'Normal';
+  let adjustedIndex = 0;
+
   rows.forEach((row, index) => {
     ensureSpace(rowHeight);
     if (index % 2 === 0) {
@@ -54,8 +72,41 @@ function drawTable(doc, columns, rows, options = {}) {
     let x = margin;
     doc.text(sanitize(row[0]), x + 4, y + 5, { width: nameWidth - 8, height: rowHeight - 4 });
     x += nameWidth;
+
+    const isRowAdjusted = isSalesTable && row[1] && row[4] && String(row[1]).trim() !== String(row[4]).trim() && row[1] !== '—' && row[4] !== '—';
+
+    let colorScheme = PDF_HIGHLIGHT_PALETTE[0];
+    if (isRowAdjusted) {
+      adjustedIndex++;
+      colorScheme = getPdfHighlightColor(adjustedIndex);
+    }
+
     row.slice(1).forEach((cell, i) => {
-      doc.fillColor('#111827').font('Helvetica').fontSize(7.5);
+      const colHeader = columns[i + 1];
+      const isBoldCol = colHeader === 'Ajustado' || colHeader === 'Normal';
+      const isPctCol = colHeader === '% Aj.' || colHeader === '% N.' || colHeader === '% Ajustado' || colHeader === '% Normal';
+      const isAdjustedCell = isSalesTable && i === 0 && isRowAdjusted;
+
+      if (isAdjustedCell) {
+        doc.rect(x + 1, y + 1, valueWidths[i] - 2, rowHeight - 2).fill(colorScheme.bg);
+      }
+
+      let fontName = isBoldCol ? 'Helvetica-Bold' : 'Helvetica';
+      let textColor = '#111827';
+
+      if (isAdjustedCell) {
+        textColor = colorScheme.text;
+        fontName = 'Helvetica-Bold';
+      } else if (isPctCol && cell) {
+        const str = String(cell).trim();
+        if (str.startsWith('-')) {
+          textColor = '#dc2626'; // Rojo para negativos
+        } else if (str.startsWith('+') || /^[0-9]/.test(str)) {
+          textColor = '#16a34a'; // Verde para positivos
+        }
+      }
+
+      doc.fillColor(textColor).font(fontName).fontSize(7.5);
       doc.text(sanitize(cell), x + 4, y + 5, { width: valueWidths[i] - 8, height: rowHeight - 4 });
       x += valueWidths[i];
     });
@@ -73,8 +124,24 @@ function drawSectionTitle(doc, title, y) {
 function drawNotes(doc, notes, y) {
   let currentY = y;
   (notes ?? []).filter(Boolean).forEach((note) => {
-    doc.font('Helvetica-Oblique').fontSize(7.5).fillColor('#6b7280');
-    currentY = doc.text(sanitize(note), doc.page.margins.left, currentY, { width: doc.page.width - 80, lineBreak: true }).y + 3;
+    const raw = sanitize(note);
+    const match = raw.match(/^\*(\d+):?\s*(.*)$/);
+    if (match) {
+      const num = match[1];
+      const marker = `*${num}:`;
+      const rest = match[2];
+      const colorScheme = getPdfHighlightColor(num);
+
+      doc.font('Helvetica-Bold').fontSize(7.5);
+      const markerWidth = doc.widthOfString(marker) + 6;
+      doc.rect(doc.page.margins.left, currentY, markerWidth, 10).fill(colorScheme.bg);
+      doc.fillColor(colorScheme.text).font('Helvetica-Bold').fontSize(7.5).text(marker, doc.page.margins.left + 3, currentY + 1.5);
+      doc.fillColor('#4b5563').font('Helvetica').fontSize(7.5).text(rest, doc.page.margins.left + markerWidth + 4, currentY + 1.5, { width: doc.page.width - doc.page.margins.left * 2 - markerWidth - 4, lineBreak: true });
+      currentY = doc.y + 4;
+    } else {
+      doc.font('Helvetica-Oblique').fontSize(7.5).fillColor('#6b7280');
+      currentY = doc.text(raw, doc.page.margins.left, currentY, { width: doc.page.width - doc.page.margins.left * 2, lineBreak: true }).y + 3;
+    }
   });
   return currentY + 4;
 }
