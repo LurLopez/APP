@@ -1,7 +1,8 @@
 CREATE TABLE IF NOT EXISTS users (
     id             SERIAL PRIMARY KEY,
     email          TEXT UNIQUE NOT NULL,
-    password_hash  TEXT NOT NULL,
+    password_hash  TEXT,
+    google_id      TEXT UNIQUE,
     plan           TEXT NOT NULL DEFAULT 'free'
                    CHECK (plan IN ('free', 'premium')),
     email_verified BOOLEAN NOT NULL DEFAULT false,
@@ -9,6 +10,12 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
+UPDATE users SET username = split_part(email, '@', 1) WHERE username IS NULL;
 
 CREATE TABLE IF NOT EXISTS verification_codes (
     id         SERIAL PRIMARY KEY,
@@ -43,6 +50,7 @@ ALTER TABLE analyses ADD COLUMN IF NOT EXISTS ticker TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS company_name TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS period_end DATE;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS pdf_url TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS source_url TEXT;
 
 CREATE TABLE IF NOT EXISTS filings (
     id            SERIAL PRIMARY KEY,
@@ -235,3 +243,17 @@ JOIN watchlists w ON w.user_id = f.user_id AND w.is_default = true
 ON CONFLICT (watchlist_id, ticker) DO NOTHING;
 
 DROP TABLE IF EXISTS favorites;
+
+CREATE TABLE IF NOT EXISTS forum_messages (
+    id         SERIAL PRIMARY KEY,
+    ticker     TEXT NOT NULL,
+    user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    parent_id  INT REFERENCES forum_messages(id) ON DELETE CASCADE,
+    message    TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_forum_messages_ticker_created ON forum_messages (ticker, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_forum_messages_parent ON forum_messages (parent_id);
+CREATE INDEX IF NOT EXISTS idx_forum_messages_user ON forum_messages (user_id);

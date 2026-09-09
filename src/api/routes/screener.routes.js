@@ -178,10 +178,19 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
       res.status(404).json({ error: 'Informe no encontrado.', code: 'FILING_NOT_FOUND' });
       return;
     }
+    if (content.filing?.formType === '10-K') {
+      res.status(400).json({
+        error: 'El análisis de informes 10-K se desbloqueará próximamente. De momento solo está permitido analizar los resultados de 10-Q.',
+        code: 'FORM_10K_LOCKED',
+      });
+      return;
+    }
     const user = await resolveUser(req);
     const options = {
       userId: user?.id ?? null,
       filename: `${ticker}-${accession}.pdf`,
+      ticker,
+      sourceUrl: content.filing?.documentUrl ?? null,
     };
     const result = content.kind === 'pdf'
       ? await analyzePdf(content.buffer, options)
@@ -193,6 +202,7 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
       sector: result.sector,
       report: result.report,
       pdfUrl: result.pdfUrl,
+      downloadBase: result.downloadBase,
       saved: Boolean(user),
     });
   } catch (error) {

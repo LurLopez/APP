@@ -80,49 +80,51 @@ function renderNotes(notes) {
   if (!list.length) return '';
   return `<ul class="report-notes">${list.map((note) => {
     const raw = String(note ?? '');
-    const match = raw.match(/^\*(\d+):?\s*(.*)$/);
+    const match = raw.match(/^\*(\d+):?\s*([\s\S]*)$/);
     if (match) {
       const num = match[1];
       const cls = getHighlightClass(num);
-      return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${escapeHtml(match[2])}</li>`;
+      return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${escapeHtml(match[2]).replaceAll('\n', '<br>')}</li>`;
     }
     return `<li>${escapeHtml(raw)}</li>`;
   }).join('')}</ul>`;
 }
 
-function renderTable(headers, rows, metaRows = []) {
+function renderTable(headers, rows, metaRows = [], options = {}) {
   const thead = headers.map((header) => {
-    const isBoldCol = header === 'Ajustado' || header === 'Normal';
+    const isBoldCol = header === 'Ajustado' || header === 'Normal' || header.startsWith('Ajustado') || header.startsWith('Normal');
+    let content = escapeHtml(header);
+    const noteMatch = String(header).match(/\*(\d+)/);
+    if (noteMatch) {
+      const noteNum = parseInt(noteMatch[1], 10);
+      const colorCls = getHighlightClass(noteNum);
+      content = `<mark class="highlight-adjust ${colorCls}">${content}</mark>`;
+    }
     const cls = isBoldCol ? ' class="cell-bold"' : '';
-    return `<th${cls}>${escapeHtml(header)}</th>`;
+    return `<th${cls}>${content}</th>`;
   }).join('');
 
-  let adjustedIndex = 0;
+  const isSalesTable = headers.length === 7 && headers[1] === 'Ajustado' && headers[4] === 'Normal';
+  const isCapitalTable = options.isCapital || (headers.length === 2 && headers[0] === 'Métrica' && headers[1] === 'Valor');
+
   const tbody = rows
     .map((row, rowIdx) => {
       const meta = metaRows[rowIdx] || {};
-      const isSalesTable = headers.length === 7 && headers[1] === 'Ajustado' && headers[4] === 'Normal';
-      const isRowAdjusted = isSalesTable && (
-        meta.isAdjusted === true ||
-        (row[1] && row[4] && String(row[1]).trim() !== String(row[4]).trim() && row[1] !== '—' && row[4] !== '—')
-      );
+      const isRowAdjusted = isSalesTable && meta.isAdjusted === true;
 
-      let colorCls = 'highlight-c1';
-      if (isRowAdjusted) {
-        adjustedIndex++;
-        const noteMatch = String(meta.adjustedNote || '').match(/\*(\d+)/);
-        if (noteMatch) {
-          colorCls = getHighlightClass(noteMatch[1]);
-        } else {
-          colorCls = getHighlightClass(adjustedIndex);
-        }
+      let noteNum = 1;
+      const noteMatch = String(meta.adjustedNote || '').match(/\*?(\d+)/);
+      if (noteMatch) {
+        noteNum = parseInt(noteMatch[1], 10);
       }
+      const colorCls = getHighlightClass(noteNum);
 
       const cells = row.map((cell, colIdx) => {
         const header = headers[colIdx];
-        const isBoldCol = header === 'Ajustado' || header === 'Normal';
+        const isBoldCol = header === 'Ajustado' || header === 'Normal' || header.startsWith('Ajustado') || header.startsWith('Normal');
         const isPctCol = header === '% Aj.' || header === '% N.' || header === '%';
         const isAdjustedCell = isSalesTable && colIdx === 1 && isRowAdjusted;
+        const isCapitalValCell = isCapitalTable && colIdx === 1;
 
         let classes = [];
         if (isBoldCol) classes.push('cell-bold');
@@ -134,11 +136,25 @@ function renderTable(headers, rows, metaRows = []) {
           } else if (str.startsWith('+') || /^[0-9]/.test(str)) {
             classes.push('pct-positive');
           }
+        } else if (isCapitalValCell && cell) {
+          const str = String(cell).trim();
+          if (str.startsWith('-')) {
+            classes.push('pct-negative', 'cell-bold');
+          } else if (str.startsWith('+') || (/^[0-9]/.test(str) && str !== '0' && str !== '0,0' && str !== '0.0' && str !== '—')) {
+            classes.push('pct-positive', 'cell-bold');
+          }
         }
 
         let content = escapeHtml(cell ?? '—');
         if (isAdjustedCell) {
           content = `<mark class="highlight-adjust ${colorCls}">${content}</mark>`;
+        } else if (colIdx === 0 && cell) {
+          const cellNoteMatch = String(cell).match(/\*(\d+)/);
+          if (cellNoteMatch) {
+            const cellNoteNum = parseInt(cellNoteMatch[1], 10);
+            const cellColorCls = getHighlightClass(cellNoteNum);
+            content = `<mark class="highlight-adjust ${cellColorCls}">${content}</mark>`;
+          }
         }
 
         const clsAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
@@ -173,12 +189,25 @@ function renderHorizon(horizon) {
   const cashFlow = horizon.cashFlow ?? {};
   if (Array.isArray(cashFlow.rows) && cashFlow.rows.length) {
     html += `<p class="report-extras">2. CASH FLOW</p>`;
-    const scenarios = Array.isArray(cashFlow.scenarios) && cashFlow.scenarios.length ? cashFlow.scenarios : ['Valor'];
+    let scenarios = Array.isArray(cashFlow.scenarios) && cashFlow.scenarios.length ? [...cashFlow.scenarios] : ['Normal', 'Ajustado'];
+    if (scenarios.length === 1) {
+      scenarios = [scenarios[0], 'Ajustado'];
+    }
     html += renderTable(
       ['Métrica', ...scenarios],
-      cashFlow.rows.map((row) => [row.name, ...(Array.isArray(row.values) && row.values.length ? row.values : [row.value])]),
+      cashFlow.rows.map((row) => {
+        let vals = Array.isArray(row.values) && row.values.length ? [...row.values] : [row.value];
+        if (vals.length === 1 && scenarios.length === 2) {
+          vals.push(vals[0]);
+        }
+        return [row.name, ...vals];
+      }),
     );
-    html += renderNotes(cashFlow.notes);
+    const cfNotes = (Array.isArray(cashFlow.notes) ? cashFlow.notes : []).filter((n) => {
+      const lower = String(n || '').toLowerCase();
+      return !lower.includes('deducido del acumulado') && !lower.includes('flujo trimestral deducido');
+    });
+    html += renderNotes(cfNotes);
   }
 
   const capital = horizon.capital ?? {};
@@ -187,6 +216,8 @@ function renderHorizon(horizon) {
     html += renderTable(
       ['Métrica', 'Valor'],
       capital.rows.map((row) => [row.name, row.value]),
+      [],
+      { isCapital: true }
     );
     if (capital.verification) html += `<p class="report-extras">${escapeHtml(capital.verification)}</p>`;
     html += renderNotes(capital.notes);

@@ -16,6 +16,7 @@ const Settings = (() => {
 
   let modalBackdrop = null;
   let form = null;
+  let currentUsername = '';
 
   async function api(path, options) {
     const response = await fetch(path, options);
@@ -41,10 +42,25 @@ const Settings = (() => {
     }
   }
 
+  async function loadProfile() {
+    if (!userLogged) return;
+    try {
+      const data = await api('/api/auth/me');
+      if (data?.user?.username) {
+        currentUsername = data.user.username;
+        const userInput = form?.querySelector('#pref-username');
+        if (userInput) userInput.value = currentUsername;
+      }
+    } catch {
+      // Ignorar
+    }
+  }
+
   function setAuthenticated(value) {
     userLogged = Boolean(value);
     if (userLogged) {
       loadPreferences();
+      loadProfile();
     }
   }
 
@@ -124,11 +140,17 @@ const Settings = (() => {
 
     const pfSubs = form.querySelector('#pref-pf-subs');
     if (pfSubs && pfNot) pfSubs.classList.toggle('disabled', !pfNot.checked);
+
+    const userInput = form.querySelector('#pref-username');
+    if (userInput && currentUsername) userInput.value = currentUsername;
   }
 
   async function saveFromForm() {
     const saveBtn = form?.querySelector('#settings-save-btn');
     if (saveBtn) saveBtn.disabled = true;
+
+    const userInput = form.querySelector('#pref-username');
+    const newUsername = userInput ? userInput.value.trim() : '';
 
     const newPrefs = {
       watchlistAutoCalendar: Boolean(form.querySelector('#pref-wl-calendar')?.checked),
@@ -143,6 +165,18 @@ const Settings = (() => {
     };
 
     try {
+      if (newUsername && newUsername !== currentUsername) {
+        const uData = await api('/api/auth/username', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: newUsername }),
+        });
+        if (uData?.user?.username) {
+          currentUsername = uData.user.username;
+          window.dispatchEvent(new CustomEvent('auth:change', { detail: { user: uData.user } }));
+        }
+      }
+
       const data = await api('/api/watchlists/preferences', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -153,7 +187,7 @@ const Settings = (() => {
       } else {
         preferences = { ...preferences, ...newPrefs };
       }
-      showToast?.('Preferencias guardadas correctamente.');
+      showToast?.('Ajustes guardados correctamente.');
       close();
     } catch (error) {
       showToast?.(error.message);
@@ -164,6 +198,7 @@ const Settings = (() => {
 
   function open() {
     if (!modalBackdrop) return;
+    loadProfile();
     renderForm();
     modalBackdrop.hidden = false;
     document.body.style.overflow = 'hidden';

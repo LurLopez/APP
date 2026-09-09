@@ -6,13 +6,15 @@
 
 1. **Doble visión Ajustado/Normal** — Toda métrica de la cuenta de resultados se presenta en dos columnas: **Ajustado** (excluye partidas extraordinarias, amortización/deterioro de intangibles e impuestos normalizados) y **Normal** (tal y como la reporta la empresa). Cada columna incluye la cifra del periodo anterior y la variación porcentual. Las diferencias entre ambas visiones se explican en notas numeradas (*1, *2…).
 
-2. **Intangibles a 0** — La amortización y el deterioro (impairment) de activos intangibles se excluyen de los beneficios operativo, EBT y neto (se ajustan a 0), porque no representan valor operativo real. El impacto de un impairment se refleja únicamente en la columna Normal y se documenta en nota (importe y periodo en que ocurrió).
+2. **Intangibles a 0 (Beneficio Operativo)** — La amortización y el deterioro (impairment) de activos intangibles se excluyen del beneficio operativo (se ajustan a 0) por no representar consumo operativo recurrente. El resalte de color y la llamada de nota (*1) se aplican **únicamente a la casilla de Beneficio Operativo**. Las líneas derivadas (EBT y Beneficio Neto) reflejan el impacto aritmético en la columna Ajustado pero no llevan resalte ni asterisco por este motivo.
 
-3. **Impuestos normalizados** — Cuando el tipo impositivo efectivo sea anómalo (p. ej. 4,6 %), se normalizan los impuestos a un tipo estándar del 23 % y se anota la cantidad descontada (p. ej. "520M menos").
+3. **Impuestos normalizados (Beneficio Neto)** — Se compara el impuesto reportado con el 23 % del EBT ajustado. Si la desviación supera el -20 % o el +20 %, se normalizan los impuestos al 23 % sobre el EBT ajustado: Beneficio Neto Ajustado = EBT Ajustado × 0,77. El resalte de color y la nota explicativa (*2) se aplican **únicamente a la casilla de Beneficio Neto**.
 
-4. **Cash flow con capital circulante (WC)** — El capital circulante se calcula con la fórmula del usuario:
-   `WC = (Inventarios + Cuentas por pagar − Cuentas por cobrar) × (Inflación + volumen)`
-   El cash flow se presenta en dos escenarios: **Normal** (WC base) y **Ajustado** (WC alternativo), indicando en cada uno el valor de WC aplicado.
+4. **Cash flow con capital circulante (WC / WK)** — El capital circulante se calcula con la fórmula del usuario:
+   `WK de caja = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (Inflación + volumen) = -(Inventarios + Cuentas por cobrar - Cuentas por pagar) × (Inflación + volumen)`
+   Si el informe no proporciona volumen, se utiliza obligatoriamente volumen = 0 %. Si no proporciona una inflación específica de la empresa, se utiliza una hipótesis sectorial aproximada del 3 % para consumo defensivo y se indica expresamente en la nota.
+   El cash flow se presenta en dos escenarios con valores distintos: **Normal (WC=<valorBase>)** y **Ajustado (WC=<valorAjustado>)**, deduciendo del Cash Flow la desviación de circulante frente a la necesidad teórica normalizada.
+   Si aparece `Deferred income tax provision/(benefit)`, `Deferred income taxes and income taxes payable, net` o `income taxes payable`, el escenario Ajustado debe normalizar también el desfase fiscal: impuestos pagados estimados = gasto fiscal - ajuste fiscal del cash flow; se compara con el 23% del EBT ajustado y la diferencia solo se aplica si está entre -20% y +20% del impuesto normalizado. Si se aplica, se recalculan FCF, FCF/Acción y Libre.
 
 5. **Cuadre de la asignación de capital** — Se presenta el capital libre junto con las variaciones de caja, recompras, deuda e inversiones a corto plazo, y se comprueba explícitamente que el total cuadra. Si no cuadra exactamente, se indica ("Más o menos cuadra") y se advierte de que puede haber partidas no vistas.
 
@@ -36,18 +38,34 @@ Cada informe repite los tres bloques para dos horizontes, en este orden:
 Tabla con las filas: **Ventas · Beneficio Bruto · Beneficio Operativo · EBT · Beneficio Neto**
 Columnas: `Ajustado | Anterior Ajustado | % Ajustado | Normal | Anterior Normal | % Normal`
 - Cifras en millones con sufijo M (ej. 6237M), porcentajes con coma decimal y signo (ej. -2,29 %).
-- Notas al pie numeradas (*1, *2…) explicando cada ajuste: impairments del periodo anterior, amortización de intangibles, impuestos anómalos, ventas de negocios, etc.
+- **Ajuste Obligatorio de Impairments del Periodo Anterior**: Si el año anterior tuvo un impairment (deterioro de fondo de comercio o intangibles), sumarlo obligatoriamente en `Anterior Ajustado` a Beneficio Operativo, EBT y Beneficio Neto (ej. -101M + 1428M = 1327M en KHC 3M). Nunca dejarlo igual a Anterior Normal.
+- Notas al pie numeradas (*1, *2…) explicando cada ajuste: impairments del periodo anterior (ej. *1: El año anterior tuvieron un impairment de 1428M), depreciación de intangibles de este año, impuestos anómalos, ventas de negocios, etc. Principio de casilla de origen: el resalte se aplica únicamente a la casilla de origen (intangibles en Beneficio Operativo, impuestos en Beneficio Neto), sin colorear en cascada EBT o Neto por simple arrastre.
 - Línea final: **ACCIONES** (en M) y **BPA** (en $).
 
 ### Bloque 2 — CASH FLOW
 Tabla con las filas: **Cash Flow · CAPEX · FCF · FCF/Acción · Dividendo · Libre**
-Columnas: `Normal (WC=<valor>) | Ajustado (WC=<valor>)`
-- Nota con la fórmula del WC aplicada y su desglose numérico.
+Columnas: `Normal (WC=<valor>) | Ajustado*1 (WC=<valor>)`
+- **Numeración independiente por bloque**: Cada bloque reinicia sus notas en `*1`.
+- **Resaltado en cabecera**: La llamada de nota y el resalte cromático se aplican en la cabecera `Ajustado*1 (WC=<valor>)` donde se produce la normalización de capital circulante (color amarillo).
+- **Única nota al pie**: `*1: WK = ...` con la fórmula del WC aplicada y su desglose numérico. Queda prohibido poner notas al pie con asterisco por la deducción trimestral ordinaria.
 
 ### Bloque 3 — ASIGNACIÓN DE CAPITAL
-Tabla con las filas: **Libre · [Inversiones a corto plazo] · Recompras · Caja · Deuda · En total**
+- **Cálculo desde balance**:
+  * `Deuda Balance = Deuda a largo plazo + Deuda a corto plazo` (excluyendo cuentas a pagar a proveedores, que van en el Working Capital).
+  * `Deuda Neta = Deuda Balance - (Caja + Inversiones a corto plazo)`.
+   * Inversiones a corto plazo, Deuda y Caja se calculan comparando saldos de balance (vs trimestre anterior en 3M; vs inicio de año en acumulado). Además, se debe buscar expresamente `purchases of marketable securities`: si existe, aparece como `Inversiones a corto plazo` con signo negativo. La variación de Deuda en la tabla debe coincidir exactamente con la nota al pie.
+- **Convención de signos estricta**:
+  * `Libre`: remanente positivo de cash flow (+).
+  * `Inversiones a corto plazo`: - si aumentan (uso para comprar valores negociables, ej. -1020M en KHC), + si disminuyen. Se omite si es marginal (< 50M) o 0.
+   * `Desinversiones (venta de marcas / negocios / activos)`: fuente de fondos (+). Incluye las ventas de activos (`proceeds from sales of property, plant, equipment and other assets`) y de negocios. Solo si es material (>= 50M). Si es < 50M o 0, se omite.
+   * `Adquisiciones (compra de negocios)`: uso de capital (-). Buscar expresamente `Acquisition of business, net of cash acquired` y `Payments to acquire businesses`. Si existe una adquisición material (>= 50M), la fila es OBLIGATORIA: prohibido omitirla. Si no hubo o fue marginal, se omite.
+  * `Deuda`: + si aumenta (fuente de financiación), - si disminuye (uso para amortizar deuda).
+  * `Caja`: - si aumenta (uso para dotar caja), + si disminuye (fuente de liquidez liberada).
+   * `Recompras`: uso de capital (-). Buscar expresamente `repurchases of common stock`, `purchases of treasury stock` y `share repurchases`. Si existe un importe material, la fila es obligatoria; solo se omite si es 0.
 - Verificación explícita del cuadre: "El resultado cuadra." o "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle."
-- Notas con el detalle de cada partida: recompras (acciones × precio, % del float), deuda (bruta y neta, periodo a periodo), y desinversiones (importe, PER implícito, márgenes, trimestre de materialización, impacto en caja).
+- Notas obligatorias del bloque y vinculación cromática:
+  * **Deuda balance y Deuda neta (siempre obligatoria)**: `Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M).` Las filas `Caja*2`, `Deuda*2` (y si existiera `Inversiones a corto plazo*2`) llevan la llamada a esta nota y se resaltan con su color asignado (naranja).
+  * **Adquisiciones / Desinversiones (venta o compra de marcas, negocios o activos)**: Explicar siempre con un breve texto qué marca, negocio o activo concreto se ha vendido o comprado a partir del informe 10-Q/10-K. Las filas `Adquisiciones*1` / `Desinversiones*2` llevan la llamada a su nota y se resaltan con su color asignado (amarillo). Prohibido omitir la nota cuando la fila figure en la tabla.
 
 ### Estilo
-- Informe completo en español; símbolo $ para dólares; numeración de notas continua por bloque o por informe; tono de analista con juicio propio en las notas (valoración cualitativa de operaciones).
+- Informe completo en español; símbolo $ para dólares; numeración de notas independiente por bloque (cada bloque reinicia en *1); tono de analista con juicio propio en las notas (valoración cualitativa de operaciones).

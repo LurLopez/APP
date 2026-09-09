@@ -474,11 +474,14 @@ const Portfolio = (() => {
   let chartTooltip = null;
 
   function ensureChartTooltip() {
+    const targetParent = document.fullscreenElement || document.body;
     if (!chartTooltip) {
       chartTooltip = document.createElement('div');
       chartTooltip.className = 'pf-chart-tooltip';
       chartTooltip.hidden = true;
-      document.body.appendChild(chartTooltip);
+      targetParent.appendChild(chartTooltip);
+    } else if (chartTooltip.parentNode !== targetParent) {
+      targetParent.appendChild(chartTooltip);
     }
     return chartTooltip;
   }
@@ -5658,6 +5661,11 @@ const Portfolio = (() => {
             <rect class="pf-chart-x-badge-bg" x="-42" y="2" width="84" height="20" rx="4" ry="4"/>
             <text class="pf-chart-x-badge-text" x="0" y="16" text-anchor="middle">--</text>
           </g>
+          <g class="pf-chart-y-badge" transform="translate(4, 0)">
+            <rect class="pf-chart-y-badge-bg" x="0" y="-10" width="${pad.left - 8}" height="20" rx="3"/>
+            <path class="pf-chart-y-badge-arrow" d="M ${pad.left - 8},0 L ${pad.left - 3},-6 L ${pad.left - 3},6 Z" fill="#0f172a"/>
+            <text class="pf-chart-y-badge-text" x="${(pad.left - 8) / 2}" y="0" text-anchor="middle">--</text>
+          </g>
         </g>
         <rect class="pf-chart-overlay" x="${pad.left}" y="${pad.top}" width="${innerWidth}" height="${innerHeight}" fill="transparent" cursor="crosshair"/>
       </svg>`;
@@ -6245,13 +6253,16 @@ const Portfolio = (() => {
       const rect = svgEl.getBoundingClientRect();
       const { width, height, pad, innerWidth, innerHeight } = getActiveChartGeometry(panel);
 
-      const cursorSvgX = ((event.clientX - rect.left) / rect.width) * width;
-      const cursorSvgY = ((event.clientY - rect.top) / rect.height) * height;
-      if (cursorSvgX < pad.left || cursorSvgX > width - pad.right || cursorSvgY < pad.top || cursorSvgY > height - pad.bottom) {
+      const rawSvgX = ((event.clientX - rect.left) / rect.width) * width;
+      const rawSvgY = ((event.clientY - rect.top) / rect.height) * height;
+      if (rawSvgX < pad.left - 20 || rawSvgX > width - pad.right + 20 || rawSvgY < pad.top - 30 || rawSvgY > height - pad.bottom + 30) {
         hoverLayer.hidden = true;
         hideChartTooltip();
         return;
       }
+
+      const cursorSvgX = Math.max(pad.left, Math.min(width - pad.right, rawSvgX));
+      const cursorSvgY = Math.max(pad.top, Math.min(height - pad.bottom, rawSvgY));
 
       const ratio = Math.max(0, Math.min(1, (cursorSvgX - pad.left) / innerWidth));
       const index = Math.round(ratio * (points.length - 1));
@@ -6271,14 +6282,64 @@ const Portfolio = (() => {
       const hoverXBadge = hoverLayer.querySelector('.pf-chart-x-badge');
       const hoverXBadgeBg = hoverLayer.querySelector('.pf-chart-x-badge-bg');
       const hoverXBadgeText = hoverLayer.querySelector('.pf-chart-x-badge-text');
+      const hoverYBadge = hoverLayer.querySelector('.pf-chart-y-badge');
+      const hoverYBadgeBg = hoverLayer.querySelector('.pf-chart-y-badge-bg');
+      const hoverYBadgeText = hoverLayer.querySelector('.pf-chart-y-badge-text');
 
       const cx = x(index);
+      const candidates = [];
+      const tooltipRows = [];
+
+      chartCachedData.labels.forEach((label, sIdx) => {
+        const val = point.series?.[sIdx];
+        const color = seriesColors[sIdx];
+        if (val !== null && val !== undefined && Number.isFinite(Number(val))) {
+          const sy = y(Number(val));
+          candidates.push({
+            sIdx,
+            label: label.label,
+            val: Number(val),
+            color,
+            y: sy,
+          });
+          tooltipRows.push({
+            sIdx,
+            label: label.label,
+            val: Number(val),
+            color,
+          });
+        }
+      });
+
+      if (!candidates.length) {
+        hoverLayer.hidden = true;
+        hideChartTooltip();
+        return;
+      }
+
+      // Pick the series closest to the cursor Y
+      let closest = candidates[0];
+      if (candidates.length > 1) {
+        let minDist = Math.abs(cursorSvgY - closest.y);
+        for (let i = 1; i < candidates.length; i++) {
+          const d = Math.abs(cursorSvgY - candidates[i].y);
+          if (d < minDist) {
+            minDist = d;
+            closest = candidates[i];
+          }
+        }
+      }
+
+      const selectedPy = closest.y;
+      const selectedVal = closest.val;
+      const selectedColor = closest.color;
+
       hoverLayer.hidden = false;
       crosshairV.setAttribute('x1', cx.toFixed(1));
       crosshairV.setAttribute('x2', cx.toFixed(1));
       if (crosshairH) {
-        crosshairH.setAttribute('y1', cursorSvgY.toFixed(1));
-        crosshairH.setAttribute('y2', cursorSvgY.toFixed(1));
+        crosshairH.setAttribute('y1', selectedPy.toFixed(1));
+        crosshairH.setAttribute('y2', selectedPy.toFixed(1));
       }
 
       if (hoverXBadge && hoverXBadgeBg && hoverXBadgeText) {
@@ -6291,23 +6352,31 @@ const Portfolio = (() => {
         hoverXBadgeText.textContent = badgeText;
       }
 
-      let dotsHtml = '';
-      const tooltipRows = [];
-
-      chartCachedData.labels.forEach((label, sIdx) => {
-        const val = point.series?.[sIdx];
-        const color = seriesColors[sIdx];
-        if (val !== null && val !== undefined && Number.isFinite(Number(val))) {
-          const cy = y(Number(val));
-          dotsHtml += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.5" fill="${color}" stroke="#ffffff" stroke-width="2" class="pf-chart-dot"/>`;
-          tooltipRows.push({
-            label: label.label,
-            val: Number(val),
-            color,
-          });
+      if (hoverYBadge && hoverYBadgeText) {
+        const badgeText = chartAxisFormat(selectedVal);
+        const badgeWidth = Math.max(pad.left - 8, badgeText.length * 7 + 14);
+        const clampedY = Math.max(pad.top + 10, Math.min(height - pad.bottom - 10, selectedPy));
+        const bx = Math.max(2, pad.left - badgeWidth - 6);
+        hoverYBadge.setAttribute('transform', `translate(${bx.toFixed(1)}, ${clampedY.toFixed(1)})`);
+        if (hoverYBadgeBg) {
+          hoverYBadgeBg.setAttribute('width', badgeWidth.toFixed(1));
+          hoverYBadgeBg.setAttribute('fill', selectedColor);
         }
-      });
+        const arrowEl = hoverYBadge.querySelector('.pf-chart-y-badge-arrow');
+        if (arrowEl) {
+          arrowEl.setAttribute('d', `M ${badgeWidth.toFixed(1)},0 L ${(badgeWidth + 5).toFixed(1)},-6 L ${(badgeWidth + 5).toFixed(1)},6 Z`);
+          arrowEl.setAttribute('fill', selectedColor);
+        }
+        hoverYBadgeText.setAttribute('x', (badgeWidth / 2).toFixed(1));
+        hoverYBadgeText.textContent = badgeText;
+        hoverYBadge.hidden = false;
+      }
 
+      // Render dot representing the value shown is of that day
+      let dotsHtml = `
+        <circle cx="${cx.toFixed(1)}" cy="${selectedPy.toFixed(1)}" r="10" fill="${selectedColor}" fill-opacity="0.25" class="pf-chart-hover-dot-halo"/>
+        <circle cx="${cx.toFixed(1)}" cy="${selectedPy.toFixed(1)}" r="5" fill="#ffffff" stroke="${selectedColor}" stroke-width="2.6" class="pf-chart-dot"/>
+      `;
       hoverDots.innerHTML = dotsHtml;
 
       if (tooltipRows.length > 0) {
@@ -6316,12 +6385,15 @@ const Portfolio = (() => {
         tip.innerHTML = `
           <div class="pf-chart-tooltip-header">${escapeHtml(formattedDate)}</div>
           <div class="pf-chart-tooltip-rows">
-            ${tooltipRows.map((r) => `
-              <div class="pf-chart-tooltip-row">
-                <span class="pf-chart-tooltip-dot" style="background:${r.color}"></span>
+            ${tooltipRows.map((r) => {
+              const isClosest = r.sIdx === closest.sIdx && candidates.length > 1;
+              return `
+              <div class="pf-chart-tooltip-row" style="${isClosest ? 'background: rgba(255,255,255,0.12); border-radius: 4px; padding: 2px 4px; font-weight: 700;' : ''}">
+                <span class="pf-chart-tooltip-dot" style="background:${r.color}; ${isClosest ? 'transform: scale(1.3);' : ''}"></span>
                 <span class="pf-chart-tooltip-name">${escapeHtml(r.label)}</span>
                 <span class="pf-chart-tooltip-val ${r.val > 0 ? 'positive' : r.val < 0 ? 'negative' : ''}">${escapeHtml(chartFormat(r.val))}</span>
-              </div>`).join('')}
+              </div>`;
+            }).join('')}
           </div>`;
         tip.hidden = false;
         positionChartTooltip(tip, event.clientX, event.clientY);

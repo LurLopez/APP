@@ -14,7 +14,33 @@ let toastTimer;
 let searchDebounceTimer;
 let previewLoadTimeout;
 
-let companyTicker = (new URLSearchParams(window.location.search).get('ticker') || decodeURIComponent(window.location.pathname.split('/').filter(Boolean)[1] ?? '')).toUpperCase();
+const SAVED_TICKER_KEY = 'cifra_last_company';
+
+function getInitialCompanyTicker() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+
+  let tickerFromUrl = '';
+  if (pathParts[0] === 'empresa' && pathParts[1]) {
+    tickerFromUrl = decodeURIComponent(pathParts[1]).trim().toUpperCase();
+  } else if (urlParams.get('ticker')) {
+    tickerFromUrl = urlParams.get('ticker').trim().toUpperCase();
+  }
+
+  if (tickerFromUrl && /^[A-Z0-9.-]{1,10}$/.test(tickerFromUrl)) {
+    localStorage.setItem(SAVED_TICKER_KEY, tickerFromUrl);
+    return tickerFromUrl;
+  }
+
+  const saved = localStorage.getItem(SAVED_TICKER_KEY);
+  if (saved && /^[A-Z0-9.-]{1,10}$/.test(saved.trim().toUpperCase())) {
+    return saved.trim().toUpperCase();
+  }
+
+  return 'KHC'; // Empresa típica
+}
+
+let companyTicker = getInitialCompanyTicker();
 let companyData = null;
 let companyAuthenticated = false;
 let chartRange = '5y';
@@ -22,6 +48,7 @@ let chartPoints = [];
 let chartMaPoints = [];
 let chartShowMA = false;
 let chartScale = null;
+let priceChartRenderState = null;
 
 let screenerSeries = 'annual';
 let screenerStatement = 'valuation';
@@ -53,7 +80,10 @@ function showToast(message) {
 }
 
 function goToCompany(ticker) {
-  window.location.href = `/empresa/${encodeURIComponent(ticker)}`;
+  if (!ticker) return;
+  const clean = String(ticker).trim().toUpperCase();
+  localStorage.setItem(SAVED_TICKER_KEY, clean);
+  window.location.href = `/empresa/${encodeURIComponent(clean)}`;
 }
 
 /* ── Formato de valores ─────────────────────────────────────── */
@@ -152,10 +182,119 @@ function periodDateLabel(row) {
 
 /* ── Cabecera y cotización ──────────────────────────────────── */
 
+let defaultQuoteState = null;
+let quoteSparklineValues = [];
+let quoteSparklineWired = false;
+
+function setQuoteDisplay({ price, change, changePercent, dateText, isHover = false, maValue = null }) {
+  const hasP = Number.isFinite(price);
+  const hasC = Number.isFinite(change);
+  const isPositive = hasC ? change >= 0 : (defaultQuoteState ? defaultQuoteState.isPositive : true);
+
+  const formattedPrice = hasP ? `${formatProfileNumber(price)} $` : '—';
+  const formattedChange = hasC
+    ? `${change >= 0 ? '+' : '−'}${formatProfileNumber(Math.abs(change))} $${Number.isFinite(changePercent) ? ` (${formatProfilePercent(changePercent, true)})` : ''}`
+    : (hasP ? '' : '—');
+
+  // 1. Actualizar tarjeta de cotización principal (.company-quote)
+  const priceEl = document.querySelector('#quote-price');
+  const changeEl = document.querySelector('#quote-change');
+  const updatedEl = document.querySelector('#quote-updated');
+  if (priceEl) {
+    priceEl.innerHTML = `<span class="quote-arrow" aria-hidden="true">${isPositive ? '▲' : '▼'}</span> ${formattedPrice}`;
+    priceEl.classList.toggle('positive', isPositive);
+    priceEl.classList.toggle('negative', !isPositive);
+  }
+  if (changeEl) {
+    changeEl.textContent = formattedChange || '—';
+    changeEl.classList.toggle('positive', isPositive);
+    changeEl.classList.toggle('negative', !isPositive);
+  }
+  if (updatedEl) {
+    updatedEl.textContent = dateText || (isHover ? 'Sesión seleccionada' : 'Cotización');
+    updatedEl.classList.toggle('quote-hovering', isHover);
+  }
+
+  // 2. Actualizar indicador de cotización en la cabecera del gráfico (#chart-quote-badge)
+  const chartQuoteBadge = document.querySelector('#chart-quote-badge');
+  const chartQuotePrice = document.querySelector('#chart-quote-price');
+  const chartQuoteChange = document.querySelector('#chart-quote-change');
+  const chartQuoteDate = document.querySelector('#chart-quote-date');
+  const chartQuoteMa = document.querySelector('#chart-quote-ma');
+
+  if (chartQuoteBadge) {
+    chartQuoteBadge.classList.toggle('is-hovering', isHover);
+  }
+  if (chartQuotePrice) {
+    chartQuotePrice.innerHTML = `<span class="quote-arrow" aria-hidden="true">${isPositive ? '▲' : '▼'}</span> ${formattedPrice}`;
+    chartQuotePrice.className = `chart-quote-badge-price ${isPositive ? 'positive' : 'negative'}`;
+  }
+  if (chartQuoteChange) {
+    chartQuoteChange.textContent = formattedChange || '';
+    chartQuoteChange.className = `chart-quote-badge-change ${isPositive ? 'positive' : 'negative'}`;
+    chartQuoteChange.style.display = formattedChange ? 'inline' : 'none';
+  }
+  if (chartQuoteDate) {
+    chartQuoteDate.textContent = dateText ? `· ${dateText}` : '';
+  }
+  if (chartQuoteMa) {
+    if (Number.isFinite(maValue)) {
+      chartQuoteMa.textContent = `MA 100: ${formatPriceValue(maValue)}`;
+      chartQuoteMa.style.display = 'inline-block';
+    } else {
+      chartQuoteMa.style.display = 'none';
+    }
+  }
+}
+
+function restoreQuoteDisplay() {
+  if (defaultQuoteState) {
+    setQuoteDisplay({
+      ...defaultQuoteState,
+      isHover: false,
+      maValue: null,
+    });
+  }
+}
+
+function wireQuoteSparklineHover() {
+  if (quoteSparklineWired) return;
+  const quoteEl = document.querySelector('#company-quote');
+  const sparkline = document.querySelector('#quote-sparkline');
+  if (!quoteEl || !sparkline) return;
+  quoteSparklineWired = true;
+
+  quoteEl.addEventListener('mousemove', (event) => {
+    if (!quoteSparklineValues.length) return;
+    const rect = sparkline.getBoundingClientRect();
+    if (!rect.width) return;
+    if (event.clientX < rect.left - 10 || event.clientX > rect.right + 10) return;
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const idx = Math.round(ratio * (quoteSparklineValues.length - 1));
+    const val = quoteSparklineValues[idx];
+    const prev = idx > 0 ? quoteSparklineValues[idx - 1] : val;
+    const diff = val - prev;
+    const diffPct = prev > 0 ? (diff / prev) * 100 : 0;
+    setQuoteDisplay({
+      price: val,
+      change: diff,
+      changePercent: diffPct,
+      dateText: `Punto ${idx + 1} de ${quoteSparklineValues.length}`,
+      isHover: true,
+      maValue: null,
+    });
+  });
+
+  quoteEl.addEventListener('mouseleave', () => {
+    restoreQuoteDisplay();
+  });
+}
+
 function renderQuoteSparkline(values) {
   const line = document.querySelector('#quote-sparkline-line');
   const area = document.querySelector('#quote-sparkline-area');
   const points = (Array.isArray(values) ? values : []).map(Number).filter(Number.isFinite);
+  quoteSparklineValues = points;
   if (!points.length) {
     line.removeAttribute('d');
     area.removeAttribute('d');
@@ -175,6 +314,7 @@ function renderQuoteSparkline(values) {
   const path = coordinates.map(([x, y], index) => `${index ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
   line.setAttribute('d', path);
   area.setAttribute('d', `${path} L${width} ${height} L0 ${height} Z`);
+  wireQuoteSparklineHover();
 }
 
 function renderCompanyLogo(el, ticker, fallbackLetter) {
@@ -222,17 +362,17 @@ function renderCompany(data) {
   const hasChange = Number.isFinite(change) && Number.isFinite(changePercent);
   const isPositive = hasChange ? change >= 0 : true;
 
-  const priceEl = document.querySelector('#quote-price');
-  const changeEl = document.querySelector('#quote-change');
-  priceEl.innerHTML = `<span class="quote-arrow" aria-hidden="true">${isPositive ? '▲' : '▼'}</span> ${hasPrice ? `${formatProfileNumber(price)} $` : '—'}`;
-  changeEl.textContent = hasChange ? `${change >= 0 ? '+' : '−'}${formatProfileNumber(Math.abs(change))} $ (${formatProfilePercent(changePercent, true)})` : '—';
-  priceEl.classList.toggle('positive', isPositive);
-  priceEl.classList.toggle('negative', !isPositive);
-  changeEl.classList.toggle('positive', isPositive);
-  changeEl.classList.toggle('negative', !isPositive);
-  document.querySelector('#quote-updated').textContent = market.marketTime ? `Actualizado ${formatProfileDate(market.marketTime)}` : 'Cotización no disponible';
+  defaultQuoteState = {
+    price: hasPrice ? price : null,
+    change: hasChange ? change : null,
+    changePercent: hasChange ? changePercent : null,
+    dateText: market.marketTime ? `Actualizado ${formatProfileDate(market.marketTime)}` : 'Cotización en directo',
+    isPositive,
+  };
+  restoreQuoteDisplay();
+
   const sparkline = document.querySelector('#quote-sparkline');
-  sparkline.classList.toggle('negative', !isPositive);
+  if (sparkline) sparkline.classList.toggle('negative', !isPositive);
   renderQuoteSparkline(market.sparkline);
 
   document.querySelector('#pf-market-cap').textContent = formatProfileCompactUsd(metrics.marketCap);
@@ -1122,6 +1262,7 @@ function renderValuationChart() {
 
   const { isFs, width, height, pad, innerWidth, innerHeight } = getCompanyChartGeometry(valBlock);
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
 
   if (!valChartPoints.length) {
     svg.innerHTML = '';
@@ -1269,10 +1410,18 @@ function renderValuationChart() {
     <g class="pf-chart-hover-layer" hidden>
       <line class="pf-chart-crosshair pf-chart-crosshair-v" x1="0" y1="${pad.top}" x2="0" y2="${height - pad.bottom}"/>
       <line class="pf-chart-crosshair pf-chart-crosshair-h" x1="${pad.left}" y1="0" x2="${width - pad.right}" y2="0"/>
-      <circle class="pf-chart-hover-dot" cx="0" cy="0" r="4.5" fill="#ffffff" stroke="var(--orange)" stroke-width="2.4"/>
+      <g class="pf-chart-hover-dot-wrap" transform="translate(0, 0)">
+        <circle class="pf-chart-hover-dot-halo" r="10" fill="var(--orange)" fill-opacity="0.25"/>
+        <circle class="pf-chart-hover-dot" r="5" fill="#ffffff" stroke="var(--orange)" stroke-width="2.6"/>
+      </g>
       <g class="pf-chart-x-badge" transform="translate(0, ${height - pad.bottom})">
         <rect class="pf-chart-x-badge-bg" x="-42" y="2" width="84" height="20" rx="4" ry="4"/>
         <text class="pf-chart-x-badge-text" x="0" y="16" text-anchor="middle">--</text>
+      </g>
+      <g class="pf-chart-y-badge" transform="translate(${width - pad.right + 6}, 0)">
+        <path class="pf-chart-y-badge-arrow" d="M -5,0 L 0,-6 L 0,6 Z" fill="var(--orange)"/>
+        <rect class="pf-chart-y-badge-bg" x="0" y="-10" width="${pad.right - 8}" height="20" rx="3" fill="var(--orange)"/>
+        <text class="pf-chart-y-badge-text" x="${(pad.right - 8) / 2}" y="0" text-anchor="middle">--</text>
       </g>
     </g>
     <rect class="pf-chart-overlay" x="${pad.left}" y="${pad.top}" width="${innerWidth}" height="${innerHeight}" fill="transparent" cursor="crosshair"/>
@@ -1294,20 +1443,26 @@ function updateValuationChartHover(event) {
   const hoverDot = svg?.querySelector('.pf-chart-hover-dot');
   const hoverXBadge = svg?.querySelector('.pf-chart-x-badge');
   const hoverXBadgeText = svg?.querySelector('.pf-chart-x-badge-text');
+  const hoverYBadge = svg?.querySelector('.pf-chart-y-badge');
+  const hoverYBadgeBg = svg?.querySelector('.pf-chart-y-badge-bg');
+  const hoverYBadgeText = svg?.querySelector('.pf-chart-y-badge-text');
   if (!svg || !hoverLayer || !crosshairV || !crosshairH || !hoverDot) return;
 
   const rect = svg.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
   const { points, metricKey, effectiveKey, allowNegative, allowZero, x, y, pad, height, width } = valChartState;
   const keyToUse = effectiveKey || metricKey;
 
-  const cursorSvgX = ((event.clientX - rect.left) / rect.width) * width;
-  const cursorSvgY = ((event.clientY - rect.top) / rect.height) * height;
-  if (cursorSvgX < pad.left || cursorSvgX > width - pad.right || cursorSvgY < pad.top || cursorSvgY > height - pad.bottom) {
+  const rawSvgX = ((event.clientX - rect.left) / rect.width) * width;
+  const rawSvgY = ((event.clientY - rect.top) / rect.height) * height;
+
+  if (rawSvgX < pad.left - 20 || rawSvgX > width - pad.right + 20 || rawSvgY < pad.top - 30 || rawSvgY > height - pad.bottom + 30) {
     hoverLayer.hidden = true;
     hideValuationChartTooltip();
     return;
   }
 
+  const cursorSvgX = Math.max(pad.left, Math.min(width - pad.right, rawSvgX));
   const innerWidth = width - pad.left - pad.right;
   const ratio = Math.max(0, Math.min(1, (cursorSvgX - pad.left) / innerWidth));
   const best = Math.round(ratio * (points.length - 1));
@@ -1326,14 +1481,38 @@ function updateValuationChartHover(event) {
   hoverLayer.style.display = 'inline';
   crosshairV.setAttribute('x1', cx.toFixed(1));
   crosshairV.setAttribute('x2', cx.toFixed(1));
-  crosshairH.setAttribute('y1', cursorSvgY.toFixed(1));
-  crosshairH.setAttribute('y2', cursorSvgY.toFixed(1));
-  hoverDot.setAttribute('cx', cx.toFixed(1));
-  hoverDot.setAttribute('cy', cy.toFixed(1));
+  crosshairH.setAttribute('y1', cy.toFixed(1));
+  crosshairH.setAttribute('y2', cy.toFixed(1));
+
+  const dotWrap = svg.querySelector('.pf-chart-hover-dot-wrap');
+  if (dotWrap) {
+    dotWrap.setAttribute('transform', `translate(${cx.toFixed(1)}, ${cy.toFixed(1)})`);
+  } else {
+    hoverDot.setAttribute('cx', cx.toFixed(1));
+    hoverDot.setAttribute('cy', cy.toFixed(1));
+  }
 
   if (hoverXBadge && hoverXBadgeText) {
     hoverXBadge.setAttribute('transform', `translate(${cx.toFixed(1)}, ${height - pad.bottom})`);
     hoverXBadgeText.textContent = formatTradingViewHoverDate(point.date);
+  }
+
+  if (hoverYBadge && hoverYBadgeText) {
+    const formatted = formatValChartAxis(value, metricKey);
+    const badgeW = Math.max(pad.right - 8, formatted.length * 7 + 14);
+    const clampedY = Math.max(pad.top + 10, Math.min(height - pad.bottom - 10, cy));
+    const bx = width - pad.right + 6;
+    hoverYBadge.setAttribute('transform', `translate(${bx.toFixed(1)}, ${clampedY.toFixed(1)})`);
+    if (hoverYBadgeBg) {
+      hoverYBadgeBg.setAttribute('width', badgeW.toFixed(1));
+      hoverYBadgeBg.setAttribute('fill', 'var(--orange)');
+    }
+    const arrowEl = hoverYBadge.querySelector('.pf-chart-y-badge-arrow');
+    if (arrowEl) arrowEl.setAttribute('fill', 'var(--orange)');
+    hoverYBadgeText.setAttribute('x', (badgeW / 2).toFixed(1));
+    hoverYBadgeText.textContent = formatted;
+    hoverYBadge.hidden = false;
+    hoverYBadge.style.display = 'inline';
   }
 
   const tooltip = ensureChartTooltip();
@@ -1369,6 +1548,28 @@ function updateValuationChartHover(event) {
     <span style="color:#cbd5e1;font-size:11px;">Cotización: ${formatProfilePrice(point?.price)}</span>`;
   tooltip.hidden = false;
   positionChartTooltip(tooltip, event.clientX, event.clientY);
+
+  if (Number.isFinite(Number(point?.price))) {
+    setQuoteDisplay({
+      price: Number(point.price),
+      change: null,
+      changePercent: null,
+      dateText: `Sesión ${formatTradingViewHoverDate(point?.date)}`,
+      isHover: true,
+      maValue: null,
+    });
+  }
+
+  const valQuoteBadge = document.querySelector('#val-chart-quote-badge');
+  const valQuotePrice = document.querySelector('#val-chart-quote-price');
+  const valQuoteMetric = document.querySelector('#val-chart-quote-metric');
+  const valQuoteDate = document.querySelector('#val-chart-quote-date');
+  if (valQuoteBadge) {
+    valQuoteBadge.style.display = 'inline-flex';
+    if (valQuotePrice) valQuotePrice.textContent = Number.isFinite(Number(point?.price)) ? `${formatProfileNumber(point.price)} $` : '—';
+    if (valQuoteMetric) valQuoteMetric.textContent = `${label}: ${formatValChartAxis(value, metricKey)}`;
+    if (valQuoteDate) valQuoteDate.textContent = `· ${formatTradingViewHoverDate(point?.date)}`;
+  }
 }
 
 function hideValuationChartTooltip() {
@@ -1376,6 +1577,9 @@ function hideValuationChartTooltip() {
   hideChartTooltip();
   const hover = document.querySelector('#val-chart .pf-chart-hover-layer');
   if (hover) hover.hidden = true;
+  const valQuoteBadge = document.querySelector('#val-chart-quote-badge');
+  if (valQuoteBadge) valQuoteBadge.style.display = 'none';
+  restoreQuoteDisplay();
 }
 
 function setPeAdjusted(adjusted) {
@@ -1941,11 +2145,14 @@ function getTradingViewDateTicks(points, x, pad, width) {
 
 function ensureChartTooltip() {
   let tip = document.querySelector('#chart-tooltip');
+  const targetParent = document.fullscreenElement || document.body;
   if (!tip) {
     tip = document.createElement('div');
     tip.id = 'chart-tooltip';
     tip.className = 'chart-tooltip';
-    document.body.appendChild(tip);
+    targetParent.appendChild(tip);
+  } else if (tip.parentNode !== targetParent) {
+    targetParent.appendChild(tip);
   }
   return tip;
 }
@@ -2109,6 +2316,7 @@ function renderPriceChart() {
 
   const { isFs, width, height, pad, innerWidth, innerHeight } = getCompanyChartGeometry(chartBlock);
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
 
   if (!chartPoints.length) {
     svg.innerHTML = '';
@@ -2238,14 +2446,36 @@ function renderPriceChart() {
     <g class="pf-chart-hover-layer" hidden>
       <line class="pf-chart-crosshair pf-chart-crosshair-v" x1="0" y1="${pad.top}" x2="0" y2="${height - pad.bottom}"/>
       <line class="pf-chart-crosshair pf-chart-crosshair-h" x1="${pad.left}" y1="0" x2="${width - pad.right}" y2="0"/>
-      <circle class="pf-chart-hover-dot" cx="0" cy="0" r="4.5" fill="#ffffff" stroke="#f97316" stroke-width="2.4"/>
+      <g class="pf-chart-hover-dot-wrap" transform="translate(0, 0)">
+        <circle class="pf-chart-hover-dot-halo" r="10" fill="#f97316" fill-opacity="0.25"/>
+        <circle class="pf-chart-hover-dot" r="5" fill="#ffffff" stroke="#f97316" stroke-width="2.6"/>
+      </g>
       <g class="pf-chart-x-badge" transform="translate(0, ${height - pad.bottom})">
         <rect class="pf-chart-x-badge-bg" x="-42" y="2" width="84" height="20" rx="4" ry="4"/>
         <text class="pf-chart-x-badge-text" x="0" y="16" text-anchor="middle">--</text>
       </g>
+      <g class="pf-chart-y-badge" transform="translate(${width - pad.right + 6}, 0)">
+        <path class="pf-chart-y-badge-arrow" d="M -5,0 L 0,-6 L 0,6 Z" fill="#f97316"/>
+        <rect class="pf-chart-y-badge-bg" x="0" y="-10" width="${pad.right - 8}" height="20" rx="3" fill="#f97316"/>
+        <text class="pf-chart-y-badge-text" x="${(pad.right - 8) / 2}" y="0" text-anchor="middle">--</text>
+      </g>
     </g>
     <rect class="pf-chart-overlay" x="${pad.left}" y="${pad.top}" width="${innerWidth}" height="${innerHeight}" fill="transparent" cursor="crosshair"/>
   `;
+
+  priceChartRenderState = {
+    isFs,
+    width,
+    height,
+    pad,
+    innerWidth,
+    innerHeight,
+    points,
+    min,
+    max,
+    x,
+    y,
+  };
 
   updateTimelineSliderUi();
 }
@@ -2639,18 +2869,27 @@ function wireCompanyChartInteractions() {
     const hoverDot = svgEl?.querySelector('.pf-chart-hover-dot');
     const hoverXBadge = svgEl?.querySelector('.pf-chart-x-badge');
     const hoverXBadgeText = svgEl?.querySelector('.pf-chart-x-badge-text');
+    const hoverYBadge = svgEl?.querySelector('.pf-chart-y-badge');
+    const hoverYBadgeBg = svgEl?.querySelector('.pf-chart-y-badge-bg');
+    const hoverYBadgeText = svgEl?.querySelector('.pf-chart-y-badge-text');
     if (!svgEl || !hoverLayer || !crosshairV || !crosshairH || !hoverDot) return;
 
     const rect = svgEl.getBoundingClientRect();
-    const { width, height, pad, innerWidth, innerHeight } = getCompanyChartGeometry(chartBlock);
+    if (!rect.width || !rect.height) return;
+    const geom = priceChartRenderState || getCompanyChartGeometry(chartBlock);
+    const { width, height, pad, innerWidth, innerHeight } = geom;
 
-    const cursorSvgX = ((event.clientX - rect.left) / rect.width) * width;
-    const cursorSvgY = ((event.clientY - rect.top) / rect.height) * height;
-    if (cursorSvgX < pad.left || cursorSvgX > width - pad.right || cursorSvgY < pad.top || cursorSvgY > height - pad.bottom) {
+    const rawSvgX = ((event.clientX - rect.left) / rect.width) * width;
+    const rawSvgY = ((event.clientY - rect.top) / rect.height) * height;
+
+    if (rawSvgX < pad.left - 20 || rawSvgX > width - pad.right + 20 || rawSvgY < pad.top - 30 || rawSvgY > height - pad.bottom + 30) {
       hoverLayer.hidden = true;
       hideChartTooltip();
       return;
     }
+
+    const cursorSvgX = Math.max(pad.left, Math.min(width - pad.right, rawSvgX));
+    const cursorSvgY = Math.max(pad.top, Math.min(height - pad.bottom, rawSvgY));
 
     const ratio = Math.max(0, Math.min(1, (cursorSvgX - pad.left) / innerWidth));
     const index = Math.round(ratio * (points.length - 1));
@@ -2664,52 +2903,135 @@ function wireCompanyChartInteractions() {
     const y = (val) => pad.top + (1 - (val - min) / (max - min)) * innerHeight;
 
     const px = x(index);
-    const py = y(point.v);
+    const pyPrice = y(point.v);
+
+    // Build candidate curves (Price, and MA 100 if active)
+    const candidates = [
+      {
+        id: 'price',
+        label: companyTicker || 'Precio',
+        value: point.v,
+        py: pyPrice,
+        color: '#f97316',
+      }
+    ];
+
+    let matchedMa = null;
+    if (chartShowMA && chartMaPoints.length) {
+      matchedMa = chartMaPoints.find((m) => Math.abs(m.t - point.t) < 86400);
+      if (matchedMa && Number.isFinite(matchedMa.v)) {
+        candidates.push({
+          id: 'ma',
+          label: 'MA 100',
+          value: matchedMa.v,
+          py: y(matchedMa.v),
+          color: '#3b82f6',
+        });
+      }
+    }
+
+    // Pick the curve closest to the cursor's Y
+    let closest = candidates[0];
+    if (candidates.length > 1) {
+      let minDist = Math.abs(cursorSvgY - closest.py);
+      for (let i = 1; i < candidates.length; i++) {
+        const d = Math.abs(cursorSvgY - candidates[i].py);
+        if (d < minDist) {
+          minDist = d;
+          closest = candidates[i];
+        }
+      }
+    }
+
+    const selectedPy = closest.py;
+    const selectedValue = closest.value;
+    const selectedColor = closest.color;
 
     hoverLayer.hidden = false;
     hoverLayer.style.display = 'inline';
     crosshairV.setAttribute('x1', px.toFixed(1));
     crosshairV.setAttribute('x2', px.toFixed(1));
-    crosshairH.setAttribute('y1', cursorSvgY.toFixed(1));
-    crosshairH.setAttribute('y2', cursorSvgY.toFixed(1));
-    hoverDot.setAttribute('cx', px.toFixed(1));
-    hoverDot.setAttribute('cy', py.toFixed(1));
+    crosshairH.setAttribute('y1', selectedPy.toFixed(1));
+    crosshairH.setAttribute('y2', selectedPy.toFixed(1));
+
+    const dotWrap = svgEl.querySelector('.pf-chart-hover-dot-wrap');
+    const dotHalo = svgEl.querySelector('.pf-chart-hover-dot-halo');
+    if (dotWrap) {
+      dotWrap.setAttribute('transform', `translate(${px.toFixed(1)}, ${selectedPy.toFixed(1)})`);
+      if (dotHalo) dotHalo.setAttribute('fill', selectedColor);
+      hoverDot.setAttribute('stroke', selectedColor);
+      hoverDot.setAttribute('fill', '#ffffff');
+    } else {
+      hoverDot.setAttribute('cx', px.toFixed(1));
+      hoverDot.setAttribute('cy', selectedPy.toFixed(1));
+      hoverDot.setAttribute('stroke', selectedColor);
+      hoverDot.setAttribute('fill', '#ffffff');
+    }
 
     if (hoverXBadge && hoverXBadgeText) {
       hoverXBadge.setAttribute('transform', `translate(${px.toFixed(1)}, ${height - pad.bottom})`);
       hoverXBadgeText.textContent = formatTradingViewHoverDate(point.date);
     }
 
+    if (hoverYBadge && hoverYBadgeText) {
+      const formatted = formatPriceValue(selectedValue);
+      const badgeW = Math.max(pad.right - 8, formatted.length * 7 + 14);
+      const clampedY = Math.max(pad.top + 10, Math.min(height - pad.bottom - 10, selectedPy));
+      const bx = width - pad.right + 6;
+      hoverYBadge.setAttribute('transform', `translate(${bx.toFixed(1)}, ${clampedY.toFixed(1)})`);
+      if (hoverYBadgeBg) {
+        hoverYBadgeBg.setAttribute('width', badgeW.toFixed(1));
+        hoverYBadgeBg.setAttribute('fill', selectedColor);
+      }
+      const arrowEl = hoverYBadge.querySelector('.pf-chart-y-badge-arrow');
+      if (arrowEl) arrowEl.setAttribute('fill', selectedColor);
+      hoverYBadgeText.setAttribute('x', (badgeW / 2).toFixed(1));
+      hoverYBadgeText.textContent = formatted;
+      hoverYBadge.hidden = false;
+      hoverYBadge.style.display = 'inline';
+    }
+
     // Matching MA point if enabled
     let maHtml = '';
-    if (chartShowMA && chartMaPoints.length) {
-      const matchedMa = chartMaPoints.find((m) => Math.abs(m.t - point.t) < 86400);
-      if (matchedMa && Number.isFinite(matchedMa.v)) {
-        maHtml = `
-          <div class="pf-chart-tooltip-row" style="margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.1);">
-            <span class="pf-chart-tooltip-dot" style="background:#3b82f6;"></span>
-            <span class="pf-chart-tooltip-label" style="color:#93c5fd;">MA 100:</span>
-            <strong class="pf-chart-tooltip-val" style="margin-left:auto; color:#ffffff;">${escapeHtml(formatPriceValue(matchedMa.v))}</strong>
-          </div>`;
-      }
+    if (matchedMa && Number.isFinite(matchedMa.v)) {
+      const isMaActive = closest.id === 'ma';
+      maHtml = `
+        <div class="pf-chart-tooltip-row" style="margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); ${isMaActive && candidates.length > 1 ? 'background: rgba(59,130,246,0.15); border-radius: 4px; padding: 2px 4px;' : ''}">
+          <span class="pf-chart-tooltip-dot" style="background:#3b82f6;"></span>
+          <span class="pf-chart-tooltip-label" style="color:#93c5fd; ${isMaActive && candidates.length > 1 ? 'font-weight:700;' : ''}">MA 100:</span>
+          <strong class="pf-chart-tooltip-val" style="margin-left:auto; color:#ffffff;">${escapeHtml(formatPriceValue(matchedMa.v))}</strong>
+        </div>`;
     }
 
     const prevPoint = index > 0 ? points[index - 1] : null;
-    let changeHtml = '';
-    if (prevPoint && Number.isFinite(prevPoint.v)) {
-      const diff = point.v - prevPoint.v;
-      const diffPct = (diff / prevPoint.v) * 100;
-      const chgClass = diff > 0 ? 'positive' : (diff < 0 ? 'negative' : '');
-      changeHtml = `<span style="font-size:11px; margin-left:6px;" class="${chgClass}">(${formatSignedPct(diffPct)})</span>`;
+    let diff = 0;
+    let diffPct = 0;
+    if (prevPoint && Number.isFinite(prevPoint.v) && prevPoint.v > 0) {
+      diff = point.v - prevPoint.v;
+      diffPct = (diff / prevPoint.v) * 100;
     }
+    const chgClass = diff > 0 ? 'positive' : (diff < 0 ? 'negative' : '');
+    const changeHtml = prevPoint ? `<span style="font-size:11px; margin-left:6px;" class="${chgClass}">(${formatSignedPct(diffPct)})</span>` : '';
+    const liveDateStr = formatTradingViewHoverDate(point.date);
 
+    // Actualizar dinámicamente la cotización en tiempo real
+    setQuoteDisplay({
+      price: point.v,
+      change: diff,
+      changePercent: diffPct,
+      dateText: liveDateStr,
+      isHover: true,
+      maValue: (closest.id === 'ma' && matchedMa && Number.isFinite(matchedMa.v)) ? matchedMa.v : null,
+    });
+
+    const isPriceActive = closest.id === 'price';
     const tip = ensureChartTooltip();
     tip.innerHTML = `
       <div class="pf-chart-tooltip-head" style="margin-bottom: 4px;">
         <span class="pf-chart-tooltip-title">${escapeHtml(companyTicker)} · Cotización</span>
         <span class="pf-chart-tooltip-date" style="display:block; color:#94a3b8; font-size:10px;">${escapeHtml(formatTradingViewHoverDate(point.date))}</span>
       </div>
-      <div style="font-size: 14px; font-weight: 700; color: #ffffff; display: flex; align-items: baseline;">
+      <div style="font-size: 14px; font-weight: 700; color: #ffffff; display: flex; align-items: baseline; ${isPriceActive && candidates.length > 1 ? 'background: rgba(249,115,22,0.15); border-radius: 4px; padding: 2px 4px;' : ''}">
         ${escapeHtml(formatPriceValue(point.v))}
         ${changeHtml}
       </div>
@@ -2722,7 +3044,11 @@ function wireCompanyChartInteractions() {
   canvasInner.addEventListener('mouseleave', () => {
     if (isMeasuring) return;
     const hoverLayer = document.querySelector('#price-chart .pf-chart-hover-layer');
-    if (hoverLayer) hoverLayer.hidden = true;
+    if (hoverLayer) {
+      hoverLayer.hidden = true;
+      hoverLayer.style.display = 'none';
+    }
+    restoreQuoteDisplay();
     hideChartTooltip();
   });
 
@@ -2853,12 +3179,26 @@ function toggleFullscreen(element) {
   if (!element) return;
   const isVal = element.id === 'val-chart-block' || element.classList.contains('val-chart-block');
   const rerender = () => {
-    if (isVal) renderValuationChart();
-    else renderPriceChart();
+    requestAnimationFrame(() => {
+      if (isVal) renderValuationChart();
+      else renderPriceChart();
+    });
+    setTimeout(() => {
+      if (isVal) renderValuationChart();
+      else renderPriceChart();
+    }, 60);
+    setTimeout(() => {
+      if (isVal) renderValuationChart();
+      else renderPriceChart();
+    }, 180);
   };
   if (document.fullscreenElement === element || element.classList.contains('is-fullscreen')) {
     if (document.fullscreenElement) {
-      if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(rerender).catch(() => {
+          rerender();
+        });
+      }
     } else {
       element.classList.remove('is-fullscreen');
       rerender();
@@ -2866,7 +3206,9 @@ function toggleFullscreen(element) {
     return;
   }
   if (element.requestFullscreen) {
-    element.requestFullscreen().catch(() => {
+    element.requestFullscreen().then(() => {
+      rerender();
+    }).catch(() => {
       element.classList.toggle('is-fullscreen');
       rerender();
     });
@@ -2918,8 +3260,18 @@ if (quotePanel) {
 }
 
 document.addEventListener('fullscreenchange', () => {
-  renderPriceChart();
-  renderValuationChart();
+  requestAnimationFrame(() => {
+    renderPriceChart();
+    renderValuationChart();
+  });
+  setTimeout(() => {
+    renderPriceChart();
+    renderValuationChart();
+  }, 60);
+  setTimeout(() => {
+    renderPriceChart();
+    renderValuationChart();
+  }, 180);
 });
 
 let resizeTimer;
@@ -4117,6 +4469,7 @@ function updateMetricsChartHover(event) {
   const svg = document.querySelector('#metrics-chart');
   const rect = svg.getBoundingClientRect();
   const cursorX = ((event.clientX - rect.left) / rect.width) * metricsChartState.width;
+  const cursorY = ((event.clientY - rect.top) / rect.height) * metricsChartState.height;
   const centers = metricsChartState.centers;
   let best = 0;
   let bestDistance = Infinity;
@@ -4137,12 +4490,30 @@ function updateMetricsChartHover(event) {
     line.setAttribute('x2', cx.toFixed(1));
     line.setAttribute('y2', (height - margin.bottom).toFixed(1));
   }
+
+  let closestEntry = null;
+  let closestDist = Infinity;
+  const validPoints = [];
+
+  series.forEach((entry) => {
+    const value = Number(entry.points[best]?.value);
+    if (!Number.isFinite(value)) return;
+    const y = metricChartType(entry.metric) === 'bar' || !rightScale ? yLeft(value) : yRight(value);
+    const item = { entry, value, y };
+    validPoints.push(item);
+    const d = Math.abs(cursorY - y);
+    if (d < closestDist) {
+      closestDist = d;
+      closestEntry = item;
+    }
+  });
+
   if (dots) {
-    dots.innerHTML = series.map((entry) => {
-      const value = Number(entry.points[best]?.value);
-      if (!Number.isFinite(value)) return '';
-      const y = metricChartType(entry.metric) === 'bar' || !rightScale ? yLeft(value) : yRight(value);
-      return `<circle cx="${cx.toFixed(1)}" cy="${y.toFixed(1)}" r="4" class="metric-dot" style="stroke:${entry.color}"/>`;
+    dots.innerHTML = validPoints.map((item) => {
+      const isClosest = closestEntry && item.entry === closestEntry.entry && validPoints.length > 1;
+      const r = isClosest ? '5.5' : '4';
+      const sw = isClosest ? '2.8' : '2';
+      return `<circle cx="${cx.toFixed(1)}" cy="${item.y.toFixed(1)}" r="${r}" fill="#ffffff" class="metric-dot" style="stroke:${item.entry.color}; stroke-width:${sw};"/>`;
     }).join('');
   }
 
@@ -4152,9 +4523,10 @@ function updateMetricsChartHover(event) {
     tooltip.innerHTML = `<strong>${escapeHtml(periodTitle)}</strong>${series.map((entry) => {
       const val = entry.points[best]?.value;
       const formatted = val !== null && Number.isFinite(Number(val)) ? formatChartAxis(val, entry.metric) : '—';
+      const isClosest = closestEntry && entry === closestEntry.entry && validPoints.length > 1;
       return `
-        <div class="metrics-chart-tooltip-row">
-          <span class="metric-legend-dot" style="background:${entry.color}"></span>
+        <div class="metrics-chart-tooltip-row" style="${isClosest ? 'background: rgba(255,255,255,0.12); border-radius: 4px; padding: 2px 4px; font-weight: 700;' : ''}">
+          <span class="metric-legend-dot" style="background:${entry.color}; ${isClosest ? 'transform: scale(1.3);' : ''}"></span>
           <span>${escapeHtml(entry.label)}</span>
           <b>${formatted}</b>
         </div>
@@ -4357,7 +4729,8 @@ function renderFilingsTable() {
     : 'Sin informes 10-Q ni 10-K disponibles';
   table.querySelector('thead').innerHTML = '<tr><th>Formulario</th><th>Periodo</th><th>Periodo que cubre</th><th>Fecha de presentación</th><th>Acciones</th></tr>';
   table.querySelector('tbody').innerHTML = filings.map((filing) => {
-    const badgeClass = filing.formType === '10-K' ? 'filing-badge-10k' : 'filing-badge-10q';
+    const is10K = filing.formType === '10-K';
+    const badgeClass = is10K ? 'filing-badge-10k' : 'filing-badge-10q';
     const documentUrl = `/api/screener/company/${encodeURIComponent(companyTicker)}/filings/${encodeURIComponent(filing.accession)}/document`;
     return `<tr>
       <td><span class="filing-badge ${badgeClass}">${escapeHtml(filing.formType)}</span></td>
@@ -4367,7 +4740,7 @@ function renderFilingsTable() {
       <td class="filing-actions">
         <button type="button" class="filing-action" data-action="preview" data-doc="${escapeHtml(documentUrl)}" data-name="${escapeHtml(filing.documentName)}">Vista previa</button>
         <a class="filing-action filing-action-download" href="${escapeHtml(documentUrl)}?download=1" download>Descargar</a>
-        <button type="button" class="filing-action filing-action-analyze" data-action="analyze" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}">Analizar con IA</button>
+        <button type="button" class="filing-action filing-action-analyze${is10K ? ' filing-action-locked' : ''}" data-action="analyze" data-form-type="${escapeHtml(filing.formType)}" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}"${is10K ? ' title="El análisis de informes 10-K se desbloqueará próximamente"' : ''}>${is10K ? '<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" class="filing-lock-icon" aria-hidden="true"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>Analizar con IA <span class="filing-lock-pill">Próximamente</span>' : 'Analizar con IA'}</button>
       </td>
     </tr>`;
   }).join('');
@@ -4376,8 +4749,18 @@ function renderFilingsTable() {
   });
   table.querySelectorAll('button[data-action="analyze"]').forEach((button) => {
     button.addEventListener('click', () => {
-      const params = new URLSearchParams({ analizar: button.dataset.ticker, accession: button.dataset.accession });
-      window.location.href = `/analisis?${params.toString()}`;
+      if (button.dataset.formType === '10-K') {
+        showToast('El análisis de informes 10-K se desbloqueará próximamente. De momento solo está permitido analizar los resultados de 10-Q.');
+        return;
+      }
+      const ticker = button.dataset.ticker;
+      const accession = button.dataset.accession;
+      document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'analisis'));
+      showSection('analisis');
+      history.pushState(null, '', '/analisis');
+      if (window.AnalysisModule) {
+        window.AnalysisModule.runFilingAnalysis(ticker, accession);
+      }
     });
   });
 }
@@ -4647,58 +5030,46 @@ document.querySelectorAll('[data-holders-tab]').forEach((btn) => {
 /* ── Secciones del menú lateral ─────────────────────────────── */
 
 function showSection(key) {
+  restoreQuoteDisplay();
+  const companyHeadRow = document.querySelector('.company-head-row');
   const sections = {
     perfil: document.querySelector('#section-perfil'),
     favoritos: document.querySelector('#section-favoritos'),
     cartera: document.querySelector('#section-cartera'),
+    analisis: document.querySelector('#section-analisis'),
     informes: document.querySelector('#section-informes'),
     datos: document.querySelector('#section-datos'),
     accionariado: document.querySelector('#section-accionariado'),
+    foros: document.querySelector('#section-foros'),
     alertas: document.querySelector('#section-alertas'),
     placeholder: document.querySelector('#section-placeholder'),
   };
 
   Object.values(sections).forEach((section) => { if (section) section.hidden = true; });
 
+  const isGlobalSection = ['favoritos', 'alertas', 'cartera', 'analisis'].includes(key);
+  if (companyHeadRow) {
+    companyHeadRow.hidden = isGlobalSection;
+  }
+
   if (key === 'favoritos') {
-    sections.favoritos.hidden = false;
+    if (sections.favoritos) sections.favoritos.hidden = false;
+    Watchlists.mountSection(document.querySelector('#watchlists-section'), {
+      countEl: document.querySelector('#favorites-count'),
+      onNavigate: goToCompany,
+    });
+    Watchlists.refresh();
     return;
   }
-  if (key === 'cartera') {
-    sections.cartera.hidden = false;
-    const root = document.querySelector('#portfolio-company-section');
-    if (root && !root.dataset.ticker) {
-      root.dataset.ticker = companyTicker;
-      root.dataset.name = companyData?.company?.name ?? companyTicker;
-      Portfolio.registerCompanyPanel(root);
-    }
-    return;
-  }
-  if (key === 'informes') {
-    sections.informes.hidden = false;
-    if (!screenerFilings && !screenerFilingsLoading) loadFilings();
-    return;
-  }
-  if (key === 'datos') {
-    sections.datos.hidden = false;
-    renderScreenerTables();
-    return;
-  }
-  if (key === 'accionariado') {
-    if (sections.accionariado) sections.accionariado.hidden = false;
-    if (!companyHoldersData && !companyHoldersLoading) {
-      loadHolders();
-    } else if (companyHoldersData) {
-      renderHolders();
-    }
-    return;
-  }
+
   if (key === 'alertas') {
     if (sections.alertas) sections.alertas.hidden = false;
-    const container = document.querySelector('#company-price-alerts-container');
+    const container = document.querySelector('#price-alerts-section');
     if (container && !container.dataset.mounted) {
       container.dataset.mounted = '1';
       PriceAlerts.mountSection(container, {
+        countEl: document.querySelector('#price-alerts-count'),
+        onNavigate: goToCompany,
         initialCompany: {
           ticker: companyTicker,
           name: companyData?.company?.name || companyTicker,
@@ -4710,22 +5081,84 @@ function showSection(key) {
     }
     return;
   }
+
+  if (key === 'cartera') {
+    if (sections.cartera) sections.cartera.hidden = false;
+    const root = document.querySelector('#portfolio-section');
+    if (root) {
+      Portfolio.mountSection(root, {
+        onNavigate: goToCompany,
+      });
+    }
+    return;
+  }
+
+  if (key === 'analisis') {
+    if (sections.analisis) sections.analisis.hidden = false;
+    window.AnalysisModule?.fetchAnalyses();
+    return;
+  }
+
+  if (key === 'informes') {
+    if (sections.informes) sections.informes.hidden = false;
+    if (!screenerFilings && !screenerFilingsLoading) loadFilings();
+    return;
+  }
+
+  if (key === 'datos') {
+    if (sections.datos) sections.datos.hidden = false;
+    renderScreenerTables();
+    return;
+  }
+
+  if (key === 'accionariado') {
+    if (sections.accionariado) sections.accionariado.hidden = false;
+    if (!companyHoldersData && !companyHoldersLoading) {
+      loadHolders();
+    } else if (companyHoldersData) {
+      renderHolders();
+    }
+    return;
+  }
+
+  if (key === 'foros') {
+    if (sections.foros) sections.foros.hidden = false;
+    if (window.Forum) {
+      window.Forum.load(companyTicker, companyData?.company?.name);
+    }
+    return;
+  }
+
   if (SECTION_PLACEHOLDERS.includes(key)) {
     const label = document.querySelector(`.nav-link[data-section="${key}"] span`)?.textContent ?? 'Sección';
     document.querySelector('#placeholder-title').textContent = label;
-    sections.placeholder.hidden = false;
+    if (sections.placeholder) sections.placeholder.hidden = false;
     return;
   }
-  sections.perfil.hidden = false;
+
+  if (sections.perfil) sections.perfil.hidden = false;
 }
 
 document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
   link.addEventListener('click', (event) => {
     event.preventDefault();
+    const sectionKey = link.dataset.section;
     document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.remove('active'));
     link.classList.add('active');
-    showSection(link.dataset.section);
+    showSection(sectionKey);
     closeSidebar();
+
+    if (sectionKey === 'favoritos') {
+      history.pushState(null, '', '/seguimiento');
+    } else if (sectionKey === 'cartera') {
+      history.pushState(null, '', '/cartera');
+    } else if (sectionKey === 'alertas') {
+      history.pushState(null, '', '/alertas');
+    } else if (sectionKey === 'analisis') {
+      history.pushState(null, '', '/analisis');
+    } else {
+      history.pushState(null, '', `/empresa/${encodeURIComponent(companyTicker)}`);
+    }
   });
 });
 
@@ -4879,13 +5312,20 @@ async function loadCompany() {
       portfolioRoot.dataset.name = data.company?.name ?? companyTicker;
       Portfolio.registerCompanyPanel(portfolioRoot);
     }
-    const urlParams = new URLSearchParams(window.location.search);
-    const initialSec = urlParams.get('seccion') || urlParams.get('section') || window.location.hash.replace('#', '');
-    if (initialSec && initialSec !== 'perfil') {
-      document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === initialSec));
-      showSection(initialSec);
+    if (window.Forum) {
+      window.Forum.updateCompany(companyTicker, data.company?.name);
     }
-    const initialVmetric = urlParams.get('vmetric');
+    if (data.company?.ticker) {
+      companyTicker = data.company.ticker.toUpperCase();
+      localStorage.setItem(SAVED_TICKER_KEY, companyTicker);
+    }
+    const currentActiveSection = resolveInitialSection();
+    if (currentActiveSection && currentActiveSection !== 'perfil') {
+      document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === currentActiveSection));
+      showSection(currentActiveSection);
+    }
+    const searchParams = new URLSearchParams(window.location.search);
+    const initialVmetric = searchParams.get('vmetric');
     if (initialVmetric) {
       valChartMetric = initialVmetric;
       document.querySelectorAll('.val-chart-metrics button').forEach((btn) => {
@@ -4899,6 +5339,72 @@ async function loadCompany() {
   } finally {
     companyLoading.hidden = true;
   }
+}
+
+function resolveInitialSection() {
+  const path = window.location.pathname.toLowerCase();
+  const searchParams = new URLSearchParams(window.location.search);
+
+  if (path.startsWith('/cartera') || searchParams.get('cartera') === '1') {
+    return 'cartera';
+  }
+  if (path.startsWith('/seguimiento') || path.startsWith('/favoritos')) {
+    return 'favoritos';
+  }
+  if (path.startsWith('/alerta')) {
+    return 'alertas';
+  }
+  if (path.startsWith('/analisi') || searchParams.get('analizar')) {
+    return 'analisis';
+  }
+  const urlSec = searchParams.get('seccion') || searchParams.get('section') || window.location.hash.replace('#', '');
+  if (urlSec && ['perfil', 'favoritos', 'alertas', 'cartera', 'analisis', 'informes', 'datos', 'accionariado', 'foros'].includes(urlSec)) {
+    return urlSec;
+  }
+  return 'perfil';
+}
+
+document.querySelector('.brand-lockup, .brand')?.addEventListener('click', (event) => {
+  event.preventDefault();
+  document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'perfil'));
+  showSection('perfil');
+  history.pushState(null, '', `/empresa/${encodeURIComponent(companyTicker)}`);
+});
+
+document.querySelector('#sidebar-company-head')?.addEventListener('click', () => {
+  document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'perfil'));
+  showSection('perfil');
+  history.pushState(null, '', `/empresa/${encodeURIComponent(companyTicker)}`);
+});
+
+window.addEventListener('popstate', () => {
+  const targetSection = resolveInitialSection();
+  document.querySelectorAll('.nav-link[data-section]').forEach((item) => {
+    item.classList.toggle('active', item.dataset.section === targetSection);
+  });
+  showSection(targetSection);
+});
+
+// Inicializar módulo de análisis
+window.AnalysisModule?.init();
+
+if (window.location.pathname === '/' || window.location.pathname === '/empresa') {
+  history.replaceState(null, '', `/empresa/${encodeURIComponent(companyTicker)}`);
+}
+
+const currentInitialSection = resolveInitialSection();
+document.querySelectorAll('.nav-link[data-section]').forEach((item) => {
+  item.classList.toggle('active', item.dataset.section === currentInitialSection);
+});
+showSection(currentInitialSection);
+
+const startupParams = new URLSearchParams(window.location.search);
+const pendingTicker = (startupParams.get('analizar') ?? '').trim().toUpperCase();
+const pendingAccession = startupParams.get('accession') ?? '';
+if (pendingTicker && pendingAccession && window.AnalysisModule) {
+  setTimeout(() => {
+    window.AnalysisModule.runFilingAnalysis(pendingTicker, pendingAccession);
+  }, 200);
 }
 
 if (!companyTicker) {

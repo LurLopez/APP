@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#242424">
   <meta name="description" content="Cifra: perfil y análisis fundamental de empresas.">
   <title>Cifra Terminal | Empresa</title>
-  <link rel="stylesheet" href="/styles.css?v=72">
+  <link rel="stylesheet" href="/styles.css?v=81">
 </head>
 <body class="company-page">
   <div class="app-shell">
@@ -59,6 +59,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
             <span>Cartera</span>
           </a>
+          <a class="nav-link" href="#" data-section="analisis">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5"/><path d="M10 12h6M10 16h6"/></svg>
+            <span>Análisis</span>
+          </a>
         </div>
 
         <div class="company-nav-head" id="sidebar-company-head" hidden>
@@ -85,6 +89,10 @@
           <a class="nav-link" href="#" data-section="accionariado">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="8" r="2.5"/><path d="M3.5 19c.5-3 2-4.5 4.5-4.5s4 1.5 4.5 4.5M11.5 19c.5-3 2-4.5 4.5-4.5s4 1.5 4.5 4.5"/></svg>
             <span>Accionariado</span>
+          </a>
+          <a class="nav-link" href="#" data-section="foros">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>Foros</span>
           </a>
         </div>
       </nav>
@@ -168,7 +176,13 @@
               <article class="panel chart-block pf-chart-panel" id="company-chart-block">
                 <div class="chart-head pf-chart-head">
                   <div class="chart-head-left">
-                    <h5 id="chart-title">Precio</h5>
+                    <h5 id="chart-title">Cotización</h5>
+                    <div class="chart-quote-badge" id="chart-quote-badge">
+                      <strong class="chart-quote-badge-price" id="chart-quote-price">—</strong>
+                      <span class="chart-quote-badge-change" id="chart-quote-change">—</span>
+                      <span class="chart-quote-badge-date" id="chart-quote-date">—</span>
+                      <span class="chart-quote-badge-ma" id="chart-quote-ma" style="display:none;"></span>
+                    </div>
                   </div>
                   <div class="chart-head-actions">
                     <div class="chart-ranges pf-ranges-group" role="group" aria-label="Rango del gráfico">
@@ -212,7 +226,7 @@
                 <div class="chart-body pf-chart-canvas-wrap" id="chart-body">
                   <div class="chart-message" id="chart-message" hidden></div>
                   <div data-chart-canvas-inner class="company-chart-canvas-inner" style="position:relative; width:100%;">
-                    <svg id="price-chart" class="pf-chart-svg" viewBox="0 0 960 380" role="img" aria-label="Gráfico de cotización"></svg>
+                    <svg id="price-chart" class="pf-chart-svg" viewBox="0 0 960 380" preserveAspectRatio="none" role="img" aria-label="Gráfico de cotización"></svg>
                   </div>
                 </div>
                 <!-- Dual-handle timeline slider bar -->
@@ -259,23 +273,73 @@
             </article>
           </section>
 
-          <section class="company-section" id="section-favoritos" hidden>
-            <div class="filings-view">
-              <div class="filings-head"><span class="screener-units">TUS LISTAS DE SEGUIMIENTO</span><span class="screener-period-range" id="favorites-count">—</span></div>
-              <div id="watchlists-section"></div>
+          <section class="company-section home-grid-section" id="section-favoritos" hidden aria-label="Tus acciones en seguimiento">
+            <div class="section-title-row">
+              <div><span class="eyebrow">TUS ACCIONES</span><h2>Acciones en seguimiento</h2><p class="section-subtitle">Elige una lista para ver sus acciones.</p></div>
+              <span class="scope-badge" id="favorites-count">0</span>
             </div>
+            <div id="watchlists-section"></div>
           </section>
 
-          <section class="company-section" id="section-cartera" hidden>
-            <div class="filings-view">
-              <div class="filings-head"><span class="screener-units">TU CARTERA</span><span class="screener-period-range">FIFO · Dividendos estimados</span></div>
-              <div id="portfolio-company-section"></div>
+          <section class="company-section home-grid-section price-alerts-page-section" id="section-alertas" hidden aria-label="Tus alertas de precio">
+            <div class="section-title-row">
+              <div><span class="eyebrow">OBJETIVOS DE COTIZACIÓN</span><h2>Alertas de precio</h2><p class="section-subtitle">Recibe un correo electrónico automático en cuanto la cotización cumpla tu objetivo.</p></div>
+              <span class="scope-badge" id="price-alerts-count">0</span>
             </div>
+            <div id="price-alerts-section"></div>
+          </section>
+
+          <section class="company-section portfolio-page-section" id="section-cartera" hidden aria-label="Tu cartera de inversión">
+            <div id="portfolio-section"></div>
+          </section>
+
+          <section class="company-section home-analisis-section" id="section-analisis" hidden aria-label="Análisis de resultados y historial">
+            <section class="analysis-section" id="nuevo">
+              <div class="section-title-row analysis-title"><div><span class="eyebrow">ANÁLISIS FUNDAMENTAL</span><h2>Sube un informe para empezar</h2><p class="section-subtitle">La beta acepta informes 10-Q y 10-K de empresas estadounidenses de consumo defensivo.</p></div><span class="scope-badge">FASE 1 · BETA</span></div>
+              <div class="analysis-layout">
+                 <div class="panel upload-panel">
+                   <div class="panel-heading"><div><span class="section-index">01 / SEC EDGAR</span><h3>Analiza un informe oficial</h3></div><span class="file-rule">10-Q · 10-K</span></div>
+                   <div class="sec-analysis-entry" id="sec-analysis-entry">
+                     <div class="upload-symbol" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M5 6h18v16H5zM8 10h12M8 14h8M8 18h10"/></svg></div>
+                     <h3>Selecciona el informe desde la SEC</h3>
+                     <p>Busca una empresa, abre <strong>Informes trimestrales</strong> y pulsa <strong>Analizar</strong>. Así usamos siempre el filing oficial y podemos reutilizar el análisis para todos los usuarios.</p>
+                   </div>
+                   <form id="upload-form" hidden>
+                    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Seleccionar informe PDF">
+                      <input id="file-input" type="file" accept="application/pdf,.pdf" hidden>
+                      <div class="upload-symbol" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M14 19V6M9.5 10.5 14 6l4.5 4.5M7 17.5v2A2.5 2.5 0 0 0 9.5 22h9a2.5 2.5 0 0 0 2.5-2.5v-2"/></svg></div>
+                      <h3>Arrastra tu PDF aquí</h3><p>o <button class="inline-link" id="select-file" type="button">selecciona un archivo</button> desde tu equipo</p><div class="dropzone-hint">⌁ Procesamiento privado en esta beta</div>
+                    </div>
+                    <div class="file-preview" id="file-preview" hidden><div class="pdf-badge">PDF</div><div class="file-details"><strong id="file-name">informe.pdf</strong><span id="file-size">0 MB</span></div><span class="file-ready"><span class="status-dot"></span> Listo</span><button class="remove-file" id="remove-file" type="button" aria-label="Quitar archivo">×</button></div>
+                    <div class="form-footer"><p><span class="info-icon">i</span> El documento se comprobará antes de generar el informe.</p><button class="primary-button" id="analyze-button" type="submit" disabled>Analizar informe <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></div>
+                  </form>
+
+                  <div class="processing-panel" id="processing-panel" hidden>
+                    <div class="processing-head"><div><span class="section-index">ANÁLISIS EN CURSO</span><h3 id="processing-title">Leyendo tu informe...</h3></div><span class="processing-time" id="processing-time">00:01</span></div>
+                    <div class="agent-list">
+                      <div class="agent-row" data-agent="origin"><span class="agent-number">01</span><div><strong>Verificador de origen</strong><span>¿La empresa es de EE. UU.?</span></div><span class="agent-state">En espera</span></div>
+                      <div class="agent-row" data-agent="sector"><span class="agent-number">02</span><div><strong>Verificador de sector</strong><span>¿Es consumo defensivo?</span></div><span class="agent-state">En espera</span></div>
+                      <div class="agent-row" data-agent="analyst"><span class="agent-number">03</span><div><strong>Analista principal</strong><span>Extrayendo señales financieras</span></div><span class="agent-state">En espera</span></div>
+                    </div>
+                    <div class="progress-track"><span id="progress-bar"></span></div>
+                    <p class="analysis-error" id="analysis-error" hidden></p>
+                    <button class="secondary-button retry-button" id="retry-analysis" type="button" hidden>Reintentar</button>
+                    <p class="demo-disclaimer" id="processing-note">El documento se verifica automáticamente antes de continuar.</p>
+                  </div>
+
+                  <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3 id="result-title">Informe generado</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-report" id="report-body"></div><div class="result-actions"><button class="primary-button download-button" id="report-download" data-format="pdf" type="button">PDF <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v9M8 10l4 4 4-4M6 18h12"/></svg></button><button class="secondary-button download-button" data-format="docx" type="button">Word (.docx)</button><button class="secondary-button download-button" data-format="odt" type="button">ODT (.odt)</button><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button></div></div>
+                </div>
+
+                <aside class="panel coverage-panel" id="metodologia" hidden><div class="panel-heading compact"><div><span class="section-index">02 / PROCESO</span><h3>Qué ocurre después</h3></div><span class="method-icon">✦</span></div><p class="method-intro">Tres agentes revisan el documento en orden. Si no cumple el alcance, el análisis se detiene con una explicación clara.</p><div class="mini-pipeline"><div class="mini-step"><span class="mini-step-number">01</span><div><strong>Origen</strong><span>Estados Unidos</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step"><span class="mini-step-number">02</span><div><strong>Sector</strong><span>Consumo defensivo</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step final"><span class="mini-step-number">03</span><div><strong>Análisis</strong><span>Informe estructurado</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div></div><div class="method-note"><span>i</span><p>La IA ordena la información. La decisión final siempre es tuya.</p></div></aside>
+              </div>
+            </section>
+
+            <section class="history-panel" id="historial"><div class="section-title-row"><div><span class="eyebrow">ACTIVIDAD</span><h2>Mis análisis</h2><p class="section-subtitle">Los análisis completados se guardan en tu cuenta y quedan aquí listos para consultar.</p></div><button class="text-button" id="history-refresh" type="button">Actualizar <span>↻</span></button></div><div class="history-filters" id="history-filters" hidden><label class="history-filter history-company"><span>Empresa</span><input id="history-company" type="text" placeholder="Ticker o nombre, ej. KO" autocomplete="off"></label><fieldset class="history-filter history-date-type"><legend>Fecha</legend><label class="history-date-option"><input type="radio" name="history-date-type" value="period" checked><span>De los resultados</span></label><label class="history-date-option"><input type="radio" name="history-date-type" value="created"><span>Del análisis</span></label></fieldset><label class="history-filter history-date"><span>Desde</span><input id="history-from" type="date"></label><label class="history-filter history-date"><span>Hasta</span><input id="history-to" type="date"></label><button class="secondary-button history-clear" id="history-clear" type="button">Limpiar</button></div><div class="table-wrap"><table id="history-table"><thead><tr><th data-sort="document">Documento</th><th data-sort="company">Empresa</th><th data-sort="period">Periodo</th><th data-sort="period_end">Fecha resultados</th><th data-sort="created_at">Fecha análisis</th><th>Estado</th><th></th></tr></thead><tbody id="history-body"></tbody></table></div><div class="history-empty" id="history-empty" hidden><p id="history-empty-text"></p><button class="primary-button" id="history-login" type="button" hidden>Iniciar sesión</button></div></section>
           </section>
 
           <section class="company-section" id="section-informes" hidden>
             <div class="filings-view">
-              <div class="filings-head"><span class="screener-units">10-Q · 10-K · Fuente: SEC EDGAR</span><span class="screener-period-range" id="filings-count">—</span></div>
+              <div class="filings-head"><span class="screener-units">10-Q · 10-K · Fuente: SEC EDGAR</span><span class="screener-period-range" id="filings-count">—</span><span class="filings-scope-note">Análisis 10-Q disponible · 10-K próximamente</span></div>
               <div class="table-wrap"><table class="filings-table" id="filings-table"><thead></thead><tbody></tbody></table></div>
             </div>
           </section>
@@ -514,6 +578,11 @@
                 <div class="val-chart-head-left">
                   <h5>Evolución del múltiplo por sesión</h5>
                   <span class="metrics-chart-hint">Cotización diaria frente a los últimos datos financieros (TTM)</span>
+                  <div class="chart-quote-badge" id="val-chart-quote-badge" style="display:none;">
+                    <strong class="chart-quote-badge-price" id="val-chart-quote-price">—</strong>
+                    <span class="chart-quote-badge-change" id="val-chart-quote-metric">—</span>
+                    <span class="chart-quote-badge-date" id="val-chart-quote-date">—</span>
+                  </div>
                 </div>
                 <div class="val-chart-tools">
                   <label class="val-adjust-checkbox-label" id="val-chart-pe-adjust-toggle" title="Calcular con métrica ajustada (sumando depreciaciones/amortizaciones de intangibles y goodwill)" style="display:none;">
@@ -574,7 +643,7 @@
               <div class="val-chart-body pf-chart-canvas-wrap" id="val-chart-body">
                 <div class="chart-message" id="val-chart-message" hidden></div>
                 <div data-val-canvas-inner class="company-chart-canvas-inner" style="position:relative; width:100%;">
-                  <svg id="val-chart" class="pf-chart-svg" viewBox="0 0 960 380" role="img" aria-label="Gráfico de múltiplos de valoración por sesión"></svg>
+                  <svg id="val-chart" class="pf-chart-svg" viewBox="0 0 960 380" preserveAspectRatio="none" role="img" aria-label="Gráfico de múltiplos de valoración por sesión"></svg>
                 </div>
               </div>
               <!-- Dual-handle timeline slider bar -->
@@ -642,19 +711,6 @@
             </div>
           </section>
 
-          <section class="company-section" id="section-alertas" hidden>
-            <div class="panel pa-company-panel">
-              <div class="section-title-row pa-company-title-row">
-                <div>
-                  <span class="eyebrow">OBJETIVOS DE COTIZACIÓN</span>
-                  <h2>Alertas de precio</h2>
-                  <p class="section-subtitle">Recibe un correo electrónico automático en cuanto la cotización cumpla tu objetivo.</p>
-                </div>
-              </div>
-              <div id="company-price-alerts-container"></div>
-            </div>
-          </section>
-
           <section class="company-section" id="section-accionariado" hidden>
             <div class="panel accionariado-panel">
               <div class="accionariado-header-row">
@@ -704,6 +760,31 @@
             </div>
           </section>
 
+          <section class="company-section" id="section-foros" hidden>
+            <div class="panel forum-panel">
+              <div class="forum-header-row">
+                <div class="forum-title-group">
+                  <span class="eyebrow">COMUNIDAD Y DEBATE</span>
+                  <h2 id="forum-company-title">Foro de discusión: <span id="forum-company-name">—</span></h2>
+                  <p class="section-subtitle">Comparte tesis de inversión, dudas y comentarios con la comunidad sobre esta acción.</p>
+                </div>
+              </div>
+
+              <div class="forum-composer-wrap" id="forum-composer-wrap"></div>
+
+              <div class="forum-messages-container" id="forum-messages-container">
+                <div class="company-loading" id="forum-loading" hidden>Cargando mensajes del foro…</div>
+                <p class="screener-error" id="forum-error" hidden></p>
+                <div class="forum-empty" id="forum-empty" hidden>
+                  <div class="forum-empty-icon">💬</div>
+                  <strong>Aún no hay mensajes en el foro de esta empresa.</strong>
+                  <p>Sé el primero en iniciar la conversación y compartir tu análisis.</p>
+                </div>
+                <div class="forum-messages-list" id="forum-messages-list"></div>
+              </div>
+            </div>
+          </section>
+
           <section class="company-section" id="section-placeholder" hidden>
             <div class="panel placeholder-block">
               <strong id="placeholder-title">Sección</strong>
@@ -744,6 +825,18 @@
         <button class="modal-tab" type="button" role="tab" data-tab="register">Crear cuenta</button>
       </div>
       <form id="auth-form" novalidate>
+        <div class="oauth-section" id="oauth-section">
+          <a href="/api/auth/google" class="oauth-google-btn" id="oauth-google-btn">
+            <svg class="google-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.24 21.36 7.34 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.98 0 12s.46 3.84 1.26 5.42l4.02-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.24 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+            </svg>
+            <span id="oauth-google-text">Continuar con Google</span>
+          </a>
+          <div class="auth-divider"><span>o con correo electrónico</span></div>
+        </div>
         <div id="auth-credentials">
           <label class="auth-field"><span>Correo electrónico</span><input id="auth-email" type="email" autocomplete="off" required></label>
           <label class="auth-field"><span>Contraseña</span><input id="auth-password" type="password" autocomplete="off" required></label>
@@ -796,6 +889,23 @@
       </div>
 
       <form class="settings-form" id="settings-form">
+        <!-- Sección 0: Perfil público (Comunidad y Foros) -->
+        <div class="settings-group">
+          <div class="settings-group-header">
+            <span class="settings-group-icon">👤</span>
+            <div>
+              <h4 class="settings-group-title">Perfil y Foros</h4>
+              <p class="settings-group-desc">Tu nombre de usuario visible en los debates. Tu correo nunca se mostrará públicamente.</p>
+            </div>
+          </div>
+          <div class="settings-card">
+            <label class="auth-field" style="margin-bottom:0">
+              <span>Nombre de usuario público</span>
+              <input type="text" id="pref-username" name="username" placeholder="Tu alias (ej. Inversor_Value)" maxlength="30" autocomplete="off">
+            </label>
+          </div>
+        </div>
+
         <!-- Sección 1: Listas de seguimiento / Favoritos -->
         <div class="settings-group">
           <div class="settings-group-header">
@@ -907,11 +1017,13 @@
     </div>
   </div>
 
-  <script src="/watchlists.js?v=8"></script>
-  <script src="/portfolio.js?v=56"></script>
-  <script src="/settings.js?v=1"></script>
-  <script src="/priceAlerts.js?v=4"></script>
-  <script src="/empresa.js?v=39"></script>
-  <script src="/auth.js?v=6"></script>
+  <script src="/watchlists.js?v=9"></script>
+  <script src="/portfolio.js?v=59"></script>
+  <script src="/settings.js?v=3"></script>
+  <script src="/priceAlerts.js?v=5"></script>
+  <script src="/forum.js?v=3"></script>
+  <script src="/analisis.js?v=14"></script>
+  <script src="/empresa.js?v=45"></script>
+  <script src="/auth.js?v=8"></script>
 </body>
 </html>

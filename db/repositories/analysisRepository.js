@@ -2,7 +2,7 @@ import { query } from '../pool.js';
 
 const ANALYSIS_COLUMNS = `
     id, user_id, filename, status, error, origin, sector, report,
-    model_used, ticker, company_name, period_end, pdf_url, created_at
+    model_used, ticker, company_name, period_end, pdf_url, source_url, created_at
 `;
 
 export async function createAnalysis({
@@ -13,12 +13,13 @@ export async function createAnalysis({
   companyName = null,
   periodEnd = null,
   pdfUrl = null,
+  sourceUrl = null,
 } = {}) {
   const { rows } = await query(
-    `INSERT INTO analyses (user_id, filename, status, ticker, company_name, period_end, pdf_url)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO analyses (user_id, filename, status, ticker, company_name, period_end, pdf_url, source_url)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING ${ANALYSIS_COLUMNS}`,
-    [userId, filename, status, ticker, companyName, periodEnd, pdfUrl],
+    [userId, filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl],
   );
   return rows[0];
 }
@@ -89,10 +90,45 @@ export async function listAnalyses({
   return rows;
 }
 
+export async function listAnalysisCompanies({ userId = null, search = null } = {}) {
+  const params = [];
+  const conditions = [];
+
+  if (userId !== null) {
+    params.push(userId);
+    conditions.push(`user_id = $${params.length}`);
+  }
+
+  conditions.push(`COALESCE(ticker, company_name) IS NOT NULL`);
+
+  if (search) {
+    params.push(`%${String(search).toLowerCase()}%`);
+    conditions.push(
+      `(LOWER(COALESCE(ticker, '')) LIKE $${params.length} OR LOWER(COALESCE(company_name, '')) LIKE $${params.length})`,
+    );
+  }
+
+  params.push(30);
+
+  const { rows } = await query(
+    `SELECT
+       MAX(UPPER(COALESCE(ticker, ''))) AS ticker,
+       MAX(COALESCE(company_name, ticker, '')) AS company_name,
+       COUNT(*)::int AS total
+     FROM analyses
+     WHERE ${conditions.join(' AND ')}
+     GROUP BY LOWER(COALESCE(ticker, company_name))
+     ORDER BY COUNT(*) DESC, LOWER(MAX(COALESCE(company_name, ticker, ''))) ASC
+     LIMIT $${params.length}`,
+    params,
+  );
+  return rows;
+}
+
 export async function updateAnalysis(id, fields) {
   const allowed = [
     'status', 'error', 'origin', 'sector', 'report', 'model_used',
-    'ticker', 'company_name', 'period_end', 'pdf_url',
+    'ticker', 'company_name', 'period_end', 'pdf_url', 'source_url',
   ];
   const entries = Object.entries(fields).filter(([key]) => allowed.includes(key));
 

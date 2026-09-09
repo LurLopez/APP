@@ -1,13 +1,25 @@
 import { query } from '../pool.js';
 
-const USER_COLUMNS = 'id, email, plan, email_verified, created_at';
+const USER_COLUMNS = 'id, email, username, plan, email_verified, google_id, created_at';
 
-export async function createUser({ email, passwordHash, plan = 'free' }) {
+export async function createUser({ email, passwordHash, plan = 'free', username = null }) {
+  const defaultUsername = username || email.split('@')[0];
   const { rows } = await query(
-    `INSERT INTO users (email, password_hash, plan)
-     VALUES ($1, $2, $3)
+    `INSERT INTO users (email, password_hash, plan, username)
+     VALUES ($1, $2, $3, $4)
      RETURNING ${USER_COLUMNS}`,
-    [email, passwordHash, plan],
+    [email, passwordHash, plan, defaultUsername],
+  );
+  return rows[0];
+}
+
+export async function createGoogleUser({ email, googleId, plan = 'free', username = null }) {
+  const defaultUsername = username || email.split('@')[0];
+  const { rows } = await query(
+    `INSERT INTO users (email, google_id, email_verified, plan, username)
+     VALUES ($1, $2, true, $3, $4)
+     RETURNING ${USER_COLUMNS}`,
+    [email, googleId, plan, defaultUsername],
   );
   return rows[0];
 }
@@ -24,6 +36,44 @@ export async function findUserByEmail(email) {
   const { rows } = await query(
     `SELECT ${USER_COLUMNS}, password_hash FROM users WHERE email = $1`,
     [email],
+  );
+  return rows[0] ?? null;
+}
+
+export async function findUserByGoogleId(googleId) {
+  const { rows } = await query(
+    `SELECT ${USER_COLUMNS}, password_hash FROM users WHERE google_id = $1`,
+    [googleId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function findUserByUsername(username) {
+  const { rows } = await query(
+    `SELECT ${USER_COLUMNS} FROM users WHERE LOWER(username) = LOWER($1)`,
+    [username],
+  );
+  return rows[0] ?? null;
+}
+
+export async function linkGoogleAccount(userId, googleId) {
+  const { rows } = await query(
+    `UPDATE users
+     SET google_id = $2, email_verified = true
+     WHERE id = $1
+     RETURNING ${USER_COLUMNS}`,
+    [userId, googleId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function updateUsername(userId, username) {
+  const { rows } = await query(
+    `UPDATE users
+     SET username = $2
+     WHERE id = $1
+     RETURNING ${USER_COLUMNS}`,
+    [userId, username],
   );
   return rows[0] ?? null;
 }

@@ -2,13 +2,18 @@ import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import {
   createUser,
+  createGoogleUser,
   findUserByEmail,
+  findUserByGoogleId,
+  findUserByUsername,
+  linkGoogleAccount,
   markEmailVerified,
   saveVerificationCode,
   findActiveVerificationCode,
   consumeVerificationCode,
   incrementCodeAttempts,
   updatePassword,
+  updateUsername,
 } from '../../db/repositories/userRepository.js';
 import { normalizeEmail, isValidEmail, isValidPassword } from '../utils/validate.js';
 import {
@@ -34,8 +39,10 @@ export function toPublicUser(user) {
   return {
     id: user.id,
     email: user.email,
+    username: user.username || user.email.split('@')[0],
     plan: user.plan,
     email_verified: user.email_verified,
+    has_google: Boolean(user.google_id),
     created_at: user.created_at,
   };
 }
@@ -208,6 +215,13 @@ export async function login({ email, password }) {
     throw new AuthError('Correo o contraseña incorrectos.', 401);
   }
 
+  if (!user.password_hash) {
+    throw new AuthError(
+      'Esta cuenta se registró con Google. Inicia sesión con el botón de Google.',
+      400,
+    );
+  }
+
   const passwordMatches = await bcrypt.compare(password, user.password_hash);
   if (!passwordMatches) {
     throw new AuthError('Correo o contraseña incorrectos.', 401);
@@ -224,6 +238,52 @@ export async function login({ email, password }) {
   return toPublicUser(user);
 }
 
+export async function loginOrRegisterGoogle({ googleId, email }) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!isValidEmail(normalizedEmail)) {
+    throw new AuthError('El correo proporcionado por Google no es válido.', 400);
+  }
+
+  // 1. Buscar si ya existe por google_id
+  let user = await findUserByGoogleId(googleId);
+  if (user) {
+    return toPublicUser(user);
+  }
+
+  // 2. Si existe un usuario con este email (creado previamente por formulario), vinculamos la cuenta Google
+  const existingByEmail = await findUserByEmail(normalizedEmail);
+  if (existingByEmail) {
+    user = await linkGoogleAccount(existingByEmail.id, googleId);
+    return toPublicUser(user);
+  }
+
+  // 3. Crear cuenta nueva con Google (queda verificada automáticamente)
+  user = await createGoogleUser({ email: normalizedEmail, googleId });
+  return toPublicUser(user);
+}
+
 export function verificationEmailConfigured() {
   return emailServiceEnabled();
+}
+
+export async function changeUsername(userId, newUsername) {
+  const trimmed = String(newUsername ?? '').trim();
+  if (!trimmed) {
+    throw new AuthError('El nombre de usuario no puede estar vacío.', 400);
+  }
+  if (!/^[a-zA-Z0-9_.-]{3,30}$/.test(trimmed)) {
+    throw new AuthError(
+      'El nombre de usuario debe tener entre 3 y 30 caracteres alfanuméricos (letras, números, _, -, .).',
+      400,
+    );
+  }
+
+  const existing = await findUserByUsername(trimmed);
+  if (existing && existing.id !== userId) {
+    throw new AuthError('Ese nombre de usuario ya está en uso. Elige otro.', 409);
+  }
+
+  const updated = await updateUsername(userId, trimmed);
+  return toPublicUser(updated);
 }

@@ -67,11 +67,11 @@ const STATEMENTS = {
   ],
   balance: [
     { key: 'cash', label: 'Efectivo y equivalentes', tags: ['CashAndCashEquivalentsAtCarryingValue'], unit: 'USD' },
-    { key: 'shortTermInvestments', label: 'Activos financieros para vender', tags: ['ShortTermInvestments', 'OtherShortTermInvestments', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent'], unit: 'USD' },
+    { key: 'shortTermInvestments', label: 'Activos financieros para vender', tags: ['ShortTermInvestments', 'OtherShortTermInvestments', 'MarketableSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecurities', 'MarketableSecurities', 'AvailableForSaleSecuritiesCurrent'], unit: 'USD' },
     { key: 'cashAndShortTermInvestments', label: 'Efectivo total e inversiones a corto plazo', tags: ['CashCashEquivalentsAndShortTermInvestments'], unit: 'USD', emphasis: true, derived: true },
-    { key: 'receivables', label: 'Cuentas por cobrar', tags: ['AccountsReceivableNetCurrent', 'AccountsNotesAndLoansReceivableNetCurrent'], unit: 'USD' },
+    { key: 'receivables', label: 'Cuentas por cobrar', tags: ['AccountsReceivableNetCurrent', 'ReceivablesNetCurrent', 'AccountsNotesAndLoansReceivableNetCurrent'], unit: 'USD' },
     { key: 'otherReceivables', label: 'Otros por cobrar', tags: ['OtherReceivables', 'AccountsReceivableOtherCurrent'], unit: 'USD' },
-    { key: 'totalReceivables', label: 'Total de cuentas por cobrar', tags: ['AccountsNotesAndLoansReceivableNetCurrent'], unit: 'USD', emphasis: true, derived: true },
+    { key: 'totalReceivables', label: 'Total de cuentas por cobrar', tags: ['AccountsNotesAndLoansReceivableNetCurrent', 'ReceivablesNetCurrent'], unit: 'USD', emphasis: true, derived: true },
     { key: 'inventory', label: 'Inventario', tags: ['InventoryNet'], unit: 'USD' },
     { key: 'prepaidExpenses', label: 'Gastos pagados por anticipado', tags: ['PrepaidExpenseAndOtherAssetsCurrent'], unit: 'USD' },
     { key: 'deferredTaxAssetsCurrent', label: 'Activos por impuestos diferidos Corrientes', tags: ['DeferredTaxAssetsNetCurrent'], unit: 'USD' },
@@ -148,7 +148,7 @@ const STATEMENTS = {
     { key: 'capex', label: 'Gastos de capital', tags: ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets'], unit: 'USD', negative: true },
     { key: 'salePPE', label: 'Venta de inmovilizado material', tags: ['ProceedsFromSaleOfPropertyPlantAndEquipment', 'ProceedsFromSaleOfProductiveAssets'], unit: 'USD' },
     { key: 'acquisitions', label: 'Adquisiciones con efectivo', tags: ['PaymentsToAcquireBusinessesNetOfCashAcquired', 'PaymentsToAcquireBusinessesAndInterestInAffiliates'], unit: 'USD', negative: true },
-    { key: 'divestitures', label: 'Desinversiones', tags: ['ProceedsFromDivestitureOfBusinesses', 'ProceedsFromDivestitureOfBusinessesAndInterestsInAffiliates'], unit: 'USD' },
+    { key: 'divestitures', label: 'Desinversiones', tags: ['ProceedsFromDivestitureOfBusinessesNetOfCashDivested', 'ProceedsFromDivestitureOfBusinesses', 'ProceedsFromDivestitureOfBusinessesAndInterestsInAffiliates'], unit: 'USD' },
     { key: 'securitiesInvesting', label: 'Inversión en valores negociables y de renta variable', tags: ['PaymentsToAcquireInvestments', 'PaymentsToAcquireAvailableForSaleSecurities', 'PaymentsToAcquireOtherInvestments'], unit: 'USD', negative: true },
     { key: 'loansInvesting', label: 'Disminución (aumento) neta de préstamos originados / vendidos - Inversión', tags: ['PaymentsToAcquireLoansAndReceivables', 'ProceedsFromSaleOfLoansAndReceivables'], unit: 'USD' },
     { key: 'otherInvestingActivities', label: 'Otras actividades de inversión', invertTags: ['PaymentsForProceedsFromOtherInvestingActivities'], tags: ['OtherInvestingActivities', 'PaymentsForProceedsFromOtherInvestingActivities'], unit: 'USD' },
@@ -1141,21 +1141,10 @@ function rederiveCashValues(annual, quarterly) {
         values.cashAndShortTermInvestments = cashTotal;
       }
       const stl = Number(values.shortTermLoans);
-      const ltdc = Number(values.longTermDebtCurrent);
       const ltd = Number(values.longTermDebt);
-      const leases = (Number(values.currentCapitalLeaseObligations) || 0) + (Number(values.capitalLeasesNoncurrent) || 0);
-
-      let currentDebt = undefined;
-      if (Number.isFinite(stl) && Number.isFinite(ltdc)) {
-        currentDebt = (stl > 0 && ltdc > 0 && Math.abs(stl - ltdc) < ltdc * 0.15) ? Math.max(stl, ltdc) : (stl + ltdc);
-      } else if (Number.isFinite(stl)) {
-        currentDebt = stl;
-      } else if (Number.isFinite(ltdc)) {
-        currentDebt = ltdc;
-      }
-
-      if (currentDebt !== undefined || Number.isFinite(ltd) || leases > 0) {
-        values.totalDebt = (currentDebt || 0) + (Number.isFinite(ltd) ? ltd : 0) + leases;
+      const parts = [ltd, stl].filter((v) => Number.isFinite(v));
+      if (parts.length) {
+        values.totalDebt = parts.reduce((a, b) => a + b, 0);
         const cashForNet = Number(values.cashAndShortTermInvestments ?? values.cash) || 0;
         values.netDebt = Number(values.totalDebt) - cashForNet;
       }
@@ -1412,7 +1401,14 @@ async function ensureFilingsDir() {
 
 function filingPdfFilename(filing) {
   const stem = (filing.documentName ?? 'informe').replace(/\.html?$/, '');
-  return `${stem}.pdf`;
+  const period = filing.period ? String(filing.period).slice(0, 10) : null;
+  return period ? `${stem}-${period}.pdf` : `${stem}.pdf`;
+}
+
+function filingPdfCachePath(filing) {
+  const stem = (filing.documentName ?? 'informe').replace(/\.html?$/, '');
+  const accessionNoDashes = (filing.accession ?? '').replaceAll('-', '');
+  return `${FILINGS_DIR}${stem}-${accessionNoDashes}.pdf`;
 }
 
 async function getFilingIndexItems(company, filing) {
@@ -1467,7 +1463,7 @@ async function generateFilingPdf(documentUrl, outPath) {
 
 async function getFilingPdfPath(company, filing) {
   const fs = await import('node:fs');
-  const filePath = `${FILINGS_DIR}${filingPdfFilename(filing)}`;
+  const filePath = filingPdfCachePath(filing);
   try {
     const stat = fs.statSync(filePath);
     if (stat.isFile() && stat.size > 0) return filePath;
@@ -2113,20 +2109,11 @@ function buildSeries(facts) {
       return commonEquity - (Number(data.goodwill) || 0) - (Number(data.otherIntangibleAssets) || 0);
     });
     setDerived(values, 'totalDebt', (data) => {
-      const stl = Number(data.shortTermLoans);
-      const ltdc = Number(data.longTermDebtCurrent);
-      const ltd = Number(data.longTermDebt);
-      const leases = (Number(data.currentCapitalLeaseObligations) || 0) + (Number(data.capitalLeasesNoncurrent) || 0);
-      let currentDebt = undefined;
-      if (Number.isFinite(stl) && Number.isFinite(ltdc)) {
-        currentDebt = (stl > 0 && ltdc > 0 && Math.abs(stl - ltdc) < ltdc * 0.15) ? Math.max(stl, ltdc) : (stl + ltdc);
-      } else if (Number.isFinite(stl)) {
-        currentDebt = stl;
-      } else if (Number.isFinite(ltdc)) {
-        currentDebt = ltdc;
-      }
-      if (currentDebt === undefined && !Number.isFinite(ltd) && leases === 0) return undefined;
-      return (currentDebt || 0) + (Number.isFinite(ltd) ? ltd : 0) + leases;
+      const toNum = (v) => (v === undefined || v === null) ? null : Number(v);
+      const ltd = toNum(data.longTermDebt);
+      const stl = toNum(data.shortTermLoans);
+      const parts = [ltd, stl].filter((v) => v !== null && Number.isFinite(v));
+      return parts.length ? parts.reduce((a, b) => a + b, 0) : undefined;
     });
     setDerived(values, 'netDebt', (data) => Number.isFinite(Number(data.totalDebt)) && Number.isFinite(Number(data.cashAndShortTermInvestments ?? data.cash))
       ? Number(data.totalDebt) - Number(data.cashAndShortTermInvestments ?? data.cash)
@@ -2222,6 +2209,236 @@ export async function getCompanyResults(ticker, options = {}) {
     annual,
     quarterly,
   };
+}
+
+export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuarter, reportingPeriod) {
+  if (!ticker) return null;
+  const year = Number(fiscalYear);
+  const quarter = Number(fiscalQuarter);
+  if (!Number.isFinite(quarter) || quarter <= 1) return null;
+
+  try {
+    const results = await getCompanyResults(ticker);
+    const quarterly = results.quarterly || [];
+    if (!quarterly.length) return null;
+
+    // Quarters sorted descending by periodEnd (most recent first)
+    const sorted = [...quarterly]
+      .filter((q) => q.periodEnd)
+      .sort((a, b) => String(b.periodEnd).localeCompare(String(a.periodEnd)));
+    if (!sorted.length) return null;
+
+    let currentRow = null;
+    let prevRow = null;
+
+    const targetDate = reportingPeriod && /^\d{4}-\d{2}-\d{2}$/.test(String(reportingPeriod).trim())
+      ? String(reportingPeriod).trim()
+      : null;
+
+    if (targetDate) {
+      const targetTime = new Date(targetDate).getTime();
+      const currentIdx = sorted.findIndex((q) => {
+        if (q.periodEnd === targetDate) return true;
+        const qTime = new Date(q.periodEnd).getTime();
+        return Math.abs(qTime - targetTime) <= 15 * 86400000;
+      });
+
+      if (currentIdx !== -1) {
+        currentRow = sorted[currentIdx];
+        if (currentIdx + 1 < sorted.length) {
+          prevRow = sorted[currentIdx + 1];
+        }
+      } else {
+        // Current report wasn't matched in facts (e.g. freshly uploaded filing), find latest quarter ending before targetDate
+        prevRow = sorted.find((q) => q.periodEnd < targetDate);
+      }
+    }
+
+    // Fallback: match by sortKey or period ensuring periodEnd is strictly before targetDate if available
+    if (!prevRow) {
+      const prevQuarterNum = quarter - 1;
+      const prevKey = year ? `${year}-Q${prevQuarterNum}` : null;
+      const targetSortKey = year ? year * 10 + prevQuarterNum : null;
+
+      const candidates = sorted.filter((q) => !targetDate || q.periodEnd < targetDate);
+      prevRow = candidates.find((q) => (prevKey && q.period === prevKey) || (targetSortKey && q.sortKey === targetSortKey));
+      if (!prevRow && year) {
+        const yearRows = candidates.filter((q) => q.sortKey && Math.floor(q.sortKey / 10) === year && (q.sortKey % 10) <= prevQuarterNum);
+        if (yearRows.length) prevRow = yearRows[0];
+      }
+      if (!prevRow && candidates.length) {
+        prevRow = candidates[0];
+      }
+    }
+
+    if (!prevRow) return null;
+
+    // Guard: under NO circumstances can prevRow have periodEnd >= targetDate
+    if (targetDate && prevRow.periodEnd && prevRow.periodEnd >= targetDate) {
+      const strictlyEarlier = sorted.filter((q) => q.periodEnd < targetDate);
+      if (strictlyEarlier.length) {
+        prevRow = strictlyEarlier[0];
+      } else {
+        return null;
+      }
+    }
+
+    // Pick values: for Q2 (prev is Q1), data is in values (3M); for Q3/Q4, data is in ytdValues (6M/9M)
+    const pickVal = (key) => {
+      if (prevRow.ytdValues && prevRow.ytdValues[key] !== undefined) {
+        return prevRow.ytdValues[key];
+      }
+      return prevRow.values?.[key];
+    };
+
+    const toMillions = (val) => {
+      if (val === undefined || val === null || !Number.isFinite(Number(val))) return null;
+      return Math.round((Number(val) / 1e5)) / 10;
+    };
+
+    // Locate FY start row: for quarter n, the start of the fiscal year is n quarters back
+    let fyStartRow = null;
+    if (currentRow && Number.isFinite(quarter) && quarter >= 1) {
+      const currIdx = sorted.indexOf(currentRow);
+      if (currIdx !== -1 && currIdx + quarter < sorted.length) {
+        fyStartRow = sorted[currIdx + quarter];
+      }
+    }
+    if (!fyStartRow && year) {
+      fyStartRow = results.annual?.find((a) => a.period === String(year - 1) || (a.sortKey && a.sortKey === (year - 1)));
+    }
+
+    const currCash = toMillions(currentRow?.values?.cash);
+    const prevCash = toMillions(prevRow.values?.cash);
+    const fyStartCash = toMillions(fyStartRow?.values?.cash);
+
+    const currShortTerm = toMillions(currentRow?.values?.shortTermInvestments);
+    const prevShortTerm = toMillions(prevRow?.values?.shortTermInvestments);
+    const fyStartShortTerm = toMillions(fyStartRow?.values?.shortTermInvestments ?? 0);
+
+    const diffST3M = (currShortTerm != null && prevShortTerm != null) ? currShortTerm - prevShortTerm : 0;
+    const invCortoPlazo3M = (Math.abs(diffST3M) >= 50) ? Math.round(-diffST3M * 10) / 10 : 0;
+
+    const diffSTYtd = (currShortTerm != null) ? currShortTerm - (fyStartShortTerm ?? 0) : 0;
+    const invCortoPlazoYtd = (Math.abs(diffSTYtd) >= 50) ? Math.round(-diffSTYtd * 10) / 10 : 0;
+
+    const currDebt = toMillions(currentRow?.values?.totalDebt);
+    const prevDebt = toMillions(prevRow.values?.totalDebt);
+    const fyStartDebt = toMillions(fyStartRow?.values?.totalDebt);
+
+    // Divestitures: only material brand/business divestitures (>= 50M)
+    const rawDiv3M = toMillions(currentRow?.values?.divestitures) || 0;
+    const currDivestitures3M = rawDiv3M >= 50 ? rawDiv3M : 0;
+
+    const rawDivYtd = toMillions(currentRow?.ytdValues?.divestitures ?? currentRow?.values?.divestitures) || 0;
+    const currDivestituresYtd = rawDivYtd >= 50 ? rawDivYtd : 0;
+
+    // Acquisitions of business: only material cash acquisitions (>= 50M), negative sign (use of capital)
+    const rawAcq3M = toMillions(currentRow?.values?.acquisitions) || 0;
+    const currAcquisitions3M = rawAcq3M >= 50 ? -Math.abs(rawAcq3M) : 0;
+
+    const rawAcqYtd = toMillions(currentRow?.ytdValues?.acquisitions ?? currentRow?.values?.acquisitions) || 0;
+    const currAcquisitionsYtd = rawAcqYtd >= 50 ? -Math.abs(rawAcqYtd) : 0;
+
+    // Proceeds from sales of PP&E and other assets (positive, source of funds)
+    const assetSales3M = toMillions(currentRow?.values?.salePPE) || 0;
+    const assetSalesYtd = toMillions(currentRow?.ytdValues?.salePPE ?? currentRow?.values?.salePPE) || 0;
+
+    const currBuybacks3M = toMillions(currentRow?.values?.buybacks);
+    const currBuybacksYtd = toMillions(currentRow?.ytdValues?.buybacks ?? currentRow?.values?.buybacks);
+
+    const diffDebt3M = (currDebt != null && prevDebt != null) ? Math.round((currDebt - prevDebt) * 10) / 10 : null;
+    const prevNetDebt3M = (prevDebt != null && prevCash != null) ? Math.round((prevDebt - prevCash) * 10) / 10 : null;
+    const currNetDebt3M = (currDebt != null && currCash != null) ? Math.round((currDebt - currCash) * 10) / 10 : null;
+    const diffNetDebt3M = (currNetDebt3M != null && prevNetDebt3M != null) ? Math.round((currNetDebt3M - prevNetDebt3M) * 10) / 10 : null;
+    const debtDetails3M = (prevDebt != null && currDebt != null)
+      ? `Deuda balance: ${prevDebt}M -> ${currDebt}M (${diffDebt3M > 0 ? '+' : ''}${diffDebt3M}M)${prevNetDebt3M != null && currNetDebt3M != null ? `. Deuda neta: ${prevNetDebt3M}M -> ${currNetDebt3M}M (${diffNetDebt3M > 0 ? '+' : ''}${diffNetDebt3M}M)` : ''}`
+      : null;
+
+    const diffDebtYtd = (currDebt != null && fyStartDebt != null) ? Math.round((currDebt - fyStartDebt) * 10) / 10 : null;
+    const fyStartNetDebtYtd = (fyStartDebt != null && fyStartCash != null) ? Math.round((fyStartDebt - fyStartCash) * 10) / 10 : null;
+    const diffNetDebtYtd = (currNetDebt3M != null && fyStartNetDebtYtd != null) ? Math.round((currNetDebt3M - fyStartNetDebtYtd) * 10) / 10 : null;
+    const debtDetailsYtd = (fyStartDebt != null && currDebt != null)
+      ? `Deuda balance: ${fyStartDebt}M -> ${currDebt}M (${diffDebtYtd > 0 ? '+' : ''}${diffDebtYtd}M)${fyStartNetDebtYtd != null && currNetDebt3M != null ? `. Deuda neta: ${fyStartNetDebtYtd}M -> ${currNetDebt3M}M (${diffNetDebtYtd > 0 ? '+' : ''}${diffNetDebtYtd}M)` : ''}`
+      : null;
+
+    const result = {
+      period: prevRow.period,
+      periodEnd: prevRow.periodEnd,
+      cfoYtd: toMillions(pickVal('cfo')),
+      capexYtd: toMillions(pickVal('capex') !== undefined ? Math.abs(pickVal('capex')) : null),
+      dividendsYtd: toMillions(pickVal('dividendsCommon') !== undefined ? Math.abs(pickVal('dividendsCommon')) : null),
+      buybacksYtd: toMillions(pickVal('buybacks') !== undefined ? Math.abs(pickVal('buybacks')) : null),
+      debtIssuedYtd: toMillions(pickVal('debtIssued')),
+      debtPaidYtd: toMillions(pickVal('debtPaid') !== undefined ? Math.abs(pickVal('debtPaid')) : null),
+      netDebtChangeYtd: toMillions((pickVal('debtIssued') !== undefined || pickVal('debtPaid') !== undefined)
+        ? (Number(pickVal('debtIssued')) || 0) + (Number(pickVal('debtPaid')) || 0)
+        : null),
+      netChangeInCashYtd: toMillions(pickVal('netChangeInCash')),
+      cash: prevCash,
+      totalDebt: prevDebt,
+      shortTermInvestments: prevShortTerm,
+      fyStartCash,
+      fyStartDebt,
+      fyStartShortTerm,
+      changeReceivablesYtd: toMillions(pickVal('changeAccountsReceivable')),
+      changeInventoryYtd: toMillions(pickVal('changeInventory')),
+      changePayablesYtd: toMillions(pickVal('changeAccountsPayable')),
+      workingCapitalChangeYtd: toMillions(pickVal('workingCapitalChange')),
+      divestituresYtd: toMillions(pickVal('divestitures')),
+      capitalAllocation: {
+        threeMonths: {
+          deuda: diffDebt3M,
+          caja: (currCash != null && prevCash != null) ? Math.round((-(currCash - prevCash)) * 10) / 10 : null,
+          inversionesCortoPlazo: invCortoPlazo3M,
+          divestitures: currDivestitures3M,
+          buybacks: currBuybacks3M ? -Math.abs(currBuybacks3M) : 0,
+          acquisitions: currAcquisitions3M,
+          assetSales: assetSales3M,
+          debtDetails: debtDetails3M,
+          cashDetails: prevCash && currCash ? `Caja balance: ${prevCash}M -> ${currCash}M (${currCash - prevCash > 0 ? '+' : ''}${Math.round((currCash - prevCash) * 10) / 10}M)` : null,
+        },
+        ytd: {
+          deuda: diffDebtYtd,
+          caja: (currCash != null && fyStartCash != null) ? Math.round((-(currCash - fyStartCash)) * 10) / 10 : null,
+          inversionesCortoPlazo: invCortoPlazoYtd,
+          divestitures: currDivestituresYtd,
+          buybacks: currBuybacksYtd ? -Math.abs(currBuybacksYtd) : 0,
+          acquisitions: currAcquisitionsYtd,
+          assetSales: assetSalesYtd,
+          debtDetails: debtDetailsYtd,
+          cashDetails: fyStartCash && currCash ? `Caja balance: ${fyStartCash}M -> ${currCash}M (${currCash - fyStartCash > 0 ? '+' : ''}${Math.round((currCash - fyStartCash) * 10) / 10}M)` : null,
+        },
+      },
+    };
+
+    if (currentRow) {
+      result.currentQuarterData = {
+        period: currentRow.period,
+        periodEnd: currentRow.periodEnd,
+        cfo3M: toMillions(currentRow.values?.cfo),
+        capex3M: toMillions(currentRow.values?.capex !== undefined ? Math.abs(currentRow.values.capex) : null),
+        dividends3M: toMillions(currentRow.values?.dividendsCommon !== undefined ? Math.abs(currentRow.values.dividendsCommon) : null),
+        fcf3M: toMillions(currentRow.values?.freeCashFlow),
+        inventory: toMillions(currentRow.values?.inventory),
+        payables: toMillions(currentRow.values?.payables),
+        receivables: toMillions(currentRow.values?.receivables ?? currentRow.values?.totalReceivables),
+        workingCapitalChange3M: toMillions(currentRow.values?.workingCapitalChange),
+        shares: toMillions(currentRow.values?.weightedSharesDiluted || currentRow.values?.sharesOutstanding || currentRow.values?.weightedSharesBasic),
+        totalDebt: currDebt,
+        cash: currCash,
+        divestitures3M: currDivestitures3M,
+        divestituresYtd: currDivestituresYtd,
+        buybacks3M: currBuybacks3M ? -Math.abs(currBuybacks3M) : 0,
+        buybacksYtd: currBuybacksYtd ? -Math.abs(currBuybacksYtd) : 0,
+      };
+    }
+
+    return result;
+  } catch (err) {
+    console.warn(`[edgar] Error fetching previous quarter cash flow for ${ticker}:`, err.message);
+    return null;
+  }
 }
 
 const VALUATION_RANGES = {

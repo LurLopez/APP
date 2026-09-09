@@ -9,6 +9,7 @@ import screenerRoutes from './src/api/routes/screener.routes.js';
 import watchlistsRoutes from './src/api/routes/watchlists.routes.js';
 import portfolioRoutes from './src/api/routes/portfolio.routes.js';
 import priceAlertsRoutes from './src/api/routes/priceAlerts.routes.js';
+import forumRoutes from './src/api/routes/forum.routes.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
 import { startAlertScanner } from './src/services/alertScanner.service.js';
 
@@ -35,17 +36,13 @@ app.use('/api/screener', screenerRoutes);
 app.use('/api/watchlists', watchlistsRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/price-alerts', priceAlertsRoutes);
+app.use('/api/forum', forumRoutes);
 
-app.get(['/', '/seguimiento', '/cartera', '/analisis', '/análisis', '/alertas', '/alertas-precio'], (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get(['/', '/empresa', '/seguimiento', '/cartera', '/analisis', '/análisis', '/alertas', '/alertas-precio'], (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'empresa.html'));
 });
 
-app.get('/empresa/:ticker', (req, res) => {
-  const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
-  if (!/^[A-Z0-9.-]{1,10}$/.test(ticker)) {
-    res.redirect('/');
-    return;
-  }
+app.get('/empresa/:ticker', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'empresa.html'));
 });
 

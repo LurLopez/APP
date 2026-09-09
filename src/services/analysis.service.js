@@ -5,6 +5,17 @@ import { createAnalysis, updateAnalysis } from '../../db/repositories/analysisRe
 
 const PERIOD_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+export function buildDownloadBase(report, formType) {
+  const ticker = String(report?.ticker ?? '').replace(/[^\w.-]/g, '').toUpperCase() || 'INFORME';
+  const year = Number(report?.fiscalYear)
+    || (PERIOD_DATE_PATTERN.test(report?.reportingPeriod ?? '') ? Number(report.reportingPeriod.slice(0, 4)) : null)
+    || new Date().getFullYear();
+  const suffix = String(formType ?? '').includes('10-K')
+    ? 'K'
+    : report?.fiscalQuarter ? `Q${Number(report.fiscalQuarter)}` : 'FY';
+  return `${ticker}-${year}-${suffix}`;
+}
+
 export function htmlToText(html) {
   return String(html ?? '')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -20,7 +31,7 @@ export function htmlToText(html) {
     .trim();
 }
 
-async function saveAnalysis({ userId, filename, result }) {
+async function saveAnalysis({ userId, filename, result, sourceUrl }) {
   if (!userId) return null;
 
   const report = result.report ?? {};
@@ -34,6 +45,7 @@ async function saveAnalysis({ userId, filename, result }) {
     companyName: report.company ?? null,
     periodEnd,
     pdfUrl: result.pdfUrl ?? null,
+    sourceUrl: sourceUrl ?? null,
   });
 
   return updateAnalysis(created.id, {
@@ -52,9 +64,14 @@ export async function analyzeText(text, options = {}) {
   const sectorResult = await sectorAgent.run({ text });
 
   const analystAgent = getAgent('analyst');
-  const report = await analystAgent.run({ text, sector: sectorResult.sector });
+  const report = await analystAgent.run({
+    text,
+    sector: sectorResult.sector,
+    formType: originResult.formType,
+    ticker: options.ticker ?? null,
+  });
 
-  const { url } = await generateReportPdf(report);
+  const { url, docxUrl, odtUrl } = await generateReportPdf(report);
 
   const result = {
     text,
@@ -63,12 +80,16 @@ export async function analyzeText(text, options = {}) {
     sector: sectorResult.sector,
     report,
     pdfUrl: url,
+    docxUrl,
+    odtUrl,
+    downloadBase: buildDownloadBase(report, originResult.formType),
   };
 
   try {
     await saveAnalysis({
       userId: options.userId ?? null,
       filename: options.filename ?? 'informe.pdf',
+      sourceUrl: options.sourceUrl ?? null,
       result,
     });
   } catch (error) {

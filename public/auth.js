@@ -39,6 +39,9 @@ const resetConfirm = document.querySelector('#reset-confirm');
 const resetResend = document.querySelector('#reset-resend');
 const resetBack = document.querySelector('#reset-back');
 const resetBack2 = document.querySelector('#reset-back2');
+const oauthSection = document.querySelector('#oauth-section');
+const oauthGoogleBtn = document.querySelector('#oauth-google-btn');
+const oauthGoogleText = document.querySelector('#oauth-google-text');
 
 function showToast(message) {
   const toast = document.querySelector('#toast');
@@ -78,10 +81,11 @@ function renderAuth() {
   if (userChip) userChip.hidden = !logged;
 
   if (logged) {
-    if (userAvatar) userAvatar.textContent = initials(state.user.email);
-    if (userEmail) userEmail.textContent = state.user.email;
-    if (accountAvatar) accountAvatar.textContent = initials(state.user.email);
-    if (accountName) accountName.textContent = state.user.email;
+    const displayName = state.user.username || state.user.email.split('@')[0];
+    if (userAvatar) userAvatar.textContent = initials(displayName);
+    if (userEmail) userEmail.textContent = displayName;
+    if (accountAvatar) accountAvatar.textContent = initials(displayName);
+    if (accountName) accountName.textContent = displayName;
     if (accountPlan) accountPlan.textContent = planLabel(state.user.plan);
     if (accountAction) accountAction.textContent = 'Salir';
   } else {
@@ -121,6 +125,7 @@ function renderStep() {
   const resetting = state.step === 'reset-request' || state.step === 'reset-code';
 
   authCredentials.hidden = verifying || resetting;
+  if (oauthSection) oauthSection.hidden = verifying || resetting;
   authVerify.hidden = !verifying;
   authResetRequest.hidden = state.step !== 'reset-request';
   authResetCode.hidden = state.step !== 'reset-code';
@@ -173,6 +178,14 @@ function setTab(tab) {
   authEmail.autocomplete = isRegister ? 'email' : 'username';
   authPassword.autocomplete = isRegister ? 'new-password' : 'current-password';
   forgotRow.hidden = tab !== 'login';
+
+  if (oauthGoogleText) {
+    oauthGoogleText.textContent = isRegister ? 'Registrarse con Google' : 'Continuar con Google';
+  }
+  if (oauthGoogleBtn) {
+    const returnTo = window.location.pathname + window.location.search;
+    oauthGoogleBtn.href = `/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
+  }
 
   modalTabs.forEach((tabButton) => {
     tabButton.classList.toggle('active', tabButton.dataset.tab === tab);
@@ -462,6 +475,11 @@ resetResend?.addEventListener('click', handleResetResend);
 
 authForm?.addEventListener('submit', handleSubmit);
 
+oauthGoogleBtn?.addEventListener('click', () => {
+  const returnTo = window.location.pathname + window.location.search;
+  oauthGoogleBtn.href = `/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`;
+});
+
 userLogout?.addEventListener('click', async () => {
   try {
     await api('/api/auth/logout', { method: 'POST' });
@@ -473,4 +491,37 @@ userLogout?.addEventListener('click', async () => {
   showToast('Sesión cerrada.');
 });
 
+function checkOAuthRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const authSuccess = params.get('auth_success');
+  const authError = params.get('auth_error');
+
+  if (authSuccess === 'google') {
+    showToast('¡Sesión iniciada con Google!');
+    cleanOAuthParams(['auth_success']);
+  } else if (authError) {
+    let msg = 'No se pudo iniciar sesión con Google.';
+    if (authError === 'google_not_configured') {
+      msg = 'Google OAuth no está configurado en .env (faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET).';
+    } else if (authError === 'cancelled') {
+      msg = 'Acceso con Google cancelado.';
+    } else if (authError === 'invalid_state') {
+      msg = 'Sesión OAuth expirada o inválida. Inténtalo de nuevo.';
+    } else if (authError === 'email_required') {
+      msg = 'La cuenta de Google no tiene un email válido.';
+    }
+    showToast(msg);
+    cleanOAuthParams(['auth_error']);
+  }
+}
+
+function cleanOAuthParams(keys) {
+  const url = new URL(window.location.href);
+  keys.forEach((k) => url.searchParams.delete(k));
+  const newSearch = url.searchParams.toString();
+  const cleanPath = url.pathname + (newSearch ? `?${newSearch}` : '') + url.hash;
+  window.history.replaceState({}, '', cleanPath);
+}
+
+checkOAuthRedirect();
 loadSession();

@@ -12,8 +12,9 @@ Permitir que un usuario cree una cuenta (registro), **valide su correo con un c�
 
 **Incluido:**
 - Registro con email + contraseña (mínimo 8 caracteres), hash con bcrypt.
+- **Registro e inicio de sesión con Google OAuth 2.0**: flujo estándar con redirección, creación de cuenta verificada automática o vinculación con cuenta existente.
 - **Verificación de correo**: código de 6 dígitos por email (SMTP real o consola en desarrollo), válido 15 min, máx. 5 intentos, reenviable.
-- Inicio de sesión; **cuenta sin verificar → 403 `EMAIL_NOT_VERIFIED`**.
+- Inicio de sesión; **cuenta sin verificar → 403 `EMAIL_NOT_VERIFIED`**. Cuentas creadas por Google no requieren contraseña.
 - **Recuperación de contraseña** ("olvidé mi contraseña"): código por correo + nueva contraseña; marca el correo como verificado.
 - Cierre de sesión (logout) y consulta del usuario actual (`/api/auth/me`).
 - Errores siempre en JSON con código HTTP correcto (y `code` opcional para el frontend).
@@ -21,12 +22,14 @@ Permitir que un usuario cree una cuenta (registro), **valide su correo con un c�
 **Excluido (pendiente):**
 - Asociar análisis al usuario conectado (`analyses.user_id`) — ✅ ya implementado, ver `historico-analisis`.
 - Planes premium y límites por plan (campo `plan` ya existe, Fase 5).
-- 2FA y "iniciar sesión con Google" (roadmap).
+- 2FA (autenticación de dos factores TOTP).
 
 ## 3. Endpoints
 
-| Método | Ruta | Cuerpo | Respuestas |
+| Método | Ruta | Cuerpo / Query | Respuestas |
 |---|---|---|---|
+| `GET` | `/api/auth/google` | `?returnTo=/...` | Redirección 302 a Google Consent Screen con `state` anti-CSRF en cookie |
+| `GET` | `/api/auth/google/callback` | `?code=...&state=...` | Intercambio de token con Google, login/registro automático, set cookie de sesión y redirect |
 | `POST` | `/api/auth/register` | `{ email, password }` | 201 `{ user }` (sin sesión; envía código) · 400 · 409 |
 | `POST` | `/api/auth/verify` | `{ email, code }` | 200 `{ user }` + cookie de sesión · 400 (código/`CODE_EXPIRED`) · 404 |
 | `POST` | `/api/auth/resend-code` | `{ email }` | 200 `{ ok: true }` · 400 ya verificado · 404 |
