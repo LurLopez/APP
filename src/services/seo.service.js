@@ -10,6 +10,20 @@ const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const GUIDES_DIR = path.join(__dirname, '..', 'content', 'guias');
 
 const SITE_NAME = 'Cifra';
+const GA_MEASUREMENT_ID = 'G-7PSC9M3B1H';
+
+function withAnalytics(html) {
+  if (config.siteUrl !== 'https://cifraresearch.com') return html;
+  const snippet = `  <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '${GA_MEASUREMENT_ID}');
+  </script>
+`;
+  return html.replace('</head>', `${snippet}</head>`);
+}
 const DEFAULT_OG_IMAGE = `${config.siteUrl}/og-cifra.png`;
 
 const templatesCache = new Map();
@@ -702,12 +716,22 @@ export function serveHtml(res, fileName, { pathname = null, noIndex = false, com
   const canonicalUrl = companyMeta?.url ?? (pathname && pathname !== '/' ? `${config.siteUrl}${pathname}` : `${config.siteUrl}/`);
   html = setMetaTag(html, /<link rel="canonical" href="[\s\S]*?">/, `<link rel="canonical" href="${escapeHtml(canonicalUrl)}">`);
   html = setMetaTag(html, /<meta property="og:url" content="[\s\S]*?">/, `<meta property="og:url" content="${escapeHtml(canonicalUrl)}">`);
+  const hreflangEs = `<link rel="alternate" hreflang="es" href="${escapeHtml(canonicalUrl)}">`;
+  const hreflangXDefault = `<link rel="alternate" hreflang="x-default" href="${escapeHtml(canonicalUrl)}">`;
+  html = html.replace(/<link rel="alternate" hreflang="es"[^>]*>/g, hreflangEs);
+  html = html.replace(/<link rel="alternate" hreflang="x-default"[^>]*>/g, hreflangXDefault);
   if (!html.includes('hreflang="es"')) {
-    html = html.replace(/<link rel="canonical"[^>]*>/, `$&\n  <link rel="alternate" hreflang="es" href="${escapeHtml(canonicalUrl)}">`);
+    html = html.replace(/<link rel="canonical"[^>]*>/, `$&\n  ${hreflangEs}\n  ${hreflangXDefault}`);
+  } else if (!html.includes('hreflang="x-default"')) {
+    const hreflangIndex = html.indexOf(hreflangEs);
+    if (hreflangIndex !== -1) {
+      html = html.slice(0, hreflangIndex + hreflangEs.length) + `\n  ${hreflangXDefault}` + html.slice(hreflangIndex + hreflangEs.length);
+    }
   }
   if (noIndex) html = applyNoIndex(html);
   if (companyMeta) html = injectCompanyMeta(html, companyMeta);
   if (headExtras) html = html.replace('</head>', `${headExtras}\n</head>`);
+  html = withAnalytics(html);
   if (botContent) {
     html = html.replace(/<body([^>]*)>/, `<body$1>\n${botContent}`);
   }
@@ -737,7 +761,7 @@ export function serveStandalone(res, html, { cacheControl = 'public, max-age=180
   }
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', cacheControl);
-  res.send(out);
+  res.send(withAnalytics(out));
 }
 
 export function serveGuide(res, slug) {
@@ -869,6 +893,7 @@ function buildReportJsonLd(meta, row) {
         publisher: {
           '@type': 'Organization',
           name: SITE_NAME,
+          alternateName: 'Cifra Research',
           url: `${config.siteUrl}/`,
           logo: { '@type': 'ImageObject', url: `${config.siteUrl}/logo-cifra.png`, width: 512, height: 512 },
         },

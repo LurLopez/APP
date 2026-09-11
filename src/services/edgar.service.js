@@ -33,7 +33,7 @@ const STATEMENTS = {
     { key: 'otherOperatingExpenses', label: 'Otros gastos operacionales', tags: ['OtherOperatingIncomeExpenseNet', 'OtherOperatingExpense'], unit: 'USD', negative: true },
     { key: 'operatingExpenses', label: 'Gastos operativos totales', tags: ['OperatingExpenses', 'OperatingExpensesExcludingDepreciationDepletionAndAmortization'], unit: 'USD', negative: true },
     { key: 'operatingIncome', label: 'Beneficio operativo', tags: ['OperatingIncomeLoss'], unit: 'USD', emphasis: true },
-    { key: 'interestExpense', label: 'Gastos por intereses', tags: ['InterestExpenseNonoperating', 'InterestExpenseDebt', 'InterestExpense'], unit: 'USD', negative: true },
+    { key: 'interestExpense', label: 'Gastos por intereses', tags: ['InterestExpenseNonoperating', 'InterestExpenseDebt', 'InterestExpense', 'InterestIncomeExpenseNet', 'InterestExpenseNet'], unit: 'USD', negative: true },
     { key: 'interestIncome', label: 'Ingresos por intereses e inversiones', tags: ['InvestmentIncomeInterest', 'InterestIncomeNonoperating'], unit: 'USD' },
     { key: 'equityMethodIncome', label: 'Ingresos (pérdidas) sobre capital invertido.', tags: ['IncomeLossFromEquityMethodInvestments', 'IncomeLossFromEquityMethodInvestmentsNetOfDividendsOrDistributions'], unit: 'USD' },
     { key: 'foreignCurrencyGainLoss', label: 'Ganancias (pérdidas) cambiarias', tags: ['ForeignCurrencyTransactionGainLossBeforeTax', 'ForeignCurrencyTransactionGainLossUnrealized'], unit: 'USD' },
@@ -151,7 +151,8 @@ const STATEMENTS = {
     { key: 'salePPE', label: 'Venta de inmovilizado material', tags: ['ProceedsFromSaleOfPropertyPlantAndEquipment', 'ProceedsFromSaleOfProductiveAssets'], unit: 'USD' },
     { key: 'acquisitions', label: 'Adquisiciones con efectivo', tags: ['PaymentsToAcquireBusinessesNetOfCashAcquired', 'PaymentsToAcquireBusinessesAndInterestInAffiliates'], unit: 'USD', negative: true },
     { key: 'divestitures', label: 'Desinversiones', tags: ['ProceedsFromDivestitureOfBusinessesNetOfCashDivested', 'ProceedsFromDivestitureOfBusinesses', 'ProceedsFromDivestitureOfBusinessesAndInterestsInAffiliates'], unit: 'USD' },
-    { key: 'securitiesInvesting', label: 'Inversión en valores negociables y de renta variable', tags: ['PaymentsToAcquireInvestments', 'PaymentsToAcquireAvailableForSaleSecurities', 'PaymentsToAcquireOtherInvestments'], unit: 'USD', negative: true },
+    { key: 'securitiesInvesting', label: 'Inversión en valores negociables y de renta variable', tags: ['PaymentsToAcquireInvestments', 'PaymentsToAcquireAvailableForSaleSecurities', 'PaymentsToAcquireMarketableSecurities', 'PaymentsToAcquireAvailableForSaleSecuritiesDebt', 'PaymentsToAcquireOtherInvestments'], unit: 'USD', negative: true },
+    { key: 'securitiesProceeds', label: 'Venta de valores negociables y de renta variable', tags: ['ProceedsFromSaleAndMaturityOfMarketableSecurities', 'ProceedsFromSaleOfAvailableForSaleSecurities', 'ProceedsFromSaleOfAvailableForSaleSecuritiesDebt', 'ProceedsFromSaleOfInvestments', 'ProceedsFromSaleOfTradingSecurities', 'ProceedsFromSaleOfSecurities'], unit: 'USD' },
     { key: 'loansInvesting', label: 'Disminución (aumento) neta de préstamos originados / vendidos - Inversión', tags: ['PaymentsToAcquireLoansAndReceivables', 'ProceedsFromSaleOfLoansAndReceivables'], unit: 'USD' },
     { key: 'otherInvestingActivities', label: 'Otras actividades de inversión', invertTags: ['PaymentsForProceedsFromOtherInvestingActivities'], tags: ['OtherInvestingActivities', 'PaymentsForProceedsFromOtherInvestingActivities'], unit: 'USD' },
     { key: 'cfi', label: 'Efectivo de la inversión', tags: ['NetCashProvidedByUsedInInvestingActivities', 'NetCashProvidedByUsedInInvestingActivitiesContinuingOperations'], unit: 'USD', emphasis: true },
@@ -159,6 +160,7 @@ const STATEMENTS = {
     { key: 'debtPaid', label: 'Total de la deuda reembolsada', tags: ['RepaymentsOfLongTermDebt', 'RepaymentsOfDebt', 'RepaymentsOfLongTermDebtAndCapitalLeaseObligations', 'RepaymentsOfDebtAndDebtIssuanceCosts'], unit: 'USD', negative: true },
     { key: 'commonStockIssued', label: 'Emisión de acciones ordinarias', tags: ['ProceedsFromIssuanceOfCommonStock', 'ProceedsFromStockOptionsExercised'], unit: 'USD' },
     { key: 'buybacks', label: 'Recompra de acciones comunes', tags: ['PaymentsForRepurchaseOfCommonStock'], unit: 'USD', negative: true },
+    { key: 'buybackShares', label: 'Número de acciones recompradas', tags: ['StockRepurchasedDuringPeriodShares', 'StockRepurchasedAndRetiredDuringPeriodShares', 'TreasuryStockSharesAcquired', 'TreasuryStockSharesAcquiredAndRetired', 'RepurchaseOfCommonStockShares'], unit: 'shares', format: 'shares' },
     { key: 'dividendsCommon', label: 'Dividendos comunes pagados', tags: ['PaymentsOfDividendsCommonStock', 'PaymentsOfDividends'], unit: 'USD', negative: true },
     { key: 'dividendsPreferred', label: 'Dividendos de acciones comunes y preferentes pagados', tags: ['PaymentsOfDividendsPreferredStock', 'DividendsPreferredStockCash'], unit: 'USD', negative: true },
     { key: 'otherFinancingActivities', label: 'Otras Actividades de Financiamiento', tags: ['OtherFinancingActivities', 'ProceedsFromPaymentsForOtherFinancingActivities'], unit: 'USD' },
@@ -906,6 +908,163 @@ export async function getCompanyFilings(ticker, options = {}) {
     company: { ticker: company.ticker, name: company.name, cik: company.cik },
     filings,
   };
+}
+
+const underlyingEpsCache = new Map();
+const UNDERLYING_EPS_TTL = 24 * 60 * 60 * 1000;
+
+function stripFilingHtml(html) {
+  return String(html ?? '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function parseUnderlyingEpsNumber(raw) {
+  if (raw == null) return null;
+  let value = String(raw).trim().replace(/\s/g, '');
+  if (!value) return null;
+  // Quita puntuación final ("9.37," o "0.79.") antes de interpretar decimales.
+  value = value.replace(/[.,;:]+$/, '');
+  if (!value) return null;
+  if (value.includes(',') && value.includes('.')) {
+    value = value.lastIndexOf(',') > value.lastIndexOf('.')
+      ? value.replace(/\./g, '').replace(/,/g, '.')
+      : value.replace(/,/g, '');
+  } else if (value.includes(',')) {
+    value = value.replace(',', '.');
+  }
+  const num = parseFloat(value);
+  return Number.isFinite(num) && num > 0 && num < 200 ? Math.round(num * 100) / 100 : null;
+}
+
+const UNDERLYING_EPS_PATTERNS = [
+  /underlying[^.]{0,160}?diluted[^.]{0,100}?(?:of|was|were|is|to|reached|totaled)\s+\$\s*([0-9][0-9.,]*)/i,
+  /underlying[^.]{0,180}?(?:income|earnings)[^.]{0,70}?per share[^.]{0,100}?(?:of|was|were|is|to|reached|totaled)\s+\$\s*([0-9][0-9.,]*)/i,
+  /underlying[^.]{0,140}?per diluted share[^.]{0,80}?(?:of|was|were|is|to|reached|totaled)\s+\$\s*([0-9][0-9.,]*)/i,
+  /(?:non-gaap|underlying|adjusted)[^.]{0,120}?diluted eps[^.]{0,60}?(?:of|was|were|is|to|reached|totaled)\s+\$\s*([0-9][0-9.,]*)/i,
+  /adjusted[^.]{0,160}?diluted[^.]{0,100}?(?:of|was|were|is|to|reached|totaled)\s+\$\s*([0-9][0-9.,]*)/i,
+  /adjusted[^.]{0,160}?(?:eps|earnings per share)[^.]{0,80}?(?:of|was|were|is|to|reached|totaled)\s+\$\s*([0-9][0-9.,]*)/i,
+];
+
+function extractUnderlyingEpsFromHtml(html) {
+  const text = stripFilingHtml(html);
+  const lower = text.toLowerCase();
+  // Solo se extrae cuando el comunicado separa claramente el bloque de año completo
+  // ("FULL YEAR ... RESULTS/HIGHLIGHTS"): así nunca se confunde con cifras trimestrales.
+  const findHeading = (labels) => labels.reduce((best, label) => {
+    const index = lower.indexOf(label);
+    return index >= 0 && (best < 0 || index < best) ? index : best;
+  }, -1);
+  const annualHeading = findHeading([
+    'full year financial highlights', 'full-year financial highlights', 'full year highlights',
+    'full year performance', 'full-year performance',
+    'full-year financial results', 'full year financial results', 'full-year results summary',
+    'full year results summary', 'full-year financial summary', 'full year financial summary',
+  ]);
+  const quarterHeading = findHeading([
+    'fourth quarter financial highlights', 'fourth quarter highlights', 'fourth quarter results', 'q4 results',
+  ]);
+  if (annualHeading < 0 || (quarterHeading >= 0 && quarterHeading > annualHeading)) return null;
+  const section = text.slice(annualHeading);
+
+  const seen = new Set();
+  const candidates = [];
+  for (const pattern of UNDERLYING_EPS_PATTERNS) {
+    const regex = new RegExp(pattern.source, `${pattern.flags.replace('g', '')}g`);
+    let match;
+    while ((match = regex.exec(section)) !== null) {
+      if (!match[0]) {
+        regex.lastIndex += 1;
+        continue;
+      }
+      if (seen.has(match.index)) continue;
+      seen.add(match.index);
+      // Descarta componentes de la reconciliación ("Adjusted EPS from ... of $X").
+      if (/\bfrom\b[^$]{0,50}\$/i.test(match[0])) continue;
+      const value = parseUnderlyingEpsNumber(match[1]);
+      if (value != null) candidates.push({ value, index: match.index });
+    }
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => a.index - b.index);
+  return candidates[0].value;
+}
+
+async function fetchSecHtml(url) {
+  const response = await fetch(url, {
+    headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw new Error(`EDGAR respondió ${response.status}`);
+  return response.text();
+}
+
+// BPA diluido ajustado/subyacente publicado por la compañía en el comunicado de resultados
+// anual (8-K, item 2.02). Se usa para completar la serie histórica de dividendos cuando el
+// 10-K del ejercicio analizado no cubre esos años.
+export async function getHistoricalUnderlyingEps(ticker, year) {
+  const targetYear = Number(year);
+  if (!Number.isFinite(targetYear)) return null;
+  const cacheKey = `${String(ticker).toUpperCase()}:${targetYear}`;
+  const cached = underlyingEpsCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < UNDERLYING_EPS_TTL) return cached.value;
+
+  const value = await (async () => {
+    try {
+      const company = await getCompanyByTicker(ticker);
+      const submissions = await getCompanySubmissions(company);
+      const entries = normalizeRecentFilings(submissions?.filings?.recent);
+      const annualFiling = entries.find((entry) => entry.form === '10-K'
+        && String(entry.reportDate ?? '').startsWith(String(targetYear)));
+      const anchor = annualFiling?.filingDate ? String(annualFiling.filingDate).slice(0, 10) : `${targetYear + 1}-03-01`;
+      const windowStart = addDaysToDate(anchor, -80);
+      const windowEnd = addDaysToDate(anchor, 15);
+      if (!windowStart || !windowEnd) return null;
+      let candidates = entries.filter((entry) => entry.form === '8-K'
+        && entry.filingDate
+        && entry.filingDate >= windowStart && entry.filingDate <= windowEnd
+        && String(entry.items ?? '').includes('2.02'));
+      if (!candidates.length) {
+        candidates = entries.filter((entry) => entry.form === '8-K'
+          && entry.filingDate
+          && entry.filingDate >= windowStart && entry.filingDate <= windowEnd);
+      }
+      candidates.sort((a, b) => Math.abs(new Date(a.filingDate) - new Date(anchor)) - Math.abs(new Date(b.filingDate) - new Date(anchor)));
+
+      for (const entry of candidates.slice(0, 3)) {
+        const items = await getFilingIndexItems(company, { accession: entry.accessionNumber });
+        const names = (Array.isArray(items) ? items : [])
+          .map((item) => item?.name)
+          .filter((name) => typeof name === 'string' && /\.(htm|html)$/i.test(name) && !/index/i.test(name));
+        const preferred = names.filter((name) => /ex.?99|press|release|news|earnings/i.test(name));
+        const ordered = [...preferred, ...names.filter((name) => !preferred.includes(name))];
+        for (const name of ordered.slice(0, 3)) {
+          try {
+            const url = `https://www.sec.gov/Archives/edgar/data/${company.cik}/${entry.accessionNumber.replaceAll('-', '')}/${name}`;
+            const html = await fetchSecHtml(url);
+            const parsed = extractUnderlyingEpsFromHtml(html);
+            if (parsed != null) return parsed;
+          } catch {
+            // se prueba con el siguiente documento
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn('[edgar] BPA ajustado histórico no disponible:', error.message);
+      return null;
+    }
+  })();
+
+  underlyingEpsCache.set(cacheKey, { value, at: Date.now() });
+  return value;
 }
 
 const PRESENTATION_NAME_RE = /presentation|slides?|deck|investor.?present|webcast|earnings.?call/i;
@@ -2669,8 +2828,11 @@ function buildSeries(facts) {
       } else if (entry.fp !== 'FY' || typeof entry.end !== 'string') {
         continue;
       }
-      const q4Year = entry.frame?.match(/^CY(\d{4})Q4I$/)?.[1];
-      const target = annualRows.find((row) => (entry.end && row.periodEnd === entry.end) || (q4Year && row.period === q4Year));
+      // El frame de un balance (CYxxxxQ4I) es el cuarto trimestre NATURAL de ese año, no el
+      // cierre del ejercicio fiscal. Para compañías con año fiscal no natural (p. ej. cierre en
+      // mayo), asociarlo a la fila anual por "period" mezclaba saldos de un trimestre intermedio.
+      // La única asignación fiable es por fecha exacta de cierre.
+      const target = entry.end ? annualRows.find((row) => row.periodEnd === entry.end) : null;
       if (!target) continue;
       if (target.values[concept.key] === undefined || entry.frame?.endsWith('Q4I')) {
         target.values[concept.key] = normalizeConceptValue(concept, entry.val, entry.tag);
@@ -3294,23 +3456,24 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
     const prevDebt = toMillions(prevRow.values?.totalDebt);
     const fyStartDebt = toMillions(fyStartRow?.values?.totalDebt);
 
-    // Divestitures: only material brand/business divestitures (>= 50M)
-    const rawDiv3M = toMillions(currentRow?.values?.divestitures) || 0;
-    const currDivestitures3M = rawDiv3M >= 50 ? rawDiv3M : 0;
+    // Divestitures: only material brand/business divestitures (>= 50M). null = dato ausente
+    // en el XBRL (no confundir con 0, que es una cifra oficial).
+    const rawDiv3M = toMillions(currentRow?.values?.divestitures);
+    const currDivestitures3M = rawDiv3M == null ? null : (rawDiv3M >= 50 ? rawDiv3M : 0);
 
-    const rawDivYtd = toMillions(currentRow?.ytdValues?.divestitures ?? currentRow?.values?.divestitures) || 0;
-    const currDivestituresYtd = rawDivYtd >= 50 ? rawDivYtd : 0;
+    const rawDivYtd = toMillions(currentRow?.ytdValues?.divestitures ?? currentRow?.values?.divestitures);
+    const currDivestituresYtd = rawDivYtd == null ? null : (rawDivYtd >= 50 ? rawDivYtd : 0);
 
     // Acquisitions of business: only material cash acquisitions (>= 50M), negative sign (use of capital)
-    const rawAcq3M = toMillions(currentRow?.values?.acquisitions) || 0;
-    const currAcquisitions3M = rawAcq3M >= 50 ? -Math.abs(rawAcq3M) : 0;
+    const rawAcq3M = toMillions(currentRow?.values?.acquisitions);
+    const currAcquisitions3M = rawAcq3M == null ? null : (rawAcq3M >= 50 ? -Math.abs(rawAcq3M) : 0);
 
-    const rawAcqYtd = toMillions(currentRow?.ytdValues?.acquisitions ?? currentRow?.values?.acquisitions) || 0;
-    const currAcquisitionsYtd = rawAcqYtd >= 50 ? -Math.abs(rawAcqYtd) : 0;
+    const rawAcqYtd = toMillions(currentRow?.ytdValues?.acquisitions ?? currentRow?.values?.acquisitions);
+    const currAcquisitionsYtd = rawAcqYtd == null ? null : (rawAcqYtd >= 50 ? -Math.abs(rawAcqYtd) : 0);
 
     // Proceeds from sales of PP&E and other assets (positive, source of funds)
-    const assetSales3M = toMillions(currentRow?.values?.salePPE) || 0;
-    const assetSalesYtd = toMillions(currentRow?.ytdValues?.salePPE ?? currentRow?.values?.salePPE) || 0;
+    const assetSales3M = toMillions(currentRow?.values?.salePPE);
+    const assetSalesYtd = toMillions(currentRow?.ytdValues?.salePPE ?? currentRow?.values?.salePPE);
 
     const currBuybacks3M = toMillions(currentRow?.values?.buybacks);
     const currBuybacksYtd = toMillions(currentRow?.ytdValues?.buybacks ?? currentRow?.values?.buybacks);
@@ -3360,7 +3523,7 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
           caja: (currCash != null && prevCash != null) ? Math.round((-(currCash - prevCash)) * 10) / 10 : null,
           inversionesCortoPlazo: invCortoPlazo3M,
           divestitures: currDivestitures3M,
-          buybacks: currBuybacks3M ? -Math.abs(currBuybacks3M) : 0,
+          buybacks: currBuybacks3M != null ? -Math.abs(currBuybacks3M) : null,
           acquisitions: currAcquisitions3M,
           assetSales: assetSales3M,
           debtDetails: debtDetails3M,
@@ -3371,7 +3534,7 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
           caja: (currCash != null && fyStartCash != null) ? Math.round((-(currCash - fyStartCash)) * 10) / 10 : null,
           inversionesCortoPlazo: invCortoPlazoYtd,
           divestitures: currDivestituresYtd,
-          buybacks: currBuybacksYtd ? -Math.abs(currBuybacksYtd) : 0,
+          buybacks: currBuybacksYtd != null ? -Math.abs(currBuybacksYtd) : null,
           acquisitions: currAcquisitionsYtd,
           assetSales: assetSalesYtd,
           debtDetails: debtDetailsYtd,

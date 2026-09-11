@@ -276,6 +276,9 @@ export async function recordSentAlert(userId, ticker, eventType, eventKey) {
 }
 
 export const DEFAULT_USER_PREFERENCES = {
+  language: 'es',
+  theme: 'indigo',
+  darkMode: false,
   watchlistAutoCalendar: true,
   watchlistAutoNotify: true,
   watchlistNotifyEarnings: true,
@@ -287,9 +290,28 @@ export const DEFAULT_USER_PREFERENCES = {
   portfolioNotifyPayout: true,
 };
 
+const ALLOWED_LANGUAGES = ['es', 'en'];
+const ALLOWED_THEMES = ['indigo', 'naranja'];
+
+function normalizeAppearancePrefs(prefs = {}) {
+  const p = {};
+  if (prefs.language !== undefined) {
+    p.language = ALLOWED_LANGUAGES.includes(prefs.language) ? prefs.language : 'es';
+  }
+  if (prefs.theme !== undefined) {
+    p.theme = ALLOWED_THEMES.includes(prefs.theme) ? prefs.theme : 'indigo';
+  }
+  if (prefs.darkMode !== undefined) {
+    p.darkMode = Boolean(prefs.darkMode);
+  }
+  return p;
+}
+
+
 export async function getUserPreferences(userId) {
   const { rows } = await query(
-    `SELECT watchlist_auto_calendar, watchlist_auto_notify, watchlist_notify_earnings, watchlist_notify_exdiv, watchlist_notify_payout,
+    `SELECT language, theme, dark_mode,
+            watchlist_auto_calendar, watchlist_auto_notify, watchlist_notify_earnings, watchlist_notify_exdiv, watchlist_notify_payout,
             portfolio_auto_notify, portfolio_notify_earnings, portfolio_notify_exdiv, portfolio_notify_payout
      FROM user_preferences
      WHERE user_id = $1`,
@@ -298,6 +320,9 @@ export async function getUserPreferences(userId) {
   if (!rows[0]) return { ...DEFAULT_USER_PREFERENCES };
   const r = rows[0];
   return {
+    language: r.language ?? 'es',
+    theme: r.theme ?? 'indigo',
+    darkMode: Boolean(r.dark_mode),
     watchlistAutoCalendar: Boolean(r.watchlist_auto_calendar),
     watchlistAutoNotify: Boolean(r.watchlist_auto_notify),
     watchlistNotifyEarnings: Boolean(r.watchlist_notify_earnings),
@@ -313,15 +338,20 @@ export async function getUserPreferences(userId) {
 export async function updateUserPreferences(userId, prefs = {}) {
   const current = await getUserPreferences(userId);
   const p = { ...current, ...prefs };
+  const appearance = normalizeAppearancePrefs(p);
   const { rows } = await query(
     `INSERT INTO user_preferences (
        user_id,
+       language, theme, dark_mode,
        watchlist_auto_calendar, watchlist_auto_notify, watchlist_notify_earnings, watchlist_notify_exdiv, watchlist_notify_payout,
        portfolio_auto_notify, portfolio_notify_earnings, portfolio_notify_exdiv, portfolio_notify_payout,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
      ON CONFLICT (user_id) DO UPDATE SET
+       language = EXCLUDED.language,
+       theme = EXCLUDED.theme,
+       dark_mode = EXCLUDED.dark_mode,
        watchlist_auto_calendar = EXCLUDED.watchlist_auto_calendar,
        watchlist_auto_notify = EXCLUDED.watchlist_auto_notify,
        watchlist_notify_earnings = EXCLUDED.watchlist_notify_earnings,
@@ -332,7 +362,8 @@ export async function updateUserPreferences(userId, prefs = {}) {
        portfolio_notify_exdiv = EXCLUDED.portfolio_notify_exdiv,
        portfolio_notify_payout = EXCLUDED.portfolio_notify_payout,
        updated_at = now()
-     RETURNING watchlist_auto_calendar AS "watchlistAutoCalendar",
+     RETURNING language, theme, dark_mode AS "darkMode",
+               watchlist_auto_calendar AS "watchlistAutoCalendar",
                watchlist_auto_notify AS "watchlistAutoNotify",
                watchlist_notify_earnings AS "watchlistNotifyEarnings",
                watchlist_notify_exdiv AS "watchlistNotifyExdiv",
@@ -343,6 +374,9 @@ export async function updateUserPreferences(userId, prefs = {}) {
                portfolio_notify_payout AS "portfolioNotifyPayout"`,
     [
       userId,
+      appearance.language ?? 'es',
+      appearance.theme ?? 'indigo',
+      Boolean(appearance.darkMode),
       Boolean(p.watchlistAutoCalendar),
       Boolean(p.watchlistAutoNotify),
       Boolean(p.watchlistNotifyEarnings),

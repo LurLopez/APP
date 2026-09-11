@@ -1,7 +1,7 @@
 const port = Number(process.env.PORT || 3000);
 const production = process.env.NODE_ENV === 'production';
 
-const defaultSiteUrl = production ? 'https://cifra.app' : `http://localhost:${port}`;
+const defaultSiteUrl = production ? 'https://cifraresearch.com' : `http://localhost:${port}`;
 let siteUrl = String(process.env.PUBLIC_SITE_URL || defaultSiteUrl).trim();
 try {
   const parsedSiteUrl = new URL(siteUrl);

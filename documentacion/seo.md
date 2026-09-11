@@ -10,7 +10,8 @@ Ambas plantillas (`public/index.html`, `public/empresa.html`) y las páginas ser
 - `title` y `description` optimizados con keywords de alta intención financiera en español.
 - `keywords` específicas para cada sección y `meta name="rating" content="general"`.
 - `robots`: `index, follow, max-image-preview:large, max-snippet:-1`.
-- `canonical` canónico dinámico e inyección de `hreflang="es"` autorreferente.
+- `canonical` canónico dinámico e inyección de `hreflang="es"` y `hreflang="x-default"` autorreferentes (actualizados por página, también en las fichas de empresa).
+- Dominio canónico `cifraresearch.com`: `www.cifraresearch.com` redirige con 301 al dominio principal para consolidar señales; `dev.` queda para el entorno de desarrollo.
 - Enlaces de descubrimiento para IA: `<link rel="alternate" type="text/plain" href="{{SITE_URL}}/llms.txt">` y `llms-full.txt`.
 - Open Graph completo (`og:type`, `og:site_name`, `og:locale`, `og:title`, `og:description`, `og:url`, `og:image` 1200×630 con dimensiones y alt).
 - Twitter Card `summary_large_image`.
@@ -42,7 +43,7 @@ Cifra define un catálogo de referencia con las 28 principales empresas cotizada
   - JSON-LD con `CollectionPage` y `ItemList` con cada corporación.
 - **Portada (`/`):**
   - SSR con cómo funciona, FAQ explicativa y listado de empresas con análisis.
-  - JSON-LD con `WebSite` (con `SearchAction`), `Organization`, `WebApplication` (con `featureList` y `offers`) e `ItemList`.
+  - JSON-LD con `WebSite` (con `SearchAction`), `Organization` (con `alternateName: "Cifra Research"`), `WebApplication` (con `featureList` y `offers`) e `ItemList`.
 
 ### 5. Guías Educativas (Contenido Semántico)
 

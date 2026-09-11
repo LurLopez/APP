@@ -3,6 +3,9 @@
 const Settings = (() => {
   let userLogged = false;
   let preferences = {
+    language: 'es',
+    theme: 'indigo',
+    darkMode: false,
     watchlistAutoCalendar: true,
     watchlistAutoNotify: true,
     watchlistNotifyEarnings: true,
@@ -29,6 +32,15 @@ const Settings = (() => {
     return { ...preferences };
   }
 
+  function emitChange() {
+    window.dispatchEvent(new CustomEvent('settings:change', { detail: { preferences: getPreferences() } }));
+  }
+
+  function emitPreview() {
+    const preview = readAppearanceFromForm();
+    window.dispatchEvent(new CustomEvent('settings:preview', { detail: preview }));
+  }
+
   async function loadPreferences() {
     if (!userLogged) return;
     try {
@@ -36,7 +48,7 @@ const Settings = (() => {
       if (data?.preferences) {
         preferences = { ...preferences, ...data.preferences };
         renderForm();
-        window.dispatchEvent(new CustomEvent('settings:change', { detail: { preferences } }));
+        emitChange();
       }
     } catch {
       // Usar defaults
@@ -63,6 +75,47 @@ const Settings = (() => {
       loadPreferences();
       loadProfile();
     }
+  }
+
+  function switchTab(tabName) {
+    if (!modalBackdrop) return;
+    modalBackdrop.querySelectorAll('.settings-nav-item').forEach((item) => {
+      item.classList.toggle('active', item.dataset.settingsTab === tabName);
+    });
+    modalBackdrop.querySelectorAll('.settings-panel').forEach((panel) => {
+      panel.hidden = panel.dataset.settingsPanel !== tabName;
+    });
+  }
+
+  function initTabs() {
+    if (!modalBackdrop) return;
+    modalBackdrop.querySelectorAll('.settings-nav-item').forEach((item) => {
+      item.addEventListener('click', () => switchTab(item.dataset.settingsTab));
+    });
+  }
+
+  function initAppearanceControls() {
+    // Tarjetas de tema
+    form.querySelectorAll('.theme-option').forEach((option) => {
+      option.addEventListener('click', () => {
+        form.querySelectorAll('.theme-option').forEach((o) => o.classList.remove('active'));
+        option.classList.add('active');
+        emitPreview();
+      });
+    });
+
+    // Interruptor de modo oscuro
+    const darkToggle = form.querySelector('#pref-darkmode');
+    darkToggle?.addEventListener('change', emitPreview);
+  }
+
+  function readAppearanceFromForm() {
+    const activeTheme = form.querySelector('.theme-option.active');
+    return {
+      theme: activeTheme?.dataset.themeValue || 'indigo',
+      darkMode: Boolean(form.querySelector('#pref-darkmode')?.checked),
+      language: form.querySelector('#pref-language')?.value || 'es',
+    };
   }
 
   function initModal() {
@@ -92,6 +145,9 @@ const Settings = (() => {
         open();
       });
     });
+
+    initTabs();
+    initAppearanceControls();
 
     // Cambios dinámicos en los checkboxes padres
     const wlNotifyCheck = form.querySelector('#pref-wl-notify');
@@ -142,6 +198,15 @@ const Settings = (() => {
     const pfSubs = form.querySelector('#pref-pf-subs');
     if (pfSubs && pfNot) pfSubs.classList.toggle('disabled', !pfNot.checked);
 
+    // Apariencia
+    form.querySelectorAll('.theme-option').forEach((option) => {
+      option.classList.toggle('active', option.dataset.themeValue === preferences.theme);
+    });
+    const darkToggle = form.querySelector('#pref-darkmode');
+    if (darkToggle) darkToggle.checked = Boolean(preferences.darkMode);
+    const languageSelect = form.querySelector('#pref-language');
+    if (languageSelect) languageSelect.value = preferences.language || 'es';
+
     const userInput = form.querySelector('#pref-username');
     if (userInput && currentUsername) userInput.value = currentUsername;
   }
@@ -153,7 +218,11 @@ const Settings = (() => {
     const userInput = form.querySelector('#pref-username');
     const newUsername = userInput ? userInput.value.trim() : '';
 
+    const appearance = readAppearanceFromForm();
     const newPrefs = {
+      language: appearance.language,
+      theme: appearance.theme,
+      darkMode: appearance.darkMode,
       watchlistAutoCalendar: Boolean(form.querySelector('#pref-wl-calendar')?.checked),
       watchlistAutoNotify: Boolean(form.querySelector('#pref-wl-notify')?.checked),
       watchlistNotifyEarnings: Boolean(form.querySelector('#pref-wl-earnings')?.checked),
@@ -188,7 +257,7 @@ const Settings = (() => {
       } else {
         preferences = { ...preferences, ...newPrefs };
       }
-      window.dispatchEvent(new CustomEvent('settings:change', { detail: { preferences } }));
+      emitChange();
       showToast?.('Ajustes guardados correctamente.');
       close();
     } catch (error) {
@@ -200,6 +269,7 @@ const Settings = (() => {
 
   function open() {
     if (!modalBackdrop) return;
+    switchTab('apariencia');
     loadProfile();
     renderForm();
     modalBackdrop.hidden = false;
@@ -210,6 +280,8 @@ const Settings = (() => {
     if (!modalBackdrop) return;
     modalBackdrop.hidden = true;
     document.body.style.overflow = '';
+    // Revertir la previsualización a los ajustes guardados
+    window.dispatchEvent(new CustomEvent('settings:preview', { detail: { ...preferences } }));
   }
 
   window.addEventListener('DOMContentLoaded', initModal);

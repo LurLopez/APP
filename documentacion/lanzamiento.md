@@ -11,7 +11,7 @@ Documento maestro con todo lo necesario para desplegar, configurar y optimizar l
 * **Recursos:** 4 núcleos vCPU, 8 GB de RAM, 100 GB SSD, puerto 200 Mbit/s, tráfico ilimitado.
 * **Coste:** ~5.50 €/mes (contrato mensual sin compromiso de permanencia ni costes de alta).
 * **Sistema Operativo:** Ubuntu 22.04 LTS o 24.04 LTS.
-* **Región recomendada:** EE. UU. (Este o Central) para minimizar latencia tanto con la SEC (EDGAR) como con usuarios en América.
+* **Región elegida:* **UE (Hub Europe)** para proximidad a los usuarios hispanohablantes y RGPD, asumiendo ~100-150 ms extra en las llamadas a SEC/Yahoo (mitigado con caché).
 
 ---
 
@@ -23,7 +23,7 @@ Documento maestro con todo lo necesario para desplegar, configurar y optimizar l
   - `JWT_SECRET`: generar una cadena criptográfica aleatoria segura (`openssl rand -hex 32`).
   - `AI_PROVIDER=deepseek`: clave `DEEPSEEK_API_KEY` activa y con saldo.
   - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`: credenciales para envío real de correos de verificación y recuperación.
-  - `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`: configurados con la URL de callback final (`https://tudominio.com/api/auth/google/callback`).
+  - `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`: configurados con la URL de callback final (`https://cifraresearch.com/api/auth/google/callback`).
   - `DATABASE_URL`: apuntando a la base de datos de producción (`cifra_prod`).
 - [ ] **Resiliencia ante caídas:** Asegurar que los errores de timeout con DeepSeek o con la SEC muestren alertas comprensibles al usuario y no bloqueen la interfaz.
 
@@ -54,10 +54,6 @@ Documento maestro con todo lo necesario para desplegar, configurar y optimizar l
   # Node.js 22 LTS
   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
   sudo apt install -y nodejs git nginx
-
-  # PM2 para gestión de procesos Node
-  sudo npm install -g pm2
-  pm2 startup systemd
 
   # PostgreSQL 16
   sudo apt install -y postgresql postgresql-contrib
@@ -103,12 +99,12 @@ Gracias a los 8 GB de RAM y 4 vCPU del VPS, ambos entornos convivirán en la mis
 
 | Concepto | Entorno Development | Entorno Producción |
 |---|---|---|
-| **Dominio / Subdominio** | `dev.tudominio.com` | `tudominio.com` / `www.tudominio.com` |
-| **Rama Git** | `development` | `main` |
+| **Dominio / Subdominio** | `dev.cifraresearch.com` | `cifraresearch.com` / `www.cifraresearch.com` |
+| **Rama Git** | `development` | `production` |
 | **Ruta en VPS** | `/var/www/cifra-dev` | `/var/www/cifra-prod` |
 | **Puerto Interno** | `3001` | `3000` |
 | **Base de Datos** | `cifra_dev` | `cifra_prod` |
-| **Proceso PM2** | `cifra-dev` | `cifra-prod` |
+| **Servicio systemd** | `cifra-dev` | `cifra-prod` |
 
 ---
 
@@ -119,7 +115,7 @@ Archivo `/etc/nginx/sites-available/cifra`:
 ```nginx
 # Producción
 server {
-    server_name tudominio.com www.tudominio.com;
+    server_name cifraresearch.com www.cifraresearch.com;
 
     # Compresión gzip para alta velocidad
     gzip on;
@@ -140,7 +136,7 @@ server {
 
 # Development / Staging
 server {
-    server_name dev.tudominio.com;
+    server_name dev.cifraresearch.com;
 
     location / {
         proxy_pass http://127.0.0.1:3001;
@@ -161,57 +157,19 @@ Habilitar sitio y generar certificados:
 sudo ln -s /etc/nginx/sites-available/cifra /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
-sudo certbot --nginx -d tudominio.com -d www.tudominio.com -d dev.tudominio.com
+sudo certbot --nginx -d cifraresearch.com -d www.cifraresearch.com -d dev.cifraresearch.com
 ```
 
 ---
 
 ### Pipeline de Despliegue Automático con GitHub Actions
 
-Archivo `.github/workflows/deploy.yml`:
+Implementado con **dos workflows independientes** (`.github/workflows/deploy-dev.yml` y `deploy-prod.yml`): push a `development` despliega en dev y push a `production` en producción. Cada uno ejecuta un job de CI (`npm ci` + `node --check`) y, si pasa, un job de despliegue por SSH que actualiza la rama, instala dependencias, aplica migraciones, **reinicia el servicio systemd** (`cifra-dev` o `cifra-prod`, ya no se usa PM2) y valida con un health check.
 
-```yaml
-name: Deploy Web
-
-on:
-  push:
-    branches:
-      - development
-      - main
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Conectar por SSH y Desplegar
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-              echo ">>> Desplegando en PRODUCCIÓN..."
-              cd /var/www/cifra-prod
-              git pull origin main
-              npm install --omit=dev
-              npm run db:migrate
-              pm2 reload cifra-prod || pm2 start server.js --name "cifra-prod" --env .env
-            else
-              echo ">>> Desplegando en DEVELOPMENT..."
-              cd /var/www/cifra-dev
-              git pull origin development
-              npm install
-              npm run db:migrate
-              pm2 reload cifra-dev || pm2 start server.js --name "cifra-dev" --env .env
-            fi
-            pm2 save
-```
-
-**Secretos a guardar en GitHub Settings $\rightarrow$ Secrets and Variables $\rightarrow$ Actions:**
-* `VPS_HOST`: IP de tu VPS.
+**Secretos en GitHub Settings $\rightarrow$ Secrets and Variables $\rightarrow$ Actions:**
+* `VPS_HOST`: IP del VPS (`194.163.166.21`).
 * `VPS_USER`: `deploy`
-* `VPS_SSH_KEY`: Clave SSH privada generada para GitHub Actions.
+* `VPS_SSH_KEY`: clave privada dedicada (`~/.ssh/cifra_actions`), autorizada en el VPS.
 
 ---
 
@@ -236,20 +194,20 @@ Una plataforma de análisis de resultados financieros se nutre del tráfico de i
 <title>Cifra | Análisis de Informes Financieros 10-K y 10-Q con IA</title>
 <meta name="description" content="Analiza informes 10-Q y 10-K de la SEC en segundos. Desglose con IA de ingresos, flujo de caja libre y asignación de capital para inversores." />
 <meta name="robots" content="index, follow" />
-<link rel="canonical" href="https://tudominio.com/" />
+<link rel="canonical" href="https://cifraresearch.com/" />
 
 <!-- Open Graph para redes sociales (X, LinkedIn, WhatsApp) -->
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Cifra - Análisis de Resultados Financieros con IA" />
 <meta property="og:description" content="Convierte informes de más de 80 páginas en un análisis estructurado en segundos." />
-<meta property="og:url" content="https://tudominio.com/" />
-<meta property="og:image" content="https://tudominio.com/imagenes/og-cifra.png" />
+<meta property="og:url" content="https://cifraresearch.com/" />
+<meta property="og:image" content="https://cifraresearch.com/imagenes/og-cifra.png" />
 
 <!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Cifra - Análisis Financiero Inteligente" />
 <meta name="twitter:description" content="Análisis instantáneo de 10-Q y 10-K de empresas estadounidenses." />
-<meta name="twitter:image" content="https://tudominio.com/imagenes/og-cifra.png" />
+<meta name="twitter:image" content="https://cifraresearch.com/imagenes/og-cifra.png" />
 ```
 
 ### C. Archivo `robots.txt` (`public/robots.txt`)
@@ -263,7 +221,7 @@ Disallow: /settings
 Disallow: /portfolio
 Disallow: /analisis/privado
 
-Sitemap: https://tudominio.com/sitemap.xml
+Sitemap: https://cifraresearch.com/sitemap.xml
 ```
 
 ### D. Endpoint `sitemap.xml` Dinámico
@@ -273,18 +231,18 @@ Crear una ruta en Express `GET /sitemap.xml` que liste dinámicamente todos los 
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://tudominio.com/</loc>
+    <loc>https://cifraresearch.com/</loc>
     <priority>1.0</priority>
     <changefreq>daily</changefreq>
   </url>
   <!-- Generado dinámicamente por cada ticker existente -->
   <url>
-    <loc>https://tudominio.com/empresa.html?ticker=KO</loc>
+    <loc>https://cifraresearch.com/empresa.html?ticker=KO</loc>
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
   </url>
   <url>
-    <loc>https://tudominio.com/empresa.html?ticker=PEP</loc>
+    <loc>https://cifraresearch.com/empresa.html?ticker=PEP</loc>
     <priority>0.8</priority>
     <changefreq>weekly</changefreq>
   </url>
@@ -300,12 +258,12 @@ Crear una ruta en Express `GET /sitemap.xml` que liste dinámicamente todos los 
 
 ## 5. Orden de Ejecución Recomendado
 
-1. **Adquirir VPS:** Contratar Cloud VPS 4 en Contabo con Ubuntu (región EE. UU., facturación mensual).
-2. **Setup Base:** Ejecutar pasos de la Fase B (usuario deploy, UFW, Node, Postgres, Nginx, PM2).
+1. **Adquirir VPS:** Contratar Cloud VPS 4 en Contabo con Ubuntu (región UE, facturación mensual).
+2. **Setup Base:** Ejecutar pasos de la Fase B (usuario deploy, UFW, Node, Postgres, Nginx, servicios systemd).
 3. **Despliegue inicial de Development:**
    - Clonar repositorio en `/var/www/cifra-dev`.
-   - Probar arranque manual con PM2 en puerto 3001.
+   - Arrancar el servicio `cifra-dev` en el puerto 3001.
 4. **Dominio y SSL:** Apuntar DNS del dominio y subdominio `dev.` y generar certificados con Certbot.
-5. **Configurar CI/CD:** Añadir `.github/workflows/deploy.yml` y los secrets en GitHub.
-6. **Despliegue de Producción:** Crear `/var/www/cifra-prod` en rama `main` en puerto 3000.
+5. **Configurar CI/CD:** Añadir los workflows `deploy-dev.yml`/`deploy-prod.yml` y los secrets en GitHub.
+6. **Despliegue de Producción:** Crear `/var/www/cifra-prod` en rama `production` en puerto 3000.
 7. **SEO y Monitoreo:** Subir `robots.txt`, crear `sitemap.xml` y dar de alta en Google Search Console.

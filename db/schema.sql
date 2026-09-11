@@ -173,6 +173,9 @@ CREATE INDEX IF NOT EXISTS idx_user_price_alerts_pending ON user_price_alerts (s
 
 CREATE TABLE IF NOT EXISTS user_preferences (
     user_id                   INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    language                  TEXT NOT NULL DEFAULT 'es',
+    theme                     TEXT NOT NULL DEFAULT 'indigo',
+    dark_mode                 BOOLEAN NOT NULL DEFAULT false,
     watchlist_auto_calendar   BOOLEAN NOT NULL DEFAULT true,
     watchlist_auto_notify     BOOLEAN NOT NULL DEFAULT true,
     watchlist_notify_earnings BOOLEAN NOT NULL DEFAULT true,
@@ -185,6 +188,10 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'es';
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'indigo';
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS portfolio_transactions (
     id           SERIAL PRIMARY KEY,

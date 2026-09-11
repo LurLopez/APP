@@ -22,6 +22,7 @@ import {
   getAnalyzedAccessionsWithRatings,
   findUserAnalysis,
   createAnalysis,
+  updateAnalysis,
   deleteAnalysesByFiling,
 } from '../../../db/repositories/analysisRepository.js';
 import { AgentError } from '../../agents/baseAgent.js';
@@ -273,7 +274,7 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
     }
 
     const user = await resolveUser(req);
-    const force = req.query.force === '1' || req.query.force === 'true' || req.body?.force === true;
+    const force = req.query.force === '1' || req.query.force === 'true' || req.body?.force === true || res.locals.forceRegeneration === true;
     let preservePublic = false;
 
     if (force) {
@@ -281,8 +282,10 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
         res.status(403).json({ error: 'Solo los administradores pueden forzar la regeneración de informes.' });
         return;
       }
-      const existingBeforeRegeneration = await findLatestDoneAnalysis({ ticker, accession, userId: user.id });
-      preservePublic = existingBeforeRegeneration?.is_public === true;
+      // Se comprueba si existe una copia pública compartida del informe para conservarla
+      // pública tras la regeneración (aunque la regeneración la haga un usuario admin).
+      const publicBeforeRegeneration = await findLatestDoneAnalysis({ ticker, accession, userId: null });
+      preservePublic = Boolean(publicBeforeRegeneration);
       const deleted = await deleteAnalysesByFiling({ ticker, accession });
       for (const item of deleted) {
         if (item.pdf_url) {
@@ -326,7 +329,7 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
           const userEntry = await findUserAnalysis({ userId: user.id, ticker, accession });
           if (!userEntry) {
             try {
-              await createAnalysis({
+              const linked = await createAnalysis({
                 userId: user.id,
                 filename: existing.filename || `${ticker}-${accession}.pdf`,
                 status: 'done',
@@ -336,6 +339,14 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
                 pdfUrl,
                 sourceUrl: existing.source_url,
                 accession,
+              });
+              // Copiar el análisis completo (no solo el PDF) para que el historial
+              // del usuario pueda abrir y regenerar el informe sin depender del autor original.
+              await updateAnalysis(linked.id, {
+                origin: existing.origin ?? null,
+                sector: existing.sector ?? null,
+                report: existing.report,
+                model_used: existing.model_used ?? null,
               });
             } catch (saveErr) {
               console.error('[analysis:link-user]', saveErr.message);
@@ -380,7 +391,9 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
     }
 
     const options = {
-      userId: user?.id ?? null,
+      // Si el informe era público y se regenera, se mantiene público sin propietario
+      // (mismo criterio que la regeneración del panel de administración).
+      userId: preservePublic ? null : (user?.id ?? null),
       isPublic: !user || preservePublic,
       filename: `${ticker}-${accession}.pdf`,
       ticker,
@@ -414,7 +427,9 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
 });
 
 router.post('/company/:ticker/filings/:accession/regenerate', async (req, res, next) => {
-  req.query.force = '1';
+  // Express 5: req.query es un getter sin caché y no se puede mutar; se propaga la
+  // regeneración por res.locals para que el handler de analyze ejecute el análisis desde cero.
+  res.locals.forceRegeneration = true;
   const analyzeLayer = router.stack.find((layer) => layer.route?.path === '/company/:ticker/filings/:accession/analyze');
   if (analyzeLayer?.route?.stack?.[0]?.handle) {
     return analyzeLayer.route.stack[0].handle(req, res, next);

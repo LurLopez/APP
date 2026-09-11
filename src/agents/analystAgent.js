@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { BaseAgent, AgentError } from './baseAgent.js';
 import { chatJson } from '../services/ai/modelProvider.js';
-import { getPreviousQuarterCashFlow, getCompanyResults } from '../services/edgar.service.js';
+import { getPreviousQuarterCashFlow, getCompanyResults, getHistoricalUnderlyingEps } from '../services/edgar.service.js';
 
 const MAX_CHARS = 80000;
 const KNOWLEDGE_DIR = new URL('./knowledge/', import.meta.url);
@@ -40,6 +40,8 @@ function extractRemainingAuthorization(text) {
     /(?:remains?|remaining|still available|available for future repurchase|capacity to repurchase)\s+(?:approximately|about|around|of)?\s*\$?([\d.,]+\s*(?:billion|million))/i,
     /\$?([\d.,]+\s*(?:billion|million))\s+(?:remains?|remaining|still available|was still available)/i,
     /(?:of which|leaving)\s*(?:approximately|about|around)?\s*\$?([\d.,]+\s*(?:billion|million))\s+(?:remained|was still available)/i,
+    /remaining authorization[^.]{0,100}?\$?([\d.,]+\s*(?:billion|million))/i,
+    /had remaining[^.]{0,100}?(?:approximately|about|around|of)?\s*\$?([\d.,]+\s*(?:billion|million))/i,
   ];
   for (const re of patterns) {
     const m = source.match(re);
@@ -51,6 +53,128 @@ function extractRemainingAuthorization(text) {
   return null;
 }
 
+// Términos del programa de recompra (autorización, fecha y vencimiento) desde el texto completo del 10-K.
+function extractRepurchaseProgramTerms(text) {
+  const source = String(text);
+  const terms = {};
+
+  const authorized = source.match(/repurchase up to\s*\$?([\d.,]+\s*(?:billion|million))/i)
+    || source.match(/(?:authorized|approved)\s+(?:a|the)?\s*(?:share\s+)?(?:repurchase|buyback)[^.]{0,140}?\$?([\d.,]+\s*(?:billion|million))/i);
+  if (authorized) {
+    const value = parseDollarAmount(authorized[1]);
+    if (Number.isFinite(value)) terms.programAuthorizedTotal = value;
+  }
+
+  const expiry = source.match(/(?:repurchase|buyback|program)[\s\S]{0,220}?through\s+([A-Z][a-z]+\s+\d{1,2},\s*\d{4})/i)
+    || source.match(/expires?\s+(?:on\s+)?([A-Z][a-z]+\s+\d{1,2},\s*\d{4})/i);
+  if (expiry) terms.programExpiry = expiry[1];
+
+  const approvalDate = source.match(/(?:In|On)\s+([A-Z][a-z]+\s+\d{4})[^.]{0,180}?(?:authorized|approved)[^.]{0,180}?(?:repurchase|buyback)/i);
+  if (approvalDate) terms.programApprovalDate = approvalDate[1];
+
+  const pieces = [];
+  if (Number.isFinite(terms.programAuthorizedTotal)) pieces.push(`autorización de ${terms.programAuthorizedTotal}M`);
+  if (terms.programApprovalDate) pieces.push(`aprobada en ${terms.programApprovalDate}`);
+  if (terms.programExpiry) pieces.push(`vigente hasta ${terms.programExpiry}`);
+  if (pieces.length) terms.programSummary = pieces.join(', ');
+
+  return terms;
+}
+
+function isPlaceholderText(value) {
+  return /no disponible|no consta|no se (?:desglosa|indica|recoge|detalla)|sin datos|no incluido|not available|not disclosed|not stated|no especificad/i.test(String(value ?? ''));
+}
+
+// Evita redundancias al componer frases ("por la venta de Venta del negocio...") cuando la
+// descripción extraída ya empieza por "venta de/del...".
+function cleanAssetDescription(value) {
+  const text = String(value ?? '').trim();
+  const cleaned = text
+    .replace(/^venta\s+(?:del|de la|de las|de los|de)?\.?\s*/i, '')
+    .replace(/[.;,\s]+$/, '')
+    .trim();
+  return cleaned || text;
+}
+
+function parseLooseAmount(value) {
+  if (value == null) return NaN;
+  let s = String(value).replace(/[$€£\s]/g, '').trim();
+  if (!s) return NaN;
+  if (s.includes(',') && s.includes('.')) {
+    s = s.lastIndexOf(',') > s.lastIndexOf('.')
+      ? s.replace(/\./g, '').replace(/,/g, '.')
+      : s.replace(/,/g, '');
+  } else if (s.includes(',')) {
+    const parts = s.split(',');
+    s = parts.length > 2 || parts[1]?.length === 3 ? parts.join('') : s.replace(',', '.');
+  } else if (s.includes('.') && s.split('.').length > 2) {
+    s = s.split('.').join('');
+  }
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+// Tipo de interés medio ponderado de toda la deuda a partir de la tabla oficial de deuda.
+// Si una fila resume un rango de cupones (ej. "3.000 % – 7.125 %") se usa el punto medio
+// y se marca el resultado como estimado.
+function computeAllDebtAverageRate(secTable) {
+  if (!secTable || !Array.isArray(secTable.rows) || !secTable.rows.length) return null;
+  const headers = Array.isArray(secTable.headers) ? secTable.headers : [];
+  let balanceIdx = -1;
+  let bestYear = -Infinity;
+  headers.forEach((header, index) => {
+    const match = String(header).match(/(20\d\d)/);
+    if (match) {
+      const year = Number(match[1]);
+      if (year > bestYear) {
+        bestYear = year;
+        balanceIdx = index;
+      }
+    }
+  });
+  if (balanceIdx < 0) balanceIdx = headers.length >= 3 ? 2 : 1;
+  let total = 0;
+  let weighted = 0;
+  let estimated = false;
+  secTable.rows.forEach((row) => {
+    const cells = Array.isArray(row) ? row : [row?.metric ?? row?.name, row?.value];
+    const rateMatches = [...cells.join(' ').matchAll(/(\d+(?:[.,]\d+)?)\s*%/g)]
+      .map((match) => Number(String(match[1]).replace(',', '.')))
+      .filter((rate) => Number.isFinite(rate) && rate > 0);
+    if (!rateMatches.length) return;
+    const rate = rateMatches.length >= 2
+      ? (Math.min(...rateMatches) + Math.max(...rateMatches)) / 2
+      : rateMatches[0];
+    if (rateMatches.length >= 2) estimated = true;
+    const balance = parseLooseAmount(cells[balanceIdx]);
+    if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(balance) || balance <= 0) return;
+    total += balance;
+    weighted += balance * rate;
+  });
+  return total > 0
+    ? { rate: Math.round((weighted / total) * 100) / 100, estimated, source: 'tabla de deuda' }
+    : null;
+}
+
+// Estimación del tipo medio de la deuda cuando el informe no desglosa cupones:
+// gasto/intereses pagados del ejercicio dividido por la deuda media del balance.
+function computeEstimatedDebtRateFromIncome(annualRow, previousAnnualRow) {
+  const values = annualRow?.values ?? {};
+  const interest = Math.abs(Number(values.interestExpense) || 0)
+    || Math.abs(Number(values.interestPaid) || 0);
+  const debt = Number(values.totalDebt);
+  const prevDebt = Number(previousAnnualRow?.values?.totalDebt);
+  const averageDebt = (Number.isFinite(debt) && Number.isFinite(prevDebt) && debt > 0 && prevDebt > 0)
+    ? (debt + prevDebt) / 2
+    : debt;
+  if (!(interest > 0) || !(averageDebt > 0)) return null;
+  return {
+    rate: Math.round((interest / averageDebt) * 10000) / 100,
+    estimated: true,
+    source: 'intereses del ejercicio sobre deuda media',
+  };
+}
+
 function extractCapitalCashFlowFacts(text) {
   const source = String(text);
   const readFirstValue = (pattern) => {
@@ -60,6 +184,7 @@ function extractCapitalCashFlowFacts(text) {
   return {
     shareBuybacks: readFirstValue(/Repurchases of common stock\s+([()\d.,-]+)/i),
     purchasesOfMarketableSecurities: readFirstValue(/Purchases of marketable securities\s+([()\d.,-]+)/i),
+    proceedsFromSaleOfMarketableSecurities: readFirstValue(/Proceeds from sale(?:s)? (?:of|and maturity of) marketable securities\s+([()\d.,-]+)/i),
     acquisitionsOfBusiness: readFirstValue(/Acquisition of business,? net of cash acquired\s+([()\d.,-]+)/i),
     proceedsFromAssetSales: readFirstValue(/Proceeds from sales of property, plant, equipment and other assets\s+([()\d.,-]+)/i),
   };
@@ -67,6 +192,362 @@ function extractCapitalCashFlowFacts(text) {
 
 function formatFinancialValue(value) {
   return Number.isFinite(value) ? String(Math.round(value * 10) / 10).replace('.', ',') : null;
+}
+
+// Interpreta cifras que pueden venir del modelo con separador de miles: "1,724" -> 1724,
+// "239,5" -> 239,5 y "1.234,5"/"1,234.5" -> 1234,5. Evita sumar -1,724 como -1,724.
+function parseLooseReportNumber(value) {
+  if (value == null || value === '—') return NaN;
+  let s = String(value).trim().replace(/[^0-9.,-]/g, '');
+  if (!s) return NaN;
+  const hasDot = s.includes('.');
+  const hasComma = s.includes(',');
+  if (hasDot && hasComma) {
+    s = s.lastIndexOf(',') > s.lastIndexOf('.')
+      ? s.replace(/\./g, '').replace(/,/g, '.')
+      : s.replace(/,/g, '');
+  } else if (hasComma) {
+    const parts = s.split(',');
+    s = parts.length > 1 && parts.slice(1).every((part) => part.length === 3) ? parts.join('') : s.replace(',', '.');
+  } else if (hasDot) {
+    const parts = s.split('.');
+    if (parts.length > 1 && parts.slice(1).every((part) => part.length === 3)) s = parts.join('');
+  }
+  const num = parseFloat(s);
+  return Number.isFinite(num) ? num : NaN;
+}
+
+const MONTH_NAMES_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function formatFiscalEndLabel(periodEnd) {
+  const match = String(periodEnd ?? '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const month = MONTH_NAMES_EN[Number(match[2]) - 1];
+  if (!month) return null;
+  return `${month} ${Number(match[3])}, ${match[1]}`;
+}
+
+// El campo "period" de las series XBRL de la SEC es la etiqueta del frame (p. ej. CY2025) y
+// puede no coincidir con el año natural del cierre (ejercicio cerrado en mayo de 2026 -> period
+// "2025"). Se selecciona la fila por la FECHA de cierre para que "anterior" sea siempre el
+// ejercicio inmediatamente anterior y nunca la fila del propio ejercicio analizado.
+export function selectAnnualRows(annualSeries, { reportingPeriod, reportYear } = {}) {
+  if (!Array.isArray(annualSeries) || !annualSeries.length) {
+    return { currentAnnualRow: null, previousAnnualRow: null };
+  }
+  const rowEndYear = (row) => {
+    const match = String(row?.periodEnd ?? '').match(/^(20\d\d)/);
+    return match ? Number(match[1]) : null;
+  };
+  const reportEndYear = /^\d{4}/.test(String(reportingPeriod ?? ''))
+    ? Number(String(reportingPeriod).slice(0, 4))
+    : null;
+  const currentAnnualRow = (reportEndYear != null
+    ? annualSeries.find((row) => rowEndYear(row) === reportEndYear)
+    : null)
+    || annualSeries.find((row) => Number(row.period) === Number(reportYear))
+    || annualSeries[0]
+    || null;
+  const currentEndYear = rowEndYear(currentAnnualRow) ?? Number(currentAnnualRow?.period);
+  const previousAnnualRow = (Number.isFinite(currentEndYear)
+    ? (annualSeries.find((row) => row !== currentAnnualRow && rowEndYear(row) === currentEndYear - 1)
+      || annualSeries.find((row) => row !== currentAnnualRow && Number(row.period) === currentEndYear - 1)
+      || annualSeries.find((row) => row !== currentAnnualRow && (rowEndYear(row) ?? Number(row.period)) < currentEndYear))
+    : null)
+    || null;
+  return { currentAnnualRow, previousAnnualRow };
+}
+
+// Serie de acciones en circulación al cierre de cada ejercicio desde SEC XBRL.
+function buildSharesHistoryFromEdgar(annualSeries, maxYear) {
+  if (!Array.isArray(annualSeries) || !annualSeries.length) return null;
+  const hasOutstanding = annualSeries.some((row) => Number(row?.values?.sharesOutstanding) > 0);
+  const points = annualSeries
+    .map((row) => {
+      const year = Number(row?.period || (row?.periodEnd ? String(row.periodEnd).slice(0, 4) : null));
+      const raw = hasOutstanding
+        ? Number(row?.values?.sharesOutstanding)
+        : Number(row?.values?.weightedSharesBasic ?? row?.values?.weightedSharesDiluted);
+      if (!Number.isFinite(year) || !Number.isFinite(raw) || raw <= 0) return null;
+      return { year, shares: Math.round((raw / 1e6) * 10) / 10 };
+    })
+    .filter(Boolean)
+    .filter((point) => !Number.isFinite(maxYear) || point.year <= maxYear)
+    .sort((a, b) => a.year - b.year);
+  const unique = [...new Map(points.map((point) => [point.year, point])).values()];
+  return unique.length >= 2 ? unique.slice(-5) : null;
+}
+
+// Serie anual de recompras de acciones (estado de flujos de caja) desde SEC XBRL.
+function buildRepurchaseHistoryFromEdgar(annualSeries, maxYear) {
+  if (!Array.isArray(annualSeries) || !annualSeries.length) return null;
+  const points = annualSeries
+    .map((row) => {
+      const year = Number(row?.period || (row?.periodEnd ? String(row.periodEnd).slice(0, 4) : null));
+      const raw = Number(row?.values?.buybacks);
+      if (!Number.isFinite(year) || !Number.isFinite(raw) || Math.abs(raw) <= 0) return null;
+      return { year, end: row?.periodEnd ?? null, amount: Math.round((Math.abs(raw) / 1e6) * 10) / 10 };
+    })
+    .filter(Boolean)
+    .filter((point) => !Number.isFinite(maxYear) || point.year <= maxYear)
+    .sort((a, b) => a.year - b.year);
+  const unique = [...new Map(points.map((point) => [point.year, point])).values()];
+  return unique.length ? unique.slice(-5) : null;
+}
+
+// Serie anual de acciones recompradas (número de títulos) desde XBRL, cuando la compañía lo etiqueta.
+function buildRepurchaseSharesHistoryFromEdgar(annualSeries, maxYear) {
+  if (!Array.isArray(annualSeries) || !annualSeries.length) return null;
+  const points = annualSeries
+    .map((row) => {
+      const year = Number(row?.period || (row?.periodEnd ? String(row.periodEnd).slice(0, 4) : null));
+      const raw = Number(row?.values?.buybackShares);
+      if (!Number.isFinite(year) || !Number.isFinite(raw) || Math.abs(raw) <= 0) return null;
+      // Se conserva el número exacto de títulos (no millones) para que la tabla muestre
+      // la cifra oficial sin pérdida de precisión.
+      return { year, end: row?.periodEnd ?? null, shares: Math.round(Math.abs(raw)) };
+    })
+    .filter(Boolean)
+    .filter((point) => !Number.isFinite(maxYear) || point.year <= maxYear)
+    .sort((a, b) => a.year - b.year);
+  const unique = [...new Map(points.map((point) => [point.year, point])).values()];
+  return unique.length ? unique.slice(-5) : null;
+}
+
+// Añade el número de acciones recompradas a la serie de costes de recompra por año.
+function mergeRepurchaseShares(repurchaseHistory, sharesHistory) {
+  if (!Array.isArray(repurchaseHistory) || !Array.isArray(sharesHistory)) return repurchaseHistory;
+  const sharesByYear = new Map(sharesHistory.map((point) => [Number(point?.year), Number(point?.shares)]));
+  repurchaseHistory.forEach((point) => {
+    const shares = sharesByYear.get(Number(point?.year));
+    if (Number.isFinite(shares) && shares > 0) point.shares = shares;
+  });
+  return repurchaseHistory;
+}
+
+// Serie anual de dividendos desde XBRL: dividendo por acción, importe total y BPA diluido.
+function buildDividendHistoryFromEdgar(annualSeries, maxYear) {
+  if (!Array.isArray(annualSeries) || !annualSeries.length) return null;
+  const points = annualSeries
+    .map((row) => {
+      const year = Number(row?.period || (row?.periodEnd ? String(row.periodEnd).slice(0, 4) : null));
+      const values = row?.values ?? {};
+      const dps = Number(values.dividendPerShare);
+      const rawTotal = Math.abs(Number(values.dividendsCommon ?? values.dividends));
+      const eps = Number(values.epsDiluted);
+      if (!Number.isFinite(year) || (!Number.isFinite(dps) && !Number.isFinite(rawTotal))) return null;
+      return {
+        year,
+        dps: Number.isFinite(dps) ? Math.round(dps * 100) / 100 : null,
+        total: Number.isFinite(rawTotal) && rawTotal > 0 ? Math.round((rawTotal > 1e6 ? rawTotal / 1e6 : rawTotal) * 10) / 10 : null,
+        eps: Number.isFinite(eps) ? Math.round(eps * 100) / 100 : null,
+      };
+    })
+    .filter(Boolean)
+    .filter((point) => !Number.isFinite(maxYear) || point.year <= maxYear)
+    .sort((a, b) => a.year - b.year);
+  const unique = [...new Map(points.map((point) => [point.year, point])).values()];
+  return unique.length >= 2 ? unique.slice(-5) : null;
+}
+
+// Fusiona el histórico de dividendos: XBRL manda en dps/total/BPA reportado y la IA aporta el BPA ajustado.
+function mergeDividendHistory(primary, fallback) {
+  const map = new Map();
+  [...(Array.isArray(fallback) ? fallback : [])].forEach((point) => {
+    const year = Number(point?.year);
+    if (Number.isFinite(year)) map.set(year, { ...point });
+  });
+  [...(Array.isArray(primary) ? primary : [])].forEach((point) => {
+    const year = Number(point?.year);
+    if (!Number.isFinite(year)) return;
+    const existing = map.get(year);
+    if (!existing) {
+      map.set(year, { ...point });
+      return;
+    }
+    if (existing.adjustedEps == null && point.adjustedEps != null) existing.adjustedEps = point.adjustedEps;
+    if (existing.dps == null && point.dps != null) existing.dps = point.dps;
+    if (existing.total == null && point.total != null) existing.total = point.total;
+  });
+  return [...map.values()].sort((a, b) => Number(a.year) - Number(b.year));
+}
+
+// Fusiona historiales por año: el respaldo (EDGAR) manda y el primario rellena huecos.
+function mergeHistoryByYear(primary, fallback) {
+  const map = new Map();
+  [...(Array.isArray(fallback) ? fallback : [])].forEach((point) => {
+    const year = Number(point?.year);
+    if (Number.isFinite(year)) map.set(year, point);
+  });
+  [...(Array.isArray(primary) ? primary : [])].forEach((point) => {
+    const year = Number(point?.year);
+    if (Number.isFinite(year) && !map.has(year)) map.set(year, point);
+  });
+  return [...map.values()].sort((a, b) => Number(a.year) - Number(b.year));
+}
+
+const sharesFormatter = new Intl.NumberFormat('en-US');
+
+function formatRepurchaseShares(shares) {
+  if (!Number.isFinite(Number(shares)) || Number(shares) <= 0) return '—';
+  // Acepta el número exacto de títulos o una cifra en millones (p. ej. 12,9).
+  const inShares = Number(shares) >= 1e6 ? Number(shares) : Number(shares) * 1e6;
+  return sharesFormatter.format(Math.round(inShares));
+}
+
+// Precio medio pagado ($/acción) a partir del coste agregado en $M y el número de títulos.
+function repurchaseAveragePrice(amount, shares) {
+  const cost = Number(amount);
+  const titles = Number(shares);
+  if (!Number.isFinite(cost) || cost <= 0 || !Number.isFinite(titles) || titles <= 0) return null;
+  const exactTitles = titles >= 1e6 ? titles : titles * 1e6;
+  return (cost * 1e6) / exactTitles;
+}
+
+// Tabla SEC multianual de recompras cuando el 10-K no trae tabla propia.
+// Incluye acciones recompradas y precio medio pagado cuando la serie los aporta.
+function buildRepurchaseSecTable(repurchaseHistory, remainingAuthorization) {
+  const entries = [...(Array.isArray(repurchaseHistory) ? repurchaseHistory : [])]
+    .filter((point) => Number.isFinite(Number(point?.year)) && Number.isFinite(Number(point?.amount)) && Number(point.amount) > 0)
+    .sort((a, b) => Number(b.year) - Number(a.year))
+    .slice(0, 5);
+  if (!entries.length) return null;
+  const headers = ['', ...entries.map((point) => formatFiscalEndLabel(point.end) ?? String(point.year))];
+  const hasShares = entries.some((point) => Number.isFinite(Number(point?.shares)) && Number(point?.shares) > 0);
+  const rows = [];
+  if (hasShares) {
+    rows.push(['Shares repurchased', ...entries.map((point) => formatRepurchaseShares(point.shares))]);
+  }
+  rows.push(['Aggregate cost (in millions)', ...entries.map((point) => `$${String(point.amount).replace('.', ',')}`)]);
+  if (hasShares) {
+    rows.push([
+      'Average price paid (in $)',
+      ...entries.map((point) => {
+        const price = repurchaseAveragePrice(point?.amount, point?.shares);
+        return price != null ? `$${price.toFixed(1).replace('.', ',')}` : '—';
+      }),
+    ]);
+  }
+  const table = {
+    title: 'Share Repurchase Program (Form 10-K)',
+    summary: 'Tabla oficial de recompras anuales del Form 10-K',
+    headers,
+    rows,
+  };
+  const remaining = Number(remainingAuthorization);
+  if (Number.isFinite(remaining) && remaining > 0) {
+    table.rows.push([
+      'Remaining authorization (in millions)',
+      `$${String(remaining).replace('.', ',')}`,
+      ...entries.slice(1).map(() => '—'),
+    ]);
+  }
+  return table;
+}
+
+// Completa una tabla de recompras ya extraída con las acciones recompradas y el precio
+// medio pagado cuando el sistema dispone de esa serie (XBRL) y la tabla no las trae.
+function enrichRepurchaseSnippet(snippet, repurchaseHistory, remainingAuthorization) {
+  if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return snippet;
+  const rowName = (row) => String(Array.isArray(row) ? row[0] : (row?.metric ?? row?.name) ?? '');
+  const headers = Array.isArray(snippet.headers) ? snippet.headers : [];
+  const rows = snippet.rows.map((row) => (Array.isArray(row) ? [...row] : [row?.metric ?? row?.name, row?.value]));
+  const width = Math.max(headers.length || 0, rows[0]?.length || 0);
+  const yearByColumn = headers.map((header) => {
+    const match = String(header ?? '').match(/(20\d\d)/);
+    return match ? match[1] : null;
+  });
+
+  // Fila de remanente de autorización si el sistema lo conoce y la tabla no la trae.
+  const hasRemainingRow = rows.some((row) => /remaining authorization|autorizaci[oó]n remanente|remanente de autorizaci/i.test(String(row[0])));
+  const remainingValue = Number(remainingAuthorization);
+  if (!hasRemainingRow && Number.isFinite(remainingValue) && remainingValue > 0) {
+    let latestColumn = 1;
+    let bestYear = -Infinity;
+    yearByColumn.forEach((year, index) => {
+      if (!year) return;
+      const value = Number(year);
+      if (value > bestYear) {
+        bestYear = value;
+        latestColumn = index;
+      }
+    });
+    const remainingRow = new Array(width).fill('—');
+    remainingRow[0] = 'Remaining authorization (in millions)';
+    remainingRow[latestColumn] = `$${String(remainingValue).replace('.', ',')}`;
+    rows.push(remainingRow);
+  }
+
+  const sharesByYear = new Map(
+    (Array.isArray(repurchaseHistory) ? repurchaseHistory : [])
+      .filter((point) => Number.isFinite(Number(point?.shares)) && Number(point?.shares) > 0)
+      .map((point) => [String(point.year), Number(point.shares)]),
+  );
+  if (!sharesByYear.size) return { ...snippet, rows };
+
+  const hasSharesRow = rows.some((row) => /shares repurchased/i.test(rowName(row)));
+  const hasCostRow = rows.some((row) => /aggregate cost/i.test(rowName(row)));
+  const hasPriceRow = rows.some((row) => /average price/i.test(rowName(row)));
+
+  if (!hasSharesRow && hasCostRow) {
+    const costRow = rows.find((row) => /aggregate cost/i.test(String(row[0])));
+    const sharesRow = ['Shares repurchased', ...costRow.slice(1).map((_, index) => {
+      const year = yearByColumn[index + 1];
+      const shares = year ? sharesByYear.get(year) : null;
+      return Number.isFinite(shares) && shares > 0 ? formatRepurchaseShares(shares) : '—';
+    })];
+    rows.unshift(sharesRow);
+  }
+
+  if (!hasPriceRow) {
+    const sharesRow = rows.find((row) => /shares repurchased/i.test(String(row[0])));
+    const costRow = rows.find((row) => /aggregate cost/i.test(String(row[0])));
+    if (sharesRow && costRow) {
+      const priceRow = ['Average price paid (in $)', ...costRow.slice(1).map((costCell, index) => {
+        const cost = parseLooseAmount(costCell);
+        const sharesText = String(sharesRow[index + 1] ?? '');
+        const shares = Number(sharesText.replace(/,/g, ''));
+        const price = repurchaseAveragePrice(cost, shares);
+        return price != null ? `$${price.toFixed(1).replace('.', ',')}` : '—';
+      })];
+      rows.push(priceRow);
+    }
+  }
+
+  return { ...snippet, rows };
+}
+
+function buildFutureProjectionText({ remainingAuthorization, averagePrice, sharesHistory }) {
+  const remaining = Number(remainingAuthorization);
+  const price = Number(averagePrice);
+  if (!Number.isFinite(remaining) || remaining <= 0 || !Number.isFinite(price) || price <= 0) return null;
+  const sharesToRepurchase = remaining / price;
+  const perYear = sharesToRepurchase / 5;
+  const points = [...(Array.isArray(sharesHistory) ? sharesHistory : [])]
+    .map((point) => Number(point?.shares))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const lastShares = points.length ? points[points.length - 1] : null;
+  const annualPct = lastShares ? (perYear / lastShares) * 100 : null;
+  const bpaPct = annualPct != null ? (annualPct / (100 - annualPct)) * 100 : null;
+  const fmt = (value) => String(value.toFixed(1)).replace('.', ',');
+  if (annualPct == null) {
+    return `Proyección a 5 años: con ~${formatFinancialValue(remaining)}M de autorización restante y un precio medio de ~${fmt(price)} $, se podrían recomprar ~${fmt(sharesToRepurchase)}M de acciones (~${fmt(perYear)}M/año).`;
+  }
+  return `Proyección a 5 años: con ~${formatFinancialValue(remaining)}M de autorización restante y un precio medio de ~${fmt(price)} $, se podrían recomprar ~${fmt(sharesToRepurchase)}M de acciones (~${fmt(perYear)}M/año), lo que reduciría el capital un ~${fmt(annualPct)} % anual e impulsaría el BPA ~${fmt(bpaPct)} % cada año.`;
+}
+
+function buildShareCountEvolutionText(sharesHistory) {
+  const points = [...(Array.isArray(sharesHistory) ? sharesHistory : [])]
+    .map((point) => ({ year: Number(point?.year), shares: Number(point?.shares) }))
+    .filter((point) => Number.isFinite(point.year) && Number.isFinite(point.shares) && point.shares > 0)
+    .sort((a, b) => a.year - b.year);
+  if (points.length < 2) return null;
+  const prev = points[points.length - 2];
+  const curr = points[points.length - 1];
+  const pct = ((curr.shares - prev.shares) / prev.shares) * 100;
+  const fmtShares = (value) => String(Math.round(value * 10) / 10).replace('.', ',');
+  const fmtPct = `${pct < 0 ? '-' : '+'}${Math.abs(pct).toFixed(1).replace('.', ',')} %`;
+  return `De ${fmtShares(prev.shares)}M de acciones al cierre de ${prev.year} a ${fmtShares(curr.shares)}M al cierre de ${curr.year} (${fmtPct})`;
 }
 
 function getTaxNormalizationData({ extracted, horizon, isTrimestral }) {
@@ -127,6 +608,27 @@ function buildDebtDetails({ prev, curr, prevCash, currCash, prevSti, currSti, fa
     return `Deuda balance: ${prev}M -> ${curr}M (${diff > 0 ? '+' : ''}${diff}M)${netPart}`;
   }
   return fallback ?? null;
+}
+
+// Explica el movimiento real de caja y su traslado a la fila "Caja", para que el signo quede
+// inequívoco: caja ↑ = uso de capital (-) / caja ↓ = fuente de liquidez (+). Se etiquetan los
+// saldos con su ejercicio para que no se confundan con la columna comparativa del 10-K.
+function buildCashMovementDetails({ prev, curr, caja, periodYear, statementChange }) {
+  if (prev == null || curr == null) return null;
+  const delta = Math.round((curr - prev) * 10) / 10;
+  const deltaText = `${delta > 0 ? '+' : ''}${formatWcNumber(delta)}M`;
+  const rowValue = caja != null ? `${Number(caja) > 0 ? '+' : ''}${formatWcNumber(caja)}M` : '—';
+  const year = Number(periodYear);
+  const prevLabel = Number.isFinite(year) ? ` (${year - 1})` : '';
+  const currLabel = Number.isFinite(year) ? ` (${year})` : '';
+  const meaning = delta >= 0 ? 'la caja aumentó: uso de capital (-)' : 'la caja disminuyó: fuente de liquidez (+)';
+  let statementNote = '';
+  const statement = Number(statementChange);
+  if (Number.isFinite(statement) && Math.abs(statement - delta) >= 1) {
+    const diff = Math.round((statement - delta) * 10) / 10;
+    statementNote = ` El estado de flujos presenta un neto de ${formatWcNumber(statement)}M porque incluye efectivo restringido y otros ajustes (${diff > 0 ? '+' : ''}${formatWcNumber(diff)}M frente a la caja del balance).`;
+  }
+  return `Caja balance: ${formatWcNumber(prev)}M${prevLabel} -> ${formatWcNumber(curr)}M${currLabel} (${deltaText}); ${meaning}; fila Caja = ${rowValue}.${statementNote}`;
 }
 
 export function withOutlookComparison(snippet, report) {
@@ -282,7 +784,7 @@ export function withOutlookComparison(snippet, report) {
     }
     // 5. Depreciation & Amortization
     else if (/depreciation|amorti/i.test(m)) {
-      prevStr = '$705M';
+      prevStr = '—';
       if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
         const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
         const base = parseFloat(match[1].replace(',', '.'));
@@ -292,7 +794,7 @@ export function withOutlookComparison(snippet, report) {
     }
     // 6. Net Interest Expense
     else if (/interest/i.test(m)) {
-      prevStr = '$230M';
+      prevStr = '—';
       if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
         const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
         const base = parseFloat(match[1].replace(',', '.'));
@@ -304,12 +806,12 @@ export function withOutlookComparison(snippet, report) {
     }
     // 7. Effective Tax Rate
     else if (/tax rate|impuesto|tasa/i.test(m)) {
-      prevStr = '21.5 %';
+      prevStr = '—';
       projStr = g;
     }
     // 8. Capital Expenditures / CAPEX
     else if (/capex|capital expend/i.test(m)) {
-      prevStr = prevCapexVal ? fmtMoney(prevCapexVal) : '$717M';
+      prevStr = prevCapexVal ? fmtMoney(prevCapexVal) : '—';
       if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
         const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
         const base = parseFloat(match[1].replace(',', '.'));
@@ -330,6 +832,113 @@ export function withOutlookComparison(snippet, report) {
   };
 }
 
+// Completa la columna "[AÑO-1] (Año anterior)" de la tabla de guidance cuando el modelo la
+// dejó vacía ("—"), usando los valores del ejercicio cerrado extraídos del 10-K / 8-K. Si el
+// dato no consta, la celda se queda como estaba: nunca se inventa una cifra.
+export function completeOutlookPriorColumn(snippet, extractionOutlook) {
+  if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return snippet;
+  const headers = Array.isArray(snippet.headers) ? snippet.headers : [];
+  // Solo se completa el formato estándar de 4 columnas; con otras distribuciones el índice
+  // de la columna "Año anterior" no es fiable.
+  if (headers.length !== 4) return snippet;
+  const priorIdx = 1;
+
+  const fmtMoney = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num === 0) return null;
+    const rounded = Math.round(num * 10) / 10;
+    return `$${rounded.toLocaleString('en-US')}M`;
+  };
+  const fmtDecimal = (value, digits = 2) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num === 0) return null;
+    return `$${num.toFixed(digits)}`;
+  };
+  const fmtPercent = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num === 0) return null;
+    return `${String(num).replace('.', ',')}%`;
+  };
+
+  const out = extractionOutlook ?? {};
+  const rules = [
+    { re: /free cash flow conversion|conversi[oó]n/i, value: out.priorYearFcfConversion, fmt: fmtPercent },
+    { re: /free cash flow|fcf/i, value: out.priorYearFcf, fmt: fmtMoney },
+    { re: /operating margin|margen/i, value: out.priorYearOperatingMargin, fmt: fmtPercent },
+    { re: /net sales|ventas|revenue|organic/i, value: out.priorYearSales, fmt: fmtMoney },
+    { re: /income before|ebt/i, value: out.priorYearEbt, fmt: fmtMoney },
+    { re: /eps|bpa|earnings per share/i, value: out.priorYearEps, fmt: fmtDecimal },
+    { re: /capital expenditures|capex|capital expend/i, value: out.priorYearCapex, fmt: fmtMoney },
+    { re: /interest/i, value: out.priorYearNetInterest, fmt: fmtMoney, override: true },
+  ];
+
+  const rows = snippet.rows.map((row) => {
+    if (!Array.isArray(row) || row.length < 4) return row;
+    const current = String(row[priorIdx] ?? '').trim();
+    const isEmpty = !current || current === '—' || current === '-';
+    const metric = String(row[0] ?? '');
+    for (const rule of rules) {
+      if (!rule.re.test(metric)) continue;
+      if (!isEmpty && !rule.override) break;
+      const filled = rule.fmt(rule.value);
+      if (!filled) break;
+      const next = [...row];
+      next[priorIdx] = filled;
+      return next;
+    }
+    return row;
+  });
+
+  return { ...snippet, rows };
+}
+
+// Une a la tabla final de guidance las filas oficiales extraídas del 10-K / 8-K que el modelo
+// de estructuración haya podido omitir (p. ej. conversión de FCF o gasto neto por intereses).
+// Solo se fusiona cuando la tabla de extracción ya trae el formato de 4 columnas, para no
+// descolocar valores entre columnas distintas.
+export function mergeOutlookRows(finalSnippet, extractionSnippet) {
+  if (!finalSnippet || !Array.isArray(finalSnippet.rows)) return finalSnippet;
+  const finalHeaders = Array.isArray(finalSnippet.headers) ? finalSnippet.headers : [];
+  // La fusión solo es segura en el formato estándar de 4 columnas.
+  if (finalHeaders.length !== 4) return finalSnippet;
+  const exHeaders = Array.isArray(extractionSnippet?.headers) ? extractionSnippet.headers : [];
+  const exRows = Array.isArray(extractionSnippet?.rows) ? extractionSnippet.rows : [];
+  if (exHeaders.length < 4 || !exRows.length) return finalSnippet;
+  const headerCount = 4;
+  const keyOf = (label) => String(label ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(net|underlying|adjusted|adj|organic|growth|change|revenue|total|vs|fy\d{2,4}|20\d{2})\b/g, '')
+    .replace(/[^a-z0-9]/g, '');
+  const finalByKey = new Map();
+  finalSnippet.rows.forEach((row) => {
+    finalByKey.set(keyOf(Array.isArray(row) ? row[0] : row?.metric), row);
+  });
+  const orderedRows = [];
+  const usedKeys = new Set();
+  for (const row of exRows) {
+    if (!Array.isArray(row) || row.length < 4) continue;
+    const key = keyOf(row[0]);
+    if (finalByKey.has(key)) {
+      orderedRows.push(finalByKey.get(key));
+      usedKeys.add(key);
+      continue;
+    }
+    if (!key || usedKeys.has(key)) continue;
+    const padded = [...row];
+    while (padded.length < headerCount) padded.push('—');
+    orderedRows.push(padded.slice(0, headerCount));
+    usedKeys.add(key);
+  }
+  // Las filas finales que no aparezcan en la tabla oficial se conservan al final.
+  finalSnippet.rows.forEach((row) => {
+    const key = keyOf(Array.isArray(row) ? row[0] : row?.metric);
+    if (!usedKeys.has(key)) orderedRows.push(row);
+  });
+  return orderedRows.length ? { ...finalSnippet, rows: orderedRows } : finalSnippet;
+}
+
 function buildCapitalAllocationFromBalance(extracted) {
   const bal = extracted.balance ?? {};
   const invDiff3M = (bal.shortTermInvestments != null && bal.shortTermInvestmentsPreviousQuarter != null)
@@ -342,6 +951,8 @@ function buildCapitalAllocationFromBalance(extracted) {
   const buybacksYtd = Number(extracted.facts?.shareBuybacks) || 0;
   const marketablePurchasesQuarter = Number(extracted.facts?.purchasesOfMarketableSecuritiesQuarter) || 0;
   const marketablePurchasesYtd = Number(extracted.facts?.purchasesOfMarketableSecuritiesYtd) || 0;
+  const marketableProceedsQuarter = Number(extracted.facts?.proceedsFromSaleOfMarketableSecuritiesQuarter) || 0;
+  const marketableProceedsYtd = Number(extracted.facts?.proceedsFromSaleOfMarketableSecuritiesYtd) || 0;
   const acquisitionsQuarter = Number(extracted.facts?.acquisitionsQuarter) || 0;
   const acquisitionsYtd = Number(extracted.facts?.acquisitionsYtd) || 0;
   const assetSalesQuarter = Number(extracted.facts?.assetSalesQuarter) || 0;
@@ -361,8 +972,8 @@ function buildCapitalAllocationFromBalance(extracted) {
         ? Math.round((Number(bal.totalDebt) - Number(bal.totalDebtPreviousQuarter)) * 10) / 10
         : null,
       caja: cashDiff3M,
-       inversionesCortoPlazo: marketablePurchasesQuarter
-         ? -Math.abs(marketablePurchasesQuarter)
+       inversionesCortoPlazo: (marketablePurchasesQuarter || marketableProceedsQuarter)
+         ? Math.round((marketableProceedsQuarter - marketablePurchasesQuarter) * 10) / 10
          : (Math.abs(invDiff3M) >= 50 ? Math.round(-invDiff3M * 10) / 10 : 0),
        divestitures: rawDivYtd >= 50 ? rawDivYtd : 0,
       buybacks: Number(extracted.fiscalQuarter) === 1 ? -Math.abs(buybacksYtd) : 0,
@@ -381,9 +992,12 @@ function buildCapitalAllocationFromBalance(extracted) {
         prevSti: bal.shortTermInvestmentsPreviousQuarter != null ? Number(bal.shortTermInvestmentsPreviousQuarter) : null,
         currSti: bal.shortTermInvestments != null ? Number(bal.shortTermInvestments) : null,
       }),
-      cashDetails: (bal.cash != null && bal.cashPreviousQuarter != null)
-        ? `Caja balance: ${bal.cashPreviousQuarter}M -> ${bal.cash}M (${cashDiff3M > 0 ? '+' : ''}${cashDiff3M}M)`
-        : null,
+      cashDetails: buildCashMovementDetails({
+        prev: bal.cashPreviousQuarter != null ? Number(bal.cashPreviousQuarter) : null,
+        curr: bal.cash != null ? Number(bal.cash) : null,
+        caja: cashDiff3M,
+        periodYear: Number(extracted.fiscalYear) || (extracted.reportingPeriod ? Number(String(extracted.reportingPeriod).slice(0, 4)) : null),
+      }),
     },
     ytd: {
       libre: null,
@@ -391,8 +1005,8 @@ function buildCapitalAllocationFromBalance(extracted) {
         ? Math.round((Number(bal.totalDebt) - Number(bal.totalDebtBeginningOfYear)) * 10) / 10
         : null,
       caja: cashDiffYtd,
-       inversionesCortoPlazo: marketablePurchasesYtd
-         ? -Math.abs(marketablePurchasesYtd)
+       inversionesCortoPlazo: (marketablePurchasesYtd || marketableProceedsYtd)
+         ? Math.round((marketableProceedsYtd - marketablePurchasesYtd) * 10) / 10
          : (Math.abs(invDiffYtd) >= 50 ? Math.round(-invDiffYtd * 10) / 10 : 0),
       divestitures: rawDivYtd >= 50 ? rawDivYtd : 0,
       buybacks: buybacksYtd ? -Math.abs(buybacksYtd) : 0,
@@ -408,11 +1022,31 @@ function buildCapitalAllocationFromBalance(extracted) {
         prevSti: bal.shortTermInvestmentsBeginningOfYear != null ? Number(bal.shortTermInvestmentsBeginningOfYear) : null,
         currSti: bal.shortTermInvestments != null ? Number(bal.shortTermInvestments) : null,
       }),
-      cashDetails: (bal.cash != null && bal.cashBeginningOfYear != null)
-        ? `Caja balance: ${bal.cashBeginningOfYear}M -> ${bal.cash}M (${cashDiffYtd > 0 ? '+' : ''}${cashDiffYtd}M)`
-        : null,
+      cashDetails: buildCashMovementDetails({
+        prev: bal.cashBeginningOfYear != null ? Number(bal.cashBeginningOfYear) : null,
+        curr: bal.cash != null ? Number(bal.cash) : null,
+        caja: cashDiffYtd,
+        periodYear: Number(extracted.fiscalYear) || (extracted.reportingPeriod ? Number(String(extracted.reportingPeriod).slice(0, 4)) : null),
+        statementChange: extracted.facts?.netChangeInCash,
+      }),
     },
   };
+}
+
+function formatWcNumber(value) {
+  if (!Number.isFinite(Number(value))) return '0';
+  return String(Math.round(Number(value) * 10) / 10).replace('.', ',');
+}
+
+// Cierra la nota de capital circulante manteniendo el signo de la desviación y la resta
+// explícita del Cash Flow ajustado (CF ajustado = CF normal - desviación). Evita frases
+// contradictorias del tipo "ajuste de -159M (1784,4M + 159,1M)".
+function buildWcDeviationSentence({ reported, wcReq, deviation, cfo, adjusted }) {
+  const base = `Desviación del circulante reportado (${formatWcNumber(reported)}M) frente al WK teórico (${formatWcNumber(wcReq)}M): ${formatWcNumber(deviation)}M.`;
+  if (Number.isFinite(Number(cfo)) && Number.isFinite(Number(adjusted))) {
+    return `${base} El Cash Flow ajustado resta esa desviación: ${formatWcNumber(cfo)}M - (${formatWcNumber(deviation)}M) = ${formatWcNumber(adjusted)}M.`;
+  }
+  return base;
 }
 
 function buildWorkingCapitalDataFallback(extracted) {
@@ -454,13 +1088,16 @@ function buildWorkingCapitalDataFallback(extracted) {
     ytdScenarios: [`Normal (WC=${Math.round(repYtd)})`, `Ajustado (WC=${Math.round(ytdWcReq)})`],
     ytdValues,
     explanationYtd: hasWcInputs
-      ? `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflation}% + ${volume}%) = ${annualWcReq}M en todo el año -> en ${months} meses = ${ytdWcReq}M. Desviación frente al circulante reportado (${Math.round(repYtd)}M): ajuste de ${Math.round(wcDiffYtd)}M en Cash Flow.`
+      ? `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflation}% + ${volume}%) = ${formatWcNumber(annualWcReq)}M en todo el año -> en ${months} meses = ${formatWcNumber(ytdWcReq)}M. ${buildWcDeviationSentence({ reported: repYtd, wcReq: ytdWcReq, deviation: wcDiffYtd, cfo, adjusted: cfoAdjYtd })}`
       : `WK: no se dispone de inventarios, cuentas por pagar y cuentas por cobrar completas; se utiliza WK=0M y no se aplica ajuste de capital circulante. Volumen asumido: ${volume}%; inflación sectorial estimada: ${inflation}%.`,
   };
   if (Number(extracted.fiscalQuarter) === 1 || months === 3) {
     result.quarterScenarios = [`Normal (WC=${Math.round(repYtd)})`, `Ajustado (WC=${Math.round(annualWcReq / 4)})`];
     result.quarterValues = ytdValues;
-    result.explanation3M = result.explanationYtd.replace(`en ${months} meses = ${ytdWcReq}M`, `en 3 meses = ${Math.round(annualWcReq / 4 * 10) / 10}M`);
+    result.explanation3M = result.explanationYtd.replace(
+      `en ${months} meses = ${formatWcNumber(ytdWcReq)}M`,
+      `en 3 meses = ${formatWcNumber(Math.round(annualWcReq / 4 * 10) / 10)}M`,
+    );
   }
   return result;
 }
@@ -520,6 +1157,39 @@ async function loadKnowledgeRules(sector, subsector, formType = '10-Q') {
   return parts.join('\n\n---\n\n') || sectorRules;
 }
 
+// Secciones dirigidas del 10-K que suelen quedar fuera de la ventana de estados financieros
+// (nota de deuda con tipos cupón, programa de recompras, acciones en circulación...).
+function extractKeyFilingSections(text) {
+  const source = String(text ?? '');
+  if (!source) return '';
+  const wanted = [
+    { re: /Debt Obligations[\s\S]{0,120}?(?:As of|\(In millions\)|December\s+\d{1,2},)/i, before: 400, after: 8500, label: 'DEUDA: NOTA DE OBLIGACIONES CON CUPONES Y VENCIMIENTOS' },
+    { re: /Long-Term Debt:?\s*(?:The following table|The components|The Company)|Long-term debt obligations[^\n]{0,140}(?:table|summariz)/i, before: 300, after: 8500, label: 'DEUDA: NOTA DE DEUDA A LARGO PLAZO CON CUPONES' },
+    { re: /aggregate principal maturities|principal maturities of our long-term debt/i, before: 1500, after: 2500, label: 'DEUDA: VENCIMIENTOS DE PRINCIPAL POR EJERCICIO' },
+    { re: /Material Cash Requirements[^\n]{0,90}Obligations|Contractual Maturities/i, before: 300, after: 5500, label: 'DEUDA: VENCIMIENTOS CONTRACTUALES' },
+    { re: /\n\s*Share Repurchase Program\s*\n/i, before: 300, after: 5000, label: 'RECOMPRAS: PROGRAMA Y REMANENTE' },
+    { re: /remaining authorization|authorization remaining/i, before: 300, after: 1500, label: 'RECOMPRAS: AUTORIZACIÓN REMANENTE' },
+    { re: /Shares of common stock issued, in treasury, and outstanding/i, before: 300, after: 2500, label: 'ACCIONES EN CIRCULACIÓN' },
+    { re: /Selected Financial Data|Five[- ]Year Summary/i, before: 200, after: 6000, label: 'RESUMEN QUINQUENAL' },
+  ];
+  const overlaps = (a, b) => a.start < b.end && b.start < a.end;
+  const picked = [];
+  for (const item of wanted) {
+    const match = source.match(item.re);
+    if (!match || match.index == null) continue;
+    const range = {
+      start: Math.max(0, match.index - item.before),
+      end: Math.min(source.length, match.index + item.after),
+      label: item.label,
+    };
+    if (picked.some((existing) => overlaps(existing, range))) continue;
+    picked.push(range);
+  }
+  if (!picked.length) return '';
+  picked.sort((a, b) => a.start - b.start);
+  return picked.map((range) => `### ${range.label}\n${source.slice(range.start, range.end).trim()}`).join('\n\n');
+}
+
 function buildAnalysisText(text, presentationText) {
   const financialMarkers = [
     /consolidated statements? of cash flows?/i,
@@ -549,11 +1219,20 @@ function buildAnalysisText(text, presentationText) {
     mainContent = text;
   }
 
+  // Se añaden secciones clave rescatadas de puntos del informe que quedan fuera de la
+  // ventana (nota de deuda con cupones, recompras, acciones, resumen quinquenal).
+  const keySections = extractKeyFilingSections(text);
+  const keyBlock = keySections ? `\n\n[SECCIONES CLAVE ADICIONALES DEL INFORME]\n${keySections}` : '';
+  const baseBudget = keyBlock
+    ? Math.max(42000, MAX_CHARS - keyBlock.length)
+    : MAX_CHARS;
+  const main = `${mainContent.slice(0, baseBudget)}${keyBlock}`;
+
   const presentation = String(presentationText ?? '').trim();
-  if (!presentation) return mainContent.slice(0, MAX_CHARS);
+  if (!presentation) return main;
 
   const presentationBudget = 55000;
-  return `${mainContent.slice(0, MAX_CHARS)}\n\n[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]\n${presentation.slice(0, presentationBudget)}`;
+  return `${main}\n\n[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]\n${presentation.slice(0, presentationBudget)}`;
 }
 
 const EXTRACTION_SCHEMA = `{
@@ -622,6 +1301,8 @@ const EXTRACTION_SCHEMA = `{
     "shareBuybacks": 435,
     "purchasesOfMarketableSecuritiesQuarter": 0,
     "purchasesOfMarketableSecuritiesYtd": 1020,
+    "proceedsFromSaleOfMarketableSecuritiesQuarter": 0,
+    "proceedsFromSaleOfMarketableSecuritiesYtd": 640,
     "brandDivestitures": 649,
     "acquisitionsQuarter": 0,
     "acquisitionsYtd": 271,
@@ -643,6 +1324,11 @@ const EXTRACTION_SCHEMA = `{
       "averagePrice": 51.0,
       "sharesStartPeriod": 213.0,
       "sharesEndPeriod": 190.8,
+      "repurchaseHistory": [
+        { "year": 2025, "end": "2025-12-31", "amount": 658.1 },
+        { "year": 2024, "end": "2024-12-31", "amount": 645.2 },
+        { "year": 2023, "end": "2023-12-31", "amount": 212.7 }
+      ],
       "sharesHistory": [
         { "year": 2021, "shares": 231.5 },
         { "year": 2022, "shares": 226.1 },
@@ -659,6 +1345,16 @@ const EXTRACTION_SCHEMA = `{
         ]
       }
     },
+    "dividends": {
+      "history": [
+        { "year": 2025, "dps": 1.88, "total": 376.3, "adjustedEps": 5.42 },
+        { "year": 2024, "dps": 1.76, "total": 369.2, "adjustedEps": 5.96 },
+        { "year": 2023, "dps": 1.64, "total": 354.7, "adjustedEps": 5.8 }
+      ],
+      "changeType": "increase",
+      "changePct": 6.8,
+      "changeDate": "febrero de 2026"
+    },
     "outlook": {
       "guidanceSales": "Flat +/- 1% constant currency",
       "guidanceEbt": "-15% to -18% decline",
@@ -666,6 +1362,14 @@ const EXTRACTION_SCHEMA = `{
       "guidanceFcf": "$1.1B +/- 10%",
       "guidanceCapex": "$650M +/- 5%",
       "guidanceNetInterest": "$260M +/- 5%",
+      "priorYearSales": 11141,
+      "priorYearEbt": 1402,
+      "priorYearEps": 5.8,
+      "priorYearFcf": 1068,
+      "priorYearFcfConversion": 88,
+      "priorYearCapex": 717,
+      "priorYearNetInterest": 230,
+      "priorYearOperatingMargin": 13.4,
       "costSavingsPlan": "Programa de ahorro de 450M en 3 años",
       "commodityRisks": "Sensibilidad a aluminio, energía y fletes",
       "secTable": {
@@ -733,6 +1437,7 @@ Instrucciones:
 - "quarter" = datos del trimestre más reciente (por ejemplo "three months ended") y "quarter.prev" = las mismas líneas del mismo trimestre del año anterior (columnas comparativas del informe); "ytd" = acumulado del año fiscal en curso ("six/nine months ended") y "ytd.prev" = acumulado del mismo periodo del año anterior. Si el informe no trae comparativos, usa null.
 - En informes anuales (Form 10-K), "ytd" representa el año fiscal completo (12 meses) y "quarter" puede omitirse o igualarse a ytd.
 - Todas las cifras en MILLONES de dólares estadounidenses, como números (ej. 6262). Si una cifra no aparece usa null (no la omitas).
+- EXACTITUD OBLIGATORIA: copia las cifras EXACTAS tal como figuran en el informe, sin redondear ni estimar (ej. si el estado de flujos dice "4,462" escribe 4462, no 4500; si dice "801" escribe 801, no 800; si dice "1,898" escribe 1898, no 1900). Nunca sustituyas una cifra reportada por una aproximación ni completes un dato que no aparece con un valor redondeado.
 - Si el informe no desglosa el trimestre en algún estado (p. ej. flujos de caja solo acumulados), deja esos campos con null.
 - "cashFlow" son las cifras del acumulado (net cash provided by operating activities, capital expenditures, cash dividends paid). Si solo aparecen del trimestre, úsalas igualmente.
 - "balance": inventarios (inventories), cuentas por pagar (accounts payable / payables), cuentas por cobrar (accounts receivable / receivables), efectivo (cash), efectivo a principio de año fiscal (cashBeginningOfYear / cierre de ejercicio anterior), efectivo al cierre del trimestre previo (cashPreviousQuarter), inversiones a corto plazo o valores negociables (shortTermInvestments / Marketable Securities), a principio de año fiscal (shortTermInvestmentsBeginningOfYear) y al cierre del trimestre previo (shortTermInvestmentsPreviousQuarter), deuda total o senior notes (totalDebt), deuda total a principio de año fiscal (totalDebtBeginningOfYear) y deuda total al cierre del trimestre previo (totalDebtPreviousQuarter) en millones (o null si no aparecen).
@@ -748,10 +1453,13 @@ Instrucciones:
   * incomeTaxExpenseQuarter / incomeTaxExpenseYtd: gasto por impuestos reconocido en la cuenta de resultados del periodo.
   * taxCashFlowAdjustmentQuarter / taxCashFlowAdjustmentYtd: línea "Deferred income taxes and income taxes payable, net" o "Deferred income tax provision/(benefit)" del cash flow, con su signo tal como aparece. Es un ajuste no monetario, no impuestos pagados. Si existe cualquiera de esas líneas, estos campos son obligatorios.
   * shareBuybacks: recompras de acciones en $M. Buscar también "repurchases of common stock", "purchases of treasury stock" y "share repurchases".
-  * purchasesOfMarketableSecuritiesQuarter / purchasesOfMarketableSecuritiesYtd: compras de inversiones a corto plazo, valores negociables o marketable securities en el cash flow. Buscar expresamente "purchases of marketable securities". Deben pasar al bloque de Asignación de Capital con signo negativo.
+  * purchasesOfMarketableSecuritiesQuarter / purchasesOfMarketableSecuritiesYtd: compras de inversiones a corto plazo, valores negociables o marketable securities en el cash flow. Buscar expresamente "purchases of marketable securities". Se pasan al bloque de Asignación de Capital restadas de las ventas (ver el campo siguiente).
+  * proceedsFromSaleOfMarketableSecuritiesQuarter / proceedsFromSaleOfMarketableSecuritiesYtd: cobros por venta o vencimiento de valores negociables en el cash flow ("Proceeds from sales of marketable securities", "Proceeds from sale and maturity of marketable securities"). En Asignación de Capital, la fila "Inversiones a corto plazo" es el flujo NETO: ventas (+) - compras (-). Ej.: compras de 1.724 y ventas de 686 => -1038.
+  * IMPORTANTE (separador de miles): en las tablas de la SEC la coma suele ser separador de MILLARES ("(1,724)" = 1.724 millones; "1,024" = 1.024 millones). Interpreta siempre esas comas como miles, nunca como decimales.
   * brandDivestitures: ingresos netos por venta de marcas, activos o desinversiones materiales en $M (>= 50M).
   * acquisitionsQuarter / acquisitionsYtd: pagos netos por compra de negocios en el cash flow ("Acquisition of business, net of cash acquired", "Payments to acquire businesses") en $M, como número positivo. Buscar expresamente estas líneas; si existen, los campos son obligatorios.
   * assetSalesQuarter / assetSalesYtd: ingresos por venta de property, plant, equipment and other assets en el cash flow ("Proceeds from sales of property, plant, equipment and other assets") en $M, como número positivo. Si existen, los campos son obligatorios.
+  * REGLA DEL PERIODO (CRÍTICA): todas las partidas del estado de flujos (recompras, compras/ventas de valores negociables, adquisiciones, desinversiones y ventas de activos) se toman SIEMPRE de la columna del EJERCICIO analizado. Las columnas comparativas del año anterior NO cuentan: si la línea solo aparece con la cifra del comparativo (o a 0 en el periodo actual), escribe 0. Nunca atribuyas al ejercicio analizado una adquisición o desinversión del ejercicio anterior.
   * acquisitionDescription: breve descripción de QUÉ negocio/empresa se ha comprado en el periodo (según las notas del 10-Q/10-K), o null si no hubo adquisiciones.
   * divestitureDescription: breve descripción de QUÉ marca, negocio o activo se ha vendido en el periodo (según las notas del 10-Q/10-K), o null si no hubo ventas.
   * totalDebt: deuda total en balance.
@@ -760,10 +1468,19 @@ Instrucciones:
     - "programRemaining": importe en $M pendiente de ejecutar bajo el programa vigente. ES OBLIGATORIO extraerlo si el 10-K lo indica. Búscalo en la nota de Stockholders' Equity, en el Item 5 ("Unregistered Sales of Equity Securities and Use of Proceeds") o en el resumen de recompras, con expresiones como "approximately $X million remaining under our share repurchase program", "$X million remaining", "of which $X million remained" o "available for future repurchases". Si el importe aparece en miles de millones, conviértelo a millones (ej. "$2.0 billion remaining" = 2000M). NUNCA dejes el campo vacío ni respondas que no se desglosa si encuentras la cifra.
     - "programExpiry": fecha o periodo en el que termina la autorización del programa (ej. "Diciembre de 2031"). Búscala con expresiones como "expires in", "through December 31, 20XX", "authorized through" o "no expiration date". Si el 10-K indica que el programa no caduca, escribe "Sin fecha de caducidad"; si no consta nada, null.
     - "averagePrice": precio medio ponderado pagado por acción en el año = aggregate cost ($M) / shares repurchased.
-    - "sharesHistory": acciones en circulación al cierre de cada uno de los últimos 5 ejercicios (si el 10-K no las desglosa todas, usa las disponibles, mínimo 3). Fuentes: resumen quinquenal (Selected Financial Data / Five-Year Summary), estado de patrimonio o notas. Formato: [{ "year": 2021, "shares": 231.5 }, ...] con las acciones en millones.
-    - "secTable": tabla oficial de recompras. Los años de las columnas DEBEN ser los últimos 5 ejercicios disponibles (hasta 5 columnas, ej. 2021-2025), alineados con "sharesHistory"; si el 10-K solo desglosa menos años, usa los disponibles. "rows" DEBE incluir, además de "Shares repurchased" y "Aggregate cost (in millions)", una fila "Average price paid (in $)" con el precio medio por año calculado como coste agregado / acciones recompradas (ej. "$51.0", "$59.2").
+    - "sharesHistory": acciones en circulación al CIERRE de cada uno de los últimos 5 ejercicios (shares outstanding, no el promedio ponderado). Fuentes: estado de patrimonio, balance, nota de capital social, resumen quinquenal (Selected Financial Data / Five-Year Summary) o la sección de Earnings Per Share. Es OBLIGATORIO extraer al menos 3 ejercicios cuando el 10-K los muestra. Formato: [{ "year": 2021, "shares": 231.5 }, ...] con las acciones en millones.
+    - "repurchaseHistory": serie anual de recompras de acciones ejecutadas (importe total en $M por ejercicio, últimos 3-5 años). Fuente principal: estado de flujos de caja, línea "Repurchases of common stock" / "Purchases of treasury stock" / "Repurchases of common stock, net of fees". Añade cada año con "year" y la fecha de cierre "end" en formato AAAA-MM-DD. Es la base para construir la tabla multianual cuando el 10-K no incluye una tabla propia de recompras.
+    - "secTable": tabla oficial de recompras. Si el 10-K incluye una tabla propia con acciones y coste por año, los años de las columnas DEBEN ser los últimos 5 ejercicios disponibles (hasta 5 columnas), alineados con "sharesHistory"; "rows" DEBE incluir SIEMPRE, en este orden y cuando el informe los desglose, "Shares repurchased" (número de títulos, tal cual, con separador de miles), "Aggregate cost (in millions)" y "Average price paid (in $)" (precio medio = coste agregado / acciones recompradas, ej. "$51.0", "$59.2"). Si el 10-K NO incluye tabla propia pero existe "repurchaseHistory", construye "secTable" con una columna por ejercicio y la fila "Aggregate cost (in millions)"; añade "Shares repurchased" y "Average price paid (in $)" si el informe permite calcularlos (estado de patrimonio, nota de tesorería o acciones recompradas por ejercicio) y "Remaining authorization (in millions)" en la columna del último ejercicio si consta el remanente. Queda PROHIBIDO inventar el número de acciones recompradas o el precio medio: si no constan, se omiten y el sistema los completará desde la SEC cuando sea posible.
+  * "dividends": extrae del estado de patrimonio, del estado de flujos de caja y de la sección de dividendos la política de reparto:
+    - "history": serie de los últimos 3-5 ejercicios con "year", "dps" (dividendo declarado por acción en $), "total" (dividendos pagados en millones) y "adjustedEps" (BPA diluido AJUSTADO o subyacente del año, si consta en el 10-K o en el comunicado/presentación 8-K complementario). El sistema completa esta serie desde XBRL, pero el "adjustedEps" solo puede venir de la IA.
+    - "changeType" ("increase", "cut", "unchanged"), "changePct" (variación % del dividendo por acción del último ejercicio frente al anterior) y "changeDate" (fecha del anuncio del cambio, si consta). Si el dividendo se mantiene sin cambios, deja "changeType" en "unchanged".
   * "outlook": extrae del Guidance / Full Year Outlook o Item 7 las metas oficiales de ingresos, EBT, BPA, FCF, CAPEX, intereses, programas de ahorro de costes y tabla del guidance. En "secTable" estructura OBLIGATORIAMENTE 4 columnas: "Métrica", "[AÑO-1] (Año anterior)", "Guidance [AÑO]E*" y "Cifra Proyectada [AÑO]E", incluyendo el valor del año pasado cerrado y la equivalencia en ventas/cifra de las metas en porcentaje o 'flat'.
-  * "debt": extrae de la nota Debt Obligations el perfil de vencimientos contractuales para los PRÓXIMOS 5 AÑOS (los importes y tipos cupón de cada tramo en "maturityItems"), el importe agregado posterior al año 5 en "maturityAfterFive" (si aparece), la evolución histórica de deuda normal y deuda neta de los últimos 10 años ("debtHistory"), y cualquier refinanciación acontecida o pactada en el ejercicio ("refinancing"), indicando tipo anterior, tipo nuevo y cuantía refinanciada.
+    - La columna "[AÑO-1] (Año anterior)" NUNCA se deja con "—": rellena en TODAS las filas el dato real del ejercicio cerrado (ventas, EBT/BPA, FCF, conversión de FCF, CAPEX, gasto neto por intereses y margen operativo). Si una cifra no está en la tabla del 10-K, búscala en los estados financieros del propio 10-K o en la presentación/comunicado 8-K complementario.
+    - Guarda esos mismos valores del año cerrado en los campos: "priorYearSales", "priorYearEbt", "priorYearEps", "priorYearFcf", "priorYearFcfConversion" (en %), "priorYearCapex", "priorYearNetInterest" y "priorYearOperatingMargin" (en %). Si algún dato no consta en ninguna fuente, usa null; nunca lo inventes.
+  * "debt": extrae de la nota Debt Obligations el perfil de vencimientos contractuales para los PRÓXIMOS 5 AÑOS, el importe agregado posterior al año 5 en "maturityAfterFive" (si aparece), la evolución histórica de deuda normal y deuda neta de los últimos 10 años ("debtHistory"), y cualquier refinanciación acontecida o pactada en el ejercicio ("refinancing"), indicando tipo anterior, tipo nuevo y cuantía refinanciada.
+    - "maturityItems": lista DETALLADA con un elemento POR CADA EMISIÓN/TRAMO de deuda (notas sénior, bonos, préstamos, líneas de crédito) que vence en cada uno de los próximos 5 años, no un único total agregado por año. Nunca uses etiquetas de varios ejercicios ("2027-2028", "2031 y posteriores"...): asigna cada emisión a su año exacto de vencimiento. Para cada emisión extrae: "year" (año de vencimiento), "label" (descripción con divisa, importe nominal y cupón, ej. "CAD 500M 3.44% senior notes due 2026"), "amount" (saldo/importe en millones de USD; si la emisión está en otra divisa, usa el importe en USD que figura en la tabla de deuda del 10-K), "rate" (tipo cupón en %) y "type" (Senior Notes, Commercial Paper, Term Loan, etcétera). Si dos emisiones vencen el mismo año, deben aparecer como DOS elementos con distinto tipo y cupón. Incluye TAMBIÉN las emisiones que vencen DESPUÉS del año 5 cuando la tabla de deuda detalle su cupón (aunque no se dibujen en el gráfico), para poder calcular el tipo de interés medio de toda la deuda. Ejemplo real: [{ "year": 2026, "label": "CAD 500M 3.44% senior notes", "amount": 364.3, "rate": 3.44, "type": "Senior Notes" }, { "year": 2026, "label": "$2.0B 3.0% senior notes", "amount": 2000, "rate": 3.0, "type": "Senior Notes" }].
+    - Si el 10-K solo publica una tabla agregada de vencimientos por año (Contractual Maturities) sin detallar emisión ni cupón, usa esa tabla como respaldo dejando "rate" en null y "type" en "Deuda total". OJO: la tabla de "Material Cash Requirements" del MD&A incluye intereses y no sirve como calendario de principal; usa siempre la tabla de vencimientos de principal de la nota de deuda ("aggregate principal maturities") cuando exista.
+    - "secTable": copia la tabla de la nota de deuda (Long-Term Debt / Debt Obligations) con sus columnas reales (obligación/categoría, vencimiento, tipo de interés y saldo del último ejercicio). Si la nota resume la deuda por categorías con rangos de cupón (ej. "3.000 % – 7.125 %"), incluye cada categoría con su rango tal cual y su saldo; en ese caso NO inventes un único tipo por categoría ni tramos individuales.
 - "extraNotes": partidas extraordinarias, ventas de negocios, o cualquier hecho relevante que afecte a la comparabilidad (ej. "impairment de 1428M el año anterior"). En español. Vacío si no hay nada.
 - DOCUMENTO COMPLEMENTARIO: El texto puede incluir una sección "[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]" con la presentación de diapositivas o el comunicado del 8-K de resultados:
   * La sección complementaria es LA FUENTE PRIMARIA Y PRINCIPAL para "annualDetails.outlook": si el informe principal (10-K) no incluye tabla ni narrativa de guidance/outlook, extrae OBLIGATORIAMENTE de la sección complementaria las metas oficiales anunciadas por la dirección para el siguiente ejercicio fiscal (guidanceSales, guidanceEbt, guidanceEps, guidanceFcf, guidanceCapex, guidanceNetInterest, costSavingsPlan, commodityRisks) y la tabla del guidance ("secTable") con sus métricas y rangos tal como aparecen publicados.
@@ -1009,6 +1726,17 @@ const ANNUAL_OUTPUT_SCHEMA = `{
       "title": "4: Adquisiciones",
       "text": "No se realizaron adquisiciones materiales durante el ejercicio."
     },
+    "dividends": {
+      "title": "5: Dividendos",
+      "text": "El dividendo por acción aumentó un 6,8 % en 2025, hasta 1,88 $, con un pago total de 376,3M.",
+      "changeType": "increase",
+      "changePct": 6.8,
+      "history": [
+        { "year": 2023, "dps": 1.64, "total": 354.7, "adjustedEps": 5.8 },
+        { "year": 2024, "dps": 1.76, "total": 369.2, "adjustedEps": 5.96 },
+        { "year": 2025, "dps": 1.88, "total": 376.3, "adjustedEps": 5.42 }
+      ]
+    },
     "watchlist": {
       "title": "Cosas a tener en cuenta en 2026",
       "items": [
@@ -1063,6 +1791,7 @@ Instrucciones prioritarias:
     - Ejemplo: EBT reportado 100M y beneficio neto 80M (tipo efectivo 20 %). Si el EBT ajustado es 300M, mantener solo 20M de impuestos es INCORRECTO: impuestos normalizados = 23 % × 300M = 69M → Beneficio Neto Ajustado = 231M.
     - La nota de impuestos debe desglosar el EBT ajustado, el tipo aplicado y el impuesto resultante.
   * Regla de herencia en "Anterior Ajustado" (prevAdjusted): ÚNICAMENTE si en el ejercicio anterior comparable NO hubo ningún ajuste contable documentado ni impairments, hereda obligatoriamente el valor de "Anterior Normal" (prevNormal), y calcula SIEMPRE el "% Ajustado" (pctAdjusted). Prohibido poner "—" si prevNormal tiene cifra.
+  * COMPARATIVO DEL PERIODO ANTERIOR: las columnas "Anterior" son SIEMPRE las cifras comparativas del mismo periodo del ejercicio anterior. Queda TERMINANTEMENTE PROHIBIDO copiar las cifras del periodo actual en las columnas "Anterior" (variaciones falsas de "+0,00 %"): si el comparativo no aparece, deja "—".
   * Principio de Resaltado Exclusivo en la Casilla de Origen (Sin Propagación en Cascada): El color y la llamada de nota ("isAdjusted": true, "adjustedNote": "*1") se asignan ÚNICA Y EXCLUSIVAMENTE a la casilla de la métrica donde se origina directamente el ajuste contable:
     - Intangibles / amortización / deterioros (impairments): marcar "isAdjusted": true ÚNICAMENTE en "Beneficio Operativo". Aunque EBT y Beneficio Neto varíen matemáticamente en la columna Ajustado por arrastre aritmético, NO llevan resalte ("isAdjusted": false) ni asterisco a menos que contengan un ajuste directo propio.
     - Normalización de impuestos / créditos fiscales: marcar "isAdjusted": true ÚNICAMENTE en "Beneficio Neto" (con su propia nota de impuestos, ej. "*2"). EBT no se colorea por impuestos.
@@ -1091,13 +1820,14 @@ Instrucciones prioritarias:
   * Ecuación fundamental: Fuentes de capital (+) y Usos de capital (-).
   * FILAS Y CONVENCIÓN DE SIGNOS:
     1. "Libre": Primera fila obligatoria. Remanente de Cash Flow (FCF - Dividendos) del mismo horizonte. Signo POSITIVO (+). Debe coincidir exactamente con el valor de "Libre" de la tabla de Cash Flow.
-    2. "Inversiones a corto plazo": Se calcula OBLIGATORIAMENTE comparando el saldo de inversiones a corto plazo / valores negociables (Marketable Securities) del BALANCE:
-       - En "ÚLTIMOS 3 MESES": -(Inversiones fin - Inversiones previas).
-       - En "EN TODO EL AÑO": -(Inversiones fin - Inversiones a principio de año fiscal).
+    2. "Inversiones a corto plazo": Se calcula OBLIGATORIAMENTE con el flujo NETO de valores negociables del estado de flujos de caja (o, si no consta, con la variación de saldo del BALANCE):
+       - FLUJO NETO = ventas/cobros de valores negociables ("proceedsFromSaleOfMarketableSecurities...") - compras ("purchasesOfMarketableSecurities...").
+       - En "ÚLTIMOS 3 MESES": flujo neto del trimestre; si no consta, -(Inversiones fin - Inversiones previas).
+       - En "EN TODO EL AÑO": flujo neto acumulado; si no consta, -(Inversiones fin - Inversiones a principio de año fiscal).
        - SIGNO:
-         * Si aumentan las inversiones a corto plazo: NEGATIVO (-) porque se ha destinado capital a comprar valores/inversiones (ej. -1020M en KHC).
-         * Si disminuyen: POSITIVO (+) porque la venta de valores libera liquidez.
-         * Si el importe es marginal (< 50M) o 0 en el periodo, la fila se omite.
+         * Si compran más de lo que venden: NEGATIVO (-) porque se destina capital neto a comprar valores (ej. compras de 1.724 y ventas de 686 => -1038).
+         * Si venden más de lo que compran: POSITIVO (+) porque la venta neta de valores libera liquidez.
+         * Si el importe neto es marginal (< 50M) o 0 en el periodo, la fila se omite.
     3. "Desinversiones" (venta de marcas / negocios / activos): Ingresos netos obtenidos por la venta de marcas, negocios, filiales o activos (incluye "proceeds from sales of property, plant, equipment and other assets" y las desinversiones de negocios, campos "brandDivestitures", "assetSales..." y "divestitures", >= 50M en conjunto). Signo POSITIVO (+) porque entra dinero a la compañía. Si en el horizonte analizado no hubo venta o su importe fue marginal (< 50M) o 0, NO incluir esta fila.
     4. "Adquisiciones": Pagos netos por compra de negocios o empresas ("Acquisition of business, net of cash acquired", "Payments to acquire businesses", campos "acquisitions..." del JSON, >= 50M). Fila OBLIGATORIA si existe una adquisición material: signo NEGATIVO (-) porque es un uso de capital. Si no hubo adquisiciones o fueron marginales (< 50M), NO incluir esta fila.
     5. "Deuda": Se calcula OBLIGATORIAMENTE comparando la Deuda Total (Deuda a largo plazo + Deuda a corto plazo, excluyendo cuentas a pagar a proveedores que forman parte del Working Capital) directamente en el BALANCE:
@@ -1121,7 +1851,7 @@ Instrucciones prioritarias:
     - Si el valor absoluto de "En total" es <= 50 (o diferencia residual): "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle." (o "El resultado cuadra." si es 0).
     - Si presenta una discrepancia superior a 50 respecto a 0: "No cuadra. Hay una discrepancia significativa entre el capital libre y los usos detectados; se deberá analizar más a fondo."
    * Si en el JSON recibido dispones de "capitalAllocationData", usa obligatoriamente sus partidas y valores calculados para asegurar exactitud matemática perfecta.
-   * EXTRACCIÓN OBLIGATORIA DE PARTIDAS: Busca expresamente "repurchases of common stock", "purchases of treasury stock", "share repurchases", "purchases of marketable securities", "Acquisition of business, net of cash acquired" y "Proceeds from sales of property, plant, equipment and other assets". Las recompras deben aparecer como fila "Recompras" con signo negativo; las compras de marketable securities como "Inversiones a corto plazo" con signo negativo; las compras de negocios como fila "Adquisiciones" con signo negativo (fila OBLIGATORIA si la adquisición es >= 50M, NUNCA la omitas); las ventas de activos/negocios como "Desinversiones" con signo positivo. No omitas una partida porque el modelo no la haya mencionado en su primer borrador si aparece en el JSON de extracción.
+   * EXTRACCIÓN OBLIGATORIA DE PARTIDAS: Busca expresamente "repurchases of common stock", "purchases of treasury stock", "share repurchases", "purchases of marketable securities", "proceeds from sale of marketable securities", "Acquisition of business, net of cash acquired" y "Proceeds from sales of property, plant, equipment and other assets". Las recompras deben aparecer como fila "Recompras" con signo negativo; las compras de marketable securities como "Inversiones a corto plazo" con el NETO (ventas - compras) y signo negativo si el neto es comprador; las compras de negocios como fila "Adquisiciones" con signo negativo (fila OBLIGATORIA si la adquisición es >= 50M, NUNCA la omitas); las ventas de activos/negocios como "Desinversiones" con signo positivo. No omitas una partida porque el modelo no la haya mencionado en su primer borrador si aparece en el JSON de extracción.
   * NOTAS OBLIGATORIAS AL PIE DE ASIGNACIÓN DE CAPITAL:
     1. NOTA DE DEUDA BALANCE Y DEUDA NETA (OBLIGATORIA SIEMPRE):
        - Debe incluir SIEMPRE y con este formato exacto la comparación tanto de deuda bruta como de deuda neta:
@@ -1161,6 +1891,7 @@ Instrucciones prioritarias:
 
   * BLOQUE 1 — VENTAS (Cuenta de Resultados 12 meses):
     - Filas obligatorias en orden: Ventas, Beneficio Bruto, Beneficio Operativo, EBT, Beneficio Neto.
+    - COMPARATIVO DEL AÑO ANTERIOR: las columnas "Anterior Aj." y "Anterior N." son SIEMPRE las cifras del ejercicio anterior cerrado (columnas comparativas del 10-K). Queda TERMINANTEMENTE PROHIBIDO copiar las cifras del ejercicio actual en las columnas "Anterior": si un dato comparativo no aparece en el informe, déjalo como "—" y el sistema lo completará desde la SEC. Una variación de "+0,00 %" en todas las filas solo es válida si las cifras son realmente idénticas.
     - Deterioros / Impairments / Depreciaciones:
       * Si en el ejercicio actual o previo hubo deterioros de intangibles o fondo de comercio (goodwill), súmalos de vuelta en la columna Ajustado (o Anterior Ajustado) del Beneficio Operativo.
       * "isAdjusted": true y "adjustedNote": "*1" ÚNICAMENTE en Beneficio Operativo. EBT y Beneficio Neto calculan sus cifras derivadas sin colorearse de forma heredada.
@@ -1172,21 +1903,25 @@ Instrucciones prioritarias:
 
   * BLOQUE 2 — CASH FLOW (12 meses):
     - Escenarios: ["Normal (WC=valorReportado)", "Ajustado*1 (WC=valorAjustado)"] con los importes numéricos exactos de Working Capital.
+    - CIFRAS EXACTAS (OBLIGATORIO): usa las cifras EXACTAS del JSON de extracción (el sistema ya las completó desde el estado de flujos XBRL de la SEC). Queda TERMINANTEMENTE PROHIBIDO redondear o estimar cifras reportadas (ej. 4500 en vez de 4462, u 800 en vez de 801). Nunca escribas notas del tipo "el CAPEX no viene desglosado, se estima en ~800M": si el sistema dispone de la cifra, es exacta.
     - Working Capital Anual (12 meses):
-      WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen). Al ser 12 meses completos, NO se divide por 4. Ajuste al Cash Flow = (WC reportado - WK recurrente).
+      WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen). Al ser 12 meses completos, NO se divide por 4.
+      Desviación WC = WC reportado - WK recurrente. Cash Flow ajustado = Cash Flow normal - Desviación WC.
+    - REGLA DE SIGNOS EN LA NOTA (*1): la desviación conserva su signo y la resta se escribe de forma explícita, sin frases contradictorias. Ejemplo correcto: "Desviación del circulante reportado (-147M) frente al WK teórico (12,1M): -159,1M. El Cash Flow ajustado resta esa desviación: 1784,4M - (-159,1M) = 1943,5M.". Queda prohibido escribir "ajuste de -159M (1784,4M + 159,1M)".
     - Ajuste de impuestos en efectivo: si los impuestos pagados difieren significativamente del gasto devengado normalizado, reflejar el ajuste en efectivo y la nota al pie "*2".
     - Métricas obligatorias: Cash Flow, CAPEX, FCF, FCF/Acción, Dividendo, Libre.
 
   * BLOQUE 3 — ASIGNACIÓN DE CAPITAL (12 meses):
     - Variación acumulada de todo el año comparando el balance a cierre del ejercicio contra el balance de inicio del año (BeginningOfYear).
-    - Partidas: Libre (+), Inversiones a corto plazo (-/+), Desinversiones (+), Adquisiciones (-), Recompras (-), Caja (-/+), Deuda (+/-), En total.
+    - Partidas: Libre (+), Inversiones a corto plazo (neto ventas-compras; -/+), Desinversiones (+), Adquisiciones (-), Recompras (-), Caja (-/+), Deuda (+/-), En total.
     - Nota obligatoria de Deuda Balance y Deuda Neta con formato exacto:
       "Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M)."
     - Verificación: "Más o menos cuadra..." si |En total| <= 50, o "No cuadra..." si supera 50.
 
 - PARTE II: INDAGACIÓN A FONDO / CONCLUSIÓN (OBLIGATORIA EN 10-K):
   1. "repurchases":
-     * Detalle exhaustivo de las recompras de acciones ejecutadas durante el año y en el histórico reciente (2-3 años).
+     * Detalle exhaustivo de las recompras de acciones ejecutadas durante el año y en el histórico reciente (2-3 años), mencionando el importe total del ejercicio, las acciones recompradas y el precio medio pagado si el informe los desglosa, y el ritmo de ejecución multianual (usa "annualDetails.repurchases.repurchaseHistory" si está disponible).
+     * Menciona también los términos del programa: importe autorizado, fecha de autorización y fecha de vencimiento de la autorización.
      * Precio medio ponderado pagado por acción durante el año.
      * "authorizationRemaining": Importe en $M que queda pendiente de ejecutar en el programa de recompras (remanente de la autorización vigente). NO uses "programAuthorization" ni "programRemaining". Si el JSON de extracción incluye "annualDetails.repurchases.programRemaining" (número en $M), usa OBLIGATORIAMENTE ese importe para "authorizationRemaining" y redáctalo como texto (ej. "Unos 2.600M de $ pendientes de ejecución"). Queda PROHIBIDO afirmar que el 10-K no desglosa el remanente si el JSON de extracción lo incluye.
      * "authorizationExpiry": SOLO si el 10-K lo indica de forma expresa: la fecha en que caduca la autorización del programa (ej. "Vigente hasta diciembre de 2031"); o "Sin fecha de caducidad" únicamente si el 10-K afirma explícitamente que el programa no tiene vencimiento. Si el 10-K no dice nada sobre la caducidad, OMITE el campo por completo (nunca escribas "no indicada" ni similar).
@@ -1194,7 +1929,7 @@ Instrucciones prioritarias:
      * "bpaImpact": Impacto porcentual en el BPA DEL ÚLTIMO AÑO derivado exclusivamente de la reducción de acciones (ej. "+4,9 % de subida en el BPA en el último año exclusivamente por recompras"). NO uses el acumulado de dos años.
      * "futureProjection": PROYECCIÓN A 5 AÑOS con estimación matemática explícita si se mantiene el precio medio pagado en el año: acciones recomprables = authorizationRemaining / precio medio; reparto anual (dividido entre 5 años); reducción anual del número de acciones en %; y efecto anual resultante en el BPA. Ejemplo: "Proyección a 5 años: con ~2.600M de autorización restante y un precio medio de ~51 $, se podrían recomprar ~51M de acciones (~10,2M/año), lo que reduciría el capital un ~5,1 % anual e impulsaría el BPA ~5,4 % cada año." Solo incluye el cálculo si dispones de authorizationRemaining y precio medio; si no, describe la capacidad de recompra con el flujo libre.
      * "sharesHistory": Array con las acciones en circulación al cierre de los últimos 5 ejercicios: [{ "year": 2021, "shares": 231.5 }, ...] en millones. Usa los datos extraídos en "annualDetails.repurchases.sharesHistory" (mínimo 3 años si el informe no desglosa los 5).
-     * "secSnippet": Tabla oficial del 10-K sobre compras de acciones propias (Share Repurchase Program) con headers y rows numéricos. "rows" DEBE incluir la fila "Average price paid (in $)" con el precio medio pagado por acción en cada año (coste agregado / acciones recompradas), junto a "Shares repurchased" y "Aggregate cost (in millions)".
+     * "secSnippet": Tabla oficial del 10-K sobre compras de acciones propias (Share Repurchase Program) con headers y rows numéricos. Si el 10-K desglosa acciones y coste por año, "rows" DEBE incluir "Shares repurchased", "Aggregate cost (in millions)" y "Average price paid (in $)" (precio medio = coste agregado / acciones recompradas). Si el 10-K NO incluye tabla propia de recompras pero el JSON de extracción trae "annualDetails.repurchases.repurchaseHistory", construye la tabla multianual con una columna por ejercicio (mínimo 3 años), fila "Aggregate cost (in millions)" y, si consta el remanente, fila "Remaining authorization (in millions)" en la columna del último año. Queda PROHIBIDO limitar la tabla a un solo año cuando existan datos de varios ejercicios.
   2. "outlook":
      * REGLA DE FORMATO EN NEGRITA (OBLIGATORIA): En la redacción del outlook ("text", "fcfAnalysis", "riskFactors", "efficiencyPlans"), pon SIEMPRE en negrita con Markdown ("**...**") todos los números, porcentajes, importes monetarios, rangos de guidance, años proyectados y conceptos financieros más importantes (ejemplo: "**flat +/- 1 %**", "**-15 % al -18 %**", "**1.100M$ +/- 10 %**", "**650M$ +/- 5 %**", "**376M$**", "**450M$ en 3 años (2026-2028)**", "**~5 % anual**", "**22 % al 24 %**").
      * Análisis riguroso del guidance y perspectivas oficiales comunicadas por la dirección para el próximo ejercicio.
@@ -1214,14 +1949,21 @@ Instrucciones prioritarias:
    3. "debt":
       * REGLA DE FORMATO EN NEGRITA (OBLIGATORIA): En la redacción de deuda ("text", "refinancingAnalysis", "refinancingImpact"), pon SIEMPRE en negrita con Markdown ("**...**") todos los números, importes monetarios, porcentajes, tipos de interés, impactos en BPA y años (ej. "**4.950 M$**", "**-350 M$**", "**3,00 %**", "**5,25 %**", "**-0,09 $/acción**", "**2026**").
       * Diagnóstico riguroso de la estructura financiera y liquidez. Explicar cuánto ha variado la deuda neta y la deuda normal (total) respecto al ejercicio anterior.
-      * Calendario de vencimientos contractuales: el desglose gráfico y detallado DEBE LIMITARSE ESTRICTAMENTE A LOS PRÓXIMOS 5 AÑOS (cualquier vencimiento posterior al año 5 se resume en "maturityAfterFive" y queda fuera del gráfico). En cada año y bloque debe quedar claro qué tipo de deuda es y qué tipo de interés paga.
-      * Tipos medios: calcular para cada año el tipo de interés medio ponderado pagado por las deudas que vencen ese año, y abajo el tipo de interés medio total ponderado pagado por el conjunto de la deuda de los próximos 5 años.
+       * Calendario de vencimientos contractuales: el desglose gráfico y detallado DEBE LIMITARSE ESTRICTAMENTE A LOS PRÓXIMOS 5 AÑOS (cualquier vencimiento posterior al año 5 se resume en "maturityAfterFive" y queda fuera del gráfico). En cada año debe listarse CADA emisión/tramo que vence con su importe y su tipo cupón: si un mismo año tiene dos vencimientos, "maturitySchedule" DEBE contener dos entradas para ese año (una por emisión, con "rate" y "type" propios), no un único total agregado. Si la emisión/tramo tiene un cupón conocido en la tabla de deuda, incluye "rate"; si el informe solo publica el importe agregado de vencimientos sin desglosar la emisión, deja "rate" en null (el gráfico NO debe repetir el tipo medio en cada barra).
+      * Tipos medios: calcular para cada año el tipo de interés medio ponderado pagado por las deudas que vencen ese año. El banner del gráfico muestra el tipo de interés medio total de TODA la deuda (ponderando todos los tramos con cupón conocido, incluidos los que vencen después del año 5), no solo los de la ventana de 5 años. En la redacción NO llames "tipo de interés medio total" al promedio de los próximos 5 años: si lo mencionas, llámalo "tipo medio de los vencimientos de los próximos 5 años", y reserva "tipo de interés medio de toda la deuda" para el promedio ponderado de todos los tramos con cupón conocido (incluidos los posteriores al año 5). Si el JSON de extracción incluye "annualDetails.debt.allDebtAverageRate" (calculado por el sistema), usa EXACTAMENTE ese valor cuando menciones el tipo medio de toda la deuda. Si además "allDebtAverageRateEstimated" es true, preséntalo como "tipo de interés medio estimado" e indica su base según "allDebtAverageRateSource" (p. ej. rangos de cupón ponderados o intereses del ejercicio sobre la deuda media); nunca lo presentes como un cupón exacto. Queda PROHIBIDO afirmar que la compañía "no facilita" los tipos si el JSON de extracción incluye la tabla de deuda con tipos o rangos de cupón: en ese caso descríbelos y calcula el promedio ponderado.
       * Gráfico histórico de 10 años: proporcionar en "debtHistory" los últimos 10 años hasta la actualidad de Deuda Normal (Total) y Deuda Neta, indicando cuánto ha cambiado cada una respecto al año anterior.
-      * Refinanciación e impacto en el BPA: si la empresa ha refinanciado deuda o se analizan vencimientos próximos, indicar qué tipo de interés devengaba la deuda que acaba de vender o retirar ("oldDebtRate") y qué tipo de interés gasta la nueva deuda emitida ("newDebtRate"). Con esos dos valores, calcular el sobrecoste o ahorro neto y el IMPACTO EXACTO EN EL BPA en $/acción (ejemplo: "los nuevos costes bajan en torno a 0,05 $/acción" o "reducen el BPA en torno a 0,09 $/acción").
+      * Refinanciación e impacto en el BPA: si la empresa ha refinanciado deuda, indicar qué tipo de interés devengaba la deuda que acaba de vender o retirar ("oldDebtRate") y qué tipo de interés gasta la nueva deuda emitida ("newDebtRate"), calculando el sobrecoste o ahorro neto y el IMPACTO EXACTO EN EL BPA en $/acción.
+      * Refinanciación POSIBLE (sin decisión tomada): si la compañía está evaluando refinanciar vencimientos próximos o aún no ha decidido, describe el escenario como posible/estimado: en "refinancing" marca "occurred": false, usa como "oldDebtRate" el tipo medio ponderado de los vencimientos que se refinanciarían, como "newDebtRate" el posible tipo estimado de la nueva emisión, como "amountRefinanced" el volumen que vence y calcula igualmente "annualInterestImpact" y "epsImpact" como POSIBLE impacto en el BPA. En la redacción usa expresamente "posible tipo de nueva emisión" y "posible impacto en BPA". Explica la BASE del tipo estimado (esto es obligatorio): parte del valor razonable de la deuda frente a su valor en libros revelado en el 10-K (si cotiza con descuento, el mercado exige más rendimiento que el cupón), de los cupones de las emisiones o refinanciaciones recientes de la propia compañía y del nivel general de tipos de mercado. Nunca presentes la estimación como un hecho consumado.
       * "secSnippet": Tabla oficial del 10-K de compromisos contractuales de deuda ("Debt obligations - Contractual maturities") con obligaciones, vencimientos y saldos.
   4. "acquisitions":
      * Detalle de adquisiciones o compras corporativas efectuadas en el ejercicio, o confirmación expresa de que no se realizaron compras materiales.
-  5. "watchlist":
+     * REGLA DEL EJERCICIO: si "annualDetails"/"facts" indica "acquisitionsYtd" = 0 o < 50M, la sección DEBE confirmar que no hubo adquisiciones materiales en el año analizado. Queda PROHIBIDO presentar una adquisición del ejercicio anterior como si fuera del año analizado; si se menciona como contexto, debe indicarse su fecha real (año anterior).
+  5. "dividends":
+     * Incluye esta sección ÚNICAMENTE si en el ejercicio ha habido un AUMENTO, RECORTE, SUSPENSIÓN o un cambio relevante en la política de dividendos. Si el dividendo se mantiene estable y sin cambios relevantes, OMITE por completo la sección.
+     * Redacta en "text": dividendo por acción del ejercicio, importe total pagado, variación respecto al año anterior (%) y fecha del anuncio si consta.
+     * "changeType": "increase", "cut" o "unchanged"; "changePct": variación porcentual del dividendo por acción del último ejercicio frente al anterior.
+     * "history": serie de los últimos 3-5 ejercicios con "year", "dps" (dividendo por acción), "total" (millones) y "adjustedEps" (BPA diluido ajustado/subyacente del año, si consta). Usa "annualDetails.dividends.history" (completado por el sistema desde XBRL y el 8-K) como base y NO inventes el BPA ajustado: si un año no lo tienes, déjalo null.
+  6. "watchlist":
      * "title": "Cosas a tener en cuenta en [AÑO SIGUIENTE]".
      * "items": Lista ordenada de 2 a 4 catalizadores o riesgos financieros clave a monitorizar el próximo año.
 
@@ -1271,13 +2013,27 @@ export class AnalystAgent extends BaseAgent {
     const ticker = input.ticker || extracted.ticker;
     const extractedTaxAdjustment = extractTaxCashFlowAdjustment(input.text);
     if (isAnnual) {
-      const annualRep = extracted?.annualDetails?.repurchases;
-      if (annualRep && (annualRep.programRemaining == null || annualRep.programRemaining === '')) {
+      extracted.annualDetails = extracted.annualDetails || {};
+      const annualRep = extracted.annualDetails.repurchases || (extracted.annualDetails.repurchases = {});
+      if (annualRep.programRemaining == null || annualRep.programRemaining === '' || isPlaceholderText(annualRep.programRemaining)) {
         const remaining = extractRemainingAuthorization(input.text);
         if (remaining != null) {
           annualRep.programRemaining = remaining;
           annualRep.programRemainingSource = 'extracción automática de remanente';
         }
+      }
+      const programTerms = extractRepurchaseProgramTerms(input.text);
+      if (programTerms.programAuthorizedTotal != null && annualRep.programAuthorizedTotal == null) {
+        annualRep.programAuthorizedTotal = programTerms.programAuthorizedTotal;
+      }
+      if (programTerms.programExpiry && !annualRep.programExpiry) {
+        annualRep.programExpiry = programTerms.programExpiry;
+      }
+      if (programTerms.programSummary && !annualRep.programSummary) {
+        annualRep.programSummary = programTerms.programSummary;
+      }
+      if (programTerms.programApprovalDate && !annualRep.programApprovalDate) {
+        annualRep.programApprovalDate = programTerms.programApprovalDate;
       }
     }
     const extractedCapitalFacts = extractCapitalCashFlowFacts(input.text);
@@ -1292,6 +2048,10 @@ export class AnalystAgent extends BaseAgent {
       if (extractedCapitalFacts.purchasesOfMarketableSecurities != null) {
         extracted.facts.purchasesOfMarketableSecuritiesYtd = Math.abs(extractedCapitalFacts.purchasesOfMarketableSecurities);
         if (fiscalQuarter === 1) extracted.facts.purchasesOfMarketableSecuritiesQuarter = Math.abs(extractedCapitalFacts.purchasesOfMarketableSecurities);
+      }
+      if (extractedCapitalFacts.proceedsFromSaleOfMarketableSecurities != null) {
+        extracted.facts.proceedsFromSaleOfMarketableSecuritiesYtd = Math.abs(extractedCapitalFacts.proceedsFromSaleOfMarketableSecurities);
+        if (fiscalQuarter === 1) extracted.facts.proceedsFromSaleOfMarketableSecuritiesQuarter = Math.abs(extractedCapitalFacts.proceedsFromSaleOfMarketableSecurities);
       }
       if (extractedCapitalFacts.acquisitionsOfBusiness != null) {
         const acqValue = Math.abs(extractedCapitalFacts.acquisitionsOfBusiness);
@@ -1424,7 +2184,7 @@ export class AnalystAgent extends BaseAgent {
                 dividends: [div3M != null ? String(div3M).replace('.', ',') : null, divAdj3M != null ? String(divAdj3M).replace('.', ',') : null],
                 libre: [libre3M != null ? String(libre3M).replace('.', ',') : null, libreAdj3M != null ? String(libreAdj3M).replace('.', ',') : null],
               },
-              explanation3M: `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflationRate}% + ${volumeGrowth}%) = ${annualWcReq}M en todo el año -> en 3 meses = ${quarterWcReq}M. Desviación frente al circulante reportado (${Math.round(rep3M)}M): ajuste de ${Math.round(wcDiff3M)}M en Cash Flow.`,
+              explanation3M: `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflationRate}% + ${volumeGrowth}%) = ${formatWcNumber(annualWcReq)}M en todo el año -> en 3 meses = ${formatWcNumber(quarterWcReq)}M. ${buildWcDeviationSentence({ reported: rep3M, wcReq: quarterWcReq, deviation: wcDiff3M, cfo: cfo3M, adjusted: cfoAdj3M })}`,
             };
 
             if (extracted.ytd?.months) {
@@ -1457,7 +2217,7 @@ export class AnalystAgent extends BaseAgent {
                 dividends: [divYtd != null ? String(divYtd).replace('.', ',') : null, divAdjYtd != null ? String(divAdjYtd).replace('.', ',') : null],
                 libre: [libreYtd != null ? String(libreYtd).replace('.', ',') : null, libreAdjYtd != null ? String(libreAdjYtd).replace('.', ',') : null],
               };
-              wcData.explanationYtd = `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflationRate}% + ${volumeGrowth}%) = ${annualWcReq}M en todo el año -> en ${months} meses = ${ytdWcReq}M. Desviación frente al circulante reportado (${Math.round(repYtd)}M): ajuste de ${Math.round(wcDiffYtd)}M en Cash Flow.`;
+              wcData.explanationYtd = `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflationRate}% + ${volumeGrowth}%) = ${formatWcNumber(annualWcReq)}M en todo el año -> en ${months} meses = ${formatWcNumber(ytdWcReq)}M. ${buildWcDeviationSentence({ reported: repYtd, wcReq: ytdWcReq, deviation: wcDiffYtd, cfo: cfoYtd, adjusted: cfoAdjYtd })}`;
             }
 
             extracted.workingCapitalData = wcData;
@@ -1496,33 +2256,45 @@ export class AnalystAgent extends BaseAgent {
           });
 
           let stInv3M = capFromEdgar?.threeMonths?.inversionesCortoPlazo || 0;
-          if (extracted.facts?.purchasesOfMarketableSecuritiesQuarter != null) {
-            stInv3M = -Math.abs(Number(extracted.facts.purchasesOfMarketableSecuritiesQuarter) || 0);
+          const purchasesSec3M = Number(extracted.facts?.purchasesOfMarketableSecuritiesQuarter) || 0;
+          const proceedsSec3M = Number(extracted.facts?.proceedsFromSaleOfMarketableSecuritiesQuarter) || 0;
+          if (purchasesSec3M || proceedsSec3M) {
+            stInv3M = Math.round((proceedsSec3M - purchasesSec3M) * 10) / 10;
           } else if (extracted.balance?.shortTermInvestments != null && extracted.balance?.shortTermInvestmentsPreviousQuarter != null) {
             const diff = extracted.balance.shortTermInvestments - extracted.balance.shortTermInvestmentsPreviousQuarter;
             if (Math.abs(diff) >= 50) stInv3M = Math.round(-diff * 10) / 10;
           }
 
-          const rawDiv3M = capFromEdgar?.threeMonths?.divestitures || 0;
-          const divestitures3M = rawDiv3M >= 50 ? rawDiv3M : 0;
+          const edgarDiv3M = capFromEdgar?.threeMonths?.divestitures;
+          const divestitures3M = edgarDiv3M != null ? edgarDiv3M : 0;
           const buybacks3M_allocated = buybacks3M > 0
             ? -Math.abs(buybacks3M)
-            : (capFromEdgar?.threeMonths?.buybacks || 0);
+            : (capFromEdgar?.threeMonths?.buybacks ?? 0);
 
-          let acquisitions3M = capFromEdgar?.threeMonths?.acquisitions || 0;
-          if (extracted.facts?.acquisitionsQuarter != null) {
+          const edgarAcq3M = capFromEdgar?.threeMonths?.acquisitions;
+          let acquisitions3M;
+          if (edgarAcq3M != null) {
+            acquisitions3M = edgarAcq3M;
+          } else if (extracted.facts?.acquisitionsQuarter != null) {
             const rawAcq3M = Math.abs(Number(extracted.facts.acquisitionsQuarter)) || 0;
             acquisitions3M = rawAcq3M ? -rawAcq3M : 0;
           } else if (extracted.facts?.acquisitionsYtd != null && fiscalQuarter === 1) {
             const rawAcq3M = Math.abs(Number(extracted.facts.acquisitionsYtd)) || 0;
             acquisitions3M = rawAcq3M ? -rawAcq3M : 0;
+          } else {
+            acquisitions3M = 0;
           }
 
-          let assetSales3M = capFromEdgar?.threeMonths?.assetSales || 0;
-          if (extracted.facts?.assetSalesQuarter != null) {
+          const edgarAssetSales3M = capFromEdgar?.threeMonths?.assetSales;
+          let assetSales3M;
+          if (edgarAssetSales3M != null) {
+            assetSales3M = Math.abs(edgarAssetSales3M);
+          } else if (extracted.facts?.assetSalesQuarter != null) {
             assetSales3M = Math.abs(Number(extracted.facts.assetSalesQuarter)) || 0;
           } else if (extracted.facts?.assetSalesYtd != null && fiscalQuarter === 1) {
             assetSales3M = Math.abs(Number(extracted.facts.assetSalesYtd)) || 0;
+          } else {
+            assetSales3M = 0;
           }
 
           // YTD Debt & Cash from extracted balance if available, else from EDGAR
@@ -1551,29 +2323,41 @@ export class AnalystAgent extends BaseAgent {
           });
 
           let stInvYtd = capFromEdgar?.ytd?.inversionesCortoPlazo || 0;
-          if (extracted.facts?.purchasesOfMarketableSecuritiesYtd != null) {
-            stInvYtd = -Math.abs(Number(extracted.facts.purchasesOfMarketableSecuritiesYtd) || 0);
+          const purchasesSecYtd = Number(extracted.facts?.purchasesOfMarketableSecuritiesYtd) || 0;
+          const proceedsSecYtd = Number(extracted.facts?.proceedsFromSaleOfMarketableSecuritiesYtd) || 0;
+          if (purchasesSecYtd || proceedsSecYtd) {
+            stInvYtd = Math.round((proceedsSecYtd - purchasesSecYtd) * 10) / 10;
           } else if (extracted.balance?.shortTermInvestments != null) {
             const start = extracted.balance.shortTermInvestmentsBeginningOfYear ?? 0;
             const diff = extracted.balance.shortTermInvestments - start;
             if (Math.abs(diff) >= 50) stInvYtd = Math.round(-diff * 10) / 10;
           }
 
-          const rawDivYtd = Number(extracted.facts?.brandDivestitures) || capFromEdgar?.ytd?.divestitures || 0;
+          const edgarDivYtd = capFromEdgar?.ytd?.divestitures;
+          const rawDivYtd = edgarDivYtd != null
+            ? Math.abs(edgarDivYtd)
+            : (Math.abs(Number(extracted.facts?.brandDivestitures)) || 0);
           const divestituresYtd = rawDivYtd >= 50 ? rawDivYtd : 0;
-          const buybacksYtd_allocated = extracted.facts?.shareBuybacks
-            ? -Math.abs(Number(extracted.facts.shareBuybacks))
-            : (capFromEdgar?.ytd?.buybacks || 0);
+          const edgarBuybacksYtd = capFromEdgar?.ytd?.buybacks;
+          const buybacksYtd_allocated = edgarBuybacksYtd != null
+            ? edgarBuybacksYtd
+            : (extracted.facts?.shareBuybacks ? -Math.abs(Number(extracted.facts.shareBuybacks)) : 0);
 
-          let acquisitionsYtd_allocated = capFromEdgar?.ytd?.acquisitions || 0;
-          if (extracted.facts?.acquisitionsYtd != null) {
+          const edgarAcqYtd = capFromEdgar?.ytd?.acquisitions;
+          let acquisitionsYtd_allocated;
+          if (edgarAcqYtd != null) {
+            acquisitionsYtd_allocated = edgarAcqYtd;
+          } else if (extracted.facts?.acquisitionsYtd != null) {
             const rawAcqYtd = Math.abs(Number(extracted.facts.acquisitionsYtd)) || 0;
-            acquisitionsYtd_allocated = rawAcqYtd ? -rawAcqYtd : 0;
+            acquisitionsYtd_allocated = rawAcqYtd >= 50 ? -rawAcqYtd : 0;
+          } else {
+            acquisitionsYtd_allocated = 0;
           }
 
-          const assetSalesYtd_allocated = extracted.facts?.assetSalesYtd != null
-            ? (Math.abs(Number(extracted.facts.assetSalesYtd)) || 0)
-            : (capFromEdgar?.ytd?.assetSales || 0);
+          const edgarAssetSalesYtd = capFromEdgar?.ytd?.assetSales;
+          const assetSalesYtd_allocated = edgarAssetSalesYtd != null
+            ? Math.abs(edgarAssetSalesYtd)
+            : (extracted.facts?.assetSalesYtd != null ? (Math.abs(Number(extracted.facts.assetSalesYtd)) || 0) : 0);
 
           extracted.capitalAllocationData = {
             threeMonths: {
@@ -1614,10 +2398,19 @@ export class AnalystAgent extends BaseAgent {
     // Análisis anual (10-K): obtener historial de deuda de 10 años desde EDGAR y calcular Working Capital a 12 meses
     let edgarDebtHistory = null;
     let edgarDebtMaturities = null;
+    let edgarSharesHistory = null;
+    let edgarRepurchaseHistory = null;
+    let edgarRepurchaseShares = null;
+    let edgarDividendHistory = null;
     if (isAnnual && (extracted.ticker || input.ticker)) {
       try {
         const edgarResults = await getCompanyResults(extracted.ticker || input.ticker);
         const annualSeries = edgarResults?.annual || [];
+        const reportYear = Number(fiscalYear) || (reportingPeriod ? Number(String(reportingPeriod).slice(0, 4)) : null);
+        edgarSharesHistory = buildSharesHistoryFromEdgar(annualSeries, reportYear);
+        edgarRepurchaseHistory = buildRepurchaseHistoryFromEdgar(annualSeries, reportYear);
+        edgarRepurchaseShares = buildRepurchaseSharesHistoryFromEdgar(annualSeries, reportYear);
+        edgarDividendHistory = buildDividendHistoryFromEdgar(annualSeries, reportYear);
         if (annualSeries.length >= 2) {
           edgarDebtHistory = annualSeries
             .map((row) => {
@@ -1635,10 +2428,138 @@ export class AnalystAgent extends BaseAgent {
             .slice(-10);
         }
         if (Array.isArray(edgarResults?.debtMaturities?.years) && edgarResults.debtMaturities.years.length) {
-          const reportYear = Number(fiscalYear) || (reportingPeriod ? Number(String(reportingPeriod).slice(0, 4)) : null);
           if (!reportYear || Number(edgarResults.debtMaturities.baseYear) === reportYear) {
             edgarDebtMaturities = edgarResults.debtMaturities;
           }
+        }
+
+        // Respaldo de balance y circulante desde XBRL: la extracción del PDF a veces no mapea
+        // las tablas del balance y deja inventarios/proveedores/cobros en 0 (WK = 0).
+        const toMillionsValue = (value) => {
+          const num = Number(value);
+          if (!Number.isFinite(num)) return null;
+          return Math.abs(num) > 1e6 ? Math.round((num / 1e6) * 10) / 10 : Math.round(num * 10) / 10;
+        };
+        // El XBRL de la SEC es la fuente oficial del balance: manda sobre la extracción de la
+        // IA (que puede redondear o confundir separadores) para caja, deuda e inversiones.
+        const { currentAnnualRow, previousAnnualRow } = selectAnnualRows(annualSeries, { reportingPeriod, reportYear });
+        extracted.balance = extracted.balance || {};
+        extracted.workingCapital = extracted.workingCapital || {};
+        const fillBalance = (key, sourceValues, sourceKey, force = false) => {
+          const value = toMillionsValue(sourceValues?.[sourceKey]);
+          if (value == null) return;
+          const current = Number(extracted.balance[key]);
+          if (!force && Number.isFinite(current) && current !== 0) return;
+          extracted.balance[key] = value;
+        };
+        fillBalance('inventories', currentAnnualRow?.values, 'inventory', true);
+        fillBalance('accountsPayable', currentAnnualRow?.values, 'payables', true);
+        fillBalance('accountsReceivable', currentAnnualRow?.values, 'receivables', true);
+        fillBalance('cash', currentAnnualRow?.values, 'cash', true);
+        fillBalance('shortTermInvestments', currentAnnualRow?.values, 'shortTermInvestments', true);
+        fillBalance('totalDebt', currentAnnualRow?.values, 'totalDebt', true);
+        fillBalance('cashBeginningOfYear', previousAnnualRow?.values, 'cash', true);
+        fillBalance('shortTermInvestmentsBeginningOfYear', previousAnnualRow?.values, 'shortTermInvestments', true);
+        fillBalance('totalDebtBeginningOfYear', previousAnnualRow?.values, 'totalDebt', true);
+        // El estado de flujos de XBRL es la fuente oficial: manda sobre la extracción de la IA,
+        // que tiende a redondear (p. ej. 4500 en vez de 4462 o 800 en vez de 801).
+        extracted.cashFlow = extracted.cashFlow || {};
+        const xbrlCfo = toMillionsValue(currentAnnualRow?.values?.cfo);
+        if (xbrlCfo != null && xbrlCfo !== 0) extracted.cashFlow.operating = xbrlCfo;
+        const xbrlCapex = toMillionsValue(currentAnnualRow?.values?.capex);
+        if (xbrlCapex != null && xbrlCapex !== 0) extracted.cashFlow.capex = Math.abs(xbrlCapex);
+        const xbrlDividendsPaid = toMillionsValue(
+          currentAnnualRow?.values?.dividendsCommon
+          ?? currentAnnualRow?.values?.dividends
+          ?? currentAnnualRow?.values?.dividendsPreferred,
+        );
+        if (xbrlDividendsPaid != null && xbrlDividendsPaid !== 0) extracted.cashFlow.dividends = Math.abs(xbrlDividendsPaid);
+        // Valores negociables: compras y ventas del estado de flujos en XBRL (neto para la
+        // fila de Asignación de Capital). Manda sobre lo extraído por la IA.
+        extracted.facts = extracted.facts || {};
+        const xbrlSecuritiesPurchases = toMillionsValue(currentAnnualRow?.values?.securitiesInvesting);
+        if (xbrlSecuritiesPurchases != null) extracted.facts.purchasesOfMarketableSecuritiesYtd = Math.abs(xbrlSecuritiesPurchases);
+        const xbrlSecuritiesProceeds = toMillionsValue(currentAnnualRow?.values?.securitiesProceeds);
+        if (xbrlSecuritiesProceeds != null) extracted.facts.proceedsFromSaleOfMarketableSecuritiesYtd = Math.abs(xbrlSecuritiesProceeds);
+        // Resto del estado de flujos de inversión/financiación: el XBRL del ejercicio analizado
+        // manda y EVITA que se cuele la columna comparativa del año anterior (p. ej. una
+        // adquisición del ejercicio previo). Si el XBRL dice 0, se fuerza 0.
+        const xbrlBuybacksPaid = toMillionsValue(currentAnnualRow?.values?.buybacks);
+        if (xbrlBuybacksPaid != null) extracted.facts.shareBuybacks = Math.abs(xbrlBuybacksPaid);
+        const xbrlAcquisitionsPaid = toMillionsValue(currentAnnualRow?.values?.acquisitions);
+        if (xbrlAcquisitionsPaid != null) extracted.facts.acquisitionsYtd = Math.abs(xbrlAcquisitionsPaid);
+        const xbrlDivestituresPaid = toMillionsValue(currentAnnualRow?.values?.divestitures);
+        if (xbrlDivestituresPaid != null) extracted.facts.brandDivestitures = Math.abs(xbrlDivestituresPaid);
+        const xbrlAssetSalesPaid = toMillionsValue(currentAnnualRow?.values?.salePPE);
+        if (xbrlAssetSalesPaid != null) extracted.facts.assetSalesYtd = Math.abs(xbrlAssetSalesPaid);
+        // Neto del estado de flujos (incluye efectivo restringido): permite explicar por qué
+        // puede no coincidir con la variación de la caja del balance.
+        const xbrlNetChangeInCash = toMillionsValue(currentAnnualRow?.values?.netChangeInCash);
+        if (xbrlNetChangeInCash != null) extracted.facts.netChangeInCash = xbrlNetChangeInCash;
+        const reportedWcChange = Number(extracted.workingCapital.reportedChangeYtd);
+        if (!Number.isFinite(reportedWcChange) || reportedWcChange === 0) {
+          const wcChange = toMillionsValue(currentAnnualRow?.values?.workingCapitalChange);
+          if (wcChange != null) extracted.workingCapital.reportedChangeYtd = wcChange;
+        }
+        // Cuenta de resultados oficial XBRL: evita filas vacías ("—") o cifras redondeadas
+        // cuando la extracción de la IA no devuelve alguna línea del estado de resultados.
+        const currValues = currentAnnualRow?.values ?? {};
+        const prevValues = previousAnnualRow?.values ?? {};
+        const setIfNumber = (target, key, value) => {
+          if (target && Number.isFinite(value)) target[key] = value;
+        };
+        extracted.ytd = extracted.ytd || {};
+        setIfNumber(extracted.ytd, 'sales', toMillionsValue(currValues.revenue));
+        setIfNumber(extracted.ytd, 'grossProfit', toMillionsValue(currValues.grossProfit));
+        setIfNumber(extracted.ytd, 'operatingIncome', toMillionsValue(currValues.operatingIncome));
+        setIfNumber(extracted.ytd, 'ebt', toMillionsValue(currValues.ebtIncludingUnusual ?? currValues.pretaxIncome));
+        setIfNumber(extracted.ytd, 'netIncome', toMillionsValue(currValues.netIncomeToCommonIncludingUnusual ?? currValues.netIncome));
+        extracted.ytd.prev = extracted.ytd.prev || {};
+        setIfNumber(extracted.ytd.prev, 'sales', toMillionsValue(prevValues.revenue));
+        setIfNumber(extracted.ytd.prev, 'grossProfit', toMillionsValue(prevValues.grossProfit));
+        setIfNumber(extracted.ytd.prev, 'operatingIncome', toMillionsValue(prevValues.operatingIncome));
+        setIfNumber(extracted.ytd.prev, 'ebt', toMillionsValue(prevValues.ebtIncludingUnusual ?? prevValues.pretaxIncome));
+        setIfNumber(extracted.ytd.prev, 'netIncome', toMillionsValue(prevValues.netIncomeToCommonIncludingUnusual ?? prevValues.netIncome));
+        // Deterioros exactos (goodwill + intangibles) desde XBRL cuando la IA se queda corta.
+        const impairmentsFrom = (values) => {
+          const goodwill = Math.abs(toMillionsValue(values?.goodwillImpairment) ?? 0);
+          const assets = Math.abs(toMillionsValue(values?.assetImpairment) ?? 0);
+          const total = goodwill + assets;
+          return total > 0 ? Math.round(total * 10) / 10 : null;
+        };
+        const xbrlImpairmentsYtd = impairmentsFrom(currValues);
+        if (xbrlImpairmentsYtd != null) {
+          const aiImpairments = Number(extracted.facts.impairmentsYtd) || 0;
+          if (!aiImpairments || xbrlImpairmentsYtd > aiImpairments) extracted.facts.impairmentsYtd = xbrlImpairmentsYtd;
+        }
+        const xbrlImpairmentsPrevYtd = impairmentsFrom(prevValues);
+        if (xbrlImpairmentsPrevYtd != null) {
+          const aiImpairmentsPrev = Number(extracted.facts.impairmentsPrevYtd) || 0;
+          if (!aiImpairmentsPrev || xbrlImpairmentsPrevYtd > aiImpairmentsPrev) extracted.facts.impairmentsPrevYtd = xbrlImpairmentsPrevYtd;
+        }
+        const xbrlIntangiblesAmortization = Math.abs(toMillionsValue(currValues.amortizationGoodwillIntangibles) ?? 0);
+        if (xbrlIntangiblesAmortization > 0 && !(Number(extracted.facts.intangiblesAmortization) > 0)) {
+          extracted.facts.intangiblesAmortization = xbrlIntangiblesAmortization;
+        }
+        // Recalcular la asignación de capital con el balance XBRL ya corregido.
+        extracted.capitalAllocationData = buildCapitalAllocationFromBalance(extracted);
+        // Estimación del tipo medio de la deuda a partir del gasto financiero y la deuda media.
+        extracted.annualDetails = extracted.annualDetails || {};
+        extracted.annualDetails.debt = extracted.annualDetails.debt || {};
+        if (extracted.annualDetails.debt.allDebtAverageRate == null) {
+          const estimatedRate = computeEstimatedDebtRateFromIncome(currentAnnualRow, previousAnnualRow);
+          if (estimatedRate) {
+            extracted.annualDetails.debt.allDebtAverageRate = estimatedRate.rate;
+            extracted.annualDetails.debt.allDebtAverageRateEstimated = true;
+            extracted.annualDetails.debt.allDebtAverageRateSource = estimatedRate.source;
+          }
+        }
+        // Intereses netos oficiales del ejercicio cerrado (fuente XBRL) para la columna
+        // "Año anterior" de la tabla de guidance: manda sobre lo extraído por la IA.
+        const officialAnnualInterest = Math.abs(toMillionsValue(currentAnnualRow?.values?.interestExpense) ?? 0);
+        if (Number.isFinite(officialAnnualInterest) && officialAnnualInterest > 0) {
+          extracted.annualDetails.outlook = extracted.annualDetails.outlook || {};
+          extracted.annualDetails.outlook.priorYearNetInterest = Math.round(officialAnnualInterest * 10) / 10;
         }
       } catch (err) {
         console.warn('[analyst] No se pudo obtener el historial de deuda desde EDGAR:', err.message);
@@ -1650,6 +2571,142 @@ export class AnalystAgent extends BaseAgent {
       extracted.annualDetails.debt = extracted.annualDetails.debt || {};
       if (!extracted.annualDetails.debt.debtHistory || !extracted.annualDetails.debt.debtHistory.length) {
         extracted.annualDetails.debt.debtHistory = edgarDebtHistory;
+      }
+    }
+
+    // Deuda anual: el calendario contractual de XBRL (principal por ejercicio, tal como lo
+    // publica la nota del 10-K) manda sobre la extracción de la IA. Si la IA aporta el desglose
+    // por emisión y su suma por año coincide con el XBRL, se conserva (aporta los cupones);
+    // si no coincide (p. ej. importes brutos con intereses), se usa el importe oficial.
+    if (isAnnual && Array.isArray(edgarDebtMaturities?.years) && edgarDebtMaturities.years.length) {
+      extracted.annualDetails = extracted.annualDetails || {};
+      extracted.annualDetails.debt = extracted.annualDetails.debt || {};
+      const extractionDebt = extracted.annualDetails.debt;
+      const validItems = (list) => (Array.isArray(list) ? list : []).filter((item) => {
+        const amount = Number(item?.amount ?? item?.totalAmount ?? item?.value);
+        return Number.isFinite(Number(item?.year)) && Number.isFinite(amount) && amount > 0;
+      });
+      const aiItems = validItems(
+        (Array.isArray(extractionDebt.maturityItems) && extractionDebt.maturityItems.length)
+          ? extractionDebt.maturityItems
+          : extractionDebt.maturitySchedule,
+      );
+      const itemsByYear = new Map();
+      aiItems.forEach((item) => {
+        const year = Number(item.year);
+        if (!itemsByYear.has(year)) itemsByYear.set(year, []);
+        itemsByYear.get(year).push(item);
+      });
+      // Una etiqueta de varios ejercicios ("2027-2028", "2031 y posteriores"...) no sirve como
+      // tramo: el importe oficial por año tiene prioridad.
+      const isBucketLabel = (item) => /20\d\d\s*[-–/]\s*20\d\d|and thereafter|y posteriores|posteriores a|a partir de|onwards/i.test(String(item?.label ?? item?.name ?? ''));
+      const merged = [];
+      edgarDebtMaturities.years.forEach((y) => {
+        const year = Number(y.year);
+        const officialAmount = Number(y.amount);
+        if (!Number.isFinite(year) || !Number.isFinite(officialAmount) || officialAmount <= 0) return;
+        const aiForYear = itemsByYear.get(year) ?? [];
+        const aiSum = aiForYear.reduce((sum, item) => sum + Number(item.amount ?? item.totalAmount ?? item.value), 0);
+        const tolerance = Math.max(15, officialAmount * 0.08);
+        const hasDetailedAi = aiForYear.length > 0 && !aiForYear.some(isBucketLabel);
+        if (hasDetailedAi && Math.abs(aiSum - officialAmount) <= tolerance) {
+          merged.push(...aiForYear.map((item) => ({
+            ...item,
+            amount: Number(item.amount ?? item.totalAmount ?? item.value),
+            interestRate: item.interestRate ?? item.rate ?? null,
+          })));
+        } else {
+          merged.push({
+            year,
+            label: 'Vencimientos contractuales de deuda (Contractual Maturities)',
+            amount: officialAmount,
+            rate: null,
+            type: 'Deuda total',
+          });
+        }
+        itemsByYear.delete(year);
+      });
+      // Tramos de la IA de años fuera del calendario XBRL (normalmente posteriores al año 5),
+      // necesarios para ponderar el tipo medio de toda la deuda.
+      itemsByYear.forEach((items) => {
+        merged.push(...items.map((item) => ({
+          ...item,
+          amount: Number(item.amount ?? item.totalAmount ?? item.value),
+          interestRate: item.interestRate ?? item.rate ?? null,
+        })));
+      });
+      extractionDebt.maturityItems = merged;
+      delete extractionDebt.maturitySchedule;
+      if (edgarDebtMaturities.afterYearFive != null) {
+        extractionDebt.maturityAfterFive = edgarDebtMaturities.afterYearFive;
+      }
+    }
+
+    // Tipo medio de toda la deuda calculado por el sistema, para que la IA use exactamente
+    // la misma cifra que muestra el banner del gráfico. La tabla de deuda (con rangos de
+    // cupón si es el caso) tiene prioridad sobre la estimación por gasto financiero.
+    if (isAnnual) {
+      extracted.annualDetails = extracted.annualDetails || {};
+      extracted.annualDetails.debt = extracted.annualDetails.debt || {};
+      const debtDetails = extracted.annualDetails.debt;
+      const computedRate = computeAllDebtAverageRate(debtDetails.secTable);
+      if (computedRate != null) {
+        debtDetails.allDebtAverageRate = computedRate.rate;
+        debtDetails.allDebtAverageRateEstimated = computedRate.estimated;
+        debtDetails.allDebtAverageRateSource = computedRate.source;
+      }
+    }
+
+    // Recompras anuales: completar acciones en circulación y serie de costes con XBRL de la SEC
+    if (isAnnual && (edgarSharesHistory || edgarRepurchaseHistory || edgarRepurchaseShares)) {
+      extracted.annualDetails = extracted.annualDetails || {};
+      extracted.annualDetails.repurchases = extracted.annualDetails.repurchases || {};
+      const extractionRepurchases = extracted.annualDetails.repurchases;
+
+      const mergedSharesHistory = mergeHistoryByYear(extractionRepurchases.sharesHistory, edgarSharesHistory);
+      if (mergedSharesHistory.length >= 2) {
+        extractionRepurchases.sharesHistory = mergedSharesHistory;
+      }
+
+      if (edgarRepurchaseHistory?.length) {
+        let mergedRepurchases = mergeHistoryByYear(extractionRepurchases.repurchaseHistory, edgarRepurchaseHistory);
+        const sharesSource = [...(edgarRepurchaseShares ?? [])];
+        if (Array.isArray(extractionRepurchases.repurchaseHistory)) sharesSource.push(...extractionRepurchases.repurchaseHistory);
+        mergedRepurchases = mergeRepurchaseShares(mergedRepurchases, sharesSource);
+        extractionRepurchases.repurchaseHistory = mergedRepurchases;
+      }
+    }
+
+    // Dividendos anuales: completar la serie (dps, importe total y BPA) desde XBRL y calcular la variación
+    if (isAnnual && edgarDividendHistory?.length) {
+      extracted.annualDetails = extracted.annualDetails || {};
+      extracted.annualDetails.dividends = extracted.annualDetails.dividends || {};
+      const extractionDividends = extracted.annualDetails.dividends;
+      extractionDividends.history = mergeDividendHistory(extractionDividends.history, edgarDividendHistory);
+      const history = extractionDividends.history;
+      // BPA ajustado de toda la serie desde el comunicado anual de resultados (8-K) de cada
+      // ejercicio: la IA solo ve el 10-K actual, por lo que los años antiguos pueden faltar
+      // o estar mal recordados. La cifra oficial del comunicado tiene prioridad.
+      const dividendTicker = extracted.ticker || input.ticker;
+      if (dividendTicker && history.length) {
+        try {
+          const underlyingEps = await Promise.all(history.map((point) => getHistoricalUnderlyingEps(dividendTicker, Number(point.year))));
+          history.forEach((point, index) => {
+            const eps = underlyingEps[index];
+            if (Number.isFinite(eps) && eps > 0) point.adjustedEps = eps;
+          });
+        } catch (err) {
+          console.warn('[analyst] No se pudo completar el BPA ajustado histórico:', err.message);
+        }
+      }
+      if (extractionDividends.changePct == null && history.length >= 2) {
+        const prev = history[history.length - 2];
+        const last = history[history.length - 1];
+        if (Number.isFinite(prev?.dps) && prev.dps > 0 && Number.isFinite(last?.dps)) {
+          const pct = Math.round(((last.dps - prev.dps) / prev.dps) * 1000) / 10;
+          extractionDividends.changePct = pct;
+          extractionDividends.changeType = pct > 0 ? 'increase' : (pct < 0 ? 'cut' : 'unchanged');
+        }
       }
     }
 
@@ -1715,7 +2772,7 @@ export class AnalystAgent extends BaseAgent {
           dividends: [divYtd != null ? String(divYtd).replace('.', ',') : null, divAdjYtd != null ? String(divAdjYtd).replace('.', ',') : null],
           libre: [libreYtd != null ? String(libreYtd).replace('.', ',') : null, libreAdjYtd != null ? String(libreAdjYtd).replace('.', ',') : null],
         },
-        explanationYtd: `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflationRate}% + ${volumeGrowth}%) = ${annualWcReq}M en todo el año. Desviación frente al circulante reportado (${Math.round(repYtd)}M): ajuste de ${Math.round(wcDiffYtd)}M en Cash Flow.`,
+        explanationYtd: `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflationRate}% + ${volumeGrowth}%) = ${formatWcNumber(annualWcReq)}M en todo el año. ${buildWcDeviationSentence({ reported: repYtd, wcReq: annualWcReq, deviation: wcDiffYtd, cfo: cfoYtd, adjusted: cfoAdjYtd })}`,
       };
 
       if (extracted.capitalAllocationData?.ytd && libreYtd != null) {
@@ -1776,6 +2833,39 @@ export class AnalystAgent extends BaseAgent {
           const nameLower = String(row.name).toLowerCase();
           const isOperativeOrNet = nameLower.includes('operativo') || nameLower.includes('ebt') || nameLower.includes('neto');
 
+          // Red de seguridad: si el modelo dejó una fila vacía ("—"), se rellena con la cifra
+          // oficial de XBRL de la cuenta de resultados que el sistema ya volcó en la extracción.
+          const reported = isTrimestral ? (extracted.quarter ?? {}) : (extracted.ytd ?? {});
+          const reportedPrev = reported.prev ?? {};
+          const reportedKey = (() => {
+            if (nameLower.includes('venta') || nameLower.includes('sales') || nameLower.includes('ingreso')) return 'sales';
+            if (nameLower.includes('bruto') || nameLower.includes('gross')) return 'grossProfit';
+            if (nameLower.includes('operativ') || nameLower.includes('operating')) return 'operatingIncome';
+            if (nameLower.includes('ebt') || nameLower.includes('impuesto') || nameLower.includes('before tax')) return 'ebt';
+            if (nameLower.includes('neto') || nameLower.includes('net income')) return 'netIncome';
+            return null;
+          })();
+          if (reportedKey) {
+            const formatReported = (value) => (Number.isFinite(Number(value)) ? `${formatFinancialValue(Number(value))}M` : null);
+            const normalFill = formatReported(reported[reportedKey]);
+            const prevFill = formatReported(reportedPrev[reportedKey]);
+            if (normalFill && (!row.normal || row.normal === '—')) row.normal = normalFill;
+            // El ejercicio anterior del XBRL de la SEC es la fuente oficial: si existe, manda
+            // sobre la extracción del modelo, que a veces copia la cifra actual en la columna
+            // "Anterior" y produce variaciones falsas de +0,00 %.
+            if (prevFill) {
+              const officialPrev = parseFinancialValue(prevFill);
+              const existingPrev = parseFinancialValue(row.prevNormal);
+              const existingPrevAdjusted = parseFinancialValue(row.prevAdjusted);
+              const prevAdjustedIsJustCopy = !Number.isFinite(existingPrevAdjusted)
+                || (Number.isFinite(existingPrev) && Math.abs(existingPrevAdjusted - existingPrev) < 0.05);
+              if (!Number.isFinite(existingPrev) || officialPrev !== existingPrev) {
+                row.prevNormal = prevFill;
+                if (prevAdjustedIsJustCopy) row.prevAdjusted = prevFill;
+              }
+            }
+          }
+
           // Ajuste del ejercicio anterior si hubo impairment (>= 50M)
           if (isOperativeOrNet && prevImpairment >= 50 && row.prevNormal && row.prevNormal !== '—') {
             const prevNormVal = parseFinancialValue(row.prevNormal);
@@ -1834,6 +2924,12 @@ export class AnalystAgent extends BaseAgent {
           // Herencia en prevAdjusted si no hay ajuste
           if ((!row.prevAdjusted || row.prevAdjusted === '—') && row.prevNormal && row.prevNormal !== '—') {
             row.prevAdjusted = row.prevNormal;
+          }
+
+          // Herencia en adjusted si no hay ningún ajuste documentado: la columna Ajustado
+          // coincide con la reportada (p. ej. Beneficio Bruto o EBT sin partidas extraordinarias).
+          if ((!row.adjusted || row.adjusted === '—') && row.normal && row.normal !== '—') {
+            row.adjusted = row.normal;
           }
 
           const parseVal = (val) => {
@@ -2057,7 +3153,14 @@ export class AnalystAgent extends BaseAgent {
 
         // Filtrar notas de deducción trimestral (la resta entre acumulados no es un ajuste contable)
         horizon.cashFlow.notes = (Array.isArray(horizon.cashFlow.notes) ? [...horizon.cashFlow.notes] : [])
-          .filter((n) => !String(n).toLowerCase().includes('deducido del acumulado') && !String(n).toLowerCase().includes('flujo trimestral deducido'));
+          .filter((n) => !String(n).toLowerCase().includes('deducido del acumulado') && !String(n).toLowerCase().includes('flujo trimestral deducido'))
+          // Nunca se publican notas que reconozcan cifras estimadas o redondeadas de CAPEX:
+          // el sistema inyecta las cifras exactas del estado de flujos (SEC XBRL).
+          .filter((n) => {
+            const note = String(n).toLowerCase();
+            const admitsEstimation = /estima|no viene desglos|no aparece desglos|no se desglosa/;
+            return !(note.includes('capex') && admitsEstimation.test(note));
+          });
 
         let expNote = isTrimestral ? wcInfo?.explanation3M : wcInfo?.explanationYtd;
         if (expNote) {
@@ -2065,12 +3168,15 @@ export class AnalystAgent extends BaseAgent {
         }
 
         const wcNoteIdx = horizon.cashFlow.notes.findIndex((n) => n.includes('WK') || n.includes('circulante') || n.includes('Cuentas por pagar'));
-        if (wcNoteIdx !== -1) {
+        if (expNote) {
+          // La nota del WK la genera el sistema: evita que el modelo añada operaciones con
+          // el signo cambiado (p. ej. "ajuste de -159M ... 1784,4M + 159,1M").
+          if (wcNoteIdx !== -1) horizon.cashFlow.notes[wcNoteIdx] = expNote;
+          else horizon.cashFlow.notes.push(expNote);
+        } else if (wcNoteIdx !== -1) {
           const existingNote = horizon.cashFlow.notes[wcNoteIdx].replace(/^\*\d+:?\s*/, '');
           const wcLines = existingNote.split('\n').filter((line) => !/^impuestos:/i.test(line.trim()));
           horizon.cashFlow.notes[wcNoteIdx] = `*1: ${wcLines.join('\n')}`;
-        } else if (expNote) {
-          horizon.cashFlow.notes.push(expNote);
         }
 
         if (taxNormalization) {
@@ -2199,10 +3305,11 @@ export class AnalystAgent extends BaseAgent {
           horizon.capital.rows.splice(acqRowIdx, 1);
         }
 
-        // 3.4 Recompras: si != 0 asegurar fila negativa; si es 0, omitir
+        // 3.4 Recompras: solo si son materiales (>= 50M) se incluye la fila; las recompras
+        // insignificantes se omiten para no ensuciar la asignación de capital.
         const buyVal = capData?.buybacks ?? 0;
         const buyRowIdx = horizon.capital.rows.findIndex((r) => String(r.name).replace(/\*\d+/g, '').trim().toLowerCase().includes('recompra'));
-        if (buyVal !== 0) {
+        if (Math.abs(buyVal) >= 50) {
           const formattedBuy = String(-Math.abs(buyVal)).replace('.', ',');
           if (buyRowIdx !== -1) {
             horizon.capital.rows[buyRowIdx].value = formattedBuy;
@@ -2244,7 +3351,7 @@ export class AnalystAgent extends BaseAgent {
             horizon.capital.rows.splice(insIdx !== -1 ? insIdx : horizon.capital.rows.length, 0, { name: 'Deuda', value: formattedDeuda });
           } else {
             deudaRow.name = 'Deuda';
-            const existingVal = parseFloat(String(deudaRow.value ?? '').replace(',', '.').replace(/[^\d.-]/g, ''));
+            const existingVal = parseLooseReportNumber(deudaRow.value);
             const isAcceptable = isTrimestral
               ? (Number.isFinite(existingVal) && Math.abs(existingVal - capData.deuda) <= 150)
               : (Number.isFinite(existingVal) && Math.sign(existingVal) === Math.sign(capData.deuda) && Math.abs(existingVal) < 2000);
@@ -2282,7 +3389,7 @@ export class AnalystAgent extends BaseAgent {
         let hasValidRows = false;
         horizon.capital.rows.forEach((r) => {
           if (String(r.name).toLowerCase().includes('total')) return;
-          const num = parseFloat(String(r.value ?? '').replace(',', '.').replace(/[^\d.-]/g, ''));
+          const num = parseLooseReportNumber(r.value);
           if (Number.isFinite(num)) {
             sum += num;
             hasValidRows = true;
@@ -2306,13 +3413,18 @@ export class AnalystAgent extends BaseAgent {
         let brandNoteNum = null;
         let debtNoteNum = null;
 
-        // Buscar nota descriptiva de venta o compra de marcas / desinversiones
+        // Buscar nota descriptiva de venta o compra de marcas / desinversiones.
+        // Solo se incluye si la tabla tiene una fila de marcas/adquisiciones que la referencie.
         const brandNote = rawCapNotes.find((n) => {
           const lower = n.toLowerCase();
           return lower.includes('marca') || lower.includes('desinversión') || lower.includes('desinversion') || lower.includes('adquisición') || lower.includes('adquisicion');
         });
+        const hasBrandRow = horizon.capital.rows.some((r) => {
+          const n = String(r.name).replace(/\*\d+/g, '').trim().toLowerCase();
+          return n.includes('marca') || n.includes('desinvers') || n.includes('negocio') || n.includes('divest') || n.includes('adquisic') || n.includes('acquisic');
+        });
 
-        if (brandNote) {
+        if (brandNote && hasBrandRow) {
           let cleaned = brandNote.replace(/^\*\d+:?\s*/, '').trim();
           // Si el texto incluye frases redundantes de deuda o caja, conservar solo la parte de la marca
           const splitPoint = cleaned.split(/(?:\.|\;)\s*(?:La deuda|Deuda balance|Deuda|La caja)/i);
@@ -2320,8 +3432,16 @@ export class AnalystAgent extends BaseAgent {
             cleaned = splitPoint[0].trim();
             if (!cleaned.endsWith('.')) cleaned += '.';
           }
-          cleanNotes.push(cleaned);
-          brandNoteNum = cleanNotes.length;
+          // Sin adquisiciones materiales en el ejercicio, se elimina cualquier mención a
+          // adquisiciones (la IA puede estar citando la compra del año anterior).
+          if (Math.abs(Number(capData?.acquisitions ?? 0)) < 50 && /\badquisici/i.test(cleaned)) {
+            cleaned = cleaned.split(/(?:\.|\;)?\s*(?:Y\s+)?Adquisiciones:?/i)[0].trim();
+            if (cleaned && !cleaned.endsWith('.')) cleaned += '.';
+          }
+          if (cleaned) {
+            cleanNotes.push(cleaned);
+            brandNoteNum = cleanNotes.length;
+          }
         }
 
         // Notas garantizadas: si hay fila de Adquisiciones o Desinversiones y ninguna nota las explica,
@@ -2332,7 +3452,8 @@ export class AnalystAgent extends BaseAgent {
         });
         if (hasAcqRow && capData?.acquisitionDescription && !cleanNotes.some((n) => n.toLowerCase().includes('adquisici'))) {
           const acqAmount = Math.abs(parseFloat(String(capData.acquisitions ?? 0).replace(',', '.')) || 0);
-          cleanNotes.push(`Adquisiciones: Se destinaron ${String(acqAmount).replace('.', ',')}M a la compra de ${capData.acquisitionDescription} (uso de fondos).`);
+          cleanNotes.push(`Adquisiciones: Se destinaron ${String(acqAmount).replace('.', ',')}M a la compra de ${cleanAssetDescription(capData.acquisitionDescription)} (uso de fondos).`);
+          brandNoteNum = cleanNotes.length;
         }
         const hasDivRow = horizon.capital.rows.some((r) => {
           const n = String(r.name).replace(/\*\d+/g, '').trim().toLowerCase();
@@ -2340,12 +3461,20 @@ export class AnalystAgent extends BaseAgent {
         });
         if (hasDivRow && capData?.divestitureDescription && !cleanNotes.some((n) => n.toLowerCase().includes('desinversi') || n.toLowerCase().includes('venta de marcas'))) {
           const divAmount = parseFloat(String(capData.divestitures ?? 0).replace(',', '.')) || 0;
-          cleanNotes.push(`Desinversiones: Se ingresaron ${String(divAmount).replace('.', ',')}M por la venta de ${capData.divestitureDescription} (fuente de fondos).`);
+          cleanNotes.push(`Desinversiones: Se ingresaron ${String(divAmount).replace('.', ',')}M por la venta de ${cleanAssetDescription(capData.divestitureDescription)} (fuente de fondos).`);
+          brandNoteNum = cleanNotes.length;
         }
 
-        // Nota obligatoria de Deuda Balance y Deuda Neta
+        // Nota obligatoria de Deuda Balance, Deuda Neta y movimiento de Caja
         if (capData?.debtDetails) {
-          cleanNotes.push(capData.debtDetails.endsWith('.') ? capData.debtDetails : `${capData.debtDetails}.`);
+          const debtLine = capData.debtDetails.endsWith('.') ? capData.debtDetails : `${capData.debtDetails}.`;
+          const cashLine = capData.cashDetails
+            ? ` ${capData.cashDetails.endsWith('.') ? capData.cashDetails : `${capData.cashDetails}.`}`
+            : '';
+          cleanNotes.push(`${debtLine}${cashLine}`);
+          debtNoteNum = cleanNotes.length;
+        } else if (capData?.cashDetails) {
+          cleanNotes.push(capData.cashDetails.endsWith('.') ? capData.cashDetails : `${capData.cashDetails}.`);
           debtNoteNum = cleanNotes.length;
         } else {
           const existingDebtNote = rawCapNotes.find((n) => n.includes('Deuda balance') || n.includes('Deuda neta'));
@@ -2388,11 +3517,24 @@ export class AnalystAgent extends BaseAgent {
       result.conclusion.repurchases.bpaImpact = result.conclusion.repurchases.bpaImpact || null;
       result.conclusion.repurchases.futureProjection = result.conclusion.repurchases.futureProjection || null;
       const extractionRep = rawAnn.repurchases ?? {};
-      if (!result.conclusion.repurchases.authorizationRemaining && extractionRep.programRemaining != null && extractionRep.programRemaining !== '') {
+      const currentAuthRemaining = result.conclusion.repurchases.authorizationRemaining;
+      if ((!currentAuthRemaining || isPlaceholderText(currentAuthRemaining)) && extractionRep.programRemaining != null && extractionRep.programRemaining !== '') {
         const remNum = Number(extractionRep.programRemaining);
         result.conclusion.repurchases.authorizationRemaining = Number.isFinite(remNum)
           ? `Unos ${String(remNum).replace('.', ',')}M de $ pendientes de ejecución`
           : String(extractionRep.programRemaining);
+      }
+      if (!result.conclusion.repurchases.futureProjection || isPlaceholderText(result.conclusion.repurchases.futureProjection)) {
+        const avgPrice = Number(extractionRep.averagePrice)
+          || (Number(extractionRep.aggregateCost) > 0 && Number(extractionRep.sharesRepurchasedAnnual) > 0
+            ? Number(extractionRep.aggregateCost) / Number(extractionRep.sharesRepurchasedAnnual)
+            : null);
+        const projection = buildFutureProjectionText({
+          remainingAuthorization: extractionRep.programRemaining,
+          averagePrice: avgPrice,
+          sharesHistory: result.conclusion.repurchases.sharesHistory,
+        });
+        if (projection) result.conclusion.repurchases.futureProjection = projection;
       }
       const expiryRaw = result.conclusion.repurchases.authorizationExpiry
         || extractionRep.programExpiry
@@ -2404,11 +3546,53 @@ export class AnalystAgent extends BaseAgent {
         && Array.isArray(extractionRep.sharesHistory) && extractionRep.sharesHistory.length >= 2) {
         result.conclusion.repurchases.sharesHistory = extractionRep.sharesHistory;
       }
+      if (Array.isArray(result.conclusion.repurchases.sharesHistory) && result.conclusion.repurchases.sharesHistory.length >= 2) {
+        result.conclusion.repurchases.sharesHistory = mergeHistoryByYear(result.conclusion.repurchases.sharesHistory, []).slice(-5);
+        const computedEvolution = buildShareCountEvolutionText(result.conclusion.repurchases.sharesHistory);
+        if (computedEvolution) {
+          const currentEvolution = result.conclusion.repurchases.shareCountEvolution;
+          const saysNoChange = /sin variaci|no variaci|sin cambios|no changes?/i.test(String(currentEvolution ?? ''));
+          const points = result.conclusion.repurchases.sharesHistory;
+          const prevShares = Number(points[points.length - 2]?.shares);
+          const lastShares = Number(points[points.length - 1]?.shares);
+          const lastChangePct = prevShares > 0 ? Math.abs((lastShares - prevShares) / prevShares) * 100 : 0;
+          if (!currentEvolution || (saysNoChange && lastChangePct >= 0.5)) {
+            result.conclusion.repurchases.shareCountEvolution = computedEvolution;
+          }
+        }
+      }
       if (!result.conclusion.repurchases.secSnippet && extractionRep.secTable) {
         result.conclusion.repurchases.secSnippet = extractionRep.secTable;
       }
       if (!result.conclusion.repurchases.secSnippet && rawAnn.repurchasesSecTable) {
         result.conclusion.repurchases.secSnippet = rawAnn.repurchasesSecTable;
+      }
+      // Si el 10-K no trae tabla propia de recompras y solo hay un año, construir la serie multianual con XBRL.
+      if (Array.isArray(extractionRep.repurchaseHistory) && extractionRep.repurchaseHistory.length >= 3) {
+        const snippetColumns = Array.isArray(result.conclusion.repurchases.secSnippet?.headers)
+          ? result.conclusion.repurchases.secSnippet.headers.length
+          : 0;
+        if (!result.conclusion.repurchases.secSnippet || snippetColumns < 3) {
+          const generatedTable = buildRepurchaseSecTable(extractionRep.repurchaseHistory, extractionRep.programRemaining);
+          if (generatedTable) {
+            result.conclusion.repurchases.secSnippet = generatedTable;
+          }
+        }
+      }
+      // La tabla final siempre incorpora "Shares repurchased", "Average price paid (in $)" y el
+      // remanente de autorización cuando el sistema dispone de esas cifras (XBRL o extracción).
+      if (result.conclusion.repurchases.secSnippet) {
+        const remainingNumber = Number(extractionRep.programRemaining);
+        const remainingFromText = (() => {
+          const match = String(result.conclusion.repurchases.authorizationRemaining ?? '').match(/[\d.,]+/);
+          const parsed = match ? parseLooseReportNumber(match[0]) : NaN;
+          return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+        })();
+        result.conclusion.repurchases.secSnippet = enrichRepurchaseSnippet(
+          result.conclusion.repurchases.secSnippet,
+          extractionRep.repurchaseHistory,
+          Number.isFinite(remainingNumber) && remainingNumber > 0 ? remainingNumber : remainingFromText,
+        );
       }
 
       // 2: Outlook
@@ -2439,7 +3623,13 @@ export class AnalystAgent extends BaseAgent {
         result.conclusion.outlook.secSnippet = rawAnn.outlookSecTable;
       }
       if (result.conclusion.outlook.secSnippet) {
-        result.conclusion.outlook.secSnippet = withOutlookComparison(result.conclusion.outlook.secSnippet, result);
+        result.conclusion.outlook.secSnippet = completeOutlookPriorColumn(
+          mergeOutlookRows(
+            withOutlookComparison(result.conclusion.outlook.secSnippet, result),
+            extractionOut.secTable,
+          ),
+          extractionOut,
+        );
       }
 
       // 3: Deuda
@@ -2450,10 +3640,15 @@ export class AnalystAgent extends BaseAgent {
       result.conclusion.debt.refinancingImpact = result.conclusion.debt.refinancingImpact || null;
 
       const extractionDebt = rawAnn.debt ?? {};
-      if (!result.conclusion.debt.maturitySchedule && (extractionDebt.maturityItems || extractionDebt.maturitySchedule)) {
-        result.conclusion.debt.maturitySchedule = extractionDebt.maturityItems || extractionDebt.maturitySchedule;
-      }
-      if (!result.conclusion.debt.maturitySchedule && edgarDebtMaturities) {
+      const extractionMaturity = (Array.isArray(extractionDebt.maturityItems) && extractionDebt.maturityItems.length)
+        ? extractionDebt.maturityItems
+        : ((Array.isArray(extractionDebt.maturitySchedule) && extractionDebt.maturitySchedule.length) ? extractionDebt.maturitySchedule : null);
+      const hasMaturitySchedule = Array.isArray(result.conclusion.debt.maturitySchedule) && result.conclusion.debt.maturitySchedule.length > 0;
+      // El calendario fusionado por el sistema (XBRL oficial + tramos con cupón de la IA) manda
+      // siempre sobre el que haya podido redactar el modelo.
+      if (extractionMaturity) {
+        result.conclusion.debt.maturitySchedule = extractionMaturity;
+      } else if (!hasMaturitySchedule && edgarDebtMaturities) {
         result.conclusion.debt.maturitySchedule = edgarDebtMaturities.years.map((y) => ({
           year: y.year,
           label: 'Vencimientos contractuales de deuda',
@@ -2462,11 +3657,23 @@ export class AnalystAgent extends BaseAgent {
           interestRate: null,
         }));
       }
-      if (edgarDebtMaturities?.afterYearFive != null && result.conclusion.debt.maturityAfterFive == null) {
+      if (edgarDebtMaturities?.afterYearFive != null) {
         result.conclusion.debt.maturityAfterFive = edgarDebtMaturities.afterYearFive;
       }
-      if (!result.conclusion.debt.debtHistory) {
-        result.conclusion.debt.debtHistory = extractionDebt.debtHistory || edgarDebtHistory || null;
+      // Tipo medio de toda la deuda calculado por el sistema (exacto o estimado con su base).
+      if (extractionDebt.allDebtAverageRate != null) {
+        result.conclusion.debt.allDebtAverageRate = extractionDebt.allDebtAverageRate;
+        result.conclusion.debt.allDebtAverageRateEstimated = extractionDebt.allDebtAverageRateEstimated === true;
+        result.conclusion.debt.allDebtAverageRateSource = extractionDebt.allDebtAverageRateSource ?? null;
+      }
+      // Histórico de deuda: combinar la serie de la IA con la oficial de EDGAR (que gana)
+      // para garantizar hasta 10 ejercicios con importes válidos.
+      const aiDebtHistory = (Array.isArray(result.conclusion.debt.debtHistory) && result.conclusion.debt.debtHistory.length)
+        ? result.conclusion.debt.debtHistory
+        : (Array.isArray(extractionDebt.debtHistory) ? extractionDebt.debtHistory : []);
+      const mergedDebtHistory = mergeHistoryByYear(aiDebtHistory, edgarDebtHistory).slice(-10);
+      if (mergedDebtHistory.length) {
+        result.conclusion.debt.debtHistory = mergedDebtHistory;
       }
       if (!result.conclusion.debt.refinancing && (extractionDebt.refinancing || extractionDebt.nearTermRates || extractionDebt.nearTermMaturities)) {
         result.conclusion.debt.refinancing = extractionDebt.refinancing || {
@@ -2485,13 +3692,61 @@ export class AnalystAgent extends BaseAgent {
       if (edgarDebtMaturities) {
         result.edgarDebtMaturities = edgarDebtMaturities;
       }
+      if (edgarDividendHistory) {
+        result.edgarDividendHistory = edgarDividendHistory;
+      }
 
       // 4: Adquisiciones
       result.conclusion.acquisitions = result.conclusion.acquisitions || {};
       result.conclusion.acquisitions.title = result.conclusion.acquisitions.title || '4: Adquisiciones';
       result.conclusion.acquisitions.text = result.conclusion.acquisitions.text || rawAnn.acquisitionsNarrative || (extracted.facts?.acquisitionsYtd ? `Se completaron adquisiciones corporativas por un importe neto de ${extracted.facts.acquisitionsYtd}M.` : 'No se realizaron adquisiciones materiales durante el ejercicio.');
+      // Si el estado de flujos oficial confirma que en el ejercicio NO hubo adquisiciones
+      // materiales, el texto del modelo no puede atribuirle una compra del año anterior.
+      {
+        const hasOfficialAcquisitionFigure = extracted.facts?.acquisitionsYtd != null
+          && Number.isFinite(Number(extracted.facts.acquisitionsYtd));
+        const acquisitionAmount = hasOfficialAcquisitionFigure ? Math.abs(Number(extracted.facts.acquisitionsYtd)) : null;
+        if (hasOfficialAcquisitionFigure && acquisitionAmount < 50) {
+          const divestitureAmount = Math.abs(Number(extracted.facts?.brandDivestitures) || 0)
+            + Math.abs(Number(extracted.facts?.assetSalesYtd) || 0);
+          const divestitureDescription = extracted.facts?.divestitureDescription;
+          const descriptionHasAmount = /\d[\d.,]*\s*(?:M\$|M\b|\$|millones|billion|million)/i.test(String(divestitureDescription ?? ''));
+          const divestitureSentence = (divestitureAmount >= 50 && divestitureDescription)
+            ? ` Se completó la desinversión de ${cleanAssetDescription(divestitureDescription)}${descriptionHasAmount ? '' : ` por ${Math.round(divestitureAmount)}M`}.`
+            : '';
+          result.conclusion.acquisitions.text = `No se realizaron adquisiciones materiales durante el ejercicio.${divestitureSentence}`;
+        }
+      }
 
-      // 5: Watchlist
+      // 5: Dividendos (solo si ha habido un cambio relevante en el ejercicio)
+      {
+        const extractionDividends = rawAnn.dividends ?? {};
+        const dividendHistory = mergeDividendHistory(extractionDividends.history, edgarDividendHistory);
+        if (dividendHistory.length >= 2) {
+          const prevDiv = dividendHistory[dividendHistory.length - 2];
+          const lastDiv = dividendHistory[dividendHistory.length - 1];
+          const computedChange = (Number.isFinite(prevDiv?.dps) && prevDiv.dps > 0 && Number.isFinite(lastDiv?.dps))
+            ? Math.round(((lastDiv.dps - prevDiv.dps) / prevDiv.dps) * 1000) / 10
+            : null;
+          const changePct = Number.isFinite(Number(extractionDividends.changePct)) ? Number(extractionDividends.changePct) : computedChange;
+          const changeType = extractionDividends.changeType || (changePct > 0 ? 'increase' : (changePct < 0 ? 'cut' : 'unchanged'));
+          const aiDividends = result.conclusion.dividends ?? null;
+          const material = Number.isFinite(changePct) && Math.abs(changePct) >= 2;
+          if (aiDividends || material) {
+            result.conclusion.dividends = aiDividends || {};
+            result.conclusion.dividends.title = result.conclusion.dividends.title || '5: Dividendos';
+            result.conclusion.dividends.history = dividendHistory;
+            result.conclusion.dividends.changePct = changePct;
+            result.conclusion.dividends.changeType = changeType;
+            if (!result.conclusion.dividends.text) {
+              const verb = changeType === 'cut' ? 'recortó' : 'aumentó';
+              result.conclusion.dividends.text = `El dividendo por acción ${verb} un ${Math.abs(changePct).toFixed(1).replace('.', ',')} % en ${lastDiv.year}, pasando de ${String(prevDiv.dps).replace('.', ',')} $ a ${String(lastDiv.dps).replace('.', ',')} $, con un pago total de ${String(lastDiv.total).replace('.', ',')}M.`;
+            }
+          }
+        }
+      }
+
+      // 6: Watchlist
       result.conclusion.watchlist = result.conclusion.watchlist || {};
       result.conclusion.watchlist.title = result.conclusion.watchlist.title || `Cosas a tener en cuenta en ${fiscalYear ? fiscalYear + 1 : 'el próximo año'}`;
       if (!Array.isArray(result.conclusion.watchlist.items) || result.conclusion.watchlist.items.length === 0) {
@@ -2500,6 +3755,42 @@ export class AnalystAgent extends BaseAgent {
           '2: Ritmo y precio de ejecución de los programas de recompra de acciones.',
           '3: Refinanciación de la deuda próxima a vencer y coste efectivo de los nuevos intereses.',
         ];
+      }
+
+      // Recompras insignificantes (< 50M): la sección completa de recompras se omite porque no
+      // aporta información material al análisis (igual que las filas de la asignación de capital).
+      // Solo se tienen en cuenta las recompras del EJERCICIO analizado, no el histórico.
+      const buybackCandidates = [];
+      const factsBuybacks = Number(extracted.facts?.shareBuybacks);
+      if (Number.isFinite(factsBuybacks) && factsBuybacks !== 0) buybackCandidates.push(Math.abs(factsBuybacks));
+      const capBuybacks = Number(extracted.capitalAllocationData?.ytd?.buybacks);
+      if (Number.isFinite(capBuybacks) && capBuybacks !== 0) buybackCandidates.push(Math.abs(capBuybacks));
+      if (Array.isArray(extractionRep.repurchaseHistory)) {
+        const points = extractionRep.repurchaseHistory
+          .map((point) => ({ year: Number(point?.year), amount: Math.abs(Number(point?.amount)) }))
+          .filter((point) => Number.isFinite(point.year) && Number.isFinite(point.amount) && point.amount > 0)
+          .sort((a, b) => a.year - b.year);
+        if (points.length) buybackCandidates.push(points[points.length - 1].amount);
+      }
+      const maxBuyback = buybackCandidates.length ? Math.max(...buybackCandidates) : null;
+      if (result.conclusion.repurchases && maxBuyback != null && maxBuyback < 50) {
+        delete result.conclusion.repurchases;
+      }
+
+      // Renumerar las secciones garantizadas según las que finalmente se muestran.
+      let sectionNumber = 0;
+      const numberSection = (key, fallback) => {
+        const section = result.conclusion[key];
+        if (!section) return;
+        sectionNumber += 1;
+        const baseTitle = String(section.title ?? '').replace(/^\d+\s*:\s*/, '').trim() || fallback;
+        section.title = `${sectionNumber}: ${baseTitle}`;
+      };
+      numberSection('repurchases', 'Recompras');
+      numberSection('outlook', 'Outlook');
+      numberSection('debt', 'Deuda');
+      if (result.conclusion.acquisitions) {
+        result.conclusion.acquisitions.title = `${sectionNumber + 1}: Adquisiciones`;
       }
 
       // Parte III: Nota de Resultados (1 a 10)

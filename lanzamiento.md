@@ -4,9 +4,11 @@ El documento completo de despliegue, arquitectura CI/CD y estrategia SEO se encu
 👉 [documentacion/lanzamiento.md](file:///home/lur/Lur/APP/documentacion/lanzamiento.md)
 
 ### Resumen Rápido:
-* **Infraestructura:** Contabo Cloud VPS 4 (4 vCPU, 8 GB RAM, 100 GB SSD) ~5.50 €/mes sin permanencia. Región EE. UU.
-* **Ambientes en el mismo VPS:**
-  * `dev.tudominio.com` $\rightarrow$ Rama `development`, puerto 3001, BD `cifra_dev`.
-  * `tudominio.com` $\rightarrow$ Rama `main`, puerto 3000, BD `cifra_prod`.
-* **CI/CD:** GitHub Actions mediante SSH Action disparado por push a `development` o merge a `main`.
-* **SEO:** Meta tags Open Graph, `robots.txt`, sitemap dinámico de empresas (`empresa.html?ticker=...`) y alta en Google Search Console.
+* **Infraestructura:** Contabo Cloud VPS 4 (4 vCPU, 8 GB RAM, 100 GB SSD) 6,66 €/mes sin permanencia. Región **UE (Hub Europe)**; IP `194.163.166.21`.
+* **Dominio:** `cifraresearch.com` (Cloudflare Registrar, DNS en Cloudflare, SSL Full strict + Let's Encrypt).
+* **Ambientes en el mismo VPS** (servicios systemd `cifra-dev` y `cifra-prod`):
+  * `dev.cifraresearch.com` → rama `development`, puerto 3001, BD `cifra_dev`.
+  * `cifraresearch.com` / `www` → rama `production`, puerto 3000, BD `cifra_prod`.
+* **CI/CD:** GitHub Actions; push a `development` despliega en dev y push a `production` en producción (`.github/workflows/deploy-dev.yml` y `deploy-prod.yml`).
+* **Correo:** saliente con Resend (`hola@cifraresearch.com`) y entrante con Cloudflare Email Routing hacia Gmail.
+* **SEO/GEO:** meta tags + JSON-LD por página, `hreflang`, `robots.txt`, sitemap dinámico, `llms.txt`/`llms-full.txt` y endpoints Markdown para motores generativos; alta en Google Search Console.

@@ -94,9 +94,12 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
 
 - **Cálculo de Capital Circulante Anual (Working Capital / WK)**:
   - Al ser año completo, **la necesidad teórica no se prorratea**:
-    $$\text{WK}_{\text{caja, anual}} = (\text{Inventarios} + \text{Cuentas por cobrar} - \text{Cuentas por pagar}) \times (\text{Inflación} + \text{volumen})$$
-    *(O su formulación equivalente de impacto en caja $(\text{Cuentas por pagar} - \text{Inventarios} - \text{Cuentas por cobrar}) \times (\text{inflación} + \text{volumen})$)*.
-  - La diferencia entre el WC reportado y el teórico se ajusta en el Cash Flow.
+    $$\text{WK}_{\text{caja, anual}} = (\text{Cuentas por pagar} - \text{Inventarios} - \text{Cuentas por cobrar}) \times (\text{Inflación} + \text{volumen})$$
+    Como el WK se expresa en términos de impacto en caja, un valor **positivo** significa que el circulante **libera** caja (las cuentas por pagar crecen más que inventarios y cobros) y un valor **negativo** que el circulante **consume** caja.
+  - La diferencia entre el WC reportado y el teórico se ajusta en el Cash Flow con esta convención estricta (que el sistema ya calcula):
+    $$\text{Desviación WC} = \text{WC}_{\text{reportado}} - \text{WK}_{\text{teórico}}$$
+    $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - \text{Desviación WC}$$
+  - **Regla de signos en la nota (obligatoria)**: la desviación conserva su signo y el ajuste se escribe como una resta explícita. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WK teórico (12,1M): -159,1M. El Cash Flow ajustado resta esa desviación: 1784,4M - (-159,1M) = 1943,5M.` Queda terminantemente prohibido escribir frases contradictorias como `ajuste de -159M (1784,4M + 159,1M)`.
   - **Ajuste fiscal del Cash Flow**: Si los impuestos en efectivo efectivamente pagados difieren del gasto devengado normalizado, se descuenta o suma la diferencia exacta en el Cash Flow Ajustado.
   - La nota explicativa al pie detalla minuciosamente ambos ajustes (circulante e impuestos).
 
@@ -106,7 +109,7 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
 
 - **Filas obligatorias según materialidad ($\ge 50\text{M}$)**:
   1. `Libre`: Toma el valor resultante de la fila Libre del Bloque 2.
-  2. `Inversiones a corto plazo`: Variación anual de valores negociables (signo negativo `-` si se compraron inversiones, positivo `+` si se liquidaron).
+  2. `Inversiones a corto plazo`: Flujo **neto** de valores negociables = ventas/cobros ("proceeds from sale of marketable securities") − compras ("purchases of marketable securities"). Signo negativo `-` si el neto es comprador (ej. compras de 1.724 y ventas de 686 => -1038), positivo `+` si el neto es vendedor. Si no consta el detalle, usar la variación del saldo de balance.
   3. `Recompras`: Desembolso en recompra de acciones propias (signo negativo `-`).
   4. `Desinversiones`: Cobros por venta de negocios, marcas o activos (signo positivo `+`).
   5. `Adquisiciones`: Pagos por compra de negocios o empresas (signo negativo `-`).
@@ -156,9 +159,12 @@ Se debe realizar un examen exhaustivo de la política de recompra de títulos de
   5. **Proyección Futura de Retorno**:
      - Impacto anual esperado en el BPA si la acción cotiza a niveles actuales y la compañía continúa reinvirtiendo su flujo libre en recompras (ej. *"al precio actual de ~50 $ podemos esperar un impulso de aproximadamente el 6 % anual en el BPA"*).
 
-- **Captura SEC Obligatoria**:
-  - Debe incluirse una captura o extracto visual recortado de la sección del 10-K donde figura el detalle del programa: **Nota de "Share Repurchase Program"** o tabla de **"Stockholders' Equity" / Item 5 de recompras mensuales**.
+- **Captura SEC Obligatoria (tabla multianual)**:
+  - Debe incluirse un extracto oficial con el detalle del programa y la ejecución de los últimos ejercicios.
+  - **Formato canónico**: una columna por ejercicio fiscal (mínimo 3 años, hasta 5) con las filas **"Shares repurchased"**, **"Aggregate cost (in millions)"** y **"Average price paid (in $)"** (precio medio = coste agregado / acciones recompradas).
+  - Si el 10-K no trae una tabla propia de recompras, la serie anual se construye con la línea **"Repurchases of common stock" del estado de flujos de caja** (el agente la recibe completada desde XBRL de la SEC); **"Shares repurchased"** y **"Average price paid (in $)"** se añaden cuando el filing o el XBRL de la SEC aportan el número de títulos (el sistema calcula el precio medio = coste / acciones). La tabla muestra además el remanente de autorización del último ejercicio. Queda prohibido mostrar una tabla de un solo año cuando existan datos de varios ejercicios y queda prohibido inventar acciones o precios medios que no consten.
   - En la captura deben marcarse o resaltarse en amarillo/naranja las cifras clave (autorización en $B, acciones recompradas y coste agregado).
+  - Los términos del programa (importe autorizado, fecha de autorización, vigencia y remanente) deben quedar reflejados en la narrativa y en los bullets.
 
 ---
 
@@ -220,10 +226,12 @@ Examen en profundidad de la estructura de capital, la evolución de la deuda nor
 - **1. Diagrama de Barras del Calendario de Vencimientos (Próximos 5 Años)**:
   - **Ventana temporal estricta**: Solamente se muestran los **próximos 5 años** a partir del ejercicio cerrado, con el importe que vence en cada uno de ellos (etiqueta en negrita sobre cada barra). Los vencimientos posteriores al año 5 se resumen aparte como "Después del año 5" y quedan estrictamente excluidos del gráfico.
   - **Bloques coloreados por tipo de deuda**: Si hay varios tipos de obligación (Senior Notes, Commercial Paper, Term Loans, etc.), cada uno se representa con un color diferenciado dentro de la barra apilada anual. Si solo hay un tipo, la barra es naranja, igual que el gráfico de acciones.
-  - **Tipo de interés en cada bloque**: En cada bloque de deuda se indica explícitamente su tipo de interés cupón (ej. `3,00 %`, `3,44 %`) cuando la compañía lo desglosa.
-  - **Tipo de interés medio anual**: En la cabecera de cada barra anual se calcula y muestra el **tipo de interés medio ponderado** que la empresa paga por las deudas que vencen en dicho año:
+  - **Tipo de interés en cada bloque**: En cada bloque de deuda se indica explícitamente su tipo de interés cupón (ej. `3,00 %`, `3,44 %`) cuando la compañía lo desglosa. Si un año tiene una sola barra, su tipo medio se muestra dentro de la barra; si tiene varias, el cupón va dentro de cada subbloque.
+  - **Tipo de interés medio anual**: En cada barra anual se calcula y muestra el **tipo de interés medio ponderado** que la empresa paga por las deudas que vencen en dicho año:
     $$\text{Tipo Medio Anual} = \frac{\sum (\text{Importe}_i \times \text{Tipo}_i)}{\sum \text{Importe}_i}$$
-  - **Tipo de interés medio total**: En la base o pie del gráfico se indica el **tipo de interés medio ponderado global** que se paga en el conjunto total del calendario de los 5 años.
+  - **Tipo de interés medio total**: En la base o pie del gráfico se indica el **tipo de interés medio ponderado global** que se paga en el conjunto total de la deuda.
+  - **Sin cupones desglosados**: Si la nota de deuda solo publica rangos de cupón por categorías (ej. `3,000 % – 7,125 %`) o no publica tipos, se usa el **tipo medio estimado** que calcula el sistema a partir de los rangos ponderados o del gasto financiero sobre la deuda media. Ese valor se rotula siempre como estimado (`~` y la palabra "estimado") y se explica su base; nunca se presenta como un cupón exacto. Los cupones exactos solo se afirman cuando el 10-K los desglosa.
+  - **Vencimientos**: El calendario del gráfico usa SIEMPRE la tabla oficial de **principal** por ejercicio de la nota de deuda (o su equivalente XBRL de la SEC). La tabla de "Material Cash Requirements" del MD&A incluye intereses y no debe usarse como si fuera principal.
 
 - **2. Gráfico de Barras de Evolución Histórica de 10 Años (Deuda Normal vs Deuda Neta)**:
   - Gráfico de barras dual con los últimos **10 años hasta la actualidad** que enfrenta la **Deuda Normal (Deuda Financiera Total)** contra la **Deuda Neta**.
@@ -332,6 +340,7 @@ Para dar respaldo documental y valor visual a la Parte II:
 
 ## 6. Formato Numérico y Convenciones de Estilo
 
+- **Prohibición de redondeo**: Todas las cifras deben ser **exactas**, copiadas tal cual de los estados financieros y del JSON de extracción (que el sistema completa desde el XBRL de la SEC). Queda terminantemente prohibido redondear o estimar cifras reportadas (ej. no escribir `4500M` si la cifra es `4462M`, ni `800M` si es `801M`, ni `1900M` si es `1898M`). Si una cifra no consta en ninguna fuente, se indica que no consta; nunca se sustituye por una aproximación redondeada.
 - **Moneda**: Millones de dólares estadounidenses con sufijo **`M`** (ej. `13040M`, `2300M`). Símbolo **`$`** para precios y ratios por acción (ej. `5,69 $`, `50 $`). Para miles de millones en texto libre se puede usar `M` o `millones de $`.
 - **Porcentajes**: Con **coma decimal** y signo explícito.
   - Positivos en **verde** (`#16a34a`).

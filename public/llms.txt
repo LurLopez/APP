@@ -65,4 +65,4 @@ Los informes analizados por el sistema están publicados como página HTML en `/
 
 ## Contacto
 
-- Correo: contacto@cifra.app
+- Correo: contacto@cifraresearch.com

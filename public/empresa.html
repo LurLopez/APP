@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1e293b">
+  <script>
+    (function () {
+      try {
+        var t = JSON.parse(localStorage.getItem('cifra-appearance') || '{}');
+        if (t.theme === 'naranja') document.documentElement.setAttribute('data-theme', 'naranja');
+        if (t.darkMode) document.documentElement.setAttribute('data-mode', 'dark');
+      } catch (e) { /* noop */ }
+    })();
+  </script>
 
   <title>Cifra | Empresas de consumo defensivo de EE. UU.: resultados y análisis</title>
   <meta name="description" content="Perfil y análisis fundamental de empresas estadounidenses de consumo defensivo: resultados de 10-Q y 10-K, cotización, histórico de filings y análisis con IA de ingresos, flujo de caja libre y asignación de capital.">
@@ -12,6 +21,8 @@
   <meta name="rating" content="general">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
   <link rel="canonical" href="{{SITE_URL}}/empresa">
+  <link rel="alternate" hreflang="es" href="{{SITE_URL}}/empresa">
+  <link rel="alternate" hreflang="x-default" href="{{SITE_URL}}/empresa">
   <link rel="alternate" type="text/plain" href="{{SITE_URL}}/llms.txt" title="Resumen para modelos de lenguaje (LLMs)">
   <link rel="alternate" type="text/plain" href="{{SITE_URL}}/llms-full.txt" title="Documentación completa para modelos de lenguaje (LLMs)">
 
@@ -44,6 +55,7 @@
         "@type": "WebSite",
         "@id": "{{SITE_URL}}/#website",
         "name": "Cifra",
+        "alternateName": "Cifra Research",
         "url": "{{SITE_URL}}/",
         "inLanguage": "es",
         "description": "Análisis de informes financieros 10-Q y 10-K de empresas estadounidenses con IA.",
@@ -61,6 +73,7 @@
         "@type": "Organization",
         "@id": "{{SITE_URL}}/#organization",
         "name": "Cifra",
+        "alternateName": "Cifra Research",
         "url": "{{SITE_URL}}/",
         "logo": {
           "@type": "ImageObject",
@@ -83,7 +96,7 @@
   }
   </script>
 
-  <link rel="stylesheet" href="/styles.css?v=99">
+  <link rel="stylesheet" href="/styles.css?v=102">
 </head>
 <body class="company-page">
   <div class="app-shell">
@@ -116,7 +129,7 @@
           <button class="user-logout" id="user-logout" type="button" aria-label="Cerrar sesión" title="Cerrar sesión">×</button>
         </div>
         <button class="settings-button" type="button" aria-label="Configuración">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V4a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2.9Z"/></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
     </header>
@@ -459,7 +472,7 @@
                     <p class="demo-disclaimer" id="processing-note">El documento se verifica automáticamente antes de continuar.</p>
                   </div>
 
-                  <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3 id="result-title">Informe generado</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-report" id="report-body"></div><div class="analysis-feedback-bar" id="analysis-feedback-bar"><div class="analysis-rating-wrap"><span class="feedback-label">Valorar este análisis:</span><div class="rating-stars" id="rating-stars" role="radiogroup" aria-label="Valorar análisis"><button type="button" class="star-btn" data-value="1" title="1 estrella">★</button><button type="button" class="star-btn" data-value="2" title="2 estrellas">★</button><button type="button" class="star-btn" data-value="3" title="3 estrellas">★</button><button type="button" class="star-btn" data-value="4" title="4 estrellas">★</button><button type="button" class="star-btn" data-value="5" title="5 estrellas">★</button></div><span class="rating-summary-text" id="rating-summary-text"></span></div><button type="button" class="report-error-trigger" id="report-error-trigger"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Reportar error</button></div><div class="result-actions"><button class="primary-button download-button" id="report-download" data-format="pdf" type="button">PDF <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v9M8 10l4 4 4-4M6 18h12"/></svg></button><button class="secondary-button download-button" data-format="docx" type="button">Word (.docx)</button><button class="secondary-button download-button" data-format="odt" type="button">ODT (.odt)</button><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button><button class="secondary-button admin-only admin-regen-report-btn" id="admin-regenerate-report" type="button" hidden title="Volver a generar este informe de nuevo con IA (elimina el informe actual)">🔄 Volver a generar informe (Admin)</button></div></div>
+                  <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3 id="result-title">Informe generado</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-report" id="report-body"></div><div class="analysis-feedback-bar" id="analysis-feedback-bar"><div class="analysis-rating-wrap"><span class="feedback-label">Valorar este análisis:</span><div class="rating-stars" id="rating-stars" role="radiogroup" aria-label="Valorar análisis"><button type="button" class="star-btn" data-value="1" title="1 estrella">★</button><button type="button" class="star-btn" data-value="2" title="2 estrellas">★</button><button type="button" class="star-btn" data-value="3" title="3 estrellas">★</button><button type="button" class="star-btn" data-value="4" title="4 estrellas">★</button><button type="button" class="star-btn" data-value="5" title="5 estrellas">★</button></div><span class="rating-summary-text" id="rating-summary-text"></span></div><button type="button" class="report-error-trigger" id="report-error-trigger"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Reportar error</button></div><div class="result-actions"><button class="primary-button download-button" id="report-download" data-format="pdf" type="button">PDF <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v9M8 10l4 4 4-4M6 18h12"/></svg></button><button class="secondary-button download-button" data-format="docx" type="button">Word (.docx)</button><button class="secondary-button download-button" data-format="odt" type="button">ODT (.odt)</button><button class="secondary-button download-button" data-format="html" type="button">Web (.html)</button><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button><button class="secondary-button admin-only admin-regen-report-btn" id="admin-regenerate-report" type="button" hidden title="Volver a generar este informe de nuevo con IA (elimina el informe actual)">🔄 Volver a generar informe (Admin)</button></div></div>
                 </div>
 
                 <aside class="panel coverage-panel" id="metodologia" hidden><div class="panel-heading compact"><div><span class="section-index">02 / PROCESO</span><h3>Qué ocurre después</h3></div><span class="method-icon">✦</span></div><p class="method-intro">Tres agentes revisan el documento en orden. Si no cumple el alcance, el análisis se detiene con una explicación clara.</p><div class="mini-pipeline"><div class="mini-step"><span class="mini-step-number">01</span><div><strong>Origen</strong><span>Estados Unidos</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step"><span class="mini-step-number">02</span><div><strong>Sector</strong><span>Consumo defensivo</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step final"><span class="mini-step-number">03</span><div><strong>Análisis</strong><span>Informe estructurado</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div></div><div class="method-note"><span>i</span><p>La IA ordena la información. La decisión final siempre es tuya.</p></div></aside>
@@ -1031,135 +1044,251 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px;margin-right:6px"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V4a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2.9Z"/></svg>
           Ajustes y Preferencias
         </h3>
-        <p class="modal-subtitle">Configura los comportamientos predeterminados para nuevas acciones.</p>
+        <p class="modal-subtitle">Personaliza la apariencia, tu perfil y los avisos automáticos.</p>
       </div>
 
-      <form class="settings-form" id="settings-form">
-        <!-- Sección 0: Perfil público (Comunidad y Foros) -->
-        <div class="settings-group">
-          <div class="settings-group-header">
-            <span class="settings-group-icon">👤</span>
-            <div>
-              <h4 class="settings-group-title">Perfil y Foros</h4>
-              <p class="settings-group-desc">Tu nombre de usuario visible en los debates. Tu correo nunca se mostrará públicamente.</p>
-            </div>
-          </div>
-          <div class="settings-card">
-            <label class="auth-field" style="margin-bottom:0">
-              <span>Nombre de usuario público</span>
-              <input type="text" id="pref-username" name="username" placeholder="Tu alias (ej. Inversor_Value)" maxlength="30" autocomplete="off">
-            </label>
-          </div>
-        </div>
+      <div class="settings-body">
+        <nav class="settings-nav" aria-label="Secciones de ajustes">
+          <button type="button" class="settings-nav-item active" data-settings-tab="apariencia"><span class="settings-nav-icon">🎨</span> Apariencia</button>
+          <button type="button" class="settings-nav-item" data-settings-tab="perfil"><span class="settings-nav-icon">👤</span> Perfil</button>
+          <button type="button" class="settings-nav-item" data-settings-tab="seguimiento"><span class="settings-nav-icon">⭐</span> Seguimiento</button>
+          <button type="button" class="settings-nav-item" data-settings-tab="cartera"><span class="settings-nav-icon">💼</span> Cartera</button>
+        </nav>
 
-        <!-- Sección 1: Listas de seguimiento / Favoritos -->
-        <div class="settings-group">
-          <div class="settings-group-header">
-            <span class="settings-group-icon">⭐</span>
-            <div>
-              <h4 class="settings-group-title">Al agregar a Favoritos / Seguimiento</h4>
-              <p class="settings-group-desc">Reglas automáticas al guardar una acción en listas.</p>
-            </div>
-          </div>
+        <div class="settings-panels">
+          <form class="settings-form" id="settings-form">
+            <!-- Pestaña: Apariencia -->
+            <div class="settings-panel" data-settings-panel="apariencia">
+              <h4 class="settings-panel-title">Apariencia</h4>
+              <p class="settings-panel-sub">Adapta el aspecto visual de la aplicación a tu gusto.</p>
 
-          <div class="settings-card">
-            <label class="settings-checkbox-row">
-              <input type="checkbox" id="pref-wl-calendar" name="watchlistAutoCalendar">
-              <span class="settings-check-custom"></span>
-              <div class="settings-check-copy">
-                <strong>Añadir al calendario automáticamente</strong>
-                <small>Mostrar resultados y dividendos en tu calendario</small>
+              <div class="settings-group">
+                <div class="settings-group-header">
+                  <span class="settings-group-icon">🎨</span>
+                  <div>
+                    <h4 class="settings-group-title">Tema de color</h4>
+                    <p class="settings-group-desc">Elige la paleta de la interfaz. Los cambios se ven al instante y se guardan en tu cuenta.</p>
+                  </div>
+                </div>
+                <div class="settings-card">
+                  <div class="theme-options" role="radiogroup" aria-label="Tema de color">
+                    <button type="button" class="theme-option" data-theme-value="indigo">
+                      <span class="theme-check">✓</span>
+                      <div class="theme-preview">
+                        <div class="theme-preview-bar" style="background:#1e293b"><span class="theme-preview-dot"></span><span class="theme-preview-dot"></span><span class="theme-preview-dot"></span></div>
+                        <div class="theme-preview-content" style="background:#fff">
+                          <div class="theme-preview-side" style="background:#f1f5f9"></div>
+                          <div class="theme-preview-main">
+                            <div class="theme-preview-line" style="background:#4f46e5"></div>
+                            <div class="theme-preview-line short" style="background:#e2e8f0"></div>
+                            <div class="theme-preview-line short" style="background:#c7d2fe"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="theme-preview-title"><strong>Índigo (actual)</strong><small>Paleta azul-violeta</small></div>
+                    </button>
+                    <button type="button" class="theme-option" data-theme-value="naranja">
+                      <span class="theme-check">✓</span>
+                      <div class="theme-preview">
+                        <div class="theme-preview-bar" style="background:#242424"><span class="theme-preview-dot"></span><span class="theme-preview-dot"></span><span class="theme-preview-dot"></span></div>
+                        <div class="theme-preview-content" style="background:#fff">
+                          <div class="theme-preview-side" style="background:#f7f7f8"></div>
+                          <div class="theme-preview-main">
+                            <div class="theme-preview-line" style="background:#ff9900"></div>
+                            <div class="theme-preview-line short" style="background:#e2e8f0"></div>
+                            <div class="theme-preview-line short" style="background:#ffd9a0"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="theme-preview-title"><strong>Naranja (clásico)</strong><small>La paleta original de Cifra</small></div>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </label>
 
-            <label class="settings-checkbox-row">
-              <input type="checkbox" id="pref-wl-notify" name="watchlistAutoNotify">
-              <span class="settings-check-custom"></span>
-              <div class="settings-check-copy">
-                <strong>Enviar avisos por email por defecto</strong>
-                <small>Recibir notificaciones en tu correo electrónico</small>
+              <div class="settings-group">
+                <div class="settings-group-header">
+                  <span class="settings-group-icon">🌙</span>
+                  <div>
+                    <h4 class="settings-group-title">Modo oscuro</h4>
+                    <p class="settings-group-desc">Cambia los fondos claros por tonos oscuros para descansar la vista.</p>
+                  </div>
+                </div>
+                <div class="settings-card">
+                  <label class="settings-switch-row">
+                    <input type="checkbox" id="pref-darkmode" name="darkMode">
+                    <span class="settings-switch"></span>
+                    <div class="settings-switch-copy">
+                      <strong>Activar modo oscuro</strong>
+                      <small>Se aplica en todas las pantallas de tu cuenta</small>
+                    </div>
+                  </label>
+                </div>
               </div>
-            </label>
 
-            <div class="settings-subs" id="pref-wl-subs">
-              <span class="settings-subs-title">¿Qué avisos enviar para acciones en seguimiento?</span>
-              <label class="settings-sub-checkbox-row">
-                <input type="checkbox" id="pref-wl-earnings" name="watchlistNotifyEarnings">
-                <span class="settings-check-custom small"></span>
-                <span>📊 Resultados 10-Q / 10-K</span>
-              </label>
-              <label class="settings-sub-checkbox-row">
-                <input type="checkbox" id="pref-wl-exdiv" name="watchlistNotifyExdiv">
-                <span class="settings-check-custom small"></span>
-                <span>⏳ Fecha Ex-Dividend (Corte)</span>
-              </label>
-              <label class="settings-sub-checkbox-row">
-                <input type="checkbox" id="pref-wl-payout" name="watchlistNotifyPayout">
-                <span class="settings-check-custom small"></span>
-                <span>💰 Pago de Dividendos</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- Sección 2: Cartera -->
-        <div class="settings-group">
-          <div class="settings-group-header">
-            <span class="settings-group-icon">💼</span>
-            <div>
-              <h4 class="settings-group-title">Al añadir a la Cartera</h4>
-              <p class="settings-group-desc">Reglas automáticas al comprar o registrar una posición.</p>
-            </div>
-          </div>
-
-          <div class="settings-card">
-            <div class="settings-locked-row">
-              <span class="settings-check-custom locked">✓</span>
-              <div class="settings-check-copy">
-                <strong>Incluido en el calendario permanentemente</strong>
-                <small>Las empresas con posición en cartera siempre aparecen en el calendario</small>
+              <div class="settings-group">
+                <div class="settings-group-header">
+                  <span class="settings-group-icon">🌐</span>
+                  <div>
+                    <h4 class="settings-group-title">Idioma</h4>
+                    <p class="settings-group-desc">Elige el idioma de la interfaz. Se guardará en tu cuenta.</p>
+                  </div>
+                </div>
+                <div class="settings-card">
+                  <div class="settings-select-row">
+                    <span>Idioma preferido</span>
+                    <select id="pref-language" name="language">
+                      <option value="es">Español</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                  <span class="settings-soon-note">⏳ La traducción de la interfaz llegará próximamente; de momento tu elección queda guardada en tu cuenta.</span>
+                </div>
               </div>
-              <span class="settings-locked-badge">💼 Cartera</span>
             </div>
 
-            <label class="settings-checkbox-row">
-              <input type="checkbox" id="pref-pf-notify" name="portfolioAutoNotify">
-              <span class="settings-check-custom"></span>
-              <div class="settings-check-copy">
-                <strong>Enviar avisos por email por defecto</strong>
-                <small>Recibir notificaciones en tu correo electrónico</small>
+            <!-- Pestaña: Perfil -->
+            <div class="settings-panel" data-settings-panel="perfil" hidden>
+              <h4 class="settings-panel-title">Perfil</h4>
+              <p class="settings-panel-sub">Cómo te ven el resto de usuarios en la comunidad.</p>
+
+              <div class="settings-group">
+                <div class="settings-group-header">
+                  <span class="settings-group-icon">👤</span>
+                  <div>
+                    <h4 class="settings-group-title">Perfil y Foros</h4>
+                    <p class="settings-group-desc">Tu nombre de usuario visible en los debates. Tu correo nunca se mostrará públicamente.</p>
+                  </div>
+                </div>
+                <div class="settings-card">
+                  <label class="auth-field" style="margin-bottom:0">
+                    <span>Nombre de usuario público</span>
+                    <input type="text" id="pref-username" name="username" placeholder="Tu alias (ej. Inversor_Value)" maxlength="30" autocomplete="off">
+                  </label>
+                </div>
               </div>
-            </label>
-
-            <div class="settings-subs" id="pref-pf-subs">
-              <span class="settings-subs-title">¿Qué avisos enviar para acciones en cartera?</span>
-              <label class="settings-sub-checkbox-row">
-                <input type="checkbox" id="pref-pf-earnings" name="portfolioNotifyEarnings">
-                <span class="settings-check-custom small"></span>
-                <span>📊 Resultados 10-Q / 10-K</span>
-              </label>
-              <label class="settings-sub-checkbox-row">
-                <input type="checkbox" id="pref-pf-exdiv" name="portfolioNotifyExdiv">
-                <span class="settings-check-custom small"></span>
-                <span>⏳ Fecha Ex-Dividend (Corte)</span>
-              </label>
-              <label class="settings-sub-checkbox-row">
-                <input type="checkbox" id="pref-pf-payout" name="portfolioNotifyPayout">
-                <span class="settings-check-custom small"></span>
-                <span>💰 Pago de Dividendos</span>
-              </label>
             </div>
-          </div>
-        </div>
 
-        <div class="settings-note">
-          💡 <strong>Regla de unificación (OR)</strong>: Si una empresa está tanto en seguimiento como en cartera, se unifican las notificaciones seleccionadas. Puedes personalizar cada acción individualmente desde su menú de seguimiento.
-        </div>
+            <!-- Pestaña: Seguimiento -->
+            <div class="settings-panel" data-settings-panel="seguimiento" hidden>
+              <h4 class="settings-panel-title">Seguimiento</h4>
+              <p class="settings-panel-sub">Reglas automáticas al guardar una acción en listas de seguimiento.</p>
 
-        <div class="settings-actions">
-          <button class="primary-button settings-save-btn" id="settings-save-btn" type="submit">Guardar preferencias</button>
+              <div class="settings-group">
+                <div class="settings-group-header">
+                  <span class="settings-group-icon">⭐</span>
+                  <div>
+                    <h4 class="settings-group-title">Al agregar a Favoritos / Seguimiento</h4>
+                    <p class="settings-group-desc">Reglas automáticas al guardar una acción en listas.</p>
+                  </div>
+                </div>
+
+                <div class="settings-card">
+                  <label class="settings-checkbox-row">
+                    <input type="checkbox" id="pref-wl-calendar" name="watchlistAutoCalendar">
+                    <span class="settings-check-custom"></span>
+                    <div class="settings-check-copy">
+                      <strong>Añadir al calendario automáticamente</strong>
+                      <small>Mostrar resultados y dividendos en tu calendario</small>
+                    </div>
+                  </label>
+
+                  <label class="settings-checkbox-row">
+                    <input type="checkbox" id="pref-wl-notify" name="watchlistAutoNotify">
+                    <span class="settings-check-custom"></span>
+                    <div class="settings-check-copy">
+                      <strong>Enviar avisos por email por defecto</strong>
+                      <small>Recibir notificaciones en tu correo electrónico</small>
+                    </div>
+                  </label>
+
+                  <div class="settings-subs" id="pref-wl-subs">
+                    <span class="settings-subs-title">¿Qué avisos enviar para acciones en seguimiento?</span>
+                    <label class="settings-sub-checkbox-row">
+                      <input type="checkbox" id="pref-wl-earnings" name="watchlistNotifyEarnings">
+                      <span class="settings-check-custom small"></span>
+                      <span>📊 Resultados 10-Q / 10-K</span>
+                    </label>
+                    <label class="settings-sub-checkbox-row">
+                      <input type="checkbox" id="pref-wl-exdiv" name="watchlistNotifyExdiv">
+                      <span class="settings-check-custom small"></span>
+                      <span>⏳ Fecha Ex-Dividend (Corte)</span>
+                    </label>
+                    <label class="settings-sub-checkbox-row">
+                      <input type="checkbox" id="pref-wl-payout" name="watchlistNotifyPayout">
+                      <span class="settings-check-custom small"></span>
+                      <span>💰 Pago de Dividendos</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-note">
+                💡 <strong>Regla de unificación (OR)</strong>: Si una empresa está tanto en seguimiento como en cartera, se unifican las notificaciones seleccionadas. Puedes personalizar cada acción individualmente desde su menú de seguimiento.
+              </div>
+            </div>
+
+            <!-- Pestaña: Cartera -->
+            <div class="settings-panel" data-settings-panel="cartera" hidden>
+              <h4 class="settings-panel-title">Cartera</h4>
+              <p class="settings-panel-sub">Reglas automáticas al comprar o registrar una posición.</p>
+
+              <div class="settings-group">
+                <div class="settings-group-header">
+                  <span class="settings-group-icon">💼</span>
+                  <div>
+                    <h4 class="settings-group-title">Al añadir a la Cartera</h4>
+                    <p class="settings-group-desc">Reglas automáticas al comprar o registrar una posición.</p>
+                  </div>
+                </div>
+
+                <div class="settings-card">
+                  <div class="settings-locked-row">
+                    <span class="settings-check-custom locked">✓</span>
+                    <div class="settings-check-copy">
+                      <strong>Incluido en el calendario permanentemente</strong>
+                      <small>Las empresas con posición en cartera siempre aparecen en el calendario</small>
+                    </div>
+                    <span class="settings-locked-badge">💼 Cartera</span>
+                  </div>
+
+                  <label class="settings-checkbox-row">
+                    <input type="checkbox" id="pref-pf-notify" name="portfolioAutoNotify">
+                    <span class="settings-check-custom"></span>
+                    <div class="settings-check-copy">
+                      <strong>Enviar avisos por email por defecto</strong>
+                      <small>Recibir notificaciones en tu correo electrónico</small>
+                    </div>
+                  </label>
+
+                  <div class="settings-subs" id="pref-pf-subs">
+                    <span class="settings-subs-title">¿Qué avisos enviar para acciones en cartera?</span>
+                    <label class="settings-sub-checkbox-row">
+                      <input type="checkbox" id="pref-pf-earnings" name="portfolioNotifyEarnings">
+                      <span class="settings-check-custom small"></span>
+                      <span>📊 Resultados 10-Q / 10-K</span>
+                    </label>
+                    <label class="settings-sub-checkbox-row">
+                      <input type="checkbox" id="pref-pf-exdiv" name="portfolioNotifyExdiv">
+                      <span class="settings-check-custom small"></span>
+                      <span>⏳ Fecha Ex-Dividend (Corte)</span>
+                    </label>
+                    <label class="settings-sub-checkbox-row">
+                      <input type="checkbox" id="pref-pf-payout" name="portfolioNotifyPayout">
+                      <span class="settings-check-custom small"></span>
+                      <span>💰 Pago de Dividendos</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-actions">
+              <button class="primary-button settings-save-btn" id="settings-save-btn" type="submit">Guardar preferencias</button>
+            </div>
+          </form>
         </div>
-      </form>
+      </div>
     </div>
   </div>
 
@@ -1295,8 +1424,8 @@
         <div class="donations-header-badge">
           <span class="donations-heart-big">❤️</span>
         </div>
-        <h3 class="modal-title" id="donations-modal-title">Apoyar a Cifra Terminal</h3>
-        <p class="modal-subtitle">Tu contribución ayuda a mantener los servidores, las APIs de cotizaciones y el desarrollo de nuevas funciones.</p>
+        <h3 class="modal-title" id="donations-modal-title">Apoyar a Cifra</h3>
+        <p class="modal-subtitle">Tu aporte ayuda a mantener los servidores, las APIs de cotizaciones y el desarrollo de nuevas funciones. ¡Gracias!</p>
       </div>
 
       <div class="donations-amount-section">
@@ -1317,130 +1446,19 @@
       </div>
 
       <div class="donations-methods-section">
-        <span class="donations-label">Elige cómo donar:</span>
-
-        <div class="donations-buttons-grid">
-          <!-- Buy Me a Coffee -->
-          <a class="donation-method-btn method-bmac" id="donation-bmac-link" href="https://buymeacoffee.com/cifraterminal" target="_blank" rel="noopener noreferrer">
-            <span class="method-icon">☕</span>
-            <div class="method-info">
-              <strong>Buy Me a Coffee</strong>
-              <small>Donación rápida con tarjeta, Apple Pay o Google Pay</small>
-            </div>
-            <span class="method-arrow">↗</span>
-          </a>
-
-          <!-- PayPal -->
-          <a class="donation-method-btn method-paypal" id="donation-paypal-link" href="https://paypal.me/cifraterminal/5" target="_blank" rel="noopener noreferrer">
-            <svg class="method-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.283-.53 3.39-2.756 5.122-6.19 5.122h-1.89l-1.07 6.786a.64.64 0 0 1-.632.536H7.076z"/>
-            </svg>
-            <div class="method-info">
-              <strong>PayPal</strong>
-              <small>Saldo de PayPal o tarjeta de débito/crédito</small>
-            </div>
-            <span class="method-arrow">↗</span>
-          </a>
-
-          <!-- Ko-fi -->
-          <a class="donation-method-btn method-kofi" id="donation-kofi-link" href="https://ko-fi.com/cifraterminal" target="_blank" rel="noopener noreferrer">
-            <span class="method-icon">🍵</span>
-            <div class="method-info">
-              <strong>Ko-fi</strong>
-              <small>Aportación directa sin comisiones</small>
-            </div>
-            <span class="method-arrow">↗</span>
-          </a>
-        </div>
-
-        <!-- Bizum -->
-        <div class="donation-card-box">
-          <div class="donation-box-header">
-            <span class="donation-box-badge">Bizum</span>
-            <strong>Envío directo por Bizum</strong>
+        <a class="donation-method-btn method-paypal" id="donation-paypal-link" href="https://paypal.me/" target="_blank" rel="noopener noreferrer">
+          <svg class="method-icon-svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+            <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.283-.53 3.39-2.756 5.122-6.19 5.122h-1.89l-1.07 6.786a.64.64 0 0 1-.632.536H7.076z"/>
+          </svg>
+          <div class="method-info">
+            <strong>PayPal</strong>
+            <small>Pago con saldo de PayPal o tarjeta de débito/crédito</small>
           </div>
-          <div class="donation-box-body">
-            <div class="donation-copy-field">
-              <span class="donation-copy-value" id="donation-bizum-display">600 000 000</span>
-              <button type="button" class="secondary-button compact-btn" id="copy-bizum-btn">Copiar número</button>
-            </div>
-            <small class="donation-box-hint" id="donation-bizum-concept">Concepto: Donación Cifra (5 €)</small>
-          </div>
-        </div>
-
-        <!-- Criptomonedas -->
-        <details class="donation-crypto-details">
-          <summary class="donation-crypto-summary">
-            <span>🪙 Donar en Criptomonedas (Bitcoin, Ethereum, USDT)</span>
-            <span class="crypto-chevron">▾</span>
-          </summary>
-          <div class="donation-crypto-body">
-            <div class="crypto-row">
-              <div class="crypto-info">
-                <strong>Bitcoin (BTC)</strong>
-                <code id="donation-btc-address">bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh</code>
-              </div>
-              <button type="button" class="secondary-button compact-btn" id="copy-btc-btn">Copiar</button>
-            </div>
-            <div class="crypto-row">
-              <div class="crypto-info">
-                <strong>Ethereum (ETH)</strong>
-                <code id="donation-eth-address">0x71C...3984</code>
-              </div>
-              <button type="button" class="secondary-button compact-btn" id="copy-eth-btn">Copiar</button>
-            </div>
-            <div class="crypto-row">
-              <div class="crypto-info">
-                <strong>USDT (Red TRC20)</strong>
-                <code id="donation-usdt-address">TQn9Y2... (TRC20)</code>
-              </div>
-              <button type="button" class="secondary-button compact-btn" id="copy-usdt-btn">Copiar</button>
-            </div>
-          </div>
-        </details>
+          <span class="method-arrow">↗</span>
+        </a>
       </div>
 
-      <!-- Configuración rápida de enlaces para el dueño de la app -->
-      <div class="donations-settings-accordion">
-        <button type="button" class="donations-settings-toggle" id="donations-toggle-settings" aria-expanded="false">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span>¿Quieres personalizar tus cuentas para recibir las donaciones?</span>
-        </button>
-        <div class="donations-settings-panel" id="donations-settings-panel" hidden>
-          <form id="donations-settings-form">
-            <div class="cfg-fields-grid">
-              <label class="auth-field compact">
-                <span>Tu enlace de PayPal (paypal.me):</span>
-                <input type="url" id="cfg-paypal" placeholder="https://paypal.me/tuusuario">
-              </label>
-              <label class="auth-field compact">
-                <span>Tu enlace de Buy Me a Coffee:</span>
-                <input type="url" id="cfg-bmac" placeholder="https://buymeacoffee.com/tuusuario">
-              </label>
-              <label class="auth-field compact">
-                <span>Tu número de Bizum:</span>
-                <input type="text" id="cfg-bizum" placeholder="Ej: 600 123 456">
-              </label>
-              <label class="auth-field compact">
-                <span>Billetera Bitcoin (BTC):</span>
-                <input type="text" id="cfg-btc" placeholder="Dirección BTC">
-              </label>
-              <label class="auth-field compact">
-                <span>Billetera Ethereum (ETH):</span>
-                <input type="text" id="cfg-eth" placeholder="Dirección ETH (ERC20)">
-              </label>
-              <label class="auth-field compact">
-                <span>Billetera USDT (TRC20):</span>
-                <input type="text" id="cfg-usdt" placeholder="Dirección USDT">
-              </label>
-            </div>
-            <div class="donations-settings-actions">
-              <button type="button" class="secondary-button" id="cfg-reset-btn">Restablecer</button>
-              <button type="submit" class="primary-button">Guardar mis enlaces</button>
-            </div>
-          </form>
-        </div>
-      </div>
+      <p class="donations-legal-note">Cifra no es una entidad sin ánimo de lucro: los aportes no son desgravables ni se emite factura. Gracias por apoyar el proyecto.</p>
 
       <div class="modal-footer-simple" style="margin-top:16px;text-align:right">
         <button type="button" class="secondary-button" id="donations-close-btn">Cerrar</button>
@@ -1451,13 +1469,14 @@
   <script src="/auth.js?v=10"></script>
   <script src="/watchlists.js?v=10"></script>
   <script src="/portfolio.js?v=66"></script>
-  <script src="/settings.js?v=4"></script>
+  <script src="/theme.js?v=1"></script>
+  <script src="/settings.js?v=6"></script>
   <script src="/priceAlerts.js?v=5"></script>
   <script src="/forum.js?v=3"></script>
   <script src="/reports.js?v=3"></script>
-  <script src="/analisis.js?v=17"></script>
+  <script src="/analisis.js?v=24"></script>
   <script src="/novedades.js?v=4"></script>
-  <script src="/donations.js?v=1"></script>
+  <script src="/donations.js?v=3"></script>
   <script src="/empresa.js?v=63"></script>
 </body>
 </html>

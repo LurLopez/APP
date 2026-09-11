@@ -13,7 +13,7 @@ const transporter = smtpConfigured
     })
   : null;
 
-const MAIL_FROM = process.env.MAIL_FROM || 'Cifra <no-reply@cifra.app>';
+const MAIL_FROM = process.env.MAIL_FROM || 'Cifra <no-reply@cifraresearch.com>';
 const MAIL_TO_OVERRIDE = process.env.MAIL_TO_OVERRIDE || '';
 
 export function emailServiceEnabled() {

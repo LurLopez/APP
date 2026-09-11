@@ -31,12 +31,13 @@
      * **`Normal (WC=valorBase)`**: Flujos con la variación de circulante reportada en el periodo.
      * **`Ajustado*1 (WC=valorAjustado)`**: Flujos normalizados con la necesidad teórica de circulante. Al reiniciar la numeración en este bloque, la cabecera lleva obligatoriamente la llamada **`Ajustado*1`** y **se resalta con el color asignado a la nota 1 (amarillo)**. Las filas inferiores no se colorean individualmente por WK; si se aplica un ajuste fiscal, únicamente la celda de Cash Flow Ajustado lleva `*2` y el color de la Nota 2.
    - **Prohibición de nota por deducción trimestral**: La resta de flujos acumulados para obtener el trimestre no es un ajuste de criterio y nunca debe generar notas al pie con asterisco. La única nota del bloque de Cash Flow es la del ajuste de WC (`*1: WK = ...`).
-   - Ajuste de Cash Flow:
-     $$\text{Diferencia WC} = \text{WC}_{\text{base}} - \text{WC}_{\text{teórico}}$$
-     $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - \text{Diferencia WC}$$
-     $$\text{FCF}_{\text{ajustado}} = \text{Cash Flow}_{\text{ajustado}} - \text{CAPEX}$$
-     $$\text{FCF/Acción}_{\text{ajustado}} = \text{FCF}_{\text{ajustado}} / \text{Acciones}$$
-     $$\text{Libre}_{\text{ajustado}} = \text{FCF}_{\text{ajustado}} - \text{Dividendo}$$
+    - Ajuste de Cash Flow:
+      $$\text{Diferencia WC} = \text{WC}_{\text{base}} - \text{WC}_{\text{teórico}}$$
+      $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - \text{Diferencia WC}$$
+      $$\text{FCF}_{\text{ajustado}} = \text{Cash Flow}_{\text{ajustado}} - \text{CAPEX}$$
+      $$\text{FCF/Acción}_{\text{ajustado}} = \text{FCF}_{\text{ajustado}} / \text{Acciones}$$
+      $$\text{Libre}_{\text{ajustado}} = \text{FCF}_{\text{ajustado}} - \text{Dividendo}$$
+    - **Regla de signos en la nota (obligatoria)**: la diferencia/desviación de circulante conserva su signo y el ajuste se escribe como resta explícita. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WK teórico (12,1M): -159,1M. El Cash Flow ajustado resta esa desviación: 1784,4M - (-159,1M) = 1943,5M.` Queda prohibido escribir frases contradictorias como `ajuste de -159M (1784,4M + 159,1M)`.
     - Las dos columnas Normal y Ajustada deben reflejar cifras numéricas distintas siempre que haya variación de circulante. La nota explicativa al pie debe desglosar la fórmula, partidas de balance utilizadas y el cálculo del ajuste.
     - **Desfase fiscal**: Si aparece `Deferred income tax provision/(benefit)`, `Deferred income taxes and income taxes payable, net` o `income taxes payable`, se estima el efectivo fiscal como `gasto por impuestos - ajuste fiscal del cash flow`. Se compara con el 23 % del EBT ajustado y solo se corrige si la diferencia está entre `-20 %` y `+20 %`; cuando se corrige, se propaga a FCF, FCF/Acción y Libre.
 
@@ -70,7 +71,7 @@
       * `Adquisiciones*1`: Resaltado con el color de la nota de adquisición (ej. amarillo `#fef08a`).
      * `Caja*2`, `Deuda*2` (y, si existe, `Inversiones a corto plazo*2`): Hacen referencia conjunta a la nota de deuda balance/neta y se resaltan obligatoriamente con el color de esa nota (ej. naranja `#fed7aa`).
    - **Signos obligatorios**:
-     * Inversiones a corto plazo: Negativo (-) si aumentan (uso para comprar valores, ej. -1020M en KHC), positivo (+) si disminuyen (venta/fuente). Omitir si es marginal (< 50M) o 0.
+     * Inversiones a corto plazo: flujo **neto** de valores negociables = ventas/cobros − compras (ej. compras de 1.724 y ventas de 686 => -1038). Negativo (-) si el neto es comprador (uso de capital), positivo (+) si el neto es vendedor (fuente). Si no consta el detalle de flujos, usar la variación del saldo de balance. Omitir si el neto es marginal (< 50M) o 0.
      * Deuda: Positivo (+) si aumenta (fuente), negativo (-) si disminuye (amortización/uso).
      * Caja: Negativo (-) si aumenta (uso para dotar tesorería), positivo (+) si disminuye (fuente de liquidez).
     - **Desinversiones (venta de marcas / negocios / activos)**: Entradas netas por desinversiones materiales (>= 50M, incluye venta de activos) figuran con signo positivo (+). Si en el horizonte es < 50M o 0, se omite la fila.
