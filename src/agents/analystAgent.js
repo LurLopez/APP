@@ -24,6 +24,33 @@ function extractTaxCashFlowAdjustment(text) {
   return Number.isFinite(current) ? current : null;
 }
 
+function parseDollarAmount(str) {
+  if (str == null) return NaN;
+  const unitMatch = String(str).match(/\b(billion|million)\b/i);
+  const unit = unitMatch ? unitMatch[1].toLowerCase() : 'million';
+  const num = parseFloat(String(str).replace(/[$,]/g, '').trim());
+  if (!Number.isFinite(num)) return NaN;
+  return Math.round((unit.startsWith('b') ? num * 1000 : num) * 10) / 10;
+}
+
+function extractRemainingAuthorization(text) {
+  const source = String(text);
+  const patterns = [
+    /(?:approximately|about|around|approximately another|another)\s*\$?([\d.,]+\s*(?:billion|million))\s+(?:remains?|remaining|still available)/i,
+    /(?:remains?|remaining|still available|available for future repurchase|capacity to repurchase)\s+(?:approximately|about|around|of)?\s*\$?([\d.,]+\s*(?:billion|million))/i,
+    /\$?([\d.,]+\s*(?:billion|million))\s+(?:remains?|remaining|still available|was still available)/i,
+    /(?:of which|leaving)\s*(?:approximately|about|around)?\s*\$?([\d.,]+\s*(?:billion|million))\s+(?:remained|was still available)/i,
+  ];
+  for (const re of patterns) {
+    const m = source.match(re);
+    if (m && m[1]) {
+      const value = parseDollarAmount(m[1]);
+      if (Number.isFinite(value)) return value;
+    }
+  }
+  return null;
+}
+
 function extractCapitalCashFlowFacts(text) {
   const source = String(text);
   const readFirstValue = (pattern) => {
@@ -237,31 +264,55 @@ function buildWorkingCapitalDataFallback(extracted) {
   return result;
 }
 
-async function loadKnowledgeRules(sector, subsector) {
+async function loadKnowledgeRules(sector, subsector, formType = '10-Q') {
+  const isAnnual = String(formType || '').toUpperCase().includes('10-K') || String(formType || '').toLowerCase().includes('anual');
+
   let generalRules = '';
-  try {
-    generalRules = await readFile(new URL('general.md', KNOWLEDGE_DIR), 'utf8');
-  } catch {}
+  if (isAnnual) {
+    try {
+      generalRules = await readFile(new URL('anual/general.md', KNOWLEDGE_DIR), 'utf8');
+    } catch {}
+  }
+  if (!generalRules) {
+    try {
+      generalRules = await readFile(new URL('general.md', KNOWLEDGE_DIR), 'utf8');
+    } catch {}
+  }
 
   const sectorSlug = SECTOR_FILES[sector] ?? sector;
   let sectorRules = '';
-  try {
-    sectorRules = await readFile(new URL(`${sectorSlug}/sector.md`, KNOWLEDGE_DIR), 'utf8');
-  } catch {
+  if (isAnnual) {
     try {
-      sectorRules = await readFile(new URL(`${sectorSlug}.md`, PROMPTS_DIR), 'utf8');
+      sectorRules = await readFile(new URL(`anual/${sectorSlug}/sector.md`, KNOWLEDGE_DIR), 'utf8');
     } catch {}
+  }
+  if (!sectorRules) {
+    try {
+      sectorRules = await readFile(new URL(`${sectorSlug}/sector.md`, KNOWLEDGE_DIR), 'utf8');
+    } catch {
+      try {
+        sectorRules = await readFile(new URL(`${sectorSlug}.md`, PROMPTS_DIR), 'utf8');
+      } catch {}
+    }
   }
 
   let subsectorRules = '';
   if (subsector) {
-    try {
-      subsectorRules = await readFile(new URL(`${sectorSlug}/subsectores/${subsector}/subsector.md`, KNOWLEDGE_DIR), 'utf8');
-    } catch {}
+    if (isAnnual) {
+      try {
+        subsectorRules = await readFile(new URL(`anual/${sectorSlug}/subsectores/${subsector}/subsector.md`, KNOWLEDGE_DIR), 'utf8');
+      } catch {}
+    }
+    if (!subsectorRules) {
+      try {
+        subsectorRules = await readFile(new URL(`${sectorSlug}/subsectores/${subsector}/subsector.md`, KNOWLEDGE_DIR), 'utf8');
+      } catch {}
+    }
   }
 
   const parts = [];
-  if (generalRules) parts.push(`### REGLAS GENERALES Y FORMATO:\n${generalRules}`);
+  const generalTitle = isAnnual ? 'REGLAS GENERALES Y FORMATO ANUAL (10-K)' : 'REGLAS GENERALES Y FORMATO';
+  if (generalRules) parts.push(`### ${generalTitle}:\n${generalRules}`);
   if (sectorRules) parts.push(`### REGLAS DEL SECTOR (${sectorSlug}):\n${sectorRules}`);
   if (subsectorRules) parts.push(`### REGLAS DEL SUBSECTOR (${subsector}):\n${subsectorRules}`);
 
@@ -372,6 +423,73 @@ const EXTRACTION_SCHEMA = `{
     "divestitureDescription": "Nombre de la marca, negocio o activo vendido en el periodo, o null si no hubo",
     "totalDebt": 7332
   },
+  "annualDetails": {
+    "repurchases": {
+      "programSummary": "Resumen del programa (autorización, ampliaciones, vencimiento)",
+      "programAuthorizedTotal": 4000,
+      "programRemaining": 2600,
+      "programExpiry": "Diciembre de 2031",
+      "programAdditions": "Ampliación de 2.000M añadida recientemente",
+      "sharesRepurchasedAnnual": 12.9,
+      "aggregateCost": 658.1,
+      "averagePrice": 51.0,
+      "sharesStartPeriod": 213.0,
+      "sharesEndPeriod": 190.8,
+      "sharesHistory": [
+        { "year": 2021, "shares": 231.5 },
+        { "year": 2022, "shares": 226.1 },
+        { "year": 2023, "shares": 217.2 },
+        { "year": 2024, "shares": 208.9 },
+        { "year": 2025, "shares": 199.1 }
+      ],
+      "secTable": {
+        "headers": ["", "December 31, 2025", "December 31, 2024", "December 31, 2023"],
+        "rows": [
+          ["Shares repurchased", "12,906,851", "10,907,779", "3,454,694"],
+          ["Aggregate cost (in millions)", "$658.1", "$645.2", "$212.7"],
+          ["Average price paid (in $)", "$51.0", "$59.2", "$61.6"]
+        ]
+      }
+    },
+    "outlook": {
+      "guidanceSales": "Flat +/- 1% constant currency",
+      "guidanceEbt": "-15% to -18% decline",
+      "guidanceEps": "-11% to -15% decline",
+      "guidanceFcf": "$1.1B +/- 10%",
+      "guidanceCapex": "$650M +/- 5%",
+      "guidanceNetInterest": "$260M +/- 5%",
+      "costSavingsPlan": "Programa de ahorro de 450M en 3 años",
+      "commodityRisks": "Sensibilidad a aluminio, energía y fletes",
+      "secTable": {
+        "headers": ["Métrica", "2026E*"],
+        "rows": [
+          ["Net Sales Revenue Growth, Constant Currency", "Flat +/- 1%"],
+          ["Underlying Income Before Income Taxes", "-15% to -18% Decline"],
+          ["Underlying Diluted EPS Growth", "-11% to -15% Decline"],
+          ["Underlying Free Cash Flow", "$1.1B +/- 10%"],
+          ["Underlying Net Interest Expense", "$260M +/- 5%"],
+          ["Capital Expenditures Incurred", "$650M +/- 5%"]
+        ]
+      }
+    },
+    "debt": {
+      "nearTermMaturities": 2364,
+      "nearTermRates": "CAD 500M al 3.44% y USD 2.0B al 3.0% vencimiento julio 2026",
+      "estimatedRefinancingRate": 5.0,
+      "estimatedInterestIncrease": 46,
+      "maturitiesSchedule": "2026: 2.364M, 2032: 940M, 2042: 1.100M, 2046: 1.800M",
+      "secTable": {
+        "headers": ["Obligación", "Vencimiento", "December 31, 2025", "December 31, 2024"],
+        "rows": [
+          ["CAD 500 million 3.44% senior notes", "July 2026", "$364.3", "$347.6"],
+          ["$2.0 billion 3.0% senior notes", "July 2026", "$2,000.0", "$2,000.0"],
+          ["EUR 800 million 3.8% senior notes", "June 2032", "$939.7", "$828.3"],
+          ["$1.1 billion 5.0% senior notes", "May 2042", "$1,100.0", "$1,100.0"],
+          ["$1.8 billion 4.2% senior notes", "July 2046", "$1,800.0", "$1,800.0"]
+        ]
+      }
+    }
+  },
   "extraNotes": ["*3: ...", "Descripción de partidas extraordinarias o ventas de negocios"]
 }`;
 
@@ -383,29 +501,39 @@ Responde ÚNICAMENTE con un JSON válido con esta forma exacta (sin texto fuera 
 
 Instrucciones:
 - "quarter" = datos del trimestre más reciente (por ejemplo "three months ended") y "quarter.prev" = las mismas líneas del mismo trimestre del año anterior (columnas comparativas del informe); "ytd" = acumulado del año fiscal en curso ("six/nine months ended") y "ytd.prev" = acumulado del mismo periodo del año anterior. Si el informe no trae comparativos, usa null.
+- En informes anuales (Form 10-K), "ytd" representa el año fiscal completo (12 meses) y "quarter" puede omitirse o igualarse a ytd.
 - Todas las cifras en MILLONES de dólares estadounidenses, como números (ej. 6262). Si una cifra no aparece usa null (no la omitas).
 - Si el informe no desglosa el trimestre en algún estado (p. ej. flujos de caja solo acumulados), deja esos campos con null.
 - "cashFlow" son las cifras del acumulado (net cash provided by operating activities, capital expenditures, cash dividends paid). Si solo aparecen del trimestre, úsalas igualmente.
 - "balance": inventarios (inventories), cuentas por pagar (accounts payable / payables), cuentas por cobrar (accounts receivable / receivables), efectivo (cash), efectivo a principio de año fiscal (cashBeginningOfYear / cierre de ejercicio anterior), efectivo al cierre del trimestre previo (cashPreviousQuarter), inversiones a corto plazo o valores negociables (shortTermInvestments / Marketable Securities), a principio de año fiscal (shortTermInvestmentsBeginningOfYear) y al cierre del trimestre previo (shortTermInvestmentsPreviousQuarter), deuda total o senior notes (totalDebt), deuda total a principio de año fiscal (totalDebtBeginningOfYear) y deuda total al cierre del trimestre previo (totalDebtPreviousQuarter) en millones (o null si no aparecen).
-- "totalDebt" = deuda financiera total del balance = deuda a largo plazo + deuda a corto plazo (préstamos/pagarés a corto plazo). Excluye las cuentas comerciales a pagar a proveedores (accounts payable) y NO sumes la "porción corriente de la deuda a largo plazo" si ya figura dentro de la cifra de deuda a largo plazo del balance (es una reclasificación, no deuda adicional).
- - "workingCapital": variación del capital circulante / operating assets and liabilities en el estado de flujos de caja (reportedChangeQuarter para 3 meses o reportedChangeYtd para acumulado), inflación anual del sector ("inflationRate") y crecimiento real de volumen ("volumeGrowth") en %. Si el informe no proporciona volumen, "volumeGrowth" es obligatoriamente 0. Si no proporciona inflación propia, usa aproximadamente 3% para consumo defensivo y deja constancia de que es una hipótesis sectorial. "inflationAndVolume" debe ser la suma de ambos.
+- "totalDebt" = deuda financiera total del balance = deuda a largo plazo (long-term debt) + porción corriente de la deuda a largo plazo (current portion of long-term debt / current maturities) + préstamos a corto plazo (short-term borrowings). Excluye las cuentas comerciales a pagar a proveedores (accounts payable). En el balance general de US-GAAP la porción corriente de la deuda a largo plazo se clasifica dentro de pasivos corrientes (Current Liabilities) separada de la deuda a largo plazo no corriente, por lo que DEBE sumarse para obtener la deuda total financiera del balance.
+- "workingCapital": variación del capital circulante / operating assets and liabilities en el estado de flujos de caja (reportedChangeQuarter para 3 meses o reportedChangeYtd para acumulado), inflación anual del sector ("inflationRate") y crecimiento real de volumen ("volumeGrowth") en %. Si el informe no proporciona volumen, "volumeGrowth" es obligatoriamente 0. Si no proporciona inflación propia, usa aproximadamente 3% para consumo defensivo y deja constancia de que es una hipótesis sectorial. "inflationAndVolume" debe ser la suma de ambos.
 - "facts":
   * impairmentsQuarter: deterioros / impairments o depreciaciones extraordinarias de intangibles o goodwill del trimestre actual (o 0/null si no hubo).
   * impairmentsPrevQuarter: deterioros / impairments del mismo trimestre del ejercicio anterior (ej. 1428M en KHC, o 0/null si no hubo).
   * impairmentsYtd: deterioros / depreciaciones acumuladas del ejercicio actual (ej. 9301M en KHC).
   * impairmentsPrevYtd: deterioros / impairments acumulados del ejercicio anterior (ej. 2282M en KHC).
   * intangiblesAmortization: amortización de intangibles en millones.
-   * effectiveTaxRate: tipo impositivo efectivo en %.
-   * incomeTaxExpenseQuarter / incomeTaxExpenseYtd: gasto por impuestos reconocido en la cuenta de resultados del periodo.
-   * taxCashFlowAdjustmentQuarter / taxCashFlowAdjustmentYtd: línea "Deferred income taxes and income taxes payable, net" o "Deferred income tax provision/(benefit)" del cash flow, con su signo tal como aparece. Es un ajuste no monetario, no impuestos pagados. Si existe cualquiera de esas líneas, estos campos son obligatorios.
-   * shareBuybacks: recompras de acciones en $M. Buscar también "repurchases of common stock", "purchases of treasury stock" y "share repurchases".
-   * purchasesOfMarketableSecuritiesQuarter / purchasesOfMarketableSecuritiesYtd: compras de inversiones a corto plazo, valores negociables o marketable securities en el cash flow. Buscar expresamente "purchases of marketable securities". Deben pasar al bloque de Asignación de Capital con signo negativo.
-   * brandDivestitures: ingresos netos por venta de marcas, activos o desinversiones materiales en $M (>= 50M).
-   * acquisitionsQuarter / acquisitionsYtd: pagos netos por compra de negocios en el cash flow ("Acquisition of business, net of cash acquired", "Payments to acquire businesses") en $M, como número positivo. Buscar expresamente estas líneas; si existen, los campos son obligatorios.
-   * assetSalesQuarter / assetSalesYtd: ingresos por venta de property, plant, equipment and other assets en el cash flow ("Proceeds from sales of property, plant, equipment and other assets") en $M, como número positivo. Si existen, los campos son obligatorios.
-   * acquisitionDescription: breve descripción de QUÉ negocio/empresa se ha comprado en el periodo (según las notas del 10-Q/10-K), o null si no hubo adquisiciones.
-   * divestitureDescription: breve descripción de QUÉ marca, negocio o activo se ha vendido en el periodo (según las notas del 10-Q/10-K), o null si no hubo ventas.
-   * totalDebt: deuda total en balance.
+  * effectiveTaxRate: tipo impositivo efectivo en %.
+  * incomeTaxExpenseQuarter / incomeTaxExpenseYtd: gasto por impuestos reconocido en la cuenta de resultados del periodo.
+  * taxCashFlowAdjustmentQuarter / taxCashFlowAdjustmentYtd: línea "Deferred income taxes and income taxes payable, net" o "Deferred income tax provision/(benefit)" del cash flow, con su signo tal como aparece. Es un ajuste no monetario, no impuestos pagados. Si existe cualquiera de esas líneas, estos campos son obligatorios.
+  * shareBuybacks: recompras de acciones en $M. Buscar también "repurchases of common stock", "purchases of treasury stock" y "share repurchases".
+  * purchasesOfMarketableSecuritiesQuarter / purchasesOfMarketableSecuritiesYtd: compras de inversiones a corto plazo, valores negociables o marketable securities en el cash flow. Buscar expresamente "purchases of marketable securities". Deben pasar al bloque de Asignación de Capital con signo negativo.
+  * brandDivestitures: ingresos netos por venta de marcas, activos o desinversiones materiales en $M (>= 50M).
+  * acquisitionsQuarter / acquisitionsYtd: pagos netos por compra de negocios en el cash flow ("Acquisition of business, net of cash acquired", "Payments to acquire businesses") en $M, como número positivo. Buscar expresamente estas líneas; si existen, los campos son obligatorios.
+  * assetSalesQuarter / assetSalesYtd: ingresos por venta de property, plant, equipment and other assets en el cash flow ("Proceeds from sales of property, plant, equipment and other assets") en $M, como número positivo. Si existen, los campos son obligatorios.
+  * acquisitionDescription: breve descripción de QUÉ negocio/empresa se ha comprado en el periodo (según las notas del 10-Q/10-K), o null si no hubo adquisiciones.
+  * divestitureDescription: breve descripción de QUÉ marca, negocio o activo se ha vendido en el periodo (según las notas del 10-Q/10-K), o null si no hubo ventas.
+  * totalDebt: deuda total en balance.
+- "annualDetails" (OBLIGATORIO para informes anuales Form 10-K):
+  * "repurchases": extrae de la nota de Share Repurchase Program o Stockholders' Equity la autorización del programa, saldo disponible, acciones recompradas y tabla de recompras multianual.
+    - "programRemaining": importe en $M pendiente de ejecutar bajo el programa vigente. ES OBLIGATORIO extraerlo si el 10-K lo indica. Búscalo en la nota de Stockholders' Equity, en el Item 5 ("Unregistered Sales of Equity Securities and Use of Proceeds") o en el resumen de recompras, con expresiones como "approximately $X million remaining under our share repurchase program", "$X million remaining", "of which $X million remained" o "available for future repurchases". Si el importe aparece en miles de millones, conviértelo a millones (ej. "$2.0 billion remaining" = 2000M). NUNCA dejes el campo vacío ni respondas que no se desglosa si encuentras la cifra.
+    - "programExpiry": fecha o periodo en el que termina la autorización del programa (ej. "Diciembre de 2031"). Si el informe no lo indica, usa null.
+    - "averagePrice": precio medio ponderado pagado por acción en el año = aggregate cost ($M) / shares repurchased.
+    - "sharesHistory": acciones en circulación al cierre de cada uno de los últimos 5 ejercicios (si el 10-K no las desglosa todas, usa las disponibles, mínimo 3). Fuentes: resumen quinquenal (Selected Financial Data / Five-Year Summary), estado de patrimonio o notas. Formato: [{ "year": 2021, "shares": 231.5 }, ...] con las acciones en millones.
+    - "secTable": tabla oficial de recompras. Los años de las columnas DEBEN ser los últimos 5 ejercicios disponibles (hasta 5 columnas, ej. 2021-2025), alineados con "sharesHistory"; si el 10-K solo desglosa menos años, usa los disponibles. "rows" DEBE incluir, además de "Shares repurchased" y "Aggregate cost (in millions)", una fila "Average price paid (in $)" con el precio medio por año calculado como coste agregado / acciones recompradas (ej. "$51.0", "$59.2").
+  * "outlook": extrae del Guidance / Full Year Outlook o Item 7 las metas oficiales de ingresos, EBT, BPA, FCF, CAPEX, intereses, programas de ahorro de costes y tabla del guidance.
+  * "debt": extrae de la nota Debt Obligations el perfil de vencimientos contractuales, los importes a vencer en el próximo año y tipos cupón correspondientes.
 - "extraNotes": partidas extraordinarias, ventas de negocios, o cualquier hecho relevante que afecte a la comparabilidad (ej. "impairment de 1428M el año anterior"). En español. Vacío si no hay nada.`;
 
 const OUTPUT_SCHEMA = `{
@@ -500,6 +628,145 @@ const OUTPUT_SCHEMA = `{
       }
     }
   ]
+}`;
+
+const ANNUAL_OUTPUT_SCHEMA = `{
+  "company": "Nombre de la empresa",
+  "ticker": "TAP",
+  "periodTitle": "2025 ANNUAL results — TAP",
+  "reportingPeriod": "2025-12-31",
+  "formType": "10-K",
+  "horizons": [
+    {
+      "label": "EN TODO EL AÑO (12 MESES)",
+      "sales": {
+        "rows": [
+          { "name": "Ventas", "adjusted": "13040M", "prevAdjusted": "13734M", "pctAdjusted": "-5,05 %", "normal": "13040M", "prevNormal": "13734M", "pctNormal": "-5,05 %", "isAdjusted": false },
+          { "name": "Beneficio Bruto", "adjusted": "4274M", "prevAdjusted": "4533M", "pctAdjusted": "-5,71 %", "normal": "4274M", "prevNormal": "4533M", "pctNormal": "-5,71 %", "isAdjusted": false },
+          { "name": "Beneficio Operativo", "adjusted": "1583M", "prevAdjusted": "1753M", "pctAdjusted": "-9,70 %", "normal": "-2366M", "prevNormal": "1753M", "pctNormal": "—", "isAdjusted": true, "adjustedNote": "*1" },
+          { "name": "EBT", "adjusted": "1402M", "prevAdjusted": "1503M", "pctAdjusted": "-6,72 %", "normal": "-2518M", "prevNormal": "1503M", "pctNormal": "—", "isAdjusted": false },
+          { "name": "Beneficio Neto", "adjusted": "1086M", "prevAdjusted": "1164M", "pctAdjusted": "-6,70 %", "normal": "-2180M", "prevNormal": "1157M", "pctNormal": "—", "isAdjusted": true, "adjustedNote": "*2" }
+        ],
+        "notes": [
+          "*1: Ha habido una depreciación del fondo de comercio de 3645 M. Además, de lo que aparece en el apartado 'Other Operating Income', unos -275 M corresponden a otras depreciaciones. En total, hay que sumar 3920 M.",
+          "*2: Este año ha tenido un beneficio por impuestos de 337 M. Por supuesto, hay que ajustar esto (le he restado 1402 * 0,225 = 316). Por lo tanto, tendría que haber pagado 653 M más de lo que figura ahí; esto es muy importante para ajustar los Cash Flows."
+        ],
+        "shares": "190,8M (al final del 2025, no el promedio) -> %6,2 menos (203,2M)-> efecto en el BPA: %6,5",
+        "eps": "5,69 $ -> %2,3 menos (5,73 $)"
+      },
+      "cashFlow": {
+        "scenarios": ["Normal (WC=-146)", "Ajustado*1 (WC=70)"],
+        "rows": [
+          { "name": "Cash Flow", "values": ["1784", "1805"] },
+          { "name": "CAPEX", "values": ["717", "717"] },
+          { "name": "FCF", "values": ["1067", "1088"] },
+          { "name": "FCF/Acción", "values": ["5,59 $", "5,70 $"] },
+          { "name": "Dividendo", "values": ["376", "376"] },
+          { "name": "Libre", "values": ["691", "712"] }
+        ],
+        "notes": [
+          "*1: WK = (Inventarios + Cuentas por cobrar - Cuentas por pagar) × (inflación + volumen) = (700 + 700 - 2800) × (0,05 + 0) = 70. Por lo tanto, hay que sumar 146 + 70 = 216 M al cash flow. Este año han gastado 131 M en impuestos cuando en principio debían pagar 316 M, restando 185 M al cash flow."
+        ]
+      },
+      "capital": {
+        "rows": [
+          { "name": "Libre", "value": "691" },
+          { "name": "Inversiones a corto plazo", "value": "-85" },
+          { "name": "Recompras", "value": "-650" },
+          { "name": "Caja", "value": "70" },
+          { "name": "Deuda", "value": "150" },
+          { "name": "En total", "value": "176" }
+        ],
+        "verification": "No cuadra del todo, pero más o menos ha gastado todo lo que estaba libre en recompras.",
+        "notes": [
+          "*1: Deuda balance: 6126M -> 6260M (+134M). Deuda neta: 5740M -> 5840M (+100M)."
+        ]
+      }
+    }
+  ],
+  "conclusion": {
+    "repurchases": {
+      "title": "1: Recompras",
+      "text": "Durante 2025 la compañía destinó 647,9M a la recompra de acciones propias...",
+      "authorizationRemaining": "Unos 2.600M de $ pendientes de ejecución",
+      "authorizationExpiry": "Vigente hasta diciembre de 2031",
+      "shareCountEvolution": "De 213M de acciones en diciembre de 2023 a 199,1M en diciembre de 2025 (-10,5 %)",
+      "bpaImpact": "+11,6 % de subida en el BPA en los últimos dos años exclusivamente por recompras",
+      "futureProjection": "Proyección a 5 años: con ~2.600M de autorización restante y un precio medio de ~51 $, se podrían recomprar ~51M de acciones (~10,2M/año), lo que reduciría el capital un ~5,1 % anual e impulsaría el BPA ~5,4 % cada año.",
+      "sharesHistory": [
+        { "year": 2021, "shares": 231.5 },
+        { "year": 2022, "shares": 226.1 },
+        { "year": 2023, "shares": 217.2 },
+        { "year": 2024, "shares": 208.9 },
+        { "year": 2025, "shares": 199.1 }
+      ],
+      "secSnippet": {
+        "title": "Share Repurchase Program (Form 10-K)",
+        "summary": "Tabla oficial de recompras anuales del Form 10-K",
+        "headers": ["", "December 31, 2025", "December 31, 2024", "December 31, 2023"],
+        "rows": [
+          ["Shares repurchased", "12,906,851", "10,907,779", "3,454,694"],
+          ["Aggregate cost (in millions)", "$658.1", "$645.2", "$212.7"],
+          ["Average price paid (in $)", "$51.0", "$59.2", "$61.6"]
+        ]
+      }
+    },
+    "outlook": {
+      "title": "2: Outlook",
+      "text": "Se espera un EBT de unos 1212 M en 2026. Si no tenemos en cuenta lo del aluminio, sería de unos 1337 M...",
+      "fcfAnalysis": "Previsiones de FCF sólidas con margen de sobra para sostener dividendos y recompras.",
+      "riskFactors": "Sensibilidad a inflación y encarecimiento del aluminio. Márgenes operativos podrían comprimirse si se disparan costes.",
+      "efficiencyPlans": "Programa de ahorro anunciado de 450 M para los próximos 3 años.",
+      "secSnippet": {
+        "title": "2026 Guidance / Full Year Outlook",
+        "summary": "Metas cuantitativas oficiales para el próximo ejercicio",
+        "headers": ["Métrica", "2026E*"],
+        "rows": [
+          ["Net Sales Revenue Growth, Constant Currency", "Flat +/- 1%"],
+          ["Underlying Income Before Income Taxes", "-15% to -18% Decline"],
+          ["Underlying Diluted EPS Growth", "-11% to -15% Decline"],
+          ["Underlying Free Cash Flow", "$1.1B +/- 10%"],
+          ["Underlying Net Interest Expense", "$260M +/- 5%"],
+          ["Capital Expenditures Incurred", "$650M +/- 5%"]
+        ]
+      }
+    },
+    "debt": {
+      "title": "3: Deuda",
+      "text": "La deuda neta se ha mantenido muy similar y no es preocupante. Sin embargo, el calendario de deuda no es nada bueno...",
+      "refinancingAnalysis": "En 2026 vencen unos 2.300 M con intereses de alrededor del 3 %. Estimamos un coste del 5 % para la nueva deuda.",
+      "refinancingImpact": "2300 * 0,02 = 46 M más de intereses anuales (230 M -> 276 M). El guidance ya prevé 260 M.",
+      "secSnippet": {
+        "title": "Debt Obligations — Contractual Maturities (Form 10-K)",
+        "summary": "Desglose de notas sénior y calendario de vencimientos de deuda",
+        "headers": ["Obligación", "Vencimiento", "December 31, 2025", "December 31, 2024"],
+        "rows": [
+          ["CAD 500 million 3.44% senior notes", "July 2026", "$364.3", "$347.6"],
+          ["$2.0 billion 3.0% senior notes", "July 2026", "$2,000.0", "$2,000.0"],
+          ["EUR 800 million 3.8% senior notes", "June 2032", "$939.7", "$828.3"],
+          ["$1.1 billion 5.0% senior notes", "May 2042", "$1,100.0", "$1,100.0"],
+          ["$1.8 billion 4.2% senior notes", "July 2046", "$1,800.0", "$1,800.0"]
+        ]
+      }
+    },
+    "acquisitions": {
+      "title": "4: Adquisiciones",
+      "text": "No se realizaron adquisiciones materiales durante el ejercicio."
+    },
+    "watchlist": {
+      "title": "Cosas a tener en cuenta en 2026",
+      "items": [
+        "1: Evolución de los beneficios y volúmenes en comparación con otras empresas del sector.",
+        "2: Ritmo y precio medio de ejecución de las recompras de acciones.",
+        "3: Refinanciación de la deuda que vence y coste efectivo de los nuevos intereses."
+      ]
+    }
+  },
+  "rating": {
+    "score": 3,
+    "label": "NOTA DE RESULTADOS: 3",
+    "rationale": "Calificación puramente financiera basada exclusivamente en la realidad de las cuentas del año, las metas expuestas en el outlook oficial y la asignación de capital ejecutada. Sin especulación sobre el cumplimiento futuro."
+  }
 }`;
 
 const SYSTEM_PROMPT = `Eres el analista principal de Cifra, un analizador de informes financieros 10-Q / 10-K de empresas de EE. UU.
@@ -617,6 +884,89 @@ Instrucciones prioritarias:
 
 - Porcentajes en español con coma decimal y signo (ej. "+16,67 %", "-2,29 %"). Cifras en millones con sufijo M en ventas (ej. "6237M") y valores numéricos en flujos y asignación de capital.`;
 
+const ANNUAL_SYSTEM_PROMPT = `Eres el analista principal de Cifra, un analizador de informes financieros anuales (Form 10-K) de empresas de EE. UU.
+
+Recibirás un JSON con las cifras clave extraídas del informe financiero 10-K (en millones de USD) y los datos comparativos del ejercicio anterior. A partir de esas cifras y de las reglas jerárquicas anuales aplicables (Generales + Sector + Subsector), elabora el análisis estructurado siguiendo EXACTAMENTE estas reglas:
+
+{REGLAS}
+
+Responde ÚNICAMENTE con un JSON válido con esta forma exacta (sin texto fuera del JSON):
+
+{SCHEMA}
+
+Instrucciones prioritarias:
+- IMPORTANTE: los valores del esquema de ejemplo son de OTRA empresa y otro periodo. Usa EXCLUSIVAMENTE los datos del JSON de extracción recibido. Nunca copies los valores del ejemplo.
+- "company", "ticker", "periodTitle" y "reportingPeriod" (fecha de fin del periodo en formato AAAA-MM-DD) se copian tal cual del JSON de extracción.
+- "formType": "10-K".
+
+- PARTE I: RESUMEN DE CUENTAS (UN SOLO HORIZONTE OBLIGATORIO):
+  * Genera UN SOLO horizonte con la etiqueta EXACTA: "EN TODO EL AÑO (12 MESES)".
+  * Queda estrictamente PROHIBIDO generar horizontes trimestrales ("ÚLTIMOS 3 MESES") en informes anuales 10-K.
+
+  * BLOQUE 1 — VENTAS (Cuenta de Resultados 12 meses):
+    - Filas obligatorias en orden: Ventas, Beneficio Bruto, Beneficio Operativo, EBT, Beneficio Neto.
+    - Deterioros / Impairments / Depreciaciones:
+      * Si en el ejercicio actual o previo hubo deterioros de intangibles o fondo de comercio (goodwill), súmalos de vuelta en la columna Ajustado (o Anterior Ajustado) del Beneficio Operativo.
+      * "isAdjusted": true y "adjustedNote": "*1" ÚNICAMENTE en Beneficio Operativo. EBT y Beneficio Neto calculan sus cifras derivadas sin colorearse de forma heredada.
+    - Normalización de Impuestos (23 %):
+      * Compara el gasto por impuestos con el 23 % del EBT ajustado. Si hay beneficio fiscal atípico o tasa distorsionada, normalizar al 23 % (Beneficio Neto Ajustado = EBT Ajustado × 0,77) y desglosarlo en nota explicativa "*2".
+    - Acciones y BPA:
+      * "shares": Acciones a fecha de cierre del ejercicio (no el promedio ponderado diluido) comparadas contra el cierre anterior y el efecto % en el BPA por la variación de acciones (ej. "190,8M (al final del 2025, no el promedio) -> %6,2 menos (203,2M)-> efecto en el BPA: %6,5").
+      * "eps": BPA diluido ajustado, variación porcentual y BPA previo.
+
+  * BLOQUE 2 — CASH FLOW (12 meses):
+    - Escenarios: ["Normal (WC=valorReportado)", "Ajustado*1 (WC=valorAjustado)"] con los importes numéricos exactos de Working Capital.
+    - Working Capital Anual (12 meses):
+      WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen). Al ser 12 meses completos, NO se divide por 4. Ajuste al Cash Flow = (WC reportado - WK recurrente).
+    - Ajuste de impuestos en efectivo: si los impuestos pagados difieren significativamente del gasto devengado normalizado, reflejar el ajuste en efectivo y la nota al pie "*2".
+    - Métricas obligatorias: Cash Flow, CAPEX, FCF, FCF/Acción, Dividendo, Libre.
+
+  * BLOQUE 3 — ASIGNACIÓN DE CAPITAL (12 meses):
+    - Variación acumulada de todo el año comparando el balance a cierre del ejercicio contra el balance de inicio del año (BeginningOfYear).
+    - Partidas: Libre (+), Inversiones a corto plazo (-/+), Desinversiones (+), Adquisiciones (-), Recompras (-), Caja (-/+), Deuda (+/-), En total.
+    - Nota obligatoria de Deuda Balance y Deuda Neta con formato exacto:
+      "Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M)."
+    - Verificación: "Más o menos cuadra..." si |En total| <= 50, o "No cuadra..." si supera 50.
+
+- PARTE II: INDAGACIÓN A FONDO / CONCLUSIÓN (OBLIGATORIA EN 10-K):
+  1. "repurchases":
+     * Detalle exhaustivo de las recompras de acciones ejecutadas durante el año y en el histórico reciente (2-3 años).
+     * Precio medio ponderado pagado por acción durante el año.
+     * "authorizationRemaining": Importe en $M que queda pendiente de ejecutar en el programa de recompras (remanente de la autorización vigente). NO uses "programAuthorization" ni "programRemaining". Si el JSON de extracción incluye "annualDetails.repurchases.programRemaining" (número en $M), usa OBLIGATORIAMENTE ese importe para "authorizationRemaining" y redáctalo como texto (ej. "Unos 2.600M de $ pendientes de ejecución"). Queda PROHIBIDO afirmar que el 10-K no desglosa el remanente si el JSON de extracción lo incluye.
+     * "authorizationExpiry": Fecha o periodo en el que termina la autorización del programa (ej. "Vigente hasta diciembre de 2031"). Si el 10-K no la indica, omite el campo.
+     * "shareCountEvolution": Evolución del conteo de acciones en circulación (ej. de 213M a 199,1M, -6,2 %).
+     * "bpaImpact": Impacto acumulado porcentual en el BPA derivado exclusivamente de la reducción de acciones.
+     * "futureProjection": PROYECCIÓN A 5 AÑOS con estimación matemática explícita si se mantiene el precio medio pagado en el año: acciones recomprables = authorizationRemaining / precio medio; reparto anual (dividido entre 5 años); reducción anual del número de acciones en %; y efecto anual resultante en el BPA. Ejemplo: "Proyección a 5 años: con ~2.600M de autorización restante y un precio medio de ~51 $, se podrían recomprar ~51M de acciones (~10,2M/año), lo que reduciría el capital un ~5,1 % anual e impulsaría el BPA ~5,4 % cada año." Solo incluye el cálculo si dispones de authorizationRemaining y precio medio; si no, describe la capacidad de recompra con el flujo libre.
+     * "sharesHistory": Array con las acciones en circulación al cierre de los últimos 5 ejercicios: [{ "year": 2021, "shares": 231.5 }, ...] en millones. Usa los datos extraídos en "annualDetails.repurchases.sharesHistory" (mínimo 3 años si el informe no desglosa los 5).
+     * "secSnippet": Tabla oficial del 10-K sobre compras de acciones propias (Share Repurchase Program) con headers y rows numéricos. "rows" DEBE incluir la fila "Average price paid (in $)" con el precio medio pagado por acción en cada año (coste agregado / acciones recompradas), junto a "Shares repurchased" y "Aggregate cost (in millions)".
+  2. "outlook":
+     * Análisis riguroso del guidance y perspectivas oficiales comunicadas por la dirección para el próximo ejercicio.
+     * Desglose de metas: crecimiento de ingresos en moneda constante, EBT subyacente, BPA diluido, Free Cash Flow guiado, CAPEX presupuestado, gastos netos de intereses.
+     * "fcfAnalysis": Sostenibilidad y cobertura del FCF esperado para dividendos y recompras.
+     * "riskFactors": Sensibilidad operativa y riesgos de costes (materias primas como aluminio/energía, inflación de costes).
+     * "efficiencyPlans": Programas de ahorro o reestructuración de costes en marcha.
+     * "secSnippet": Tabla oficial de Guidance / Previsiones oficiales con métricas y rangos objetivos.
+  3. "debt":
+     * Diagnóstico de la estructura financiera y liquidez.
+     * Calendario de vencimientos contractuales de la deuda (búsqueda de muros de vencimiento próximos a 12-24 meses).
+     * "refinancingAnalysis": Tipos de interés de la deuda que vence próximamente vs tipos estimados actuales de mercado para refinanciarla.
+     * "refinancingImpact": Cálculo matemático explícito del sobrecoste de intereses:
+       Δ intereses = Deuda a vencer × (Tipo nuevo estimado - Tipo actual).
+       Comparar este sobrecoste contra la previsión de intereses del guidance.
+     * "secSnippet": Tabla oficial del 10-K de compromisos contractuales de deuda ("Debt obligations - Contractual maturities") con obligaciones, vencimientos y saldos.
+  4. "acquisitions":
+     * Detalle de adquisiciones o compras corporativas efectuadas en el ejercicio, o confirmación expresa de que no se realizaron compras materiales.
+  5. "watchlist":
+     * "title": "Cosas a tener en cuenta en [AÑO SIGUIENTE]".
+     * "items": Lista ordenada de 2 a 4 catalizadores o riesgos financieros clave a monitorizar el próximo año.
+
+- PARTE III: NOTA DE RESULTADOS (1 A 10):
+  * "score": Puntuación numérica del 1 al 10 (ej. 3, 7, 8).
+  * "label": "NOTA DE RESULTADOS: <score>".
+  * "rationale": Justificación analítica concisa.
+  * REGLA ESTRICTA DE NO ESPECULACIÓN:
+    La nota se fundamenta ÚNICA Y EXCLUSIVAMENTE en la realidad financiera de las cuentas del ejercicio cerrado, las cifras oficiales del guidance/outlook para el siguiente año y la efectividad de la asignación de capital ejecutada. Queda TERMINANTEMENTE PROHIBIDO especular o juzgar si la empresa o su directiva cumplirán o no esas expectativas.`;
+
 export class AnalystAgent extends BaseAgent {
   constructor() {
     super({
@@ -632,9 +982,11 @@ export class AnalystAgent extends BaseAgent {
 
     const sector = input.sector ?? 'defensive_consumer';
     const subsector = input.subsector ?? null;
+    const formType = input.formType ?? '10-Q';
+    const isAnnual = String(formType || '').toUpperCase().includes('10-K') || String(formType || '').toLowerCase().includes('anual');
     let rules;
     try {
-      rules = await loadKnowledgeRules(sector, subsector);
+      rules = await loadKnowledgeRules(sector, subsector, formType);
     } catch {
       throw new AgentError(`No hay reglas de análisis definidas para el sector ${sector}.`, 'NO_SECTOR_RULES');
     }
@@ -652,12 +1004,22 @@ export class AnalystAgent extends BaseAgent {
 
     const ticker = input.ticker || extracted.ticker;
     const extractedTaxAdjustment = extractTaxCashFlowAdjustment(input.text);
+    if (isAnnual) {
+      const annualRep = extracted?.annualDetails?.repurchases;
+      if (annualRep && (annualRep.programRemaining == null || annualRep.programRemaining === '')) {
+        const remaining = extractRemainingAuthorization(input.text);
+        if (remaining != null) {
+          annualRep.programRemaining = remaining;
+          annualRep.programRemainingSource = 'extracción automática de remanente';
+        }
+      }
+    }
     const extractedCapitalFacts = extractCapitalCashFlowFacts(input.text);
     if (extractedTaxAdjustment != null && extracted.facts) {
       extracted.facts.taxCashFlowAdjustmentYtd ??= extractedTaxAdjustment;
     }
     const reportingPeriod = extracted.reportingPeriod || null;
-    const fiscalQuarter = extracted.fiscalQuarter || (extracted.ytd?.months ? Math.round(extracted.ytd.months / 3) : null);
+    const fiscalQuarter = isAnnual ? 4 : (extracted.fiscalQuarter || (extracted.ytd?.months ? Math.round(extracted.ytd.months / 3) : null));
     const fiscalYear = extracted.fiscalYear || (reportingPeriod ? Number(reportingPeriod.slice(0, 4)) : null);
     if (extracted.facts) {
       if (extractedCapitalFacts.shareBuybacks != null) extracted.facts.shareBuybacks = Math.abs(extractedCapitalFacts.shareBuybacks);
@@ -686,7 +1048,7 @@ export class AnalystAgent extends BaseAgent {
     // el bloque EDGAR posterior la enriquece con flujos deducidos y desinversiones)
     extracted.capitalAllocationData = buildCapitalAllocationFromBalance(extracted);
 
-    if (ticker && fiscalQuarter && fiscalQuarter > 1) {
+    if (ticker && fiscalQuarter && fiscalQuarter > 1 && !isAnnual) {
       try {
         const prevQ = await getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuarter, reportingPeriod);
         if (prevQ) {
@@ -839,26 +1201,30 @@ export class AnalystAgent extends BaseAgent {
           const capFromEdgar = prevQ.capitalAllocation;
 
           // 3M Debt & Cash from extracted balance if available, else from EDGAR
+          const prevDebt3M = prevQ.totalDebt != null ? prevQ.totalDebt : extracted.balance?.totalDebtPreviousQuarter;
+          const currDebt3M = extracted.balance?.totalDebt != null ? extracted.balance.totalDebt : (prevDebt3M != null && capFromEdgar?.threeMonths?.deuda != null ? prevDebt3M + capFromEdgar.threeMonths.deuda : null);
           let debt3M = null;
-          if (extracted.balance?.totalDebt != null && extracted.balance?.totalDebtPreviousQuarter != null) {
-            debt3M = Math.round((extracted.balance.totalDebt - extracted.balance.totalDebtPreviousQuarter) * 10) / 10;
+          if (currDebt3M != null && prevDebt3M != null) {
+            debt3M = Math.round((currDebt3M - prevDebt3M) * 10) / 10;
           } else if (capFromEdgar?.threeMonths?.deuda != null) {
             debt3M = capFromEdgar.threeMonths.deuda;
           }
 
+          const prevCash3M = prevQ.cash != null ? prevQ.cash : extracted.balance?.cashPreviousQuarter;
+          const currCash3M = extracted.balance?.cash != null ? extracted.balance.cash : null;
           let caja3M = null;
-          if (extracted.balance?.cash != null && extracted.balance?.cashPreviousQuarter != null) {
-            caja3M = Math.round((-(extracted.balance.cash - extracted.balance.cashPreviousQuarter)) * 10) / 10;
+          if (currCash3M != null && prevCash3M != null) {
+            caja3M = Math.round((-(currCash3M - prevCash3M)) * 10) / 10;
           } else if (capFromEdgar?.threeMonths?.caja != null) {
             caja3M = capFromEdgar.threeMonths.caja;
           }
 
           const debtDetails3M = buildDebtDetails({
-            prev: extracted.balance?.totalDebtPreviousQuarter != null ? Number(extracted.balance.totalDebtPreviousQuarter) : null,
-            curr: extracted.balance?.totalDebt != null ? Number(extracted.balance.totalDebt) : null,
-            prevCash: extracted.balance?.cashPreviousQuarter != null ? Number(extracted.balance.cashPreviousQuarter) : null,
-            currCash: extracted.balance?.cash != null ? Number(extracted.balance.cash) : null,
-            prevSti: extracted.balance?.shortTermInvestmentsPreviousQuarter != null ? Number(extracted.balance.shortTermInvestmentsPreviousQuarter) : null,
+            prev: prevDebt3M != null ? Number(prevDebt3M) : null,
+            curr: currDebt3M != null ? Number(currDebt3M) : null,
+            prevCash: prevCash3M != null ? Number(prevCash3M) : null,
+            currCash: currCash3M != null ? Number(currCash3M) : null,
+            prevSti: prevQ.shortTermInvestments != null ? Number(prevQ.shortTermInvestments) : (extracted.balance?.shortTermInvestmentsPreviousQuarter != null ? Number(extracted.balance.shortTermInvestmentsPreviousQuarter) : null),
             currSti: extracted.balance?.shortTermInvestments != null ? Number(extracted.balance.shortTermInvestments) : null,
             fallback: capFromEdgar?.threeMonths?.debtDetails ?? null,
           });
@@ -979,6 +1345,77 @@ export class AnalystAgent extends BaseAgent {
       }
     }
 
+    // Análisis anual (10-K): calcular Working Capital a 12 meses completos
+    if (isAnnual) {
+      const bal = extracted.balance ?? {};
+      const inv = Number(bal.inventories) || 0;
+      const pay = Number(bal.accountsPayable) || 0;
+      const rec = Number(bal.accountsReceivable) || 0;
+      const wcRepYtd = extracted.workingCapital?.reportedChangeYtd != null
+        ? Number(extracted.workingCapital.reportedChangeYtd)
+        : (extracted.workingCapital?.reportedChangeQuarter != null ? Number(extracted.workingCapital.reportedChangeQuarter) : 0);
+      const inflationRate = Number.isFinite(Number(extracted.workingCapital?.inflationRate))
+        ? Number(extracted.workingCapital.inflationRate)
+        : 3.0;
+      const volumeGrowth = Number.isFinite(Number(extracted.workingCapital?.volumeGrowth))
+        ? Number(extracted.workingCapital.volumeGrowth)
+        : 0;
+      const growth = Number.isFinite(Number(extracted.workingCapital?.inflationAndVolume))
+        ? Number(extracted.workingCapital.inflationAndVolume)
+        : inflationRate + volumeGrowth;
+
+      const annualWcReq = Math.round(((pay - inv - rec) * (growth / 100)) * 10) / 10;
+      const cfoYtd = extracted.cashFlow?.operating != null ? Number(extracted.cashFlow.operating) : null;
+      const capexYtd = extracted.cashFlow?.capex != null ? Math.abs(Number(extracted.cashFlow.capex)) : null;
+      const divYtd = extracted.cashFlow?.dividends != null ? Math.abs(Number(extracted.cashFlow.dividends)) : null;
+
+      const repYtd = wcRepYtd != null ? wcRepYtd : 0;
+      const wcDiffYtd = Math.round((repYtd - annualWcReq) * 10) / 10;
+      const cfoAdjYtd = cfoYtd != null ? Math.round((cfoYtd - wcDiffYtd) * 10) / 10 : null;
+      const capexAdjYtd = capexYtd;
+      const fcfYtd = (cfoYtd != null && capexYtd != null) ? Math.round((cfoYtd - capexYtd) * 10) / 10 : null;
+      const fcfAdjYtd = (cfoAdjYtd != null && capexAdjYtd != null) ? Math.round((cfoAdjYtd - capexAdjYtd) * 10) / 10 : null;
+      const divAdjYtd = divYtd;
+      const libreYtd = (fcfYtd != null && divYtd != null) ? Math.round((fcfYtd - divYtd) * 10) / 10 : null;
+      const libreAdjYtd = (fcfAdjYtd != null && divAdjYtd != null) ? Math.round((fcfAdjYtd - divAdjYtd) * 10) / 10 : null;
+
+      const sharesNum = extracted.shares ? Number(extracted.shares) : null;
+      const fcfPerShareNormalYtd = (fcfYtd != null && sharesNum) ? `${(fcfYtd / sharesNum).toFixed(2).replace('.', ',')} $` : null;
+      const fcfPerShareAdjYtd = (fcfAdjYtd != null && sharesNum) ? `${(fcfAdjYtd / sharesNum).toFixed(2).replace('.', ',')} $` : null;
+
+      extracted.workingCapitalData = {
+        inventories: inv,
+        accountsPayable: pay,
+        accountsReceivable: rec,
+        inflationAndVolume: growth,
+        inflationRate,
+        volumeGrowth,
+        annualWcReq,
+        quarterWcReq: annualWcReq,
+        reportedWc3M: repYtd,
+        reportedWcYtd: repYtd,
+        wcDiff3M: wcDiffYtd,
+        wcDiffYtd,
+        ytdScenarios: [
+          repYtd != null ? `Normal (WC=${Math.round(repYtd)})` : 'Normal',
+          `Ajustado*1 (WC=${Math.round(annualWcReq)})`,
+        ],
+        ytdValues: {
+          cfo: [cfoYtd != null ? String(cfoYtd).replace('.', ',') : null, cfoAdjYtd != null ? String(cfoAdjYtd).replace('.', ',') : null],
+          capex: [capexYtd != null ? String(capexYtd).replace('.', ',') : null, capexAdjYtd != null ? String(capexAdjYtd).replace('.', ',') : null],
+          fcf: [fcfYtd != null ? String(fcfYtd).replace('.', ',') : null, fcfAdjYtd != null ? String(fcfAdjYtd).replace('.', ',') : null],
+          fcfPerShare: [fcfPerShareNormalYtd, fcfPerShareAdjYtd],
+          dividends: [divYtd != null ? String(divYtd).replace('.', ',') : null, divAdjYtd != null ? String(divAdjYtd).replace('.', ',') : null],
+          libre: [libreYtd != null ? String(libreYtd).replace('.', ',') : null, libreAdjYtd != null ? String(libreAdjYtd).replace('.', ',') : null],
+        },
+        explanationYtd: `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflationRate}% + ${volumeGrowth}%) = ${annualWcReq}M en todo el año. Desviación frente al circulante reportado (${Math.round(repYtd)}M): ajuste de ${Math.round(wcDiffYtd)}M en Cash Flow.`,
+      };
+
+      if (extracted.capitalAllocationData?.ytd && libreYtd != null) {
+        extracted.capitalAllocationData.ytd.libre = libreYtd;
+      }
+    }
+
     // Q1 y análisis sin EDGAR previo: construir igualmente el escenario de WC
     // y permitir la normalización fiscal del cash flow con los datos del filing.
     if (!extracted.workingCapitalData) {
@@ -986,9 +1423,11 @@ export class AnalystAgent extends BaseAgent {
       if (fallbackWorkingCapital) extracted.workingCapitalData = fallbackWorkingCapital;
     }
 
-    const systemPrompt = SYSTEM_PROMPT
+    const basePrompt = isAnnual ? ANNUAL_SYSTEM_PROMPT : SYSTEM_PROMPT;
+    const schema = isAnnual ? ANNUAL_OUTPUT_SCHEMA : OUTPUT_SCHEMA;
+    const systemPrompt = basePrompt
       .replace('{REGLAS}', rules.trim())
-      .replace('{SCHEMA}', OUTPUT_SCHEMA.trim());
+      .replace('{SCHEMA}', schema.trim());
 
     let result;
     try {
@@ -1002,6 +1441,16 @@ export class AnalystAgent extends BaseAgent {
 
     if (!result || !Array.isArray(result.horizons) || result.horizons.length === 0) {
       throw new AgentError('El análisis no contiene bloques válidos de datos.', 'INVALID_REPORT_STRUCTURE');
+    }
+
+    // Para informes anuales 10-K, garantizar exactamente UN SOLO horizonte: "EN TODO EL AÑO (12 MESES)"
+    if (isAnnual) {
+      const annualHorizon = result.horizons.find((h) =>
+        String(h.label || '').toUpperCase().includes('12') ||
+        String(h.label || '').toUpperCase().includes('AÑO')
+      ) || result.horizons[result.horizons.length - 1];
+      annualHorizon.label = 'EN TODO EL AÑO (12 MESES)';
+      result.horizons = [annualHorizon];
     }
 
     // Normalización defensiva de datos generados
@@ -1618,7 +2067,79 @@ export class AnalystAgent extends BaseAgent {
       }
     });
 
-    result.formType = input.formType ?? null;
+    if (isAnnual) {
+      result.conclusion = result.conclusion || {};
+      const rawAnn = extracted.annualDetails || {};
+
+      // 1: Recompras
+      result.conclusion.repurchases = result.conclusion.repurchases || {};
+      result.conclusion.repurchases.title = result.conclusion.repurchases.title || '1: Recompras';
+      result.conclusion.repurchases.text = result.conclusion.repurchases.text || rawAnn.repurchasesNarrative || 'Detalle de los programas de recompras de acciones ejecutados durante el ejercicio.';
+      result.conclusion.repurchases.programAuthorization = result.conclusion.repurchases.programAuthorization || rawAnn.repurchaseProgramSummary || null;
+      result.conclusion.repurchases.programRemaining = result.conclusion.repurchases.programRemaining || rawAnn.repurchaseRemaining || null;
+      result.conclusion.repurchases.shareCountEvolution = result.conclusion.repurchases.shareCountEvolution || null;
+      result.conclusion.repurchases.bpaImpact = result.conclusion.repurchases.bpaImpact || null;
+      result.conclusion.repurchases.futureProjection = result.conclusion.repurchases.futureProjection || null;
+      if (!result.conclusion.repurchases.secSnippet && rawAnn.repurchasesSecTable) {
+        result.conclusion.repurchases.secSnippet = rawAnn.repurchasesSecTable;
+      }
+
+      // 2: Outlook
+      result.conclusion.outlook = result.conclusion.outlook || {};
+      result.conclusion.outlook.title = result.conclusion.outlook.title || '2: Outlook';
+      result.conclusion.outlook.text = result.conclusion.outlook.text || rawAnn.outlookNarrative || 'Metas y previsiones cuantitativas oficiales para el próximo ejercicio.';
+      result.conclusion.outlook.fcfAnalysis = result.conclusion.outlook.fcfAnalysis || null;
+      result.conclusion.outlook.riskFactors = result.conclusion.outlook.riskFactors || null;
+      result.conclusion.outlook.efficiencyPlans = result.conclusion.outlook.efficiencyPlans || null;
+      if (!result.conclusion.outlook.secSnippet && rawAnn.outlookSecTable) {
+        result.conclusion.outlook.secSnippet = rawAnn.outlookSecTable;
+      }
+
+      // 3: Deuda
+      result.conclusion.debt = result.conclusion.debt || {};
+      result.conclusion.debt.title = result.conclusion.debt.title || '3: Deuda';
+      result.conclusion.debt.text = result.conclusion.debt.text || rawAnn.debtNarrative || 'Estructura de endeudamiento, liquidez y calendario de vencimientos de deuda.';
+      result.conclusion.debt.refinancingAnalysis = result.conclusion.debt.refinancingAnalysis || null;
+      result.conclusion.debt.refinancingImpact = result.conclusion.debt.refinancingImpact || null;
+      if (!result.conclusion.debt.secSnippet && rawAnn.debtMaturitiesSecTable) {
+        result.conclusion.debt.secSnippet = rawAnn.debtMaturitiesSecTable;
+      }
+
+      // 4: Adquisiciones
+      result.conclusion.acquisitions = result.conclusion.acquisitions || {};
+      result.conclusion.acquisitions.title = result.conclusion.acquisitions.title || '4: Adquisiciones';
+      result.conclusion.acquisitions.text = result.conclusion.acquisitions.text || rawAnn.acquisitionsNarrative || (extracted.facts?.acquisitionsYtd ? `Se completaron adquisiciones corporativas por un importe neto de ${extracted.facts.acquisitionsYtd}M.` : 'No se realizaron adquisiciones materiales durante el ejercicio.');
+
+      // 5: Watchlist
+      result.conclusion.watchlist = result.conclusion.watchlist || {};
+      result.conclusion.watchlist.title = result.conclusion.watchlist.title || `Cosas a tener en cuenta en ${fiscalYear ? fiscalYear + 1 : 'el próximo año'}`;
+      if (!Array.isArray(result.conclusion.watchlist.items) || result.conclusion.watchlist.items.length === 0) {
+        result.conclusion.watchlist.items = [
+          '1: Evolución de los ingresos orgánicos y volúmenes respecto a competidores del sector.',
+          '2: Ritmo y precio de ejecución de los programas de recompra de acciones.',
+          '3: Refinanciación de la deuda próxima a vencer y coste efectivo de los nuevos intereses.',
+        ];
+      }
+
+      // Parte III: Nota de Resultados (1 a 10)
+      result.rating = result.rating || {};
+      let scoreNum = Number(result.rating.score);
+      if (!Number.isFinite(scoreNum) || scoreNum < 1 || scoreNum > 10) {
+        const labelMatch = String(result.rating.label || '').match(/\d+(?:[.,]\d+)?/);
+        scoreNum = labelMatch ? parseFloat(labelMatch[0].replace(',', '.')) : 5;
+      }
+      scoreNum = Math.min(10, Math.max(1, Math.round(scoreNum * 10) / 10));
+      result.rating.score = scoreNum;
+      result.rating.label = `NOTA DE RESULTADOS: ${scoreNum}`;
+      result.rating.rationale = result.rating.rationale || 'Calificación puramente financiera basada exclusivamente en la realidad de las cuentas del año, las metas expuestas en el outlook oficial y la asignación de capital ejecutada. Sin especulación sobre el cumplimiento futuro.';
+
+      result.isAnnual = true;
+      result.formType = '10-K';
+    } else {
+      result.isAnnual = false;
+      result.formType = input.formType ?? '10-Q';
+    }
+
     result.fiscalQuarter = extracted.fiscalQuarter ?? fiscalQuarter ?? null;
     result.fiscalYear = extracted.fiscalYear ?? fiscalYear ?? null;
 

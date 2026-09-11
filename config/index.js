@@ -20,4 +20,9 @@ export default {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     callbackUrl: process.env.GOOGLE_CALLBACK_URL || `http://localhost:${port}/api/auth/google/callback`,
   },
-};
+  adminUser: {
+    username: (process.env.ADMIN_USERNAME || process.env.ADMIN_USER || 'admin').trim(),
+    password: String(process.env.ADMIN_PASSWORD ?? 'admin'),
+    email: (process.env.ADMIN_EMAIL || 'admin@cifra.local').trim().toLowerCase(),
+  },
+  };

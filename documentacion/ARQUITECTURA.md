@@ -106,7 +106,8 @@ app/
 │   │       └── providers/
 │   │           ├── mock.provider.js         # heurística local
 │   │           ├── deepseek.provider.js     # API directa DeepSeek (activo)
-│   │           └── opencode-go.provider.js  # OpenCode Go (alias 'opencode')
+│   │           ├── opencode-go.provider.js  # OpenCode Go (alias 'opencode')
+│   │           └── local.provider.js        # Modelo local (Ollama / compatible OpenAI, alias 'local' y 'ollama')
 │   ├── agents/
 │   │   ├── baseAgent.js           # BaseAgent + AgentError
 │   │   ├── agentRegistry.js       # registro por nombre
@@ -245,9 +246,10 @@ export async function chatJson(messages, attempts = 2) { /* reintenta ante vací
 |---|---|---|
 | `deepseek.provider.js` | **Activo** (`AI_PROVIDER=deepseek` o por defecto) | `api.deepseek.com/chat/completions`, modelo `deepseek-chat`/`AI_MODEL`, `temperature: 0`, limpieza de ```json```. 22–23 s por análisis, fiable |
 | `opencode-go.provider.js` | `AI_PROVIDER=opencode`/`opencode-go` | `opencode.ai/zen/go/v1/chat/completions`, `deepseek-v4-flash`; probado pero intermitente (145–247 s, fallos de JSON) |
+| `local.provider.js` | `AI_PROVIDER=local`/`ollama` | Endpoint local (Ollama en `http://localhost:11434/v1/chat/completions` u otro compatible OpenAI); configurable vía `LOCAL_AI_URL` y `LOCAL_AI_MODEL` |
 | `mock.provider.js` | Solo `AI_PROVIDER=mock` | Heurística local sin coste; respuesta mínima para el analista |
 
-Configuración en `.env`: `AI_PROVIDER`, `DEEPSEEK_API_KEY`, `OPENCODE_GO_API_KEY`, `AI_MODEL`, `OPENCODE_GO_MODEL`, **`AI_MAX_TOKENS=16000`** (el informe supera 8000 tokens), **`AI_REQUEST_TIMEOUT_MS=180000`**.
+Configuración en `.env`: `AI_PROVIDER` (`deepseek` · `opencode` · `local`/`ollama` · `mock`), `DEEPSEEK_API_KEY`, `OPENCODE_GO_API_KEY`, `LOCAL_AI_URL`, `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `LOCAL_AI_REQUEST_TIMEOUT_MS`, `AI_MODEL`, `OPENCODE_GO_MODEL`, **`AI_MAX_TOKENS=16000`** (el informe supera 8000 tokens), **`AI_REQUEST_TIMEOUT_MS=180000`**.
 
 **Garantía clave**: los agentes nunca importan un proveedor concreto; cambiar de API es editar `.env`. En Fase 5, el proveedor se elegirá según el plan del usuario.
 

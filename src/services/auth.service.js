@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
+import { query } from '../../db/pool.js';
 import {
   createUser,
   createGoogleUser,
@@ -21,11 +22,55 @@ import {
   sendPasswordResetCode,
   emailServiceEnabled,
 } from './email.service.js';
+import config from '../../config/index.js';
 
 const SALT_ROUNDS = 10;
 const CODE_TTL_MS = 15 * 60 * 1000;
 const MAX_CODE_ATTEMPTS = 5;
 const CODE_PATTERN = /^\d{6}$/;
+
+export function checkIsAdmin(user) {
+  return Boolean(user && user.role === 'admin');
+}
+
+export async function ensureAdminUser() {
+  const { username, password, email } = config.adminUser || {};
+  if (!username || !password) return null;
+
+  const normalizedEmail = normalizeEmail(email || `${username}@cifra.local`);
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+  // 1. Buscar si ya existe por username o por email
+  const existingByUsername = await findUserByUsername(username);
+  const existingByEmail = await findUserByEmail(normalizedEmail);
+  const existing = existingByUsername || existingByEmail;
+
+  if (existing) {
+    const { rows } = await query(
+      `UPDATE users
+       SET password_hash = $1,
+           role = 'admin',
+           email_verified = true,
+           username = $2,
+           email = COALESCE(email, $3)
+       WHERE id = $4
+       RETURNING id, email, username, role, plan, email_verified`,
+      [passwordHash, username, normalizedEmail, existing.id],
+    );
+    console.log(`[auth] Usuario admin asegurado: username='${username}', email='${rows[0].email}' (rol: admin)`);
+    return rows[0];
+  }
+
+  // 2. Si no existe, crearlo
+  const { rows } = await query(
+    `INSERT INTO users (email, username, password_hash, role, plan, email_verified)
+     VALUES ($1, $2, $3, 'admin', 'premium', true)
+     RETURNING id, email, username, role, plan, email_verified`,
+    [normalizedEmail, username, passwordHash],
+  );
+  console.log(`[auth] Usuario admin creado: username='${username}', email='${normalizedEmail}' (rol: admin)`);
+  return rows[0];
+}
 
 export class AuthError extends Error {
   constructor(message, status = 400, code = null) {
@@ -36,11 +81,14 @@ export class AuthError extends Error {
 }
 
 export function toPublicUser(user) {
+  const isAdmin = checkIsAdmin(user);
   return {
     id: user.id,
     email: user.email,
     username: user.username || user.email.split('@')[0],
     plan: user.plan,
+    role: isAdmin ? 'admin' : (user.role || 'user'),
+    isAdmin,
     email_verified: user.email_verified,
     has_google: Boolean(user.google_id),
     created_at: user.created_at,
@@ -207,12 +255,29 @@ export async function resetPassword({ email, code, newPassword }) {
   return { ok: true };
 }
 
-export async function login({ email, password }) {
-  const normalizedEmail = normalizeEmail(email);
-  const user = await findUserByEmail(normalizedEmail);
+export async function login({ email, login: loginField, username, password }) {
+  const identifier = String(email || loginField || username || '').trim();
+
+  if (!identifier) {
+    throw new AuthError('Introduce tu correo o nombre de usuario.', 400);
+  }
+  if (!password) {
+    throw new AuthError('Introduce tu contraseña.', 400);
+  }
+
+  // Buscar por email o por nombre de usuario
+  let user = null;
+  if (isValidEmail(identifier)) {
+    user = await findUserByEmail(normalizeEmail(identifier));
+  } else {
+    user = await findUserByUsername(identifier);
+    if (!user) {
+      user = await findUserByEmail(normalizeEmail(identifier));
+    }
+  }
 
   if (!user) {
-    throw new AuthError('Correo o contraseña incorrectos.', 401);
+    throw new AuthError('Usuario o contraseña incorrectos.', 401);
   }
 
   if (!user.password_hash) {
@@ -224,7 +289,7 @@ export async function login({ email, password }) {
 
   const passwordMatches = await bcrypt.compare(password, user.password_hash);
   if (!passwordMatches) {
-    throw new AuthError('Correo o contraseña incorrectos.', 401);
+    throw new AuthError('Usuario o contraseña incorrectos.', 401);
   }
 
   if (!user.email_verified) {

@@ -225,17 +225,27 @@ export async function getChartSeries(ticker, rangeKey = '5y', withMovingAverage 
     marketCache.set(displayCacheKey, { data: out, at: Date.now() });
   }
 
-  if (withMovingAverage) {
-    const maCacheKey = `chart-ma:${ticker}:${config.range}`;
+  const windows = Array.isArray(withMovingAverage)
+    ? withMovingAverage.map(Number).filter((n) => Number.isInteger(n) && n > 0 && n <= 5000)
+    : (withMovingAverage ? [100] : []);
+  const hasMovingAverage = windows.length > 0;
+
+  if (hasMovingAverage) {
+    const sortedKey = [...windows].sort((a, b) => a - b).join('-');
+    const maCacheKey = `chart-ma:${ticker}:${config.range}:${sortedKey}`;
     const maCached = marketCache.get(maCacheKey);
     if (maCached && Date.now() - maCached.at < MARKET_TTL) {
-      out = { ...out, maPoints: maCached.data };
-    } else if (config.interval === '1d') {
-      const maPoints = computeMovingAverage(out.points.map((point) => ({ timestamp: point.t, close: point.v })), 100);
-      marketCache.set(maCacheKey, { data: maPoints, at: Date.now() });
-      out = { ...out, maPoints };
-    } else {
-      const url = `${YAHOO_CHART_URL}/${encodeURIComponent(ticker)}?range=${config.range}&interval=1d`;
+      out = { ...out, movingAverages: maCached.data.movingAverages, maPoints: maCached.data.maPoints };
+    } else if (out.points?.length) {
+      const firstT = out.points[0].t;
+      const lastT = out.points[out.points.length - 1].t;
+      const maxWindow = Math.max(...windows);
+      // Fetch daily prices starting with sufficient buffer before firstT (day 0) to ensure
+      // at least maxWindow trading sessions prior to day 0 for all requested moving averages.
+      const bufferDays = Math.ceil(maxWindow * 1.6) + 60;
+      const period1 = Math.max(0, Math.floor(firstT - (bufferDays * 86400)));
+      const period2 = Math.ceil(lastT + 86400);
+      const url = `${YAHOO_CHART_URL}/${encodeURIComponent(ticker)}?period1=${period1}&period2=${period2}&interval=1d`;
       try {
         const response = await fetch(url, {
           headers: {
@@ -246,12 +256,46 @@ export async function getChartSeries(ticker, rangeKey = '5y', withMovingAverage 
         });
         const data = await response.json();
         const result = data?.chart?.result?.[0];
-        const maPoints = result ? computeMovingAverage(extractSeries(result), 100) : [];
-        marketCache.set(maCacheKey, { data: maPoints, at: Date.now() });
-        out = { ...out, maPoints };
+        const dailySeries = result ? extractSeries(result) : [];
+
+        const movingAverages = windows.map((win) => {
+          const allMa = computeMovingAverage(dailySeries, win);
+          let maPoints;
+          if (config.interval === '1d') {
+            const maByT = new Map(allMa.map((m) => [m.t, m.v]));
+            maPoints = out.points
+              .map((p) => {
+                let v = maByT.get(p.t);
+                if (!Number.isFinite(v)) {
+                  const nearest = allMa.find((m) => Math.abs(m.t - p.t) < 43200);
+                  v = nearest?.v;
+                }
+                return { t: p.t, v };
+              })
+              .filter((p) => Number.isFinite(p.v));
+          } else {
+            maPoints = allMa.filter((m) => m.t >= firstT);
+            if (maPoints.length > 0 && maPoints[0].t > firstT) {
+              const lastBefore = allMa.filter((m) => m.t <= firstT).at(-1);
+              if (lastBefore) {
+                maPoints.unshift({ t: firstT, v: lastBefore.v });
+              }
+            }
+          }
+          return { window: win, points: maPoints };
+        });
+
+        const maData = {
+          movingAverages,
+          maPoints: movingAverages[0]?.points ?? [],
+        };
+        marketCache.set(maCacheKey, { data: maData, at: Date.now() });
+        out = { ...out, ...maData };
       } catch {
-        out = { ...out, maPoints: [] };
+        out = { ...out, movingAverages: [], maPoints: [] };
       }
+    } else {
+      out = { ...out, movingAverages: [], maPoints: [] };
     }
   }
 

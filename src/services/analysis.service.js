@@ -31,14 +31,13 @@ export function htmlToText(html) {
     .trim();
 }
 
-async function saveAnalysis({ userId, filename, result, sourceUrl }) {
-  if (!userId) return null;
-
+async function saveAnalysis({ userId, filename, result, sourceUrl, accession, modelUsed }) {
   const report = result.report ?? {};
   const periodEnd = PERIOD_DATE_PATTERN.test(report.reportingPeriod ?? '') ? report.reportingPeriod : null;
+  const parsedAccession = accession || (filename?.match(/[0-9]{10}-[0-9]{2}-[0-9]{6}/)?.[0] ?? null);
 
   const created = await createAnalysis({
-    userId,
+    userId: userId ?? null,
     filename,
     status: 'done',
     ticker: report.ticker ?? null,
@@ -46,19 +45,23 @@ async function saveAnalysis({ userId, filename, result, sourceUrl }) {
     periodEnd,
     pdfUrl: result.pdfUrl ?? null,
     sourceUrl: sourceUrl ?? null,
+    accession: parsedAccession,
   });
 
   return updateAnalysis(created.id, {
     origin: result.origin ?? null,
     sector: result.sector ?? null,
     report,
-    model_used: process.env.AI_PROVIDER ?? null,
+    model_used: modelUsed || process.env.AI_PROVIDER || null,
+    accession: parsedAccession,
   });
 }
 
 export async function analyzeText(text, options = {}) {
   const originAgent = getAgent('origin');
   const originResult = await originAgent.run({ text });
+
+  const effectiveFormType = options.formType || originResult.formType;
 
   const sectorAgent = getAgent('sector');
   const sectorResult = await sectorAgent.run({ text });
@@ -67,7 +70,7 @@ export async function analyzeText(text, options = {}) {
   const report = await analystAgent.run({
     text,
     sector: sectorResult.sector,
-    formType: originResult.formType,
+    formType: effectiveFormType,
     ticker: options.ticker ?? null,
   });
 
@@ -76,26 +79,30 @@ export async function analyzeText(text, options = {}) {
   const result = {
     text,
     origin: originResult.origin,
-    formType: originResult.formType,
+    formType: effectiveFormType,
     sector: sectorResult.sector,
     report,
     pdfUrl: url,
     docxUrl,
     odtUrl,
-    downloadBase: buildDownloadBase(report, originResult.formType),
+    downloadBase: buildDownloadBase(report, effectiveFormType),
   };
 
+  let saved = null;
   try {
-    await saveAnalysis({
+    saved = await saveAnalysis({
       userId: options.userId ?? null,
       filename: options.filename ?? 'informe.pdf',
       sourceUrl: options.sourceUrl ?? null,
+      accession: options.accession ?? null,
+      modelUsed: options.modelUsed ?? null,
       result,
     });
   } catch (error) {
     console.error('[analysis:save]', error.message);
   }
 
+  result.analysisId = saved?.id ?? null;
   return result;
 }
 

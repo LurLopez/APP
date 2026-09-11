@@ -647,6 +647,7 @@ const homeSections = {
   alertas: document.querySelector('#alertas'),
   cartera: document.querySelector('#cartera'),
   analisis: document.querySelector('#analisis'),
+  novedades: document.querySelector('#section-novedades'),
 };
 
 const SECTION_TITLES = {
@@ -654,6 +655,7 @@ const SECTION_TITLES = {
   alertas: 'Cifra Terminal | Alertas de Precio',
   cartera: 'Cifra Terminal | Cartera',
   analisis: 'Cifra Terminal | Análisis',
+  novedades: 'Cifra Terminal | Novedades',
 };
 
 const SECTION_PATHS = {
@@ -661,6 +663,7 @@ const SECTION_PATHS = {
   alertas: '/alertas',
   cartera: '/cartera',
   analisis: '/analisis',
+  novedades: '/novedades',
 };
 
 function normalizeSection(nameOrPath) {
@@ -673,6 +676,7 @@ function normalizeSection(nameOrPath) {
   if (clean === 'alertas' || clean === 'alertas-precio') return 'alertas';
   if (clean === 'cartera' || clean === 'portfolio') return 'cartera';
   if (clean === 'analisis' || clean === 'análisis') return 'analisis';
+  if (clean === 'novedades' || clean === 'novedad') return 'novedades';
   return null;
 }
 

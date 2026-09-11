@@ -51,6 +51,11 @@ ALTER TABLE analyses ADD COLUMN IF NOT EXISTS company_name TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS period_end DATE;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS pdf_url TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS accession TEXT;
+CREATE INDEX IF NOT EXISTS idx_analyses_ticker_accession ON analyses (ticker, accession);
+UPDATE analyses
+SET accession = substring(filename from '([0-9]{10}-[0-9]{2}-[0-9]{6})')
+WHERE accession IS NULL AND filename ~ '[0-9]{10}-[0-9]{2}-[0-9]{6}';
 
 CREATE TABLE IF NOT EXISTS filings (
     id            SERIAL PRIMARY KEY,
@@ -257,3 +262,62 @@ CREATE TABLE IF NOT EXISTS forum_messages (
 CREATE INDEX IF NOT EXISTS idx_forum_messages_ticker_created ON forum_messages (ticker, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_forum_messages_parent ON forum_messages (parent_id);
 CREATE INDEX IF NOT EXISTS idx_forum_messages_user ON forum_messages (user_id);
+
+CREATE TABLE IF NOT EXISTS analysis_ratings (
+    id          SERIAL PRIMARY KEY,
+    analysis_id INT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+    user_id     INT REFERENCES users(id) ON DELETE SET NULL,
+    rating      INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    feedback    TEXT,
+    ip_address  TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (analysis_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_analysis_ratings_analysis ON analysis_ratings (analysis_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_ratings_user ON analysis_ratings (user_id);
+
+CREATE TABLE IF NOT EXISTS analysis_error_reports (
+    id          SERIAL PRIMARY KEY,
+    analysis_id INT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+    user_id     INT REFERENCES users(id) ON DELETE SET NULL,
+    category    TEXT NOT NULL DEFAULT 'other',
+    description TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'resolved', 'dismissed')),
+    admin_notes TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at TIMESTAMPTZ
+);
+
+ALTER TABLE analysis_error_reports ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+ALTER TABLE analysis_error_reports ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_analysis_error_reports_analysis ON analysis_error_reports (analysis_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_error_reports_user ON analysis_error_reports (user_id);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin'));
+UPDATE users SET role = 'admin' WHERE email IN ('lurlopez13@gmail.com', 'luraldura13@gmail.com', 'lur.lopez.f@mail.pucv.cl', 'demo@cifra.local');
+
+CREATE TABLE IF NOT EXISTS general_reports (
+    id          SERIAL PRIMARY KEY,
+    user_id     INT REFERENCES users(id) ON DELETE SET NULL,
+    user_email  TEXT,
+    category    TEXT NOT NULL DEFAULT 'general'
+                CHECK (category IN ('general', 'bug', 'screener', 'market_data', 'portfolio', 'account', 'suggestion', 'other')),
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'reviewed', 'resolved', 'dismissed')),
+    admin_notes TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_general_reports_status ON general_reports (status);
+CREATE INDEX IF NOT EXISTS idx_general_reports_created ON general_reports (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_general_reports_user ON general_reports (user_id);
+
+ALTER TABLE general_reports ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE analysis_error_reports ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
+

@@ -41,6 +41,108 @@ function noteNumberOf(value) {
   return match ? match[1] : '1';
 }
 
+/* ── Recompras: fila de precio medio y modelo del gráfico de acciones ── */
+
+function parseSecNumber(str) {
+  if (str == null) return NaN;
+  let s = String(str).replace(/[$€£\s]/g, '').trim();
+  if (!s) return NaN;
+  const hasComma = s.includes(',');
+  const hasDot = s.includes('.');
+  if (hasComma && !hasDot) {
+    s = s.replace(',', '.');
+  } else if (!hasComma && hasDot && s.split('.').length > 2) {
+    s = s.split('.').join('');
+  } else if (hasComma && hasDot) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  }
+  const num = parseFloat(s);
+  return Number.isFinite(num) ? num : NaN;
+}
+
+export function withAveragePriceRow(snippet) {
+  if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return snippet;
+  if (snippet.rows.some((r) => /average price/i.test(String(Array.isArray(r) ? r[0] : (r.metric ?? r.name))))) return snippet;
+  const sharesRow = snippet.rows.find((r) => /shares repurchased/i.test(String(Array.isArray(r) ? r[0] : (r.metric ?? r.name))));
+  const costRow = snippet.rows.find((r) => /aggregate cost/i.test(String(Array.isArray(r) ? r[0] : (r.metric ?? r.name))));
+  if (!sharesRow || !costRow) return snippet;
+  const width = Math.max(Array.isArray(sharesRow) ? sharesRow.length : 2, Array.isArray(costRow) ? costRow.length : 2);
+  const prices = [];
+  for (let i = 1; i < width; i += 1) {
+    const shares = parseSecNumber(Array.isArray(sharesRow) ? sharesRow[i] : sharesRow.value);
+    const cost = parseSecNumber(Array.isArray(costRow) ? costRow[i] : costRow.value);
+    if (Number.isFinite(shares) && Number.isFinite(cost) && shares > 0) {
+      const price = (cost * 1e6) / shares;
+      prices.push(`$${price.toFixed(1).replace('.', ',')}`);
+    } else {
+      prices.push('—');
+    }
+  }
+  if (prices.every((p) => p === '—')) return snippet;
+  return { ...snippet, rows: [...snippet.rows, ['Average price paid (in $)', ...prices]] };
+}
+
+export function buildSharesChartModel(sharesHistory) {
+  if (!Array.isArray(sharesHistory) || !sharesHistory.length) return null;
+  const points = sharesHistory
+    .map((h) => ({ year: String(h?.year ?? '').trim(), shares: Number(h?.shares) }))
+    .filter((p) => p.year && Number.isFinite(p.shares) && p.shares > 0);
+  if (points.length < 2) return null;
+  const max = Math.max(...points.map((p) => p.shares));
+  const title = points.length >= 5
+    ? 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (ÚLTIMOS 5 AÑOS)'
+    : 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (AÑOS DISPONIBLES)';
+  const n = points.length;
+  const first = points[0].shares;
+  const lastPoint = points[n - 1].shares;
+  const cagrPct = (1 - Math.pow(lastPoint / first, 1 / (n - 1))) * 100;
+  const bpaCagr = cagrPct / (100 - cagrPct) * 100;
+  const prevPoint = points[n - 2].shares;
+  const lastPct = (1 - lastPoint / prevPoint) * 100;
+  const bpaLast = lastPct / (100 - lastPct) * 100;
+  return {
+    title,
+    max,
+    points,
+    metrics: [
+      { label: `Reducción media anual (CAGR, ${n - 1} años)`, pct: cagrPct, bpa: bpaCagr },
+      { label: 'Último año', pct: lastPct, bpa: bpaLast },
+    ],
+  };
+}
+
+function fmtPct(pct) {
+  return `${pct < 0 ? '' : '-'}${pct.toFixed(1).replace('.', ',')} %`;
+}
+
+function fmtBpa(pct) {
+  return `+${pct.toFixed(1).replace('.', ',')} %`;
+}
+
+export function buildSharesChartTable(chart) {
+  if (!chart || !Array.isArray(chart.points) || !chart.points.length) return null;
+  const headers = [
+    cell('Año', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Acciones (millones)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Δ vs año anterior', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+  ];
+  const rows = chart.points.map((p, i) => {
+    const prev = i > 0 ? chart.points[i - 1].shares : null;
+    const delta = prev != null ? ((p.shares - prev) / prev) * 100 : null;
+    return [
+      cell(String(p.year), { bold: true, color: COLORS.ink }),
+      cell(`${String(p.shares).replace('.', ',')}M`, { color: COLORS.ink }),
+      cell(delta != null ? fmtPct(delta) : '—', { color: delta != null && delta < 0 ? COLORS.negative : COLORS.ink }),
+    ];
+  });
+  const metricRows = (chart.metrics ?? []).map((m) => [
+    cell(m.label, { bold: true, color: COLORS.ink, bg: '#e0f2fe' }),
+    cell('—', { color: COLORS.ink, bg: '#e0f2fe' }),
+    cell(`${fmtPct(m.pct)} (BPA ${fmtBpa(m.bpa)})`, { bold: true, color: COLORS.negative, bg: '#e0f2fe' }),
+  ]);
+  return { columns: ['Año', 'Acciones (millones)', 'Δ vs año anterior'], widths: [70, 140, 120], headers, rows: [...rows, ...metricRows] };
+}
+
 /* ── Modelo intermedio compartido por los tres formatos ─────────────── */
 
 function cell(text, opts = {}) {
@@ -187,9 +289,55 @@ function buildNotes(notes) {
   });
 }
 
+function buildSecSnippetTable(snippet) {
+  if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return null;
+  const rawHeaders = Array.isArray(snippet.headers) ? snippet.headers : [];
+  const rawRows = snippet.rows.map((r) => (Array.isArray(r) ? r : [r.metric ?? r.name, r.value]));
+  const numCols = rawHeaders.length || (rawRows[0] ? rawRows[0].length : 2);
+  const firstColWidth = numCols === 2 ? 220 : 160;
+  const remainingWidth = (515 - firstColWidth) / Math.max(1, numCols - 1);
+  const widths = [firstColWidth, ...Array(numCols - 1).fill(remainingWidth)];
+
+  const columns = rawHeaders.length ? rawHeaders : Array(numCols).fill('');
+  const headers = columns.map(headerCell);
+
+  const rows = rawRows.map((r, rIdx) => {
+    const stripeBg = rIdx % 2 === 1 ? COLORS.stripe : null;
+    const rowText = r.join(' ').toLowerCase();
+    const isYellow = rowText.includes('repurchased') || rowText.includes('recomprad') || rowText.includes('2026');
+    const isOrange = rowText.includes('aggregate') || rowText.includes('cost');
+
+    return r.map((c, cIdx) => {
+      let bg = stripeBg;
+      let color = COLORS.ink;
+      let bold = cIdx === 0;
+
+      if (cIdx > 0 && isYellow) {
+        bg = '#fef08a';
+        color = '#854d0e';
+        bold = true;
+      } else if (cIdx > 0 && isOrange) {
+        bg = '#fed7aa';
+        color = '#c2410c';
+        bold = true;
+      }
+      return cell(c, { bg, color, bold });
+    });
+  });
+
+  return {
+    title: snippet.title || 'EXTRACTO OFICIAL SEC (FORM 10-K)',
+    summary: snippet.summary || null,
+    columns,
+    widths,
+    headers,
+    rows,
+  };
+}
+
 export function buildReportModel(report) {
   const horizons = Array.isArray(report?.horizons) ? report.horizons : [];
-  return {
+  const model = {
     company: sanitize(report?.company ?? ''),
     ticker: report?.ticker ? `Ticker: ${sanitize(report.ticker)}` : null,
     periodTitle: report?.periodTitle ? sanitize(report.periodTitle) : null,
@@ -201,8 +349,94 @@ export function buildReportModel(report) {
         (Array.isArray(horizon.capital?.rows) && horizon.capital.rows.length) ? buildCapitalSection(horizon.capital) : null,
       ].filter(Boolean),
     })),
+    conclusion: null,
+    rating: null,
     footer: 'Generado por Cifra · beta 0.1 · La IA ordena la información. Tú decides qué significa.',
   };
+
+  if (report?.conclusion) {
+    const conc = report.conclusion;
+    model.conclusion = {
+      title: 'PARTE II: INDAGACIÓN A FONDO Y CONCLUSIÓN',
+      subtitle: 'Análisis detallado de recompras, outlook oficial, deuda y asignación de capital',
+      cards: [],
+    };
+
+    if (conc.repurchases) {
+      const rep = conc.repurchases;
+      const badges = [
+        (rep.authorizationRemaining || rep.programRemaining) ? `Autorización restante: ${rep.authorizationRemaining || rep.programRemaining}` : null,
+        rep.authorizationExpiry ? `Vigencia: ${rep.authorizationExpiry}` : null,
+        rep.shareCountEvolution ? `Evolución acciones: ${rep.shareCountEvolution}` : null,
+        rep.bpaImpact ? `Impacto BPA: ${rep.bpaImpact}` : null,
+        rep.futureProjection ? `Proyección 5 años: ${rep.futureProjection}` : null,
+      ].filter(Boolean);
+      model.conclusion.cards.push({
+        title: rep.title || '1: Recompras',
+        text: rep.text || null,
+        badges,
+        highlight: true,
+        chart: buildSharesChartModel(rep.sharesHistory),
+        table: buildSecSnippetTable(withAveragePriceRow(rep.secSnippet)),
+      });
+    }
+
+    if (conc.outlook) {
+      const out = conc.outlook;
+      const details = [
+        out.fcfAnalysis ? `Análisis FCF: ${out.fcfAnalysis}` : null,
+        out.riskFactors ? `Riesgos y Sensibilidad: ${out.riskFactors}` : null,
+        out.efficiencyPlans ? `Programas de eficiencia: ${out.efficiencyPlans}` : null,
+      ].filter(Boolean);
+      model.conclusion.cards.push({
+        title: out.title || '2: Outlook',
+        text: out.text || null,
+        badges: details,
+        table: buildSecSnippetTable(out.secSnippet),
+      });
+    }
+
+    if (conc.debt) {
+      const debt = conc.debt;
+      const details = [
+        debt.refinancingAnalysis ? `Refinanciación de deuda: ${debt.refinancingAnalysis}` : null,
+        debt.refinancingImpact ? `Impacto en intereses: ${debt.refinancingImpact}` : null,
+      ].filter(Boolean);
+      model.conclusion.cards.push({
+        title: debt.title || '3: Deuda',
+        text: debt.text || null,
+        badges: details,
+        table: buildSecSnippetTable(debt.secSnippet),
+      });
+    }
+
+    if (conc.acquisitions) {
+      model.conclusion.cards.push({
+        title: conc.acquisitions.title || '4: Adquisiciones',
+        text: conc.acquisitions.text || 'No se realizaron adquisiciones materiales durante el ejercicio.',
+      });
+    }
+
+    if (conc.watchlist && Array.isArray(conc.watchlist.items) && conc.watchlist.items.length) {
+      model.conclusion.cards.push({
+        title: conc.watchlist.title || 'Cosas a tener en cuenta',
+        items: conc.watchlist.items,
+        isWatchlist: true,
+      });
+    }
+  }
+
+  if (report?.rating && report.rating.score != null) {
+    const score = Number(report.rating.score);
+    model.rating = {
+      score,
+      label: report.rating.label || `NOTA DE RESULTADOS: ${score}`,
+      rationale: report.rating.rationale || 'Calificación puramente financiera basada en las cuentas anuales, outlook oficial y asignación de capital.',
+      disclaimer: 'Nota puramente financiera basada exclusivamente en las cuentas anuales, el outlook oficial y la asignación de capital ejecutada. Sin especulación sobre el cumplimiento de expectativas.',
+    };
+  }
+
+  return model;
 }
 
 /* ── HTML (formato maestro de guardado) ─────────────────────────────── */
@@ -224,6 +458,47 @@ function renderHtmlNotes(notes) {
     return `<li style="font-style:italic;color:${note.color};">${escapeHtml(note.text).replaceAll('\n', '<br>')}</li>`;
   }).join('');
   return `<ul class="notes">${items}</ul>`;
+}
+
+function renderHtmlSharesChart(chart) {
+  if (!chart || !Array.isArray(chart.points) || !chart.points.length) return '';
+  const last = chart.points[chart.points.length - 1];
+  const bars = chart.points.map((p) => {
+    const widthPct = Math.max(4, Math.round((p.shares / chart.max) * 100));
+    const isCurrent = p === last;
+    return `
+    <div class="sc-row">
+      <span class="sc-year">${escapeHtml(p.year)}</span>
+      <div class="sc-track"><div class="sc-fill${isCurrent ? ' sc-fill-current' : ''}" style="width:${widthPct}%;"></div></div>
+      <span class="sc-value">${escapeHtml(String(p.shares).replace('.', ','))}M</span>
+    </div>`;
+  }).join('');
+  const metrics = (chart.metrics ?? []).map((m) => `
+    <div class="sc-metric">
+      <span class="sc-metric-label">${escapeHtml(m.label)}:</span>
+      <strong class="sc-metric-value">${escapeHtml(fmtPct(m.pct))}</strong>
+      <span class="sc-metric-bpa">(impacto en BPA ${escapeHtml(fmtBpa(m.bpa))})</span>
+    </div>`).join('');
+  return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chart.title)}</div>${bars}${metrics ? `<div class="sc-metrics">${metrics}</div>` : ''}</div>`;
+}
+
+function tokenizeNumbers(text) {
+  const str = String(text ?? '');
+  const parts = [];
+  const regex = /([~±\-+]\s*)?\d[\d.,]*\s*(?:M|%|\$)?/g;
+  let last = 0;
+  let m;
+  while ((m = regex.exec(str)) !== null) {
+    if (m.index > last) parts.push({ text: str.slice(last, m.index), number: false });
+    parts.push({ text: m[0], number: true });
+    last = m.index + m[0].length;
+  }
+  if (last < str.length) parts.push({ text: str.slice(last), number: false });
+  return parts.length ? parts : [{ text: str, number: false }];
+}
+
+function highlightNumbersHtml(text) {
+  return tokenizeNumbers(text).map((seg) => (seg.number ? `<strong>${escapeHtml(seg.text)}</strong>` : escapeHtml(seg.text))).join('');
 }
 
 function renderHtmlTable(table) {
@@ -259,6 +534,36 @@ export function buildReportHtml(report) {
     `).join('')}
   </section>`).join('');
 
+  const conclusionHtml = model.conclusion ? `
+  <section class="conclusion" style="page-break-before:always;margin-top:20pt;">
+    <h2 style="font-size:13pt;margin:0 0 4pt;">${escapeHtml(model.conclusion.title)}</h2>
+    <p style="color:${COLORS.muted};font-size:9.5pt;margin:0 0 12pt;">${escapeHtml(model.conclusion.subtitle)}</p>
+    ${model.conclusion.cards.map((card) => `
+    <div style="border:1px solid ${COLORS.rule};border-radius:6px;padding:10pt 12pt;margin-bottom:12pt;background:#fff;">
+      <h3 style="margin:0 0 6pt;font-size:11pt;color:${COLORS.ink};">${escapeHtml(card.title)}</h3>
+      ${card.highlight && card.text ? `<p style="font-size:9pt;line-height:1.5;margin:4pt 0 8pt;color:#374151;">${highlightNumbersHtml(card.text).replaceAll('\n', '<br>')}</p>` : (card.text ? `<p style="font-size:9pt;line-height:1.5;margin:4pt 0 8pt;color:#374151;">${escapeHtml(card.text).replaceAll('\n', '<br>')}</p>` : '')}
+      ${card.badges?.length ? `<ul style="font-size:8.5pt;color:#854d0e;padding-left:14pt;margin:4pt 0 8pt;">${card.highlight ? card.badges.map((b) => `<li>${highlightNumbersHtml(b)}</li>`).join('') : card.badges.map((b) => `<li>${escapeHtml(b)}</li>`).join('')}</ul>` : ''}
+      ${card.chart ? renderHtmlSharesChart(card.chart) : ''}
+      ${card.isWatchlist && card.items?.length ? `<ul style="font-size:8.5pt;color:#16a34a;padding-left:14pt;margin:4pt 0 8pt;list-style:none;">${card.items.map((it) => `<li>✓ <span style="color:#374151;">${escapeHtml(it)}</span></li>`).join('')}</ul>` : ''}
+      ${card.table ? `
+        <div style="margin-top:8pt;border:1px solid #cbd5e1;border-radius:4px;overflow:hidden;">
+          <div style="padding:4pt 8pt;background:#f1f5f9;font-size:8pt;font-weight:700;color:#475569;">${escapeHtml(card.table.title)} ${card.table.summary ? `<span style="font-style:italic;color:#64748b;margin-left:8pt;">${escapeHtml(card.table.summary)}</span>` : ''}</div>
+          ${renderHtmlTable(card.table)}
+        </div>
+      ` : ''}
+    </div>`).join('')}
+  </section>` : '';
+
+  const ratingHtml = model.rating ? `
+  <section style="margin:16pt 0;padding:14pt 18pt;border:2px solid ${model.rating.score >= 7 ? '#16a34a' : (model.rating.score >= 4 ? '#ca8a04' : '#dc2626')};border-radius:6px;background:${model.rating.score >= 7 ? '#f0fdf4' : (model.rating.score >= 4 ? '#fefce8' : '#fef2f2')};">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:12pt;font-weight:800;text-transform:uppercase;color:#0f172a;">${escapeHtml(model.rating.label)}</span>
+      <span style="font-size:22pt;font-weight:900;color:#0f172a;">${model.rating.score} <small style="font-size:12pt;color:#64748b;">/ 10</small></span>
+    </div>
+    <p style="font-size:9.5pt;color:#1e293b;margin:6pt 0 4pt;font-weight:500;">${escapeHtml(model.rating.rationale)}</p>
+    <p style="font-size:7.5pt;color:#64748b;font-style:italic;margin:4pt 0 0;">${escapeHtml(model.rating.disclaimer)}</p>
+  </section>` : '';
+
   return `<!doctype html>
 <html lang="es">
 <head>
@@ -283,6 +588,20 @@ export function buildReportHtml(report) {
   .notes { font-size: 7.5pt; color: ${COLORS.noteText}; padding-left: 14pt; margin: 4pt 0 0; }
   .notes li { margin: 2pt 0; }
   footer { font-size: 8pt; color: ${COLORS.soft}; margin-top: 16pt; }
+  .shares-chart { margin: 8pt 0 10pt; padding: 8pt 10pt; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+  .sc-title { font-size: 8.5pt; font-weight: 700; color: #475569; margin-bottom: 6pt; }
+  .sc-row { display: flex; align-items: center; gap: 8px; margin: 3pt 0; }
+  .sc-year { flex: 0 0 38px; font-size: 7.5pt; font-weight: 700; color: #334155; }
+  .sc-track { flex: 1 1 auto; background: #e2e8f0; border-radius: 3px; height: 12px; overflow: hidden; }
+  .sc-fill { height: 100%; background: #38bdf8; border-radius: 3px; }
+  .sc-fill-current { background: #f59e0b; }
+  .sc-value { flex: 0 0 52px; text-align: right; font-size: 7.5pt; font-weight: 700; color: #0f172a; }
+  .sc-metrics { margin-top: 8pt; padding-top: 6pt; border-top: 1px dashed #cbd5e1; }
+  .sc-metric { font-size: 7.5pt; color: #334155; margin: 3pt 0; }
+  .sc-metric-label { font-weight: 700; color: #475569; }
+  .sc-metric-value { color: #b91c1c; }
+  .sc-metric-bpa { color: #64748b; font-style: italic; }
+  strong { color: inherit; }
 </style>
 </head>
 <body>
@@ -291,6 +610,8 @@ ${model.ticker ? `<p class="ticker">${escapeHtml(model.ticker)}</p>` : ''}
 ${model.periodTitle ? `<p class="period">${escapeHtml(model.periodTitle)}</p>` : ''}
 <hr>
 ${body}
+${conclusionHtml}
+${ratingHtml}
 <footer>${escapeHtml(model.footer)}</footer>
 </body>
 </html>`;
@@ -323,6 +644,17 @@ function docxRun(text, { size, bold, italic, color, highlight } = {}) {
 function docxParagraph(text, opts = {}) {
   const pPr = `${opts.pageBreakBefore ? '<w:pageBreakBefore/>' : ''}<w:spacing w:before="${opts.before ?? 0}" w:after="${opts.after ?? 40}"/>`;
   return `<w:p><w:pPr>${pPr}</w:pPr>${docxRun(text, opts)}</w:p>`;
+}
+
+function docxRichParagraph(text, opts = {}) {
+  const pPr = `${opts.pageBreakBefore ? '<w:pageBreakBefore/>' : ''}<w:spacing w:before="${opts.before ?? 0}" w:after="${opts.after ?? 40}"/>`;
+  const runs = tokenizeNumbers(text).map((seg) => docxRun(seg.text, {
+    size: opts.size ?? 8.5,
+    bold: seg.number ? true : (opts.bold ?? false),
+    italic: opts.italic,
+    color: seg.number ? '#0f172a' : (opts.color ?? COLORS.ink),
+  })).join('');
+  return `<w:p><w:pPr>${pPr}</w:pPr>${runs}</w:p>`;
 }
 
 function docxTable(table) {
@@ -371,6 +703,50 @@ function buildDocxXml(model) {
       }
     });
   });
+
+  if (model.conclusion) {
+    parts.push(docxParagraph(model.conclusion.title, { size: 14, bold: true, color: COLORS.ink, after: 40, pageBreakBefore: true }));
+    if (model.conclusion.subtitle) {
+      parts.push(docxParagraph(model.conclusion.subtitle, { size: 9, italic: true, color: COLORS.muted, after: 80 }));
+    }
+    model.conclusion.cards.forEach((card) => {
+      parts.push(docxParagraph(card.title, { size: 11, bold: true, color: COLORS.ink, after: 40, before: 60 }));
+      if (card.text) {
+        if (card.highlight) {
+          parts.push(docxRichParagraph(card.text, { size: 8.5, color: COLORS.ink, after: 40 }));
+        } else {
+          parts.push(docxParagraph(card.text, { size: 8.5, color: COLORS.ink, after: 40 }));
+        }
+      }
+      if (card.badges?.length) {
+        if (card.highlight) {
+          card.badges.forEach((b) => parts.push(docxRichParagraph(`• ${b}`, { size: 8, bold: true, color: '#854D0E', after: 20 })));
+        } else {
+          card.badges.forEach((b) => parts.push(docxParagraph(`• ${b}`, { size: 8, bold: true, color: '#854D0E', after: 20 })));
+        }
+      }
+      if (card.chart) {
+        const chartTable = buildSharesChartTable(card.chart);
+        if (chartTable) {
+          parts.push(docxParagraph(card.chart.title, { size: 8, bold: true, color: '#475569', after: 40 }));
+          parts.push(docxTable(chartTable));
+        }
+      }
+      if (card.isWatchlist && card.items?.length) {
+        card.items.forEach((it) => parts.push(docxParagraph(`✓ ${it}`, { size: 8, color: COLORS.ink, after: 20 })));
+      }
+      if (card.table) {
+        parts.push(docxParagraph(card.table.title, { size: 8, bold: true, color: '#475569', after: 20, before: 40 }));
+        parts.push(docxTable(card.table));
+      }
+    });
+  }
+
+  if (model.rating) {
+    parts.push(docxParagraph(`${model.rating.label}  (${model.rating.score} / 10)`, { size: 13, bold: true, color: COLORS.ink, after: 40, before: 100 }));
+    parts.push(docxParagraph(model.rating.rationale, { size: 9, color: COLORS.ink, after: 40 }));
+    parts.push(docxParagraph(model.rating.disclaimer, { size: 7.5, italic: true, color: COLORS.muted, after: 60 }));
+  }
 
   parts.push(docxParagraph(model.footer, { size: 8, color: COLORS.soft, before: 120 }));
 
@@ -464,6 +840,20 @@ function buildOdtContent(model) {
     body.push(`<text:p text:style-name="${pStyle}"><text:span text:style-name="${styleName}">${odtEsc(text)}</text:span></text:p>`);
   };
 
+  const richParagraph = (text, opts = {}) => {
+    const pStyle = opts.pageBreakBefore ? 'PBreak' : 'PBody';
+    const spans = tokenizeNumbers(text).map((seg) => {
+      const styleName = styles.textStyleFor({
+        bold: seg.number ? true : (opts.bold ?? false),
+        italic: opts.italic,
+        color: seg.number ? '#0f172a' : (opts.color ?? COLORS.ink),
+        size: opts.size,
+      });
+      return `<text:span text:style-name="${styleName}">${odtEsc(seg.text)}</text:span>`;
+    }).join('');
+    body.push(`<text:p text:style-name="${pStyle}">${spans}</text:p>`);
+  };
+
   const notes = (list) => {
     (list ?? []).forEach((note) => {
       if (note.marker) {
@@ -504,6 +894,50 @@ function buildOdtContent(model) {
       notes(section.notes);
     });
   });
+
+  if (model.conclusion) {
+    paragraph(model.conclusion.title, { bold: true, color: COLORS.ink, size: 14, pageBreakBefore: true });
+    if (model.conclusion.subtitle) {
+      paragraph(model.conclusion.subtitle, { italic: true, color: COLORS.muted, size: 9 });
+    }
+    model.conclusion.cards.forEach((card) => {
+      paragraph(card.title, { bold: true, color: COLORS.ink, size: 11 });
+      if (card.text) {
+        if (card.highlight) {
+          richParagraph(card.text, { color: COLORS.ink, size: 8.5 });
+        } else {
+          paragraph(card.text, { color: COLORS.ink, size: 8.5 });
+        }
+      }
+      if (card.badges?.length) {
+        if (card.highlight) {
+          card.badges.forEach((b) => richParagraph(`• ${b}`, { bold: true, color: '#854d0e', size: 8 }));
+        } else {
+          card.badges.forEach((b) => paragraph(`• ${b}`, { bold: true, color: '#854d0e', size: 8 }));
+        }
+      }
+      if (card.chart) {
+        const chartTable = buildSharesChartTable(card.chart);
+        if (chartTable) {
+          paragraph(card.chart.title, { bold: true, color: '#475569', size: 8 });
+          table(chartTable);
+        }
+      }
+      if (card.isWatchlist && card.items?.length) {
+        card.items.forEach((it) => paragraph(`✓ ${it}`, { color: COLORS.ink, size: 8 }));
+      }
+      if (card.table) {
+        paragraph(card.table.title, { bold: true, color: '#475569', size: 8 });
+        table(card.table);
+      }
+    });
+  }
+
+  if (model.rating) {
+    paragraph(`${model.rating.label} (${model.rating.score} / 10)`, { bold: true, color: COLORS.ink, size: 13 });
+    paragraph(model.rating.rationale, { color: COLORS.ink, size: 9 });
+    paragraph(model.rating.disclaimer, { italic: true, color: COLORS.muted, size: 7.5 });
+  }
 
   paragraph(model.footer, { color: COLORS.soft, size: 8 });
 

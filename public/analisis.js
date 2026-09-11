@@ -19,6 +19,10 @@
   let historyCompanies = [];
   let historySuggest = null;
   let historySuggestIndex = -1;
+  let currentAnalysisId = null;
+  let currentAnalysisTicker = null;
+  let currentAnalysisAccession = null;
+  let currentUserRating = 0;
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -219,6 +223,216 @@
     return html;
   }
 
+  function parseSecNum(str) {
+    if (str == null) return NaN;
+    let s = String(str).replace(/[$€£\s]/g, '').trim();
+    if (!s) return NaN;
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+    if (hasComma && !hasDot) s = s.replace(',', '.');
+    else if (!hasComma && hasDot && s.split('.').length > 2) s = s.split('.').join('');
+    else if (hasComma && hasDot) s = s.replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function withAveragePrice(snippet) {
+    if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return snippet;
+    if (snippet.rows.some((r) => /average price/i.test(String(Array.isArray(r) ? r[0] : (r.metric ?? r.name))))) return snippet;
+    const sharesRow = snippet.rows.find((r) => /shares repurchased/i.test(String(Array.isArray(r) ? r[0] : (r.metric ?? r.name))));
+    const costRow = snippet.rows.find((r) => /aggregate cost/i.test(String(Array.isArray(r) ? r[0] : (r.metric ?? r.name))));
+    if (!sharesRow || !costRow) return snippet;
+    const width = Math.max(Array.isArray(sharesRow) ? sharesRow.length : 2, Array.isArray(costRow) ? costRow.length : 2);
+    const prices = [];
+    for (let i = 1; i < width; i += 1) {
+      const shares = parseSecNum(Array.isArray(sharesRow) ? sharesRow[i] : sharesRow.value);
+      const cost = parseSecNum(Array.isArray(costRow) ? costRow[i] : costRow.value);
+      prices.push(Number.isFinite(shares) && Number.isFinite(cost) && shares > 0 ? `$${((cost * 1e6) / shares).toFixed(1).replace('.', ',')}` : '—');
+    }
+    if (prices.every((p) => p === '—')) return snippet;
+    return { ...snippet, rows: [...snippet.rows, ['Average price paid (in $)', ...prices]] };
+  }
+
+  function boldNumbers(text) {
+    return String(text ?? '').replace(/([~±\-+]\s*)?\d[\d.,]*\s*(?:M|%|\$)?/g, (m) => `<strong>${m}</strong>`);
+  }
+
+  function renderSharesChart(sharesHistory) {
+    if (!Array.isArray(sharesHistory) || !sharesHistory.length) return '';
+    const points = sharesHistory
+      .map((h) => ({ year: String(h?.year ?? ''), shares: Number(h?.shares) }))
+      .filter((p) => p.year && Number.isFinite(p.shares) && p.shares > 0);
+    if (points.length < 2) return '';
+    const max = Math.max(...points.map((p) => p.shares));
+    const last = points[points.length - 1];
+    const n = points.length;
+    const cagrPct = (1 - Math.pow(points[n - 1].shares / points[0].shares, 1 / (n - 1))) * 100;
+    const bpaCagr = cagrPct / (100 - cagrPct) * 100;
+    const lastPct = (1 - points[n - 1].shares / points[n - 2].shares) * 100;
+    const bpaLast = lastPct / (100 - lastPct) * 100;
+    const fmtPct = (p) => `${p < 0 ? '' : '-'}${p.toFixed(1).replace('.', ',')} %`;
+    const fmtBpa = (p) => `+${p.toFixed(1).replace('.', ',')} %`;
+    const chartTitle = points.length >= 5
+      ? 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (ÚLTIMOS 5 AÑOS)'
+      : 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (AÑOS DISPONIBLES)';
+    const bars = points.map((p) => {
+      const widthPct = Math.max(4, Math.round((p.shares / max) * 100));
+      const isCurrent = p === last;
+      return `<div class="sc-row"><span class="sc-year">${escapeHtml(p.year)}</span><div class="sc-track"><div class="sc-fill${isCurrent ? ' sc-fill-current' : ''}" style="width:${widthPct}%;"></div></div><span class="sc-value">${escapeHtml(String(p.shares).replace('.', ','))}M</span></div>`;
+    }).join('');
+    const metrics = `
+      <div class="sc-metrics">
+        <div class="sc-metric"><span class="sc-metric-label">Reducción media anual (CAGR, ${n - 1} años):</span> <strong class="sc-metric-value">${fmtPct(cagrPct)}</strong> <span class="sc-metric-bpa">(impacto en BPA ${fmtBpa(bpaCagr)})</span></div>
+        <div class="sc-metric"><span class="sc-metric-label">Último año:</span> <strong class="sc-metric-value">${fmtPct(lastPct)}</strong> <span class="sc-metric-bpa">(impacto en BPA ${fmtBpa(bpaLast)})</span></div>
+      </div>`;
+    return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chartTitle)}</div>${bars}${metrics}</div>`;
+  }
+
+  function renderSecSnippet(snippet) {
+    if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return '';
+    const headers = Array.isArray(snippet.headers) ? snippet.headers : [];
+    const thead = headers.length
+      ? `<thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>`
+      : '';
+    const tbody = snippet.rows.map((row) => {
+      const isArr = Array.isArray(row);
+      const cells = isArr ? row : [row.metric ?? row.name, row.value];
+      const rowText = cells.join(' ').toLowerCase();
+      const isBuybackRow = rowText.includes('repurchased') || rowText.includes('recomprad') || rowText.includes('2026');
+      const isCostRow = rowText.includes('cost') || rowText.includes('coste') || rowText.includes('aggregate');
+
+      const cellsHtml = cells.map((c, colIdx) => {
+        let cls = '';
+        if (colIdx > 0 && isBuybackRow) cls = ' class="sec-highlight-yellow"';
+        else if (colIdx > 0 && isCostRow) cls = ' class="sec-highlight-orange"';
+        return `<td${cls}>${escapeHtml(c)}</td>`;
+      }).join('');
+      return `<tr>${cellsHtml}</tr>`;
+    }).join('');
+
+    return `
+      <div class="sec-extract-card">
+        <div class="sec-extract-head">
+          <span class="sec-extract-tag">EXTRACTO OFICIAL SEC (FORM 10-K)</span>
+          <strong class="sec-extract-title">${escapeHtml(snippet.title || 'Información Oficial SEC')}</strong>
+          ${snippet.summary ? `<span class="sec-extract-summary">${escapeHtml(snippet.summary)}</span>` : ''}
+        </div>
+        <div class="sec-table-wrap">
+          <table class="sec-table">
+            ${thead}
+            <tbody>${tbody}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAnnualConclusion(conclusion) {
+    if (!conclusion) return '';
+    let html = `<div class="annual-conclusion-section">
+      <div class="annual-conclusion-header">
+        <h4>PARTE II: INDAGACIÓN A FONDO Y CONCLUSIÓN</h4>
+        <p class="annual-conclusion-subtitle">Análisis detallado de recompras, outlook oficial, deuda y asignación de capital</p>
+      </div>`;
+
+    // 1: Recompras
+    const rep = conclusion.repurchases;
+    if (rep) {
+      html += `
+        <div class="annual-deepdive-card">
+          <h5 class="annual-card-title">${escapeHtml(rep.title || '1: Recompras')}</h5>
+          ${rep.text ? `<p class="annual-card-text">${boldNumbers(escapeHtml(rep.text)).replaceAll('\n', '<br>')}</p>` : ''}
+          <div class="annual-metric-badges">
+            ${(rep.authorizationRemaining || rep.programRemaining) ? `<div class="annual-badge"><strong>Autorización restante:</strong> ${boldNumbers(escapeHtml(rep.authorizationRemaining || rep.programRemaining))}</div>` : ''}
+            ${rep.authorizationExpiry ? `<div class="annual-badge"><strong>Vigencia:</strong> ${boldNumbers(escapeHtml(rep.authorizationExpiry))}</div>` : ''}
+            ${rep.shareCountEvolution ? `<div class="annual-badge"><strong>Evolución de acciones:</strong> ${boldNumbers(escapeHtml(rep.shareCountEvolution))}</div>` : ''}
+            ${rep.bpaImpact ? `<div class="annual-badge badge-accent"><strong>Impacto BPA:</strong> ${boldNumbers(escapeHtml(rep.bpaImpact))}</div>` : ''}
+            ${rep.futureProjection ? `<div class="annual-badge"><strong>Proyección 5 años:</strong> ${boldNumbers(escapeHtml(rep.futureProjection))}</div>` : ''}
+          </div>
+          ${renderSharesChart(rep.sharesHistory)}
+          ${renderSecSnippet(withAveragePrice(rep.secSnippet))}
+        </div>
+      `;
+    }
+
+    // 2: Outlook
+    const out = conclusion.outlook;
+    if (out) {
+      html += `
+        <div class="annual-deepdive-card">
+          <h5 class="annual-card-title">${escapeHtml(out.title || '2: Outlook')}</h5>
+          ${out.text ? `<p class="annual-card-text">${escapeHtml(out.text).replaceAll('\n', '<br>')}</p>` : ''}
+          ${out.fcfAnalysis ? `<p class="annual-card-text"><strong>Análisis FCF:</strong> ${escapeHtml(out.fcfAnalysis)}</p>` : ''}
+          ${out.riskFactors ? `<p class="annual-card-text"><strong>Riesgos y Sensibilidad:</strong> ${escapeHtml(out.riskFactors)}</p>` : ''}
+          ${out.efficiencyPlans ? `<p class="annual-card-text"><strong>Programas de eficiencia:</strong> ${escapeHtml(out.efficiencyPlans)}</p>` : ''}
+          ${renderSecSnippet(out.secSnippet)}
+        </div>
+      `;
+    }
+
+    // 3: Deuda
+    const debt = conclusion.debt;
+    if (debt) {
+      html += `
+        <div class="annual-deepdive-card">
+          <h5 class="annual-card-title">${escapeHtml(debt.title || '3: Deuda')}</h5>
+          ${debt.text ? `<p class="annual-card-text">${escapeHtml(debt.text).replaceAll('\n', '<br>')}</p>` : ''}
+          ${(debt.refinancingAnalysis || debt.refinancingImpact) ? `
+            <div class="annual-calc-box">
+              <strong>Refinanciación de deuda a corto plazo:</strong>
+              ${debt.refinancingAnalysis ? `<p>${escapeHtml(debt.refinancingAnalysis)}</p>` : ''}
+              ${debt.refinancingImpact ? `<p class="calc-impact"><strong>Impacto en intereses:</strong> ${escapeHtml(debt.refinancingImpact)}</p>` : ''}
+            </div>
+          ` : ''}
+          ${renderSecSnippet(debt.secSnippet)}
+        </div>
+      `;
+    }
+
+    // 4: Adquisiciones
+    const acq = conclusion.acquisitions;
+    if (acq) {
+      html += `
+        <div class="annual-deepdive-card">
+          <h5 class="annual-card-title">${escapeHtml(acq.title || '4: Adquisiciones')}</h5>
+          <p class="annual-card-text">${escapeHtml(acq.text || 'No se realizaron adquisiciones materiales durante el ejercicio.').replaceAll('\n', '<br>')}</p>
+        </div>
+      `;
+    }
+
+    // 5: Watchlist
+    const watch = conclusion.watchlist;
+    if (watch && Array.isArray(watch.items) && watch.items.length) {
+      html += `
+        <div class="annual-deepdive-card watchlist-card">
+          <h5 class="annual-card-title">${escapeHtml(watch.title || 'Cosas a tener en cuenta')}</h5>
+          <ul class="watchlist-list">
+            ${watch.items.map((item) => `<li><span class="watchlist-check">✓</span> <span>${escapeHtml(item)}</span></li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+    return html;
+  }
+
+  function renderAnnualRating(rating) {
+    if (!rating || rating.score == null) return '';
+    const score = Number(rating.score);
+    const scoreColorClass = score >= 7 ? 'score-high' : (score >= 4 ? 'score-mid' : 'score-low');
+    return `
+      <div class="annual-rating-card ${scoreColorClass}">
+        <div class="annual-rating-head">
+          <span class="annual-rating-badge">${escapeHtml(rating.label || `NOTA DE RESULTADOS: ${score}`)}</span>
+          <span class="annual-rating-score">${score} <small>/ 10</small></span>
+        </div>
+        <p class="annual-rating-rationale">${escapeHtml(rating.rationale || '')}</p>
+        <p class="annual-rating-disclaimer">Nota puramente financiera basada exclusivamente en las cuentas anuales, el outlook oficial y la asignación de capital ejecutada. Sin especulación sobre el cumplimiento futuro de expectativas.</p>
+      </div>
+    `;
+  }
+
   function renderReport(report) {
     const horizons = Array.isArray(report.horizons) ? report.horizons : [];
     const titleParts = [report.ticker, report.periodTitle].filter(Boolean);
@@ -226,10 +440,18 @@
     const reportBody = document.querySelector('#report-body');
     if (resultTitle) resultTitle.textContent = titleParts.length ? titleParts.join(' — ') : 'Informe generado';
     if (reportBody) {
-      reportBody.innerHTML = `
-        ${horizons.map(renderHorizon).join('')}
-        <p class="report-hint">El informe descargable incluye los bloques completos en los dos horizontes. Disponible en PDF, Word (.docx) y ODT (.odt).</p>
-      `;
+      let html = horizons.map(renderHorizon).join('');
+      if (report.conclusion) {
+        html += renderAnnualConclusion(report.conclusion);
+      }
+      if (report.rating) {
+        html += renderAnnualRating(report.rating);
+      }
+      const hintText = report.conclusion
+        ? 'El informe anual 10-K incluye resumen de cuentas a 12 meses, indagación a fondo con extractos SEC, watchlist y nota de resultados.'
+        : 'El informe descargable incluye los bloques completos en los dos horizontes.';
+      html += `<p class="report-hint">${hintText} Disponible en PDF, Word (.docx) y ODT (.odt).</p>`;
+      reportBody.innerHTML = html;
     }
   }
 
@@ -376,6 +598,8 @@
     if (resultPreview) resultPreview.hidden = true;
     if (uploadForm) uploadForm.hidden = true;
     if (secAnalysisEntry) secAnalysisEntry.hidden = true;
+    currentAnalysisId = null;
+    loadAnalysisFeedback(null);
     resetAgentStates();
     if (analysisError) analysisError.hidden = true;
     if (retryButton) retryButton.hidden = true;
@@ -431,11 +655,174 @@
     const resultPreview = document.querySelector('#result-preview');
     if (resultPreview) resultPreview.hidden = false;
 
+    currentAnalysisId = data.analysisId ?? null;
+    currentAnalysisTicker = data.report?.ticker || pendingFiling?.ticker || null;
+    currentAnalysisAccession = pendingFiling?.accession || null;
+    loadAnalysisFeedback(currentAnalysisId);
+
+    const adminRegenBtn = document.querySelector('#admin-regenerate-report');
+    if (adminRegenBtn) {
+      const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || currentUser?.isAdmin);
+      adminRegenBtn.hidden = !isAdmin;
+    }
+
     const saved = data.saved && currentUser;
     showToast(`${saved ? 'Análisis guardado en tu histórico. ' : ''}${data.formType || 'Informe'} analizado con éxito.`);
     if (saved) {
       fetchAnalyses();
       fetchHistoryCompanies();
+    }
+  }
+
+  /* ── Valoración de análisis y reporte de incidencias ────────── */
+  function renderRatingState(userRating, ratingSummary) {
+    currentUserRating = Number(userRating) || 0;
+    const starBtns = document.querySelectorAll('#rating-stars .star-btn');
+    starBtns.forEach((btn) => {
+      const val = Number(btn.dataset.value);
+      btn.classList.toggle('active', val <= currentUserRating);
+      btn.classList.remove('hovered');
+    });
+
+    const summaryEl = document.querySelector('#rating-summary-text');
+    if (!summaryEl) return;
+
+    const count = Number(ratingSummary?.count) || 0;
+    const avg = Number(ratingSummary?.average) || 0;
+
+    if (count > 0) {
+      const avgStr = avg.toFixed(1);
+      const countStr = `${count} ${count === 1 ? 'valoración' : 'valoraciones'}`;
+      if (currentUserRating > 0) {
+        summaryEl.textContent = `${avgStr} ★ (${countStr}) · Tu nota: ${currentUserRating} ★`;
+      } else {
+        summaryEl.textContent = `${avgStr} ★ (${countStr})`;
+      }
+    } else if (currentUserRating > 0) {
+      summaryEl.textContent = `Tu nota: ${currentUserRating} ★`;
+    } else {
+      summaryEl.textContent = 'Sé el primero en valorar este análisis';
+    }
+  }
+
+  function highlightStars(val) {
+    const starBtns = document.querySelectorAll('#rating-stars .star-btn');
+    starBtns.forEach((btn) => {
+      const v = Number(btn.dataset.value);
+      btn.classList.toggle('hovered', v <= val);
+    });
+  }
+
+  function clearStarHighlights() {
+    const starBtns = document.querySelectorAll('#rating-stars .star-btn');
+    starBtns.forEach((btn) => btn.classList.remove('hovered'));
+  }
+
+  async function loadAnalysisFeedback(analysisId) {
+    const feedbackBar = document.querySelector('#analysis-feedback-bar');
+    if (!feedbackBar) return;
+    if (!analysisId) {
+      feedbackBar.hidden = true;
+      return;
+    }
+    feedbackBar.hidden = false;
+    renderRatingState(0, null);
+    const summaryEl = document.querySelector('#rating-summary-text');
+    if (summaryEl) summaryEl.textContent = 'Cargando valoraciones...';
+
+    try {
+      const response = await fetch(`/api/analyses/${analysisId}/rating`);
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.ok) {
+        renderRatingState(data.userRating, data.ratingSummary);
+      } else {
+        if (summaryEl) summaryEl.textContent = '';
+      }
+    } catch {
+      if (summaryEl) summaryEl.textContent = '';
+    }
+  }
+
+  async function submitRating(rating) {
+    if (!currentAnalysisId) return;
+    try {
+      const response = await fetch(`/api/analyses/${currentAnalysisId}/rating`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.ok) {
+        renderRatingState(data.userRating ?? rating, data.ratingSummary);
+        showToast(`¡Gracias! Has valorado este análisis con ${rating} ${rating === 1 ? 'estrella' : 'estrellas'}.`);
+      } else {
+        showToast(data.error || 'No se pudo registrar la valoración.');
+      }
+    } catch {
+      showToast('Error al registrar la valoración.');
+    }
+  }
+
+  let analysisAttachmentMgr = null;
+
+  function openErrorReportModal() {
+    const modal = document.querySelector('#error-report-modal-backdrop');
+    if (!modal) return;
+    modal.hidden = false;
+    const desc = document.querySelector('#error-report-desc');
+    if (desc) {
+      desc.value = '';
+      setTimeout(() => desc.focus(), 60);
+    }
+    analysisAttachmentMgr?.clear();
+  }
+
+  function closeErrorReportModal() {
+    const modal = document.querySelector('#error-report-modal-backdrop');
+    if (modal) modal.hidden = true;
+  }
+
+  async function submitErrorReport(event) {
+    event.preventDefault();
+    if (!currentAnalysisId) {
+      showToast('No hay ningún análisis seleccionado para reportar.');
+      return;
+    }
+    const category = document.querySelector('#error-report-category')?.value || 'other';
+    const descInput = document.querySelector('#error-report-desc');
+    const description = descInput?.value?.trim() || '';
+    const images = analysisAttachmentMgr?.getImages() || [];
+
+    if (!description) {
+      showToast('Por favor, describe detalladamente la incidencia detectada.');
+      descInput?.focus();
+      return;
+    }
+    const submitBtn = document.querySelector('#error-report-submit-btn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Enviando...';
+    }
+    try {
+      const response = await fetch(`/api/analyses/${currentAnalysisId}/report-error`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, description, images }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.ok) {
+        closeErrorReportModal();
+        showToast('Incidencia reportada con éxito. ¡Gracias por tu colaboración!');
+      } else {
+        showToast(data.error || 'No se pudo enviar el reporte.');
+      }
+    } catch {
+      showToast('Error de red al enviar el reporte.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Enviar reporte';
+      }
     }
   }
 
@@ -472,20 +859,26 @@
     }
   }
 
-  async function runFilingAnalysis(ticker, accession) {
+  async function runFilingAnalysis(ticker, accession, options = {}) {
+    const isForce = Boolean(options.force);
     pendingFiling = { ticker, accession };
-    startAnalysisUi(`Analizando el informe de ${ticker}…`);
+    currentAnalysisTicker = ticker;
+    currentAnalysisAccession = accession;
+    startAnalysisUi(isForce ? `Regenerando informe de ${ticker} con IA…` : `Analizando el informe de ${ticker}…`);
     const processingNote = document.querySelector('#processing-note');
     if (processingNote) {
-      processingNote.textContent = 'Informe de SEC EDGAR. Verificación y extracción de señales financieras con IA.';
+      processingNote.textContent = isForce
+        ? 'Eliminando el informe anterior y volviendo a analizar desde SEC EDGAR con IA.'
+        : 'Informe de SEC EDGAR. Verificación y extracción de señales financieras con IA.';
     }
     startProcessingHints();
 
     try {
-      const response = await fetch(
-        `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/analyze`,
-        { method: 'POST' },
-      );
+      const endpoint = isForce
+        ? `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/regenerate`
+        : `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/analyze`;
+
+      const response = await fetch(endpoint, { method: 'POST' });
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -494,6 +887,9 @@
       }
 
       finishAnalysis(data);
+      if (isForce) {
+        showToast('Informe regenerado con éxito. Se ha eliminado el informe anterior.');
+      }
     } catch {
       showAnalysisError('No se pudo conectar con el servidor. Comprueba que esté en marcha.');
     }
@@ -502,7 +898,8 @@
   function downloadReport(format, baseUrl = currentDownloadBase, name = currentDownloadName) {
     if (!baseUrl || !['pdf', 'docx', 'odt'].includes(format)) return;
     const link = document.createElement('a');
-    link.href = `${baseUrl}.${format}`;
+    const safeName = encodeURIComponent(name || 'analisis-cifra');
+    link.href = `${baseUrl}.${format}?download=1&name=${safeName}`;
     link.download = `${name}.${format}`;
     document.body.appendChild(link);
     link.click();
@@ -528,6 +925,17 @@
       const resultTitle = document.querySelector('#result-title');
       if (resultTitle) resultTitle.textContent = titleParts.length ? titleParts.join(' — ') : 'Informe guardado';
       renderReport(analysis.report ?? {});
+
+      currentAnalysisId = analysis.id ? Number(analysis.id) : (Number(id) || null);
+      currentAnalysisTicker = analysis.ticker || analysis.report?.ticker || null;
+      currentAnalysisAccession = analysis.accession || null;
+      loadAnalysisFeedback(currentAnalysisId);
+
+      const adminRegenBtn = document.querySelector('#admin-regenerate-report');
+      if (adminRegenBtn) {
+        const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || currentUser?.isAdmin);
+        adminRegenBtn.hidden = !isAdmin;
+      }
 
       const processingPanel = document.querySelector('#processing-panel');
       if (processingPanel) processingPanel.hidden = true;
@@ -637,9 +1045,10 @@
       const status = analysis.status === 'done'
         ? '<span class="table-status done"><i></i> Completado</span>'
         : `<span class="table-status warning"><i></i> ${escapeHtml(analysis.status === 'processing' ? 'Procesando' : 'Error')}</span>`;
-      const base = analysis.downloadBase || String(analysis.pdf_url ?? '').replace(/\.pdf$/, '');
+      const fileBaseUrl = analysis.pdf_url ? String(analysis.pdf_url).replace(/\.pdf$/, '') : '';
+      const downloadName = analysis.downloadBase || 'analisis-cifra';
       return `
-        <tr data-id="${escapeHtml(analysis.id)}" data-pdf-url="${escapeHtml(analysis.pdf_url ?? '')}" data-download-base="${escapeHtml(base)}" data-download-name="${escapeHtml(analysis.downloadBase ?? 'analisis-cifra')}" tabindex="0" title="${escapeHtml(analysis.filename ?? '')}">
+        <tr data-id="${escapeHtml(analysis.id)}" data-pdf-url="${escapeHtml(analysis.pdf_url ?? '')}" data-download-base="${escapeHtml(fileBaseUrl)}" data-download-name="${escapeHtml(downloadName)}" tabindex="0" title="${escapeHtml(analysis.filename ?? '')}">
           <td><span class="table-file" data-letter="${escapeHtml(tickerInitial)}">${ticker ? `<img class="table-file-logo" src="https://companiesmarketcap.com/img/company-logos/64/${escapeHtml(ticker)}.webp" alt="" loading="lazy">` : ''}</span><strong>${escapeHtml(docName)}</strong></td>
           <td><strong>${escapeHtml(company)}</strong> ${ticker ? `<span class="td-ticker">${escapeHtml(ticker)}</span>` : ''}</td>
           <td>${escapeHtml(periodTitle)}</td>
@@ -875,7 +1284,6 @@
       if (!lastAnalysisFailed) clearFile();
     });
 
-    reportDownload?.addEventListener('click', () => downloadReport('pdf'));
     document.querySelectorAll('.result-actions [data-format]').forEach((button) => {
       button.addEventListener('click', () => downloadReport(button.dataset.format));
     });
@@ -886,6 +1294,8 @@
       if (uploadForm) uploadForm.hidden = true;
       if (secAnalysisEntry) secAnalysisEntry.hidden = false;
       pendingFiling = null;
+      currentAnalysisId = null;
+      loadAnalysisFeedback(null);
       clearFile();
       document.querySelector('#nuevo')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -977,6 +1387,97 @@
       const row = event.target.closest('#history-body tr[data-pdf-url]');
       if (row && !event.target.closest('button') && !event.target.closest('a')) {
         viewHistoryAnalysis(row);
+      }
+    });
+
+    // Configuración de estrellas de valoración
+    const ratingStarsWrap = document.querySelector('#rating-stars');
+    if (ratingStarsWrap) {
+      ratingStarsWrap.querySelectorAll('.star-btn').forEach((btn) => {
+        btn.addEventListener('mouseenter', () => highlightStars(Number(btn.dataset.value)));
+        btn.addEventListener('click', () => submitRating(Number(btn.dataset.value)));
+      });
+      ratingStarsWrap.addEventListener('mouseleave', clearStarHighlights);
+    }
+
+    // Botón de regeneración para administradores
+    const adminRegenerateBtn = document.querySelector('#admin-regenerate-report');
+    adminRegenerateBtn?.addEventListener('click', async () => {
+      const ticker = currentAnalysisTicker || pendingFiling?.ticker;
+      const accession = currentAnalysisAccession || pendingFiling?.accession;
+      if (!ticker || !accession) {
+        if (currentAnalysisId) {
+          if (!confirm('¿Deseas volver a generar este informe con IA?\n\n⚠️ Se eliminará el informe actual y se volverá a analizar desde SEC EDGAR.')) {
+            return;
+          }
+          startAnalysisUi('Regenerando informe con IA…');
+          try {
+            const res = await fetch(`/api/admin/reports/ai-analysis/${currentAnalysisId}/regenerate`, { method: 'POST' });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              showToast(json.error || 'No se pudo regenerar el informe.');
+              return;
+            }
+            finishAnalysis(json);
+            showToast('Informe regenerado con éxito.');
+          } catch {
+            showToast('Error al conectar con el servidor.');
+          }
+          return;
+        }
+        showToast('No se dispone de los datos de este informe para regenerarlo.');
+        return;
+      }
+
+      if (!confirm(`¿Deseas volver a generar el informe de ${ticker} (${accession}) con IA?\n\n⚠️ Se eliminará el informe anterior y se generará uno nuevo desde SEC EDGAR.`)) {
+        return;
+      }
+      runFilingAnalysis(ticker, accession, { force: true });
+    });
+
+    // Configuración de reporte de incidencias
+    const reportErrorTrigger = document.querySelector('#report-error-trigger');
+    reportErrorTrigger?.addEventListener('click', () => {
+      if (!currentAnalysisId) {
+        showToast('No hay ningún análisis seleccionado para reportar.');
+        return;
+      }
+      openErrorReportModal();
+    });
+
+    const reportClose = document.querySelector('#error-report-modal-close');
+    reportClose?.addEventListener('click', closeErrorReportModal);
+    const reportCancel = document.querySelector('#error-report-cancel-btn');
+    reportCancel?.addEventListener('click', closeErrorReportModal);
+    const reportBackdrop = document.querySelector('#error-report-modal-backdrop');
+    reportBackdrop?.addEventListener('click', (event) => {
+      if (event.target === reportBackdrop) closeErrorReportModal();
+    });
+
+    const reportForm = document.querySelector('#error-report-form');
+    reportForm?.addEventListener('submit', submitErrorReport);
+
+    if (window.ReportsModule) {
+      analysisAttachmentMgr = window.ReportsModule.createImageAttachmentManager({
+        dropzoneEl: document.querySelector('#analysis-report-dropzone'),
+        inputEl: document.querySelector('#analysis-report-file-input'),
+        previewEl: document.querySelector('#analysis-report-previews'),
+        maxImages: 5,
+      });
+    }
+
+    window.addEventListener('paste', (event) => {
+      const modal = document.querySelector('#error-report-modal-backdrop');
+      if (modal && !modal.hidden && analysisAttachmentMgr) {
+        const handled = analysisAttachmentMgr.handlePasteEvent(event);
+        if (handled) showToast('Captura de pantalla pegada.');
+      }
+    });
+
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        const modal = document.querySelector('#error-report-modal-backdrop');
+        if (modal && !modal.hidden) closeErrorReportModal();
       }
     });
   }

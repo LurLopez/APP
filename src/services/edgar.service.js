@@ -795,14 +795,15 @@ function normalizeRecentFilings(recent) {
   return entries;
 }
 
-export async function getCompanyFilings(ticker) {
+export async function getCompanyFilings(ticker, options = {}) {
+  const limit = Number(options?.limit) || FILINGS_LIMIT;
   const company = await getCompanyByTicker(ticker);
   const submissions = await getCompanySubmissions(company);
   const recent = normalizeRecentFilings(submissions?.filings?.recent);
   const filings = recent
     .filter((entry) => entry.form === '10-Q' || entry.form === '10-K')
     .filter((entry) => entry.accessionNumber && entry.primaryDocument)
-    .slice(0, FILINGS_LIMIT)
+    .slice(0, limit)
     .map((entry) => {
       const accessionNoDashes = entry.accessionNumber.replaceAll('-', '');
       const filedAt = entry.filingDate ?? null;
@@ -1142,7 +1143,8 @@ function rederiveCashValues(annual, quarterly) {
       }
       const stl = Number(values.shortTermLoans);
       const ltd = Number(values.longTermDebt);
-      const parts = [ltd, stl].filter((v) => Number.isFinite(v));
+      const ltdc = Number(values.longTermDebtCurrent);
+      const parts = [ltd, stl, ltdc].filter((v) => Number.isFinite(v));
       if (parts.length) {
         values.totalDebt = parts.reduce((a, b) => a + b, 0);
         const cashForNet = Number(values.cashAndShortTermInvestments ?? values.cash) || 0;
@@ -2112,7 +2114,8 @@ function buildSeries(facts) {
       const toNum = (v) => (v === undefined || v === null) ? null : Number(v);
       const ltd = toNum(data.longTermDebt);
       const stl = toNum(data.shortTermLoans);
-      const parts = [ltd, stl].filter((v) => v !== null && Number.isFinite(v));
+      const ltdc = toNum(data.longTermDebtCurrent);
+      const parts = [ltd, stl, ltdc].filter((v) => v !== null && Number.isFinite(v));
       return parts.length ? parts.reduce((a, b) => a + b, 0) : undefined;
     });
     setDerived(values, 'netDebt', (data) => Number.isFinite(Number(data.totalDebt)) && Number.isFinite(Number(data.cashAndShortTermInvestments ?? data.cash))

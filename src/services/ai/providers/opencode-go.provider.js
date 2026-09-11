@@ -1,6 +1,10 @@
+import { randomUUID } from 'node:crypto';
+
 const API_URL = 'https://opencode.ai/zen/go/v1/chat/completions';
 const MODEL = process.env.OPENCODE_GO_MODEL || 'deepseek-v4-flash';
 const REQUEST_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS || 180000);
+
+let currentSessionId = randomUUID();
 
 function cleanResponse(raw) {
   const trimmed = raw.trim();
@@ -11,11 +15,17 @@ function cleanResponse(raw) {
 export const opencodeGoProvider = {
   name: 'opencode-go',
 
-  async chat(messages) {
+  setSessionId(id) {
+    currentSessionId = id || randomUUID();
+  },
+
+  async chat(messages, options = {}) {
     const apiKey = process.env.OPENCODE_GO_API_KEY;
     if (!apiKey) {
       throw new Error('Falta OPENCODE_GO_API_KEY en el archivo .env');
     }
+
+    const sessionId = options?.sessionId || currentSessionId;
 
     let response;
     try {
@@ -24,6 +34,7 @@ export const opencodeGoProvider = {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
+          'x-opencode-session': sessionId,
         },
         body: JSON.stringify({
           model: MODEL,

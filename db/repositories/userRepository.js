@@ -1,14 +1,14 @@
 import { query } from '../pool.js';
 
-const USER_COLUMNS = 'id, email, username, plan, email_verified, google_id, created_at';
+const USER_COLUMNS = 'id, email, username, plan, role, email_verified, google_id, created_at';
 
-export async function createUser({ email, passwordHash, plan = 'free', username = null }) {
+export async function createUser({ email, passwordHash, plan = 'free', username = null, role = 'user' }) {
   const defaultUsername = username || email.split('@')[0];
   const { rows } = await query(
-    `INSERT INTO users (email, password_hash, plan, username)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO users (email, password_hash, plan, username, role)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING ${USER_COLUMNS}`,
-    [email, passwordHash, plan, defaultUsername],
+    [email, passwordHash, plan, defaultUsername, role],
   );
   return rows[0];
 }
@@ -50,7 +50,7 @@ export async function findUserByGoogleId(googleId) {
 
 export async function findUserByUsername(username) {
   const { rows } = await query(
-    `SELECT ${USER_COLUMNS} FROM users WHERE LOWER(username) = LOWER($1)`,
+    `SELECT ${USER_COLUMNS}, password_hash FROM users WHERE LOWER(username) = LOWER($1)`,
     [username],
   );
   return rows[0] ?? null;
@@ -119,3 +119,15 @@ export async function incrementCodeAttempts(codeId) {
     [codeId],
   );
 }
+
+export async function updateUserRole(userId, role) {
+  const { rows } = await query(
+    `UPDATE users
+     SET role = $2
+     WHERE id = $1
+     RETURNING ${USER_COLUMNS}`,
+    [userId, role],
+  );
+  return rows[0] ?? null;
+}
+

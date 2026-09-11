@@ -6,19 +6,26 @@
 
 ## 1. Arquitectura de Conocimiento Jerárquico
 
-Toda la base de conocimiento se estructura bajo `src/agents/knowledge/`:
+Toda la base de conocimiento se estructura bajo `src/agents/knowledge/` y se bifurca limpiamente entre análisis trimestrales (10-Q) y anuales (10-K):
 
 ```text
 src/agents/knowledge/
-├── general.md                          <-- [NIVEL 1] Reglas universales y formato de informes
-│
-├── <sector>/                           <-- [NIVEL 2] Reglas transversales del sector
+├── general.md                          <-- [NIVEL 1 TRIMESTRAL] Reglas universales y formato de informes 10-Q
+├── <sector>/                           <-- [NIVEL 2 TRIMESTRAL] Reglas transversales del sector
 │   ├── sector.md
 │   ├── ejemplos/                       <-- PDFs e informes de referencia del sector
-│   └── subsectores/                    <-- [NIVEL 3] Especialización de nicho
+│   └── subsectores/                    <-- [NIVEL 3 TRIMESTRAL] Especialización de nicho
 │       └── <subsector>/
 │           ├── subsector.md            <-- Reglas específicas con Frontmatter YAML (aliases, SIC)
 │           └── ejemplos/
+│
+└── anual/                              <-- [RAMA ANUAL FORM 10-K] Estructura espejo para análisis anuales
+    ├── general.md                      <-- [NIVEL 1 ANUAL] Reglas universales y formato de informes anuales
+    └── <sector>/                       <-- [NIVEL 2 ANUAL] Reglas de sector adaptadas a cierre anual
+        ├── sector.md
+        └── subsectores/                <-- [NIVEL 3 ANUAL] Especialización de nicho anual
+            └── <subsector>/
+                └── subsector.md
 ```
 
 ### Reglas de Nomenclatura
@@ -26,6 +33,7 @@ src/agents/knowledge/
 - Separación de palabras con guiones (`cuidado-personal-hogar`, no espacios).
 - El archivo de sector siempre se llama `sector.md`.
 - El archivo de subsector siempre se llama `subsector.md`.
+- El cargador dinámico `loadKnowledgeRules(sector, subsector, formType)` prioriza la rama `anual/` cuando el informe analizado es un Form 10-K o anual, con fallback a las directrices de la raíz si no estuvieran redefinidas.
 
 ---
 
@@ -34,12 +42,15 @@ src/agents/knowledge/
 ### Fase 1: Consumo Defensivo (`consumo-defensivo`) — [EN CURSO / BETA]
 Foco actual de la aplicación (beta 10-Q / 10-K en EE. UU.).
 
-- [x] **`general.md`**:
+- [x] **`general.md` (Trimestral)**:
   - Horizontes temporales: 3 meses y acumulado (excepción de horizonte único en Q1).
   - 3 Bloques obligatorios: Ventas, Cash Flow y Asignación de Capital.
   - Paleta multicolor coordinada para casillas ajustadas y notas al pie (`*1` amarillo, `*2` celeste, `*3` naranja, `*4` rosa, `*5` verde menta, `*6` violeta).
   - Porcentajes: verde para variaciones positivas (`#16a34a`) y rojo para negativas (`#dc2626`).
   - Deducción de Cash Flow trimestral a partir del acumulado ($\text{YTD } Q_n - \text{YTD } Q_{n-1}$).
+- [x] **`anual/general.md` (Anual — Form 10-K)**:
+  - Horizonte temporal anual: `AÑO COMPLETO (12 MESES)` sin deducciones trimestrales intermedias.
+  - Mismos 3 bloques con métricas directas de balance (variación 12 meses) y capital circulante sin prorrateo.
 - [x] **`consumo-defensivo/sector.md`**:
   - Intangibles a 0 (fondo de comercio e intangibles fuera del beneficio operativo).
   - Doble visión obligatoria: Ajustado vs Normal.

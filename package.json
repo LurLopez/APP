@@ -9,7 +9,9 @@
     "dev": "node --env-file=.env --watch server.js",
     "db:migrate": "node --env-file=.env db/migrations.js",
     "db:seed": "node --env-file=.env db/seed.js",
-    "test:email": "node --env-file=.env scripts/test-email.js"
+    "test:email": "node --env-file=.env scripts/test-email.js",
+    "analyze:consumer": "node --env-file=.env scripts/analyze-defensive-consumer.js",
+    "worker:opencode": "node --env-file=.env scripts/analyze-defensive-consumer.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

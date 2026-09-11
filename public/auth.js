@@ -1,4 +1,17 @@
-const state = { user: null, tab: 'login', step: 'credentials', verifyingEmail: null, resetEmail: null };
+let authReadyResolve;
+const authReadyPromise = new Promise((resolve) => {
+  authReadyResolve = resolve;
+});
+
+const state = { user: null, loaded: false, tab: 'login', step: 'credentials', verifyingEmail: null, resetEmail: null };
+
+window.AuthModule = {
+  getUser: () => state.user,
+  isAdmin: () => Boolean(state.user?.isAdmin),
+  isReady: () => state.loaded,
+  whenReady: () => authReadyPromise,
+  openModal: (tab) => openModal(tab),
+};
 
 const authArea = document.querySelector('#auth-area');
 const userChip = document.querySelector('#user-chip');
@@ -76,6 +89,8 @@ function planLabel(plan) {
 
 function renderAuth() {
   const logged = Boolean(state.user);
+  const isAdmin = Boolean(state.user?.isAdmin);
+  window.currentUser = state.user;
 
   if (authArea) authArea.hidden = logged;
   if (userChip) userChip.hidden = !logged;
@@ -86,16 +101,33 @@ function renderAuth() {
     if (userEmail) userEmail.textContent = displayName;
     if (accountAvatar) accountAvatar.textContent = initials(displayName);
     if (accountName) accountName.textContent = displayName;
-    if (accountPlan) accountPlan.textContent = planLabel(state.user.plan);
+    if (accountPlan) {
+      accountPlan.textContent = isAdmin ? 'Administrador' : planLabel(state.user.plan);
+      accountPlan.classList.toggle('account-plan-admin', isAdmin);
+    }
     if (accountAction) accountAction.textContent = 'Salir';
   } else {
     if (accountAvatar) accountAvatar.textContent = '?';
     if (accountName) accountName.textContent = 'Invitado';
-    if (accountPlan) accountPlan.textContent = 'Beta privada';
+    if (accountPlan) {
+      accountPlan.textContent = 'Beta privada';
+      accountPlan.classList.remove('account-plan-admin');
+    }
     if (accountAction) accountAction.textContent = 'Entrar';
   }
 
-  window.dispatchEvent(new CustomEvent('auth:change', { detail: { user: state.user } }));
+  document.body.classList.toggle('is-admin', isAdmin);
+
+  document.querySelectorAll('.admin-only:not(section), .nav-link-admin, #nav-item-reportes').forEach((el) => {
+    el.hidden = !isAdmin;
+    if (!isAdmin) {
+      el.style.setProperty('display', 'none', 'important');
+    } else {
+      el.style.removeProperty('display');
+    }
+  });
+
+  window.dispatchEvent(new CustomEvent('auth:change', { detail: { user: state.user, isAdmin } }));
 }
 
 function openModal(tab = 'login') {
@@ -176,6 +208,12 @@ function setTab(tab) {
   authConfirmField.hidden = !isRegister;
   authConfirm.required = isRegister;
   authEmail.autocomplete = isRegister ? 'email' : 'username';
+  authEmail.type = isRegister ? 'email' : 'text';
+  authEmail.placeholder = isRegister ? 'tu@correo.com' : 'tu@correo.com o usuario';
+  const authEmailLabel = document.querySelector('#auth-email-label');
+  if (authEmailLabel) {
+    authEmailLabel.textContent = isRegister ? 'Correo electrónico' : 'Correo electrónico o usuario';
+  }
   authPassword.autocomplete = isRegister ? 'new-password' : 'current-password';
   forgotRow.hidden = tab !== 'login';
 
@@ -206,7 +244,11 @@ async function loadSession() {
   } catch {
     state.user = null;
   }
+  state.loaded = true;
   renderAuth();
+  if (typeof authReadyResolve === 'function') {
+    authReadyResolve(state.user);
+  }
 }
 
 async function handleSubmit(event) {
@@ -241,7 +283,7 @@ async function handleSubmit(event) {
   try {
     const { user } = await api(`/api/auth/${isRegister ? 'register' : 'login'}`, {
       method: 'POST',
-      body: { email, password },
+      body: { email, login: email, username: email, password },
     });
     if (isRegister) {
       showVerifyStep(email);
@@ -249,7 +291,8 @@ async function handleSubmit(event) {
       state.user = user;
       renderAuth();
       closeModal();
-      showToast(`Bienvenido de nuevo, ${email}`);
+      const displayName = user.username || user.email;
+      showToast(`Bienvenido de nuevo, ${displayName}`);
     }
   } catch (error) {
     if (error.code === 'EMAIL_NOT_VERIFIED') {
@@ -525,3 +568,12 @@ function cleanOAuthParams(keys) {
 
 checkOAuthRedirect();
 loadSession();
+
+window.AuthModule = {
+  getUser: () => state.user,
+  isAdmin: () => Boolean(state.user?.isAdmin),
+  isReady: () => state.loaded,
+  whenReady: () => authReadyPromise,
+  openModal,
+};
+

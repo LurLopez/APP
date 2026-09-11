@@ -13,7 +13,7 @@ Consultar la **API oficial de la SEC (EDGAR)** y Yahoo Finance para: (1) buscar 
 **Incluido:**
 - `GET /api/screener/search?q=` — búsqueda de empresas por ticker o nombre (máx. 8 resultados).
 - `GET /api/screener/company/:ticker` — series financieras anuales (10) y trimestrales (8) con catálogo `statements` y **perfil** (`profile` con market, metrics, info, description).
-- `GET /api/screener/company/:ticker/chart?range=&ma=` — serie de precios de Yahoo (3M/6M/1Y/3Y/5Y/10Y/ALL) con media móvil de 100 sesiones opcional.
+- `GET /api/screener/company/:ticker/chart?range=&ma=` — serie de precios de Yahoo (3M/6M/1Y/3Y/5Y/10Y/ALL) con soporte de múltiples medias móviles configurables (ej. `ma=100,1000`) calculadas retrospectivamente desde el día 0.
 - `GET /api/screener/company/:ticker/filings` — histórico de 10-Q/10-K (submissions de EDGAR, límite 40).
 - `GET .../filings/:accession/document` — documento (PDF real de la SEC, PDF generado con Chrome o HTML original) con `?download=1`.
 - `GET .../filings/:accession/preview` y `.../preview/pages/:page` — vista previa por imágenes (pdftoppm, 100 DPI).
@@ -31,7 +31,7 @@ Consultar la **API oficial de la SEC (EDGAR)** y Yahoo Finance para: (1) buscar 
 |---|---|---|---|
 | `GET` | `/api/screener/search` | `q` (obligatorio) | 200 · 400 · 502 |
 | `GET` | `/api/screener/company/:ticker` | — | 200 `{ ok, authenticated, company, currency, statements, annual, quarterly, profile }` · 400 · 404 · 502 |
-| `GET` | `/api/screener/company/:ticker/chart` | `range` (3m/6m/1y/3y/5y/10y/all), `ma` (1) | 200 `{ ok, range, currency, points, maPoints?, source }` · 400 · 502 |
+| `GET` | `/api/screener/company/:ticker/chart` | `range` (3m/6m/1y/3y/5y/10y/all), `ma` (1 o lista ej. 100,1000) | 200 `{ ok, range, currency, points, movingAverages: [{ window, points }], maPoints?, source }` · 400 · 502 |
 | `GET` | `/api/screener/company/:ticker/filings` | — | 200 `{ ok, company, filings }` · 400 · 404 · 502 |
 | `GET` | `.../filings/:accession/document` | `download=1` (adjunto) | 200 (stream PDF/HTML) · 400 · 404 `FILING_NOT_FOUND` · 502 |
 | `GET` | `.../filings/:accession/preview` | — | 200 `{ ok, filename, pages }` · 400 · 404 · 502 `PREVIEW_UNAVAILABLE` |
@@ -146,7 +146,7 @@ Combina EDGAR + Yahoo (`getMarketProfile`):
 
 ## 5. Servicio de mercado (`src/services/market.service.js`)
 
-- `getChartSeries(ticker, range, withMovingAverage)`: rangos 3M/6M (1d), 1Y (1d), 3Y/5Y (1wk), 10Y/ALL (1mo); caché 5 min. **MA 100**: se pide la serie **diaria** para el mismo rango y se calcula la media de 100 cierres diarios (la serie semanal/mensual promediaba 100 semanas/meses — corregido); ante fallo devuelve `maPoints: []`.
+- `getChartSeries(ticker, range, withMovingAverage)`: rangos 3M/6M (1d), 1Y (1d), 3Y/5Y (1wk), 10Y/ALL (1mo); caché 5 min. **MA 100**: se pide la serie **diaria** con un margen de ~260 días de calendario anteriores al día 0 del gráfico para asegurar al menos 100 sesiones bursátiles previas; de este modo la media móvil de 100 sesiones se calcula desde el día 0 exacto (extremo izquierdo del gráfico) y cubre todo el rango visual sin desfase ni hueco inicial; ante fallo devuelve `maPoints: []`.
 - `getMarketQuote(ticker)`: último precio, apertura, máx/mín, var., %, volumen, hora y estado de mercado (caché 60 s; recupera de las velas lo que falte en meta).
 - `getMarketProfile(ticker)`: perfil completo con beta (vs SPY, ajustado), dividendo TTM, rango 52 semanas, OPV, sparkline (caché 5 min).
 - `getDividendHistory(ticker, { from })`: eventos de dividendos por **tramos de 5 años** (Yahoo trunca con `range=max`), caché 24 h (usado por la cartera).
@@ -178,7 +178,7 @@ Combina EDGAR + Yahoo (`getMarketProfile`):
 | Archivo | Función |
 |---|---|
 | `src/services/edgar.service.js` | Toda la lógica EDGAR: búsqueda, facts, series (buildSeries), rescate XBRL, perfil, sector, filings, documento/preview, errores con código. |
-| `src/services/market.service.js` | Yahoo Finance: chart con MA100, quote, profile, dividendos. |
+| `src/services/market.service.js` | Yahoo Finance: chart con cálculo retrospectivo multi-MA desde día 0, quote, profile, dividendos. |
 | `src/api/routes/screener.routes.js` | 8 endpoints con validaciones y mapeo de errores; streaming del documento; preview por páginas; `POST .../analyze`. |
 | `src/middleware/auth.middleware.js` | `resolveUser` (opcional) para `authenticated`. |
 | `server.js` | Monta el router en `/api/screener` y la ruta `GET /empresa/:ticker` (página de empresa). |
@@ -198,6 +198,8 @@ Sin dependencias npm nuevas (fetch nativo; Chrome y pdftoppm como binarios exter
 | **Aislamiento de frames 10-Q en series anuales** | En `buildSeries`, entradas con frames trailing (ej. `CY2026`) procedentes de 10-Q intermedios no crean ni contaminan filas del año fiscal anual. Se filtran también filas con `periodEnd === null`. |
 | **Normalización de deterioros e inversiones (`InvestmentIncomeNet`, `OtherAssetImpairmentCharges`)** | En empresas con ajustes no operativos o deterioros masivos de participadas (ej. la inversión en Canopy Growth de Constellation Brands `STZ`), los deterioros se reportan bajo `InvestmentIncomeNet` o `OtherAssetImpairmentCharges`. Se integraron y combinaron en `gainLossOnInvestments` y `assetImpairment`, permitiendo que el beneficio ajustado normalice las pérdidas extraordinarias ($2.04B en 2023, $1.64B en 2022) y el BPA normalizado refleje la capacidad real operativa (~10-12 $ en lugar de 1,44 $). |
 | **Propagación de acciones y continuidad TTM (`propagateMissingShares`, `pointInTimeSnapshot`)** | Rellena el número de acciones diluidas en trimestres históricos a partir de los 10-K auditados o trimestres adyacentes para permitir el cálculo de BPA y BPA normalizado en ventanas rodantes de 4 trimestres. Además, `pointInTimeSnapshot` calcula el TTM a partir de los beneficios netos acumulados y aplica propagación hacia adelante/atrás para evitar huecos (`null`) en el gráfico de valoración por sesión. |
+| **Buffer retrospectivo multi-MA desde día 0** | En lugar de dejar un hueco inicial de N sesiones a la izquierda del gráfico, `getChartSeries` consulta las sesiones diarias anteriores a la fecha inicial (`Math.max(...windows)`). Calcula todas las medias móviles solicitadas (ej. 100, 1000) en una sola pasada en memoria y las devuelve alineadas desde el día 0. |
+| **Persistencia local de configuración MA** | Guarda la lista de periodos, estados activo/inactivo y colores en `localStorage` (`cifra_chart_ma_config_v1`), manteniendo las preferencias del usuario entre recargas y cambios de empresa. |
 | **Mapa de excepciones de CIK y formato ticker** | Resuelve tickers con holding recién constituido en la SEC (ej. `XOM` mapeado a CIK 34088) y normaliza tickers con punto/guión (`BRK.B` / `BRK-B`, `BF.B` / `BF-B`). |
 | **PDF real o generado con Chrome (con UA)** | Los filings modernos no traen PDF; la SEC bloqueaba a Chrome headless sin User-Agent declarado. |
 | **Preview con pdftoppm** | El visor PDF de Chrome dentro de iframe no renderiza; las imágenes funcionan en cualquier navegador. |
