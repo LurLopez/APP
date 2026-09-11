@@ -64,6 +64,8 @@ jobs:
             git reset --hard origin/production
             npm ci --omit=dev --no-audit --no-fund
             npm run db:migrate
+            sudo fuser -k "3000/tcp" >/dev/null 2>&1 || true
+            sleep 1
             sudo systemctl restart cifra-prod
             sleep 3
             curl -fsS http://127.0.0.1:3000/robots.txt > /dev/null
