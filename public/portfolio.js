@@ -5262,6 +5262,16 @@ const Portfolio = (() => {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        if (data.code === 'AUTH_REQUIRED' || data.code === 'DAILY_LIMIT_REACHED') {
+          calendarAiLoading = false;
+          calendarAiError = data.error || 'No se pudo completar el análisis de IA del informe.';
+          renderCalendarView();
+          if (data.code === 'AUTH_REQUIRED') {
+            showToast?.('Crea una cuenta gratis para analizar informes nuevos con IA.');
+            window.AuthModule?.openModal?.('register');
+          }
+          return;
+        }
         throw new Error(data.error || 'No se pudo completar el análisis de IA del informe.');
       }
 

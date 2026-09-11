@@ -28,6 +28,12 @@ import {
 import { AgentError } from '../../agents/baseAgent.js';
 import { getChartSeries, getCompanyHolders } from '../../services/market.service.js';
 import { resolveUser } from '../../middleware/auth.middleware.js';
+import {
+  getAiQuota,
+  assertAiQuotaAvailable,
+  consumeAiQuota,
+  refundAiQuota,
+} from '../../services/aiQuota.service.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -331,6 +337,7 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
             try {
               const linked = await createAnalysis({
                 userId: user.id,
+                isPublic: true,
                 filename: existing.filename || `${ticker}-${accession}.pdf`,
                 status: 'done',
                 ticker: existing.ticker,
@@ -371,40 +378,62 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
       }
     }
 
-    // 2. Si no estaba guardado, proceder con la descarga y análisis en vivo
-    const content = await getFilingContentBuffer(ticker, accession);
-    if (!content) {
-      res.status(404).json({ error: 'Informe no encontrado.', code: 'FILING_NOT_FOUND' });
+    // 2. Generar un análisis nuevo con IA: requiere cuenta registrada y consume
+    // el cupo diario (leer análisis ya existentes, paso 1, no consume cupo).
+    if (!user) {
+      res.status(401).json({
+        error: 'Regístrate o inicia sesión para analizar informes nuevos con IA. Consultar análisis ya existentes es gratis.',
+        code: 'AUTH_REQUIRED',
+      });
       return;
     }
 
-    // Documento complementario: presentación de resultados (8-K). El outlook suele estar aquí
-    // cuando el 10-K/10-Q no lo incluye.
-    let presentationText = null;
+    await assertAiQuotaAvailable(user);
+    const usageId = await consumeAiQuota(user);
+
+    let result;
     try {
-      const presentations = await getPresentationBuffers(ticker, accession);
-      if (presentations.length) {
-        presentationText = await buildPresentationText(presentations);
+      const content = await getFilingContentBuffer(ticker, accession);
+      if (!content) {
+        await refundAiQuota(usageId);
+        res.status(404).json({ error: 'Informe no encontrado.', code: 'FILING_NOT_FOUND' });
+        return;
       }
-    } catch (presentationError) {
-      console.warn('[analysis:presentation]', presentationError.message);
+
+      // Documento complementario: presentación de resultados (8-K). El outlook suele estar aquí
+      // cuando el 10-K/10-Q no lo incluye.
+      let presentationText = null;
+      try {
+        const presentations = await getPresentationBuffers(ticker, accession);
+        if (presentations.length) {
+          presentationText = await buildPresentationText(presentations);
+        }
+      } catch (presentationError) {
+        console.warn('[analysis:presentation]', presentationError.message);
+      }
+
+      const options = {
+        // Los informes de filings oficiales se comparten siempre de forma pública
+        // (caché global): el siguiente visitante lo lee al instante y sin cupo.
+        // En una regeneración de un informe que ya era público se mantiene sin propietario.
+        userId: preservePublic ? null : user.id,
+        isPublic: true,
+        filename: `${ticker}-${accession}.pdf`,
+        ticker,
+        accession,
+        sourceUrl: content.filing?.documentUrl ?? null,
+        formType: content.filing?.formType ?? null,
+        presentationText,
+      };
+      result = content.kind === 'pdf'
+        ? await analyzePdf(content.buffer, options)
+        : await analyzeText(htmlToText(content.buffer.toString('utf8')), options);
+    } catch (generationError) {
+      await refundAiQuota(usageId);
+      throw generationError;
     }
 
-    const options = {
-      // Si el informe era público y se regenera, se mantiene público sin propietario
-      // (mismo criterio que la regeneración del panel de administración).
-      userId: preservePublic ? null : (user?.id ?? null),
-      isPublic: !user || preservePublic,
-      filename: `${ticker}-${accession}.pdf`,
-      ticker,
-      accession,
-      sourceUrl: content.filing?.documentUrl ?? null,
-      formType: content.filing?.formType ?? null,
-      presentationText,
-    };
-    const result = content.kind === 'pdf'
-      ? await analyzePdf(content.buffer, options)
-      : await analyzeText(htmlToText(content.buffer.toString('utf8')), options);
+    const quota = await getAiQuota(user);
     res.json({
       ok: true,
       analysisId: result.analysisId ?? null,
@@ -414,8 +443,9 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
       report: result.report,
       pdfUrl: result.pdfUrl,
       downloadBase: result.downloadBase,
-      saved: Boolean(user),
+      saved: true,
       cached: false,
+      quota,
     });
   } catch (error) {
     if (error instanceof AgentError) {

@@ -24,6 +24,37 @@
   let currentAnalysisTicker = null;
   let currentAnalysisAccession = null;
   let currentUserRating = 0;
+  let pendingAuthRetry = null;
+
+  function isAuthenticated() {
+    return Boolean(window.AuthModule?.getUser?.() || currentUser);
+  }
+
+  function requireAuthForAnalysis(retry) {
+    pendingAuthRetry = typeof retry === 'function' ? retry : null;
+    showToast('Crea una cuenta gratis para analizar informes nuevos con IA.');
+    window.AuthModule?.openModal?.('register');
+  }
+
+  function handleAnalysisAccessError(data, retry) {
+    if (data?.code === 'AUTH_REQUIRED') {
+      cancelAnalysisUi();
+      requireAuthForAnalysis(retry);
+      return true;
+    }
+    return false;
+  }
+
+  function cancelAnalysisUi() {
+    clearTimeout(processingHintTimer);
+    clearInterval(analysisTimer);
+    const processingPanel = document.querySelector('#processing-panel');
+    if (processingPanel) processingPanel.hidden = true;
+    const uploadForm = document.querySelector('#upload-form');
+    if (uploadForm) uploadForm.hidden = false;
+    const secAnalysisEntry = document.querySelector('#sec-analysis-entry');
+    if (secAnalysisEntry) secAnalysisEntry.hidden = false;
+  }
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -1709,7 +1740,11 @@
     }
 
     const saved = data.saved && currentUser;
-    showToast(`${saved ? 'Análisis guardado en tu histórico. ' : ''}${data.formType || 'Informe'} analizado con éxito.`);
+    const quota = data.quota;
+    const quotaNote = quota && !quota.unlimited && Number.isFinite(Number(quota.remaining)) && !data.cached
+      ? ` Te quedan ${quota.remaining} análisis con IA hoy.`
+      : '';
+    showToast(`${saved ? 'Análisis guardado en tu histórico. ' : ''}${data.formType || 'Informe'} analizado con éxito.${quotaNote}`);
     if (saved) {
       fetchAnalyses();
       fetchHistoryCompanies();
@@ -1879,6 +1914,11 @@
       }
     }
 
+    if (!isAuthenticated()) {
+      requireAuthForAnalysis(() => runRealAnalysis());
+      return;
+    }
+
     pendingFiling = null;
     startAnalysisUi('Verificando el documento...');
     startProcessingHints();
@@ -1892,6 +1932,7 @@
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        if (handleAnalysisAccessError(data, () => runRealAnalysis())) return;
         failAnalysis(data);
         return;
       }
@@ -1904,6 +1945,10 @@
 
   async function runFilingAnalysis(ticker, accession, options = {}) {
     const isForce = Boolean(options.force);
+    if (!isForce && !isAuthenticated()) {
+      requireAuthForAnalysis(() => runFilingAnalysis(ticker, accession, options));
+      return;
+    }
     pendingFiling = { ticker, accession };
     currentAnalysisTicker = ticker;
     currentAnalysisAccession = accession;
@@ -1925,6 +1970,7 @@
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        if (handleAnalysisAccessError(data, () => runFilingAnalysis(ticker, accession, options))) return;
         failAnalysis(data);
         return;
       }
@@ -2549,7 +2595,13 @@
   }
 
   window.addEventListener('auth:change', (event) => {
-    setAuthenticated(Boolean(event.detail?.user));
+    const logged = Boolean(event.detail?.user);
+    setAuthenticated(logged);
+    if (logged && pendingAuthRetry) {
+      const retry = pendingAuthRetry;
+      pendingAuthRetry = null;
+      retry();
+    }
   });
 
   window.AnalysisModule = {

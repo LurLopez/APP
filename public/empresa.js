@@ -4490,7 +4490,7 @@ function isLockedPeriod(rowIndex, rows) {
 }
 
 function renderProCell() {
-  return '<span class="pro-pill"><i aria-hidden="true"></i>PRO</span>';
+  return '<button type="button" class="register-pill" title="Crea una cuenta gratis para ver todo el histórico" onclick="window.AuthModule && window.AuthModule.openModal && window.AuthModule.openModal(\'register\')">Regístrate</button>';
 }
 
 function shouldRenderScreenerValueRed(value, item) {

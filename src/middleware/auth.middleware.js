@@ -10,14 +10,14 @@ export async function requireAuth(req, res, next) {
   try {
     const token = req.cookies?.token;
     if (!token) {
-      return res.status(401).json({ error: 'Sesión no iniciada.' });
+      return res.status(401).json({ error: 'Sesión no iniciada.', code: 'AUTH_REQUIRED' });
     }
 
     const payload = jwt.verify(token, config.jwtSecret);
     const user = await findUserById(payload.sub);
 
     if (!user) {
-      return res.status(401).json({ error: 'La sesión ya no es válida.' });
+      return res.status(401).json({ error: 'La sesión ya no es válida.', code: 'AUTH_REQUIRED' });
     }
 
     const isAdmin = checkAdmin(user);
@@ -28,7 +28,7 @@ export async function requireAuth(req, res, next) {
     };
     return next();
   } catch {
-    return res.status(401).json({ error: 'La sesión no es válida o ha expirado.' });
+    return res.status(401).json({ error: 'La sesión no es válida o ha expirado.', code: 'AUTH_REQUIRED' });
   }
 }
 

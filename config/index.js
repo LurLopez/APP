@@ -33,8 +33,9 @@ export default {
     callbackUrl: process.env.GOOGLE_CALLBACK_URL || `http://localhost:${port}/api/auth/google/callback`,
   },
   adminUser: {
-    username: (process.env.ADMIN_USERNAME || process.env.ADMIN_USER || 'admin').trim(),
-    password: String(process.env.ADMIN_PASSWORD ?? 'admin'),
+    username: (process.env.ADMIN_USERNAME || process.env.ADMIN_USER || '').trim(),
+    password: String(process.env.ADMIN_PASSWORD ?? ''),
     email: (process.env.ADMIN_EMAIL || 'admin@cifra.local').trim().toLowerCase(),
   },
+  dailyAiAnalysesLimit: Math.max(1, Number(process.env.DAILY_AI_ANALYSES_LIMIT) || 3),
   };

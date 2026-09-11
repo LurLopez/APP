@@ -123,6 +123,9 @@ export async function googleAuthCallback(req, res) {
     setAuthCookie(res, user.id);
     return safeRedirect(res, returnTo, 'auth_success', 'google');
   } catch (err) {
+    if (err?.code === 'ADMIN_GOOGLE_BLOCKED') {
+      return safeRedirect(res, returnTo, 'auth_error', 'admin_google_blocked');
+    }
     console.error('[Google OAuth] Error inesperado en callback:', err);
     return safeRedirect(res, returnTo, 'auth_error', 'server_error');
   }

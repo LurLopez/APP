@@ -310,7 +310,9 @@ CREATE INDEX IF NOT EXISTS idx_analysis_error_reports_analysis ON analysis_error
 CREATE INDEX IF NOT EXISTS idx_analysis_error_reports_user ON analysis_error_reports (user_id);
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin'));
-UPDATE users SET role = 'admin' WHERE email IN ('lurlopez13@gmail.com', 'luraldura13@gmail.com', 'lur.lopez.f@mail.pucv.cl', 'demo@cifra.local');
+-- El rol admin se asigna ÚNICAMENTE a la cuenta configurada en .env
+-- (ADMIN_USERNAME / ADMIN_PASSWORD, ver ensureAdminUser en auth.service.js).
+-- Nunca debe promoverse a admin por email ni por login con Google.
 
 CREATE TABLE IF NOT EXISTS general_reports (
     id          SERIAL PRIMARY KEY,
@@ -333,3 +335,14 @@ CREATE INDEX IF NOT EXISTS idx_general_reports_user ON general_reports (user_id)
 
 ALTER TABLE general_reports ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE analysis_error_reports ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
+
+-- Registro de análisis nuevos generados con IA por usuario. Se usa para aplicar
+-- el límite diario (DAILY_AI_ANALYSES_LIMIT). Leer análisis ya existentes no inserta
+-- filas aquí y, por tanto, no consume cupo.
+CREATE TABLE IF NOT EXISTS ai_generation_usage (
+    id         SERIAL PRIMARY KEY,
+    user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_generation_usage_user_created ON ai_generation_usage (user_id, created_at DESC);

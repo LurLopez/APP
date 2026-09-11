@@ -17,6 +17,12 @@ import {
 } from '../../../db/repositories/analysisRepository.js';
 import { getCompanyFilings } from '../../services/edgar.service.js';
 import { requireAuth, resolveUser } from '../../middleware/auth.middleware.js';
+import {
+  getAiQuota,
+  assertAiQuotaAvailable,
+  consumeAiQuota,
+  refundAiQuota,
+} from '../../services/aiQuota.service.js';
 
 const TICKER_PATTERN = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
@@ -41,10 +47,11 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 },
 });
 
-router.post('/upload', upload.fields([
+router.post('/upload', requireAuth, upload.fields([
   { name: 'file', maxCount: 1 },
   { name: 'presentation', maxCount: 1 },
 ]), async (req, res, next) => {
+  let usageId = null;
   try {
     const mainFile = req.files?.file?.[0];
     const presentationFile = req.files?.presentation?.[0];
@@ -72,12 +79,15 @@ router.post('/upload', upload.fields([
       }
     }
 
-    const user = await resolveUser(req);
+    await assertAiQuotaAvailable(req.user);
+    usageId = await consumeAiQuota(req.user);
+
     const result = await analyzePdf(mainFile.buffer, {
-      userId: user?.id ?? null,
+      userId: req.user.id,
       filename: mainFile.originalname,
       presentationText,
     });
+    const quota = await getAiQuota(req.user);
     res.json({
       ok: true,
       origin: result.origin,
@@ -85,9 +95,11 @@ router.post('/upload', upload.fields([
       sector: result.sector,
       report: result.report,
       pdfUrl: result.pdfUrl,
-      saved: Boolean(user),
+      saved: true,
+      quota,
     });
   } catch (error) {
+    await refundAiQuota(usageId);
     if (error instanceof multer.MulterError) {
       const message = error.code === 'LIMIT_FILE_SIZE'
         ? 'El archivo supera el límite de 25 MB.'

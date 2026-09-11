@@ -21,7 +21,7 @@ export async function createAnalysis({
     `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING ${ANALYSIS_COLUMNS}`,
-    [userId, Boolean(isPublic && userId === null), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession],
+    [userId, Boolean(isPublic), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession],
   );
   return rows[0];
 }

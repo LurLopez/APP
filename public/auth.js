@@ -552,6 +552,8 @@ function checkOAuthRedirect() {
       msg = 'Sesión OAuth expirada o inválida. Inténtalo de nuevo.';
     } else if (authError === 'email_required') {
       msg = 'La cuenta de Google no tiene un email válido.';
+    } else if (authError === 'admin_google_blocked') {
+      msg = 'La cuenta de administración solo puede entrar con su usuario y contraseña.';
     }
     showToast(msg);
     cleanOAuthParams(['auth_error']);

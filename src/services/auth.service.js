@@ -45,6 +45,8 @@ export async function ensureAdminUser() {
   const existingByEmail = await findUserByEmail(normalizedEmail);
   const existing = existingByUsername || existingByEmail;
 
+  let adminUser = null;
+
   if (existing) {
     const { rows } = await query(
       `UPDATE users
@@ -57,19 +59,31 @@ export async function ensureAdminUser() {
        RETURNING id, email, username, role, plan, email_verified`,
       [passwordHash, username, normalizedEmail, existing.id],
     );
-    console.log(`[auth] Usuario admin asegurado: username='${username}', email='${rows[0].email}' (rol: admin)`);
-    return rows[0];
+    adminUser = rows[0];
+  } else {
+    // 2. Si no existe, crearlo
+    const { rows } = await query(
+      `INSERT INTO users (email, username, password_hash, role, plan, email_verified)
+       VALUES ($1, $2, $3, 'admin', 'premium', true)
+       RETURNING id, email, username, role, plan, email_verified`,
+      [normalizedEmail, username, passwordHash],
+    );
+    adminUser = rows[0];
   }
 
-  // 2. Si no existe, crearlo
-  const { rows } = await query(
-    `INSERT INTO users (email, username, password_hash, role, plan, email_verified)
-     VALUES ($1, $2, $3, 'admin', 'premium', true)
-     RETURNING id, email, username, role, plan, email_verified`,
-    [normalizedEmail, username, passwordHash],
+  // 3. Solo la cuenta configurada en el .env puede ser administradora:
+  // cualquier otro usuario con rol admin (promociones antiguas, cuentas de
+  // Google, etc.) vuelve a usuario normal.
+  const { rowCount } = await query(
+    `UPDATE users SET role = 'user' WHERE role = 'admin' AND id <> $1`,
+    [adminUser.id],
   );
-  console.log(`[auth] Usuario admin creado: username='${username}', email='${normalizedEmail}' (rol: admin)`);
-  return rows[0];
+  if (rowCount > 0) {
+    console.log(`[auth] Retirado el rol admin a ${rowCount} cuenta(s) no autorizada(s).`);
+  }
+
+  console.log(`[auth] Usuario admin asegurado: username='${adminUser.username}', email='${adminUser.email}' (rol: admin)`);
+  return adminUser;
 }
 
 export class AuthError extends Error {
@@ -310,20 +324,30 @@ export async function loginOrRegisterGoogle({ googleId, email }) {
     throw new AuthError('El correo proporcionado por Google no es válido.', 400);
   }
 
+  // El administrador solo puede entrar con el usuario y contraseña secretos
+  // del .env: una cuenta con Google nunca obtiene el rol admin.
+  const adminBlocked = () => new AuthError(
+    'La cuenta de administración solo puede iniciar sesión con su usuario y contraseña.',
+    403,
+    'ADMIN_GOOGLE_BLOCKED',
+  );
+
   // 1. Buscar si ya existe por google_id
   let user = await findUserByGoogleId(googleId);
   if (user) {
+    if (checkIsAdmin(user)) throw adminBlocked();
     return toPublicUser(user);
   }
 
   // 2. Si existe un usuario con este email (creado previamente por formulario), vinculamos la cuenta Google
   const existingByEmail = await findUserByEmail(normalizedEmail);
   if (existingByEmail) {
+    if (checkIsAdmin(existingByEmail)) throw adminBlocked();
     user = await linkGoogleAccount(existingByEmail.id, googleId);
     return toPublicUser(user);
   }
 
-  // 3. Crear cuenta nueva con Google (queda verificada automáticamente)
+  // 3. Crear cuenta nueva con Google (queda verificada automáticamente, rol de usuario normal)
   user = await createGoogleUser({ email: normalizedEmail, googleId });
   return toPublicUser(user);
 }

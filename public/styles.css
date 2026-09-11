@@ -546,6 +546,28 @@ body.screener-table-dragging {
   border-radius: 1px;
   background: var(--surface);
 }
+.register-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  padding: 0 7px;
+  border: 1px solid var(--accent-mid);
+  border-radius: 999px;
+  background: var(--accent-faint);
+  color: var(--accent-dark);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.register-pill:hover {
+  border-color: var(--accent-light);
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
 .screener-block tr[data-metric] td:first-child {
   cursor: pointer;
 }
