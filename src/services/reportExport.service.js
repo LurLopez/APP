@@ -1,4 +1,7 @@
 import JSZip from 'jszip';
+import { withOutlookComparison } from '../agents/analystAgent.js';
+
+export { withOutlookComparison };
 
 /* ── Paleta de resaltado por nota (*1…*6) — idéntica a la del PDF ── */
 const HIGHLIGHT_PALETTE = [
@@ -141,6 +144,419 @@ export function buildSharesChartTable(chart) {
     cell(`${fmtPct(m.pct)} (BPA ${fmtBpa(m.bpa)})`, { bold: true, color: COLORS.negative, bg: '#e0f2fe' }),
   ]);
   return { columns: ['Año', 'Acciones (millones)', 'Δ vs año anterior'], widths: [70, 140, 120], headers, rows: [...rows, ...metricRows] };
+}
+
+/* ── Deuda: Modelos de Calendario de Vencimientos, Evolución 10 Años y Refinanciación ── */
+
+const DEBT_BLOCK_PALETTE = [
+  { fill: '#0284c7', text: '#ffffff' }, // Azul / Sky
+  { fill: '#d97706', text: '#ffffff' }, // Ámbar / Dorado
+  { fill: '#7c3aed', text: '#ffffff' }, // Púrpura / Violeta
+  { fill: '#059669', text: '#ffffff' }, // Esmeralda / Verde
+  { fill: '#e11d48', text: '#ffffff' }, // Carmín / Rosa
+  { fill: '#0891b2', text: '#ffffff' }, // Cian
+  { fill: '#4f46e5', text: '#ffffff' }, // Índigo
+  { fill: '#ea580c', text: '#ffffff' }, // Naranja
+  { fill: '#475569', text: '#ffffff' }, // Pizarra
+];
+
+export function buildDebtMaturityModel(debt, reportFiscalYear) {
+  if (!debt) return null;
+
+  let baseYear = Number(reportFiscalYear);
+  if (!Number.isFinite(baseYear) || baseYear < 2000) {
+    const fromSnippet = String(debt?.secSnippet?.title || debt?.title || '').match(/20\d\d/);
+    baseYear = fromSnippet ? parseInt(fromSnippet[0], 10) : 2025;
+  }
+  const minYear = baseYear + 1;
+  const maxYear = baseYear + 5;
+
+  const rawItems = [];
+  const pushItem = (entry, fallbackYear) => {
+    const yr = Number(entry?.year ?? fallbackYear);
+    const amount = parseSecNumber(entry?.amount ?? entry?.totalAmount ?? entry?.value);
+    const rate = parseSecNumber(entry?.interestRate ?? entry?.rate ?? entry?.averageRate);
+    const type = String(entry?.type || entry?.name || entry?.label || 'Deuda total').trim();
+    if (!Number.isFinite(yr) || !Number.isFinite(amount) || amount <= 0) return;
+    rawItems.push({
+      year: yr,
+      name: String(entry?.name || entry?.label || type).trim(),
+      type,
+      amount,
+      interestRate: Number.isFinite(rate) && rate > 0 ? rate : null,
+    });
+  };
+
+  // 1. Si existe maturitySchedule estructurado (array plano o agrupado por años)
+  if (Array.isArray(debt.maturitySchedule)) {
+    debt.maturitySchedule.forEach((entry) => {
+      if (Array.isArray(entry?.items) && entry.items.length) {
+        entry.items.forEach((it) => pushItem(it, entry.year));
+      } else {
+        pushItem(entry, entry?.year);
+      }
+    });
+  } else if (debt.maturitySchedule && Array.isArray(debt.maturitySchedule.years)) {
+    debt.maturitySchedule.years.forEach((entry) => {
+      if (Array.isArray(entry?.items) && entry.items.length) {
+        entry.items.forEach((it) => pushItem(it, entry.year));
+      } else {
+        pushItem(entry, entry?.year);
+      }
+    });
+  }
+
+  // 2. Calendario XBRL de la SEC (maturityCalendar) como respaldo
+  if (rawItems.length === 0 && Array.isArray(debt.maturityCalendar?.years)) {
+    debt.maturityCalendar.years.forEach((entry) => pushItem({ ...entry, type: 'Deuda total' }));
+  }
+
+  // 3. Si no hay items directos, extraer de secSnippet o secTable
+  if (rawItems.length === 0) {
+    const snippetRows = debt.secSnippet?.rows || debt.secTable?.rows;
+    if (Array.isArray(snippetRows) && snippetRows.length) {
+      snippetRows.forEach((r) => {
+        const rowArr = Array.isArray(r) ? r : [r.metric ?? r.name, r.value];
+        const rowText = rowArr.join(' ');
+        const name = String(rowArr[0] || '').trim();
+
+        // Localizar la celda con año o fecha de vencimiento (ej. "2026", "July 2026")
+        let yr = null;
+        rowArr.slice(1).forEach((cellValue) => {
+          if (yr != null) return;
+          const yearMatch = String(cellValue ?? '').match(/\b(20\d\d)\b/);
+          if (yearMatch) yr = parseInt(yearMatch[1], 10);
+        });
+        if (!Number.isFinite(yr)) return;
+
+        // Localizar el primer importe monetario de la fila (columna de saldo actual)
+        let amount = null;
+        rowArr.slice(1).forEach((cellValue) => {
+          if (Number.isFinite(amount)) return;
+          const text = String(cellValue ?? '');
+          if (!/(\$|€|£|million|billion|\d[.,]\d)/i.test(text)) return;
+          const parsed = parseSecNumber(cellValue);
+          if (Number.isFinite(parsed) && parsed > 0) amount = parsed;
+        });
+        if (!Number.isFinite(amount) || amount <= 0) return;
+
+        const rateMatch = rowText.match(/(\d+(?:[\.,]\d+)?)\s*%/);
+        const interestRate = rateMatch ? parseFloat(rateMatch[1].replace(',', '.')) : null;
+        pushItem({
+          year: yr,
+          name,
+          type: (name || 'Deuda total').replace(/^(\$|CAD|EUR|GBP)?\s*[\d.,]+\s*(?:billion|million|B|M)?\s*/i, '').replace(/\s+senior\s+notes/i, ' Notes').trim() || 'Deuda total',
+          amount,
+          interestRate,
+        });
+      });
+    }
+  }
+
+  // Regla estricta: el gráfico solo muestra los próximos 5 años
+  const futureItems = rawItems.filter((it) => Number.isFinite(it.year) && it.year > maxYear && Number.isFinite(it.amount));
+  const filtered = rawItems
+    .filter((it) => Number.isFinite(it.year) && it.year >= minYear && it.year <= maxYear && Number.isFinite(it.amount) && it.amount > 0);
+
+  if (filtered.length === 0) return null;
+
+  // Asignar colores por tipo de deuda (naranja si solo hay un tipo, como el gráfico de acciones)
+  const distinctTypes = [...new Set(filtered.map((it) => it.type || it.name))];
+  const typeColorMap = new Map();
+  if (distinctTypes.length <= 1) {
+    typeColorMap.set(distinctTypes[0] ?? 'Deuda total', { fill: '#f59e0b', text: '#ffffff' });
+  } else {
+    distinctTypes.forEach((t, i) => {
+      typeColorMap.set(t, DEBT_BLOCK_PALETTE[i % DEBT_BLOCK_PALETTE.length]);
+    });
+  }
+
+  filtered.forEach((it) => {
+    const paletteItem = typeColorMap.get(it.type || it.name) || DEBT_BLOCK_PALETTE[0];
+    it.color = paletteItem.fill;
+    it.textColor = paletteItem.text;
+  });
+
+  // Agrupar por año: siempre los 5 ejercicios de la ventana
+  const yearsMap = new Map();
+  filtered.forEach((it) => {
+    if (!yearsMap.has(it.year)) yearsMap.set(it.year, []);
+    yearsMap.get(it.year).push(it);
+  });
+
+  const groupedYears = [];
+  for (let yr = minYear; yr <= maxYear; yr += 1) {
+    const items = yearsMap.get(yr) ?? [];
+    const totalAmount = items.reduce((sum, it) => sum + it.amount, 0);
+    const ratedItems = items.filter((it) => Number.isFinite(it.interestRate) && it.interestRate > 0);
+    const ratedAmount = ratedItems.reduce((sum, it) => sum + it.amount, 0);
+    const averageRate = ratedAmount > 0
+      ? ratedItems.reduce((sum, it) => sum + it.amount * it.interestRate, 0) / ratedAmount
+      : null;
+    groupedYears.push({ year: yr, totalAmount, averageRate, items });
+  }
+
+  const totalAmount = filtered.reduce((sum, it) => sum + it.amount, 0);
+  const ratedItems = filtered.filter((it) => Number.isFinite(it.interestRate) && it.interestRate > 0);
+  const ratedAmount = ratedItems.reduce((sum, it) => sum + it.amount, 0);
+  const totalAverageRate = ratedAmount > 0
+    ? ratedItems.reduce((sum, it) => sum + it.amount * it.interestRate, 0) / ratedAmount
+    : null;
+
+  let afterYearFive = parseSecNumber(debt.maturityAfterFive ?? debt.maturityAfterFiveAmount);
+  if (!Number.isFinite(afterYearFive) && futureItems.length) {
+    afterYearFive = futureItems.reduce((sum, it) => sum + it.amount, 0);
+  }
+
+  const maxYearAmount = Math.max(...groupedYears.map((y) => y.totalAmount), 0);
+
+  return {
+    title: `CALENDARIO DE VENCIMIENTOS DE DEUDA (${minYear}–${maxYear})`,
+    baseYear,
+    minYear,
+    maxYear,
+    years: groupedYears,
+    totalAmount,
+    totalAverageRate,
+    afterYearFive: Number.isFinite(afterYearFive) ? afterYearFive : null,
+    maxYearAmount,
+    hasRates: ratedAmount > 0,
+    types: distinctTypes.map((t) => ({
+      name: t,
+      color: typeColorMap.get(t).fill,
+      textColor: typeColorMap.get(t).text,
+    })),
+  };
+}
+
+export function buildDebtHistoryModel(debt, report) {
+  const rawList = debt?.debtHistory
+    || report?.edgarDebtHistory
+    || report?.annualDebtHistory
+    || null;
+
+  if (!Array.isArray(rawList) || rawList.length < 2) return null;
+
+  const toMillionsVal = (v) => {
+    const num = parseSecNumber(v);
+    if (!Number.isFinite(num)) return null;
+    return Math.abs(num) > 1e6 ? Math.round(num / 1e6) : Math.round(num * 10) / 10;
+  };
+
+  const points = rawList
+    .map((p) => ({
+      year: Number(p?.year || (p?.periodEnd ? parseInt(String(p.periodEnd).slice(0, 4), 10) : null)),
+      totalDebt: toMillionsVal(p?.totalDebt),
+      netDebt: toMillionsVal(p?.netDebt),
+    }))
+    .filter((p) => Number.isFinite(p.year) && Number.isFinite(p.totalDebt))
+    .sort((a, b) => a.year - b.year)
+    .slice(-10); // Máximo últimos 10 años hasta la actualidad
+
+  if (points.length < 2) return null;
+
+  points.forEach((p, i) => {
+    if (i > 0) {
+      const prev = points[i - 1];
+      p.deltaTotalDebt = Number.isFinite(prev.totalDebt) ? Math.round((p.totalDebt - prev.totalDebt) * 10) / 10 : null;
+      p.deltaNetDebt = (Number.isFinite(p.netDebt) && Number.isFinite(prev.netDebt)) ? Math.round((p.netDebt - prev.netDebt) * 10) / 10 : null;
+    } else {
+      p.deltaTotalDebt = null;
+      p.deltaNetDebt = null;
+    }
+  });
+
+  const allVals = points.flatMap((p) => [p.totalDebt, Number.isFinite(p.netDebt) ? p.netDebt : p.totalDebt]);
+  const maxVal = Math.max(...allVals);
+  const minVal = Math.min(0, ...allVals);
+
+  return {
+    title: `EVOLUCIÓN DE LA DEUDA: NORMAL VS NETA (${points[0].year}–${points[points.length - 1].year})`,
+    points,
+    maxVal,
+    minVal,
+  };
+}
+
+export function buildDebtRefinancingModel(debt, report) {
+  if (!debt) return null;
+
+  let oldDebtRate = debt.refinancing?.oldDebtRate ?? null;
+  let newDebtRate = debt.refinancing?.newDebtRate ?? debt.refinancing?.estimatedRefinancingRate ?? null;
+  let amount = debt.refinancing?.amountRefinanced ?? debt.refinancing?.nearTermMaturities ?? null;
+
+  const narrative = `${debt.refinancingAnalysis || ''} ${debt.refinancingImpact || ''} ${debt.text || ''}`;
+
+  const parseLocaleNumber = (raw) => {
+    let s = String(raw ?? '').trim();
+    if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+    else if (s.includes(',')) s = s.replace(',', '.');
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  if (oldDebtRate == null) {
+    const patterns = [
+      /(?:tipo anterior|antigua|vencida|vendida|retirada|emisi[oó]n original|original(?:es)?|devengaba|pagaba)[^.%]{0,60}?(\d+(?:[.,]\d+)?)\s*%/i,
+      /(?:alrededor del|al)\s*(\d+(?:[.,]\d+)?)\s*%/i,
+    ];
+    for (const re of patterns) {
+      const m = narrative.match(re);
+      if (m) { oldDebtRate = parseLocaleNumber(m[1]); break; }
+    }
+  }
+  if (newDebtRate == null) {
+    const patterns = [
+      /(?:nueva deuda|nueva emisi[oó]n|nuevo tipo|coste estimado|refinanciaci[oó]n)[^.%]{0,80}?(\d+(?:[.,]\d+)?)\s*%/i,
+      /(?:mercado actual|nuevo coste|estima(?:mos|do)?)[^.%]{0,60}?(\d+(?:[.,]\d+)?)\s*%/i,
+    ];
+    for (const re of patterns) {
+      const m = narrative.match(re);
+      if (m) { newDebtRate = parseLocaleNumber(m[1]); break; }
+    }
+  }
+  if (amount == null) {
+    const m = narrative.match(/(?:vencen unos|vencen|nominal de|importe de|asciende a|deuda que vence[^.]{0,50}?)(?:~?\$?)([\d.,]+)\s*(?:M|mil millones|B)\b/i);
+    if (m) {
+      const parsed = parseLocaleNumber(m[1]);
+      amount = /mil millones|B\b/i.test(m[0]) ? parsed * 1000 : parsed;
+    }
+  }
+
+  // Extraer número de acciones para calcular BPA
+  let shares = null;
+  const sharesRow = report?.horizons?.[0]?.sales?.shares;
+  if (sharesRow) {
+    const sMatch = String(sharesRow).match(/([\d\.,]+)\s*M/i);
+    if (sMatch) shares = parseFloat(sMatch[1].replace(',', '.'));
+  }
+  if (!shares && report?.shares) {
+    shares = Number(report.shares);
+  }
+  if (!shares && Array.isArray(report?.conclusion?.repurchases?.sharesHistory)) {
+    const lastPoint = report.conclusion.repurchases.sharesHistory.slice(-1)[0];
+    if (lastPoint?.shares) shares = Number(lastPoint.shares);
+  }
+
+  let interestDelta = null;
+  let netInterestDelta = null;
+  let epsImpact = null;
+  let epsText = null;
+
+  if (Number.isFinite(oldDebtRate) && Number.isFinite(newDebtRate) && Number.isFinite(amount)) {
+    const rateDiff = newDebtRate - oldDebtRate;
+    interestDelta = Math.round((amount * (rateDiff / 100)) * 10) / 10;
+    const taxRate = 0.23; // Tipo impositivo normalizado
+    netInterestDelta = Math.round((interestDelta * (1 - taxRate)) * 10) / 10;
+
+    if (Number.isFinite(shares) && shares > 0) {
+      epsImpact = Math.round((-netInterestDelta / shares) * 100) / 100;
+    }
+  }
+
+  if (epsImpact != null) {
+    const absEps = Math.abs(epsImpact).toFixed(2).replace('.', ',');
+    if (epsImpact < 0) {
+      epsText = `los nuevos costes suben reduciendo en torno a **${absEps} $/acción** el BPA (impacto: **-${absEps} $/acc**)`;
+    } else {
+      epsText = `los nuevos costes bajan en torno a **${absEps} $/acción** (impacto favorable en el BPA de **+${absEps} $/acc**)`;
+    }
+  }
+
+  const hasRefinancingData = Number.isFinite(oldDebtRate) || Number.isFinite(newDebtRate) || debt.refinancingAnalysis || debt.refinancingImpact;
+  if (!hasRefinancingData) return null;
+
+  return {
+    oldDebtRate,
+    newDebtRate,
+    amount,
+    interestDelta,
+    netInterestDelta,
+    shares,
+    epsImpact,
+    epsText,
+    badge: (oldDebtRate != null && newDebtRate != null)
+      ? `Refinanciación: deuda vendida/vencida al **${oldDebtRate.toFixed(2).replace('.', ',')} %** vs nueva emitida al **${newDebtRate.toFixed(2).replace('.', ',')} %**${epsText ? ` · ${epsText}` : ''}`
+      : null,
+    explanation: debt.refinancingAnalysis || null,
+    impactExplanation: debt.refinancingImpact || null,
+  };
+}
+
+export function buildDebtMaturityTable(chart) {
+  if (!chart || !Array.isArray(chart.years) || !chart.years.length) return null;
+  const headers = [
+    cell('Año', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Tipo / Emisión de Deuda', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Importe ($M)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Tipo Interés', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Tipo Medio Anual', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+  ];
+  const rows = [];
+  chart.years.forEach((yr) => {
+    if (!yr.items.length) {
+      rows.push([
+        cell(String(yr.year), { bold: true, color: COLORS.ink }),
+        cell('Sin vencimientos', { color: COLORS.muted }),
+        cell('$0,0M', { bold: true, color: COLORS.ink }),
+        cell('—', { color: COLORS.muted }),
+        cell('—', { color: COLORS.muted }),
+      ]);
+      return;
+    }
+    yr.items.forEach((it, idx) => {
+      rows.push([
+        cell(idx === 0 ? String(yr.year) : '', { bold: true, color: COLORS.ink }),
+        cell(it.name, { color: COLORS.ink }),
+        cell(`$${it.amount.toFixed(1).replace('.', ',')}M`, { bold: true, color: COLORS.ink }),
+        cell(it.interestRate != null ? `${it.interestRate.toFixed(2).replace('.', ',')} %` : '—', { bold: true, color: '#c2410c' }),
+        cell(idx === 0 && yr.averageRate != null ? `${yr.averageRate.toFixed(2).replace('.', ',')} %` : '', { bold: true, color: '#0369a1', bg: idx === 0 ? '#f0fdfa' : null }),
+      ]);
+    });
+  });
+  const summaryRow = [
+    cell(`TOTAL (PRÓXIMOS 5 AÑOS)`, { bold: true, color: COLORS.ink, bg: '#e0f2fe' }),
+    cell(chart.afterYearFive != null ? `Después del año 5: $${chart.afterYearFive.toFixed(1).replace('.', ',')}M` : '—', { color: COLORS.ink, bg: '#e0f2fe' }),
+    cell(`$${chart.totalAmount.toFixed(1).replace('.', ',')}M`, { bold: true, color: COLORS.ink, bg: '#e0f2fe' }),
+    cell('—', { color: COLORS.ink, bg: '#e0f2fe' }),
+    cell(chart.totalAverageRate != null ? `Total medio: ${chart.totalAverageRate.toFixed(2).replace('.', ',')} %` : '—', { bold: true, color: '#0369a1', bg: '#e0f2fe' }),
+  ];
+  return {
+    columns: ['Año', 'Tipo / Emisión de Deuda', 'Importe ($M)', 'Tipo Interés', 'Tipo Medio Anual'],
+    widths: [55, 170, 95, 95, 100],
+    headers,
+    rows: [...rows, summaryRow],
+  };
+}
+
+export function buildDebtHistoryTable(chart) {
+  if (!chart || !Array.isArray(chart.points) || !chart.points.length) return null;
+  const headers = [
+    cell('Año', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Deuda Normal ($M)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Δ vs año anterior', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Deuda Neta ($M)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell('Δ vs año anterior', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+  ];
+  const rows = chart.points.map((p) => [
+    cell(String(p.year), { bold: true, color: COLORS.ink }),
+    cell(`$${p.totalDebt.toFixed(1).replace('.', ',')}M`, { bold: true, color: '#1e40af' }),
+    cell(p.deltaTotalDebt != null ? `${p.deltaTotalDebt > 0 ? '+' : ''}${p.deltaTotalDebt.toFixed(1).replace('.', ',')}M` : '—', {
+      bold: true,
+      color: p.deltaTotalDebt != null ? (p.deltaTotalDebt < 0 ? COLORS.positive : COLORS.negative) : COLORS.ink,
+    }),
+    cell(Number.isFinite(p.netDebt) ? `$${p.netDebt.toFixed(1).replace('.', ',')}M` : '—', { bold: true, color: '#d97706' }),
+    cell(p.deltaNetDebt != null ? `${p.deltaNetDebt > 0 ? '+' : ''}${p.deltaNetDebt.toFixed(1).replace('.', ',')}M` : '—', {
+      bold: true,
+      color: p.deltaNetDebt != null ? (p.deltaNetDebt < 0 ? COLORS.positive : COLORS.negative) : COLORS.ink,
+    }),
+  ]);
+  return {
+    columns: ['Año', 'Deuda Normal ($M)', 'Δ vs año anterior', 'Deuda Neta ($M)', 'Δ vs año anterior'],
+    widths: [60, 115, 110, 115, 115],
+    headers,
+    rows,
+  };
 }
 
 /* ── Modelo intermedio compartido por los tres formatos ─────────────── */
@@ -294,9 +710,14 @@ function buildSecSnippetTable(snippet) {
   const rawHeaders = Array.isArray(snippet.headers) ? snippet.headers : [];
   const rawRows = snippet.rows.map((r) => (Array.isArray(r) ? r : [r.metric ?? r.name, r.value]));
   const numCols = rawHeaders.length || (rawRows[0] ? rawRows[0].length : 2);
-  const firstColWidth = numCols === 2 ? 220 : 160;
-  const remainingWidth = (515 - firstColWidth) / Math.max(1, numCols - 1);
-  const widths = [firstColWidth, ...Array(numCols - 1).fill(remainingWidth)];
+  let widths;
+  if (numCols === 4) {
+    widths = [165, 85, 110, 155];
+  } else {
+    const firstColWidth = numCols === 2 ? 220 : 160;
+    const remainingWidth = (515 - firstColWidth) / Math.max(1, numCols - 1);
+    widths = [firstColWidth, ...Array(numCols - 1).fill(remainingWidth)];
+  }
 
   const columns = rawHeaders.length ? rawHeaders : Array(numCols).fill('');
   const headers = columns.map(headerCell);
@@ -304,7 +725,7 @@ function buildSecSnippetTable(snippet) {
   const rows = rawRows.map((r, rIdx) => {
     const stripeBg = rIdx % 2 === 1 ? COLORS.stripe : null;
     const rowText = r.join(' ').toLowerCase();
-    const isYellow = rowText.includes('repurchased') || rowText.includes('recomprad') || rowText.includes('2026');
+    const isYellow = rowText.includes('repurchased') || rowText.includes('recomprad');
     const isOrange = rowText.includes('aggregate') || rowText.includes('cost');
 
     return r.map((c, cIdx) => {
@@ -312,13 +733,27 @@ function buildSecSnippetTable(snippet) {
       let color = COLORS.ink;
       let bold = cIdx === 0;
 
-      if (cIdx > 0 && isYellow) {
+      if (numCols === 4) {
+        if (cIdx === 1) {
+          bg = '#f8fafc';
+          color = '#475569';
+          bold = true;
+        } else if (cIdx === 2) {
+          bold = true;
+        } else if (cIdx === 3) {
+          bg = '#f0fdfa';
+          color = '#0d9488';
+          bold = true;
+        }
+      } else if (cIdx > 0 && isYellow) {
         bg = '#fef08a';
         color = '#854d0e';
         bold = true;
       } else if (cIdx > 0 && isOrange) {
         bg = '#fed7aa';
         color = '#c2410c';
+        bold = true;
+      } else if (cIdx > 0) {
         bold = true;
       }
       return cell(c, { bg, color, bold });
@@ -328,9 +763,8 @@ function buildSecSnippetTable(snippet) {
   return {
     title: snippet.title || 'EXTRACTO OFICIAL SEC (FORM 10-K)',
     summary: snippet.summary || null,
-    columns,
-    widths,
     headers,
+    widths,
     rows,
   };
 }
@@ -364,9 +798,12 @@ export function buildReportModel(report) {
 
     if (conc.repurchases) {
       const rep = conc.repurchases;
+      const repExpiry = (rep.authorizationExpiry && !/no indicad|not disclosed|not stated|no consta|no especificad/i.test(String(rep.authorizationExpiry)))
+        ? rep.authorizationExpiry
+        : null;
       const badges = [
         (rep.authorizationRemaining || rep.programRemaining) ? `Autorización restante: ${rep.authorizationRemaining || rep.programRemaining}` : null,
-        rep.authorizationExpiry ? `Vigencia: ${rep.authorizationExpiry}` : null,
+        repExpiry ? `Vigencia: ${repExpiry}` : null,
         rep.shareCountEvolution ? `Evolución acciones: ${rep.shareCountEvolution}` : null,
         rep.bpaImpact ? `Impacto BPA: ${rep.bpaImpact}` : null,
         rep.futureProjection ? `Proyección 5 años: ${rep.futureProjection}` : null,
@@ -392,13 +829,18 @@ export function buildReportModel(report) {
         title: out.title || '2: Outlook',
         text: out.text || null,
         badges: details,
-        table: buildSecSnippetTable(out.secSnippet),
+        table: buildSecSnippetTable(withOutlookComparison(out.secSnippet, report)),
       });
     }
 
     if (conc.debt) {
       const debt = conc.debt;
+      const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear);
+      const historyChart = buildDebtHistoryModel(debt, report);
+      const refinancingModel = buildDebtRefinancingModel(debt, report);
+
       const details = [
+        refinancingModel?.badge ? refinancingModel.badge : null,
         debt.refinancingAnalysis ? `Refinanciación de deuda: ${debt.refinancingAnalysis}` : null,
         debt.refinancingImpact ? `Impacto en intereses: ${debt.refinancingImpact}` : null,
       ].filter(Boolean);
@@ -406,6 +848,10 @@ export function buildReportModel(report) {
         title: debt.title || '3: Deuda',
         text: debt.text || null,
         badges: details,
+        highlight: true,
+        debtMaturityChart: maturityChart,
+        debtHistoryChart: historyChart,
+        refinancing: refinancingModel,
         table: buildSecSnippetTable(debt.secSnippet),
       });
     }
@@ -460,26 +906,226 @@ function renderHtmlNotes(notes) {
   return `<ul class="notes">${items}</ul>`;
 }
 
+function renderSharesChartSvg(chart) {
+  if (!chart || !Array.isArray(chart.points) || chart.points.length < 2) return '';
+  const W = 640;
+  const H = 232;
+  const padL = 50;
+  const padR = 10;
+  const padT = 14;
+  const padB = 26;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const n = chart.points.length;
+  const max = chart.max;
+  const step = max > 500 ? 100 : (max > 100 ? 50 : 10);
+  const niceMax = Math.ceil(max / step) * step || max;
+  const xFor = (i) => padL + (plotW / n) * (i + 0.5);
+  const yFor = (v) => padT + plotH * (1 - v / niceMax);
+  const fmtP = (v) => `${v < 0 ? '' : '-'}${v.toFixed(1).replace('.', ',')} %`;
+  const fmtB = (v) => `+${v.toFixed(1).replace('.', ',')} %`;
+  const parts = [];
+
+  for (let g = 0; g <= 3; g += 1) {
+    const v = (niceMax * (3 - g)) / 3;
+    const gy = yFor(v).toFixed(1);
+    parts.push(`<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="${g === 3 ? '#cbd5e1' : '#e2e8f0'}" stroke-width="1"${g === 3 ? ' stroke-dasharray="4 3"' : ''}/>`);
+    parts.push(`<text x="${padL - 6}" y="${(parseFloat(gy) + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">${Math.round(v)}M</text>`);
+  }
+
+  const slotW = plotW / n;
+  const barW = Math.min(46, slotW * 0.6);
+  chart.points.forEach((p, i) => {
+    const cx = xFor(i).toFixed(1);
+    const top = yFor(p.shares).toFixed(1);
+    parts.push(`<rect x="${(parseFloat(cx) - barW / 2).toFixed(1)}" y="${top}" width="${barW.toFixed(1)}" height="${(padT + plotH - parseFloat(top)).toFixed(1)}" rx="2" fill="#f59e0b"/>`);
+    parts.push(`<text x="${cx}" y="${(padT + plotH + 14).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#334155">${escapeHtml(String(p.year))}</text>`);
+  });
+
+  const mets = Array.isArray(chart.metrics) ? chart.metrics : [];
+  const y0 = yFor(chart.points[0].shares);
+  const yN = yFor(chart.points[n - 1].shares);
+  parts.push(`<line x1="${xFor(0).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${xFor(n - 1).toFixed(1)}" y2="${yN.toFixed(1)}" stroke="#1f2937" stroke-width="1.6" stroke-dasharray="6 4"/>`);
+  if (mets.length) {
+    const midX = (xFor(0) + xFor(n - 1)) / 2;
+    const lineMidY = (y0 + yN) / 2;
+    const label1 = `CAGR: ${fmtP(mets[0].pct)} · BPA ${fmtB(mets[0].bpa)}`;
+    const w1 = label1.length * 5.4 + 12;
+    parts.push(`<rect x="${(midX - w1 / 2).toFixed(1)}" y="${(lineMidY - 20).toFixed(1)}" width="${w1.toFixed(1)}" height="15" rx="3" fill="#1f2937"/>`);
+    parts.push(`<text x="${midX.toFixed(1)}" y="${(lineMidY - 9).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">${escapeHtml(label1)}</text>`);
+    if (mets[1]) {
+      const xPrev = xFor(n - 2);
+      const yPrev = yFor(chart.points[n - 2].shares);
+      parts.push(`<line x1="${xPrev.toFixed(1)}" y1="${yPrev.toFixed(1)}" x2="${xFor(n - 1).toFixed(1)}" y2="${yN.toFixed(1)}" stroke="#dc2626" stroke-width="1.6" stroke-dasharray="6 4"/>`);
+      const label2 = `Últ. año: ${fmtP(mets[1].pct)} · BPA ${fmtB(mets[1].bpa)}`;
+      const w2 = label2.length * 5.4 + 12;
+      const lx = Math.min(W - padR - w2 / 2, (xPrev + xFor(n - 1)) / 2);
+      parts.push(`<rect x="${(lx - w2 / 2).toFixed(1)}" y="${(lineMidY - 40).toFixed(1)}" width="${w2.toFixed(1)}" height="15" rx="3" fill="#dc2626"/>`);
+      parts.push(`<text x="${lx.toFixed(1)}" y="${(lineMidY - 29).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">${escapeHtml(label2)}</text>`);
+    }
+  }
+  return `<svg class="sc-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${escapeHtml(chart.title)}" preserveAspectRatio="xMidYMid meet">${parts.join('')}</svg>`;
+}
+
 function renderHtmlSharesChart(chart) {
   if (!chart || !Array.isArray(chart.points) || !chart.points.length) return '';
-  const last = chart.points[chart.points.length - 1];
-  const bars = chart.points.map((p) => {
-    const widthPct = Math.max(4, Math.round((p.shares / chart.max) * 100));
-    const isCurrent = p === last;
-    return `
-    <div class="sc-row">
-      <span class="sc-year">${escapeHtml(p.year)}</span>
-      <div class="sc-track"><div class="sc-fill${isCurrent ? ' sc-fill-current' : ''}" style="width:${widthPct}%;"></div></div>
-      <span class="sc-value">${escapeHtml(String(p.shares).replace('.', ','))}M</span>
-    </div>`;
-  }).join('');
-  const metrics = (chart.metrics ?? []).map((m) => `
-    <div class="sc-metric">
-      <span class="sc-metric-label">${escapeHtml(m.label)}:</span>
-      <strong class="sc-metric-value">${escapeHtml(fmtPct(m.pct))}</strong>
-      <span class="sc-metric-bpa">(impacto en BPA ${escapeHtml(fmtBpa(m.bpa))})</span>
-    </div>`).join('');
-  return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chart.title)}</div>${bars}${metrics ? `<div class="sc-metrics">${metrics}</div>` : ''}</div>`;
+  return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chart.title)}</div>${renderSharesChartSvg(chart)}</div>`;
+}
+
+export function renderDebtMaturitySvg(chart) {
+  if (!chart || !Array.isArray(chart.years) || !chart.years.length) return '';
+  const W = 640;
+  const H = 265;
+  const padL = 52;
+  const padR = 14;
+  const padT = 32;
+  const padB = 52;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const max = chart.maxYearAmount || 1;
+  const step = max > 5000 ? 1000 : (max > 1000 ? 500 : (max > 200 ? 100 : 50));
+  const niceMax = Math.ceil(max / step) * step || max;
+  const n = chart.years.length;
+  const slotW = plotW / n;
+  const barW = Math.min(50, slotW * 0.65);
+  const parts = [];
+
+  // Leyenda en la parte superior (solo si hay varios tipos de deuda)
+  if (Array.isArray(chart.types) && chart.types.length > 1) {
+    let legX = padL;
+    chart.types.forEach((t) => {
+      parts.push(`<rect x="${legX}" y="10" width="10" height="10" rx="2" fill="${t.color}"/>`);
+      parts.push(`<text x="${legX + 13}" y="18" font-size="8.5" font-weight="700" fill="#334155">${escapeHtml(t.name)}</text>`);
+      legX += (t.name.length * 5.2) + 26;
+    });
+  }
+
+  // Líneas horizontales de cuadrícula
+  for (let g = 0; g <= 3; g += 1) {
+    const v = (niceMax * (3 - g)) / 3;
+    const gy = padT + plotH * (1 - v / niceMax);
+    parts.push(`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="${g === 3 ? '#cbd5e1' : '#e2e8f0'}" stroke-width="1"${g === 3 ? ' stroke-dasharray="4 3"' : ''}/>`);
+    parts.push(`<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">$${Math.round(v)}M</text>`);
+  }
+
+  // Barras por año (apiladas por tipo de deuda si hay varios tramos)
+  chart.years.forEach((yr, i) => {
+    const cx = padL + slotW * (i + 0.5);
+    let curBaseline = padT + plotH;
+
+    yr.items.forEach((it) => {
+      const blockH = Math.max(3, (it.amount / niceMax) * plotH);
+      const topY = curBaseline - blockH;
+      parts.push(`<rect x="${(cx - barW / 2).toFixed(1)}" y="${topY.toFixed(1)}" width="${barW.toFixed(1)}" height="${blockH.toFixed(1)}" rx="2" fill="${it.color || '#f59e0b'}"/>`);
+      if (blockH >= 12 && it.interestRate != null) {
+        parts.push(`<text x="${cx.toFixed(1)}" y="${(topY + blockH / 2 + 3.5).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="${it.textColor || '#ffffff'}">${it.interestRate.toFixed(1).replace('.', ',')}%</text>`);
+      }
+      curBaseline = topY;
+    });
+
+    // Importe que vence cada año (en negrita) y tipo medio anual si se conoce
+    if (yr.totalAmount > 0) {
+      parts.push(`<text x="${cx.toFixed(1)}" y="${(curBaseline - 12).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#0f172a">$${yr.totalAmount.toFixed(1).replace('.', ',')}M</text>`);
+      if (yr.averageRate != null) {
+        parts.push(`<text x="${cx.toFixed(1)}" y="${(curBaseline - 2).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="#c2410c">Media: ${yr.averageRate.toFixed(2).replace('.', ',')}%</text>`);
+      }
+    } else {
+      parts.push(`<text x="${cx.toFixed(1)}" y="${(padT + plotH - 4).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#94a3b8">—</text>`);
+    }
+
+    // Año al pie
+    parts.push(`<text x="${cx.toFixed(1)}" y="${(padT + plotH + 15).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#334155">${yr.year}</text>`);
+  });
+
+  // Banner inferior: tipo de interés medio total y deuda a amortizar
+  const bannerY = H - 28;
+  parts.push(`<rect x="${padL}" y="${bannerY}" width="${plotW}" height="22" rx="4" fill="#1e293b"/>`);
+  const afterText = chart.afterYearFive != null ? `  ·  Después del año 5: $${chart.afterYearFive.toFixed(1).replace('.', ',')}M` : '';
+  const bannerText = chart.totalAverageRate != null
+    ? `Tipo de interés medio total (próximos 5 años): ${chart.totalAverageRate.toFixed(2).replace('.', ',')} %  ·  Deuda a amortizar: $${chart.totalAmount.toFixed(1).replace('.', ',')}M${afterText}`
+    : `Deuda a amortizar en los próximos 5 años: $${chart.totalAmount.toFixed(1).replace('.', ',')}M${afterText}`;
+  parts.push(`<text x="${(padL + plotW / 2).toFixed(1)}" y="${bannerY + 14.5}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#ffffff">${escapeHtml(bannerText)}</text>`);
+
+  return `<svg class="sc-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${escapeHtml(chart.title)}" preserveAspectRatio="xMidYMid meet">${parts.join('')}</svg>`;
+}
+
+export function renderHtmlDebtMaturityChart(chart) {
+  if (!chart || !Array.isArray(chart.years) || !chart.years.length) return '';
+  return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chart.title)}</div>${renderDebtMaturitySvg(chart)}</div>`;
+}
+
+export function renderDebtHistorySvg(chart) {
+  if (!chart || !Array.isArray(chart.points) || chart.points.length < 2) return '';
+  const W = 640;
+  const H = 260;
+  const padL = 52;
+  const padR = 14;
+  const padT = 32;
+  const padB = 44;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const max = chart.maxVal || 1;
+  const step = max > 5000 ? 1000 : (max > 1000 ? 500 : (max > 200 ? 100 : 50));
+  const niceMax = Math.ceil(max / step) * step || max;
+  const n = chart.points.length;
+  const slotW = plotW / n;
+  const groupW = Math.min(48, slotW * 0.76);
+  const barW = (groupW - 4) / 2;
+  const parts = [];
+
+  // Leyenda
+  parts.push(`<rect x="170" y="10" width="10" height="10" rx="2" fill="#1e40af"/>`);
+  parts.push(`<text x="185" y="18" font-size="8.5" font-weight="700" fill="#334155">Deuda Normal / Total</text>`);
+  parts.push(`<rect x="330" y="10" width="10" height="10" rx="2" fill="#d97706"/>`);
+  parts.push(`<text x="345" y="18" font-size="8.5" font-weight="700" fill="#334155">Deuda Neta</text>`);
+
+  // Líneas de cuadrícula
+  for (let g = 0; g <= 3; g += 1) {
+    const v = (niceMax * (3 - g)) / 3;
+    const gy = padT + plotH * (1 - v / niceMax);
+    parts.push(`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="${g === 3 ? '#cbd5e1' : '#e2e8f0'}" stroke-width="1"${g === 3 ? ' stroke-dasharray="4 3"' : ''}/>`);
+    parts.push(`<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">$${Math.round(v)}M</text>`);
+  }
+
+  // Dos barras por año (Deuda Normal y Deuda Neta)
+  chart.points.forEach((p, i) => {
+    const cx = padL + slotW * (i + 0.5);
+    const top1 = padT + plotH * (1 - p.totalDebt / niceMax);
+    const top2 = Number.isFinite(p.netDebt) ? padT + plotH * (1 - Math.max(0, p.netDebt) / niceMax) : padT + plotH;
+
+    // Barra 1: Deuda Normal
+    parts.push(`<rect x="${(cx - groupW / 2).toFixed(1)}" y="${top1.toFixed(1)}" width="${barW.toFixed(1)}" height="${(padT + plotH - top1).toFixed(1)}" rx="2" fill="#1e40af"/>`);
+    parts.push(`<text x="${(cx - groupW / 2 + barW / 2).toFixed(1)}" y="${(top1 - 3).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#1e40af">${Math.round(p.totalDebt)}M</text>`);
+
+    // Barra 2: Deuda Neta
+    if (Number.isFinite(p.netDebt)) {
+      parts.push(`<rect x="${(cx - groupW / 2 + barW + 4).toFixed(1)}" y="${top2.toFixed(1)}" width="${barW.toFixed(1)}" height="${(padT + plotH - top2).toFixed(1)}" rx="2" fill="#d97706"/>`);
+      parts.push(`<text x="${(cx - groupW / 2 + barW + 4 + barW / 2).toFixed(1)}" y="${(top2 - 3).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#d97706">${Math.round(p.netDebt)}M</text>`);
+    }
+
+    // Año
+    parts.push(`<text x="${cx.toFixed(1)}" y="${(padT + plotH + 13).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#334155">${p.year}</text>`);
+
+    // Variación vs año anterior de cada barra (verde si bajó la deuda, rojo si subió)
+    const deltaY = padT + plotH + 24;
+    if (p.deltaTotalDebt != null) {
+      const dColor = p.deltaTotalDebt < 0 ? '#16a34a' : '#dc2626';
+      const dSign = p.deltaTotalDebt > 0 ? '+' : '';
+      parts.push(`<text x="${(cx - groupW / 2 + barW / 2).toFixed(1)}" y="${deltaY.toFixed(1)}" text-anchor="middle" font-size="6.5" font-weight="700" fill="${dColor}">${dSign}${Math.round(p.deltaTotalDebt)}M</text>`);
+    }
+    if (p.deltaNetDebt != null) {
+      const dColor = p.deltaNetDebt < 0 ? '#16a34a' : '#dc2626';
+      const dSign = p.deltaNetDebt > 0 ? '+' : '';
+      parts.push(`<text x="${(cx - groupW / 2 + barW + 4 + barW / 2).toFixed(1)}" y="${deltaY.toFixed(1)}" text-anchor="middle" font-size="6.5" font-weight="700" fill="${dColor}">${dSign}${Math.round(p.deltaNetDebt)}M</text>`);
+    }
+  });
+
+  return `<svg class="sc-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${escapeHtml(chart.title)}" preserveAspectRatio="xMidYMid meet">${parts.join('')}</svg>`;
+}
+
+export function renderHtmlDebtHistoryChart(chart) {
+  if (!chart || !Array.isArray(chart.points) || !chart.points.length) return '';
+  return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chart.title)}</div>${renderDebtHistorySvg(chart)}</div>`;
 }
 
 function tokenizeNumbers(text) {
@@ -544,6 +1190,8 @@ export function buildReportHtml(report) {
       ${card.highlight && card.text ? `<p style="font-size:9pt;line-height:1.5;margin:4pt 0 8pt;color:#374151;">${highlightNumbersHtml(card.text).replaceAll('\n', '<br>')}</p>` : (card.text ? `<p style="font-size:9pt;line-height:1.5;margin:4pt 0 8pt;color:#374151;">${escapeHtml(card.text).replaceAll('\n', '<br>')}</p>` : '')}
       ${card.badges?.length ? `<ul style="font-size:8.5pt;color:#854d0e;padding-left:14pt;margin:4pt 0 8pt;">${card.highlight ? card.badges.map((b) => `<li>${highlightNumbersHtml(b)}</li>`).join('') : card.badges.map((b) => `<li>${escapeHtml(b)}</li>`).join('')}</ul>` : ''}
       ${card.chart ? renderHtmlSharesChart(card.chart) : ''}
+      ${card.debtMaturityChart ? renderHtmlDebtMaturityChart(card.debtMaturityChart) : ''}
+      ${card.debtHistoryChart ? renderHtmlDebtHistoryChart(card.debtHistoryChart) : ''}
       ${card.isWatchlist && card.items?.length ? `<ul style="font-size:8.5pt;color:#16a34a;padding-left:14pt;margin:4pt 0 8pt;list-style:none;">${card.items.map((it) => `<li>✓ <span style="color:#374151;">${escapeHtml(it)}</span></li>`).join('')}</ul>` : ''}
       ${card.table ? `
         <div style="margin-top:8pt;border:1px solid #cbd5e1;border-radius:4px;overflow:hidden;">
@@ -589,18 +1237,8 @@ export function buildReportHtml(report) {
   .notes li { margin: 2pt 0; }
   footer { font-size: 8pt; color: ${COLORS.soft}; margin-top: 16pt; }
   .shares-chart { margin: 8pt 0 10pt; padding: 8pt 10pt; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
-  .sc-title { font-size: 8.5pt; font-weight: 700; color: #475569; margin-bottom: 6pt; }
-  .sc-row { display: flex; align-items: center; gap: 8px; margin: 3pt 0; }
-  .sc-year { flex: 0 0 38px; font-size: 7.5pt; font-weight: 700; color: #334155; }
-  .sc-track { flex: 1 1 auto; background: #e2e8f0; border-radius: 3px; height: 12px; overflow: hidden; }
-  .sc-fill { height: 100%; background: #38bdf8; border-radius: 3px; }
-  .sc-fill-current { background: #f59e0b; }
-  .sc-value { flex: 0 0 52px; text-align: right; font-size: 7.5pt; font-weight: 700; color: #0f172a; }
-  .sc-metrics { margin-top: 8pt; padding-top: 6pt; border-top: 1px dashed #cbd5e1; }
-  .sc-metric { font-size: 7.5pt; color: #334155; margin: 3pt 0; }
-  .sc-metric-label { font-weight: 700; color: #475569; }
-  .sc-metric-value { color: #b91c1c; }
-  .sc-metric-bpa { color: #64748b; font-style: italic; }
+  .sc-title { font-size: 8.5pt; font-weight: 700; color: #475569; margin-bottom: 4pt; }
+  .sc-svg { width: 100%; height: auto; display: block; }
   strong { color: inherit; }
 </style>
 </head>
@@ -730,6 +1368,20 @@ function buildDocxXml(model) {
         if (chartTable) {
           parts.push(docxParagraph(card.chart.title, { size: 8, bold: true, color: '#475569', after: 40 }));
           parts.push(docxTable(chartTable));
+        }
+      }
+      if (card.debtMaturityChart) {
+        const matTable = buildDebtMaturityTable(card.debtMaturityChart);
+        if (matTable) {
+          parts.push(docxParagraph(card.debtMaturityChart.title, { size: 8, bold: true, color: '#475569', after: 40, before: 60 }));
+          parts.push(docxTable(matTable));
+        }
+      }
+      if (card.debtHistoryChart) {
+        const histTable = buildDebtHistoryTable(card.debtHistoryChart);
+        if (histTable) {
+          parts.push(docxParagraph(card.debtHistoryChart.title, { size: 8, bold: true, color: '#475569', after: 40, before: 60 }));
+          parts.push(docxTable(histTable));
         }
       }
       if (card.isWatchlist && card.items?.length) {
@@ -921,6 +1573,20 @@ function buildOdtContent(model) {
         if (chartTable) {
           paragraph(card.chart.title, { bold: true, color: '#475569', size: 8 });
           table(chartTable);
+        }
+      }
+      if (card.debtMaturityChart) {
+        const matTable = buildDebtMaturityTable(card.debtMaturityChart);
+        if (matTable) {
+          paragraph(card.debtMaturityChart.title, { bold: true, color: '#475569', size: 8 });
+          table(matTable);
+        }
+      }
+      if (card.debtHistoryChart) {
+        const histTable = buildDebtHistoryTable(card.debtHistoryChart);
+        if (histTable) {
+          paragraph(card.debtHistoryChart.title, { bold: true, color: '#475569', size: 8 });
+          table(histTable);
         }
       }
       if (card.isWatchlist && card.items?.length) {

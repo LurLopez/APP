@@ -1,4 +1,15 @@
 const port = Number(process.env.PORT || 3000);
+const production = process.env.NODE_ENV === 'production';
+
+const defaultSiteUrl = production ? 'https://cifra.app' : `http://localhost:${port}`;
+let siteUrl = String(process.env.PUBLIC_SITE_URL || defaultSiteUrl).trim();
+try {
+  const parsedSiteUrl = new URL(siteUrl);
+  if (!['http:', 'https:'].includes(parsedSiteUrl.protocol)) throw new Error('Unsupported protocol');
+  siteUrl = parsedSiteUrl.toString().replace(/\/+$/, '');
+} catch {
+  siteUrl = defaultSiteUrl;
+}
 
 const database = process.env.DATABASE_URL
   ? { connectionString: process.env.DATABASE_URL }
@@ -13,8 +24,9 @@ const database = process.env.DATABASE_URL
 export default {
   port,
   database,
+  siteUrl,
   jwtSecret: process.env.JWT_SECRET || 'cifra-dev-secret-cambiar',
-  production: process.env.NODE_ENV === 'production',
+  production,
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',

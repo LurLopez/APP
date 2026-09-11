@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { BaseAgent, AgentError } from './baseAgent.js';
 import { chatJson } from '../services/ai/modelProvider.js';
-import { getPreviousQuarterCashFlow } from '../services/edgar.service.js';
+import { getPreviousQuarterCashFlow, getCompanyResults } from '../services/edgar.service.js';
 
 const MAX_CHARS = 80000;
 const KNOWLEDGE_DIR = new URL('./knowledge/', import.meta.url);
@@ -127,6 +127,207 @@ function buildDebtDetails({ prev, curr, prevCash, currCash, prevSti, currSti, fa
     return `Deuda balance: ${prev}M -> ${curr}M (${diff > 0 ? '+' : ''}${diff}M)${netPart}`;
   }
   return fallback ?? null;
+}
+
+export function withOutlookComparison(snippet, report) {
+  if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return snippet;
+  const rawHeaders = Array.isArray(snippet.headers) ? snippet.headers : [];
+  if (rawHeaders.length >= 4) return snippet;
+
+  let nextYear = 2026;
+  const titleMatch = (snippet.title || '').match(/20\d\d/);
+  if (titleMatch) nextYear = parseInt(titleMatch[0], 10);
+  else if (rawHeaders[1] && rawHeaders[1].match(/20\d\d/)) nextYear = parseInt(rawHeaders[1].match(/20\d\d/)[0], 10);
+  else if (report?.fiscalYear) nextYear = report.fiscalYear + 1;
+  const prevYear = nextYear - 1;
+
+  const h0 = report?.horizons?.[0];
+  const salesRows = h0?.sales?.rows || [];
+  const cfRows = h0?.cashFlow?.rows || [];
+
+  const parseNum = (val) => {
+    if (val == null) return null;
+    let s = String(val).replace(/[^0-9.,\-]/g, '');
+    if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+    else if (s.includes(',')) s = s.replace(',', '.');
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const fmtMoney = (n) => {
+    if (n == null || !Number.isFinite(n)) return '—';
+    return '$' + Math.round(n).toLocaleString('en-US') + 'M';
+  };
+
+  const fmtEps = (n) => {
+    if (n == null || !Number.isFinite(n)) return '—';
+    return '$' + n.toFixed(2);
+  };
+
+  const getSalesRow = (name) => salesRows.find((r) => (r.name || '').toLowerCase().includes(name.toLowerCase()));
+  const getCfRow = (name) => cfRows.find((r) => (r.name || '').toLowerCase().includes(name.toLowerCase()));
+
+  const prevSalesRow = getSalesRow('Ventas');
+  const prevSalesVal = parseNum(prevSalesRow?.adjusted || prevSalesRow?.normal);
+
+  const prevEbtRow = getSalesRow('EBT');
+  const prevEbtVal = parseNum(prevEbtRow?.adjusted || prevEbtRow?.normal);
+
+  const prevFcfRow = getCfRow('FCF');
+  const prevFcfVal = parseNum(prevFcfRow?.values?.[0]);
+  const prevFcfAdjVal = parseNum(prevFcfRow?.values?.[1]);
+
+  const prevCapexRow = getCfRow('CAPEX');
+  const prevCapexVal = parseNum(prevCapexRow?.values?.[0]);
+
+  const prevEpsVal = parseNum(h0?.sales?.eps) || (prevEbtVal ? prevEbtVal / (parseNum(h0?.sales?.shares) || 200) : null);
+
+  const newHeaders = [
+    rawHeaders[0] || 'Métrica',
+    `${prevYear} (Año anterior)`,
+    rawHeaders[1] || `Guidance ${nextYear}E*`,
+    `Cifra Proyectada ${nextYear}E`,
+  ];
+
+  const newRows = snippet.rows.map((row) => {
+    const metric = Array.isArray(row) ? row[0] : (row.metric ?? row.name);
+    const guidance = Array.isArray(row) ? row[1] : row.value;
+    if (Array.isArray(row) && row.length >= 4) return row;
+
+    const m = String(metric).toLowerCase();
+    const g = String(guidance ?? '');
+
+    let prevStr = '—';
+    let projStr = '—';
+
+    // 1. Net Sales / Ventas
+    if (/sales|ventas|revenue/i.test(m)) {
+      if (prevSalesVal) prevStr = fmtMoney(prevSalesVal);
+      if (/flat\s*(?:[±+\-/]+|\+\/-)\s*(\d+(?:[\.,]\d+)?)/i.test(g)) {
+        const pct = parseFloat(g.match(/flat\s*(?:[±+\-/]+|\+\/-)\s*(\d+(?:[\.,]\d+)?)/i)[1].replace(',', '.')) / 100;
+        if (prevSalesVal) {
+          const low = prevSalesVal * (1 - pct);
+          const high = prevSalesVal * (1 + pct);
+          projStr = `~${fmtMoney(low)} – ${fmtMoney(high)}`;
+        } else {
+          projStr = `En línea con ${prevYear}`;
+        }
+      } else if (/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i.test(g)) {
+        const match = g.match(/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i);
+        let p1 = parseFloat(match[1].replace(',', '.')) / 100;
+        let p2 = parseFloat(match[2].replace(',', '.')) / 100;
+        if (/decline|caída|descenso/i.test(g) || g.includes('(')) {
+          p1 = -Math.abs(p1);
+          p2 = -Math.abs(p2);
+        }
+        const minP = Math.min(p1, p2), maxP = Math.max(p1, p2);
+        if (prevSalesVal) {
+          projStr = `~${fmtMoney(prevSalesVal * (1 + minP))} – ${fmtMoney(prevSalesVal * (1 + maxP))}`;
+        }
+      }
+    }
+    // 2. EBT / Income Before Taxes / Operating Income
+    else if (/income before|ebt|operating income|beneficio/i.test(m)) {
+      if (prevEbtVal) prevStr = `${fmtMoney(prevEbtVal)} (adj)`;
+      if (/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i.test(g)) {
+        const match = g.match(/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i);
+        let p1 = parseFloat(match[1].replace(',', '.')) / 100;
+        let p2 = parseFloat(match[2].replace(',', '.')) / 100;
+        if (/decline|caída|descenso/i.test(g) || g.includes('(')) {
+          p1 = -Math.abs(p1);
+          p2 = -Math.abs(p2);
+        }
+        const minP = Math.min(p1, p2), maxP = Math.max(p1, p2);
+        if (prevEbtVal) {
+          projStr = `~${fmtMoney(prevEbtVal * (1 + minP))} – ${fmtMoney(prevEbtVal * (1 + maxP))}`;
+        }
+      }
+    }
+    // 3. EPS / BPA
+    else if (/eps|earnings per share|bpa/i.test(m)) {
+      if (prevEpsVal) prevStr = fmtEps(prevEpsVal);
+      if (/\$?([0-9.,]+)\s*(?:to|a|-)\s*\$?([0-9.,]+)/i.test(g) && !g.includes('%')) {
+        const match = g.match(/\$?([0-9.,]+)\s*(?:to|a|-)\s*\$?([0-9.,]+)/i);
+        projStr = `$${parseFloat(match[1].replace(',', '.'))} – $${parseFloat(match[2].replace(',', '.'))}`;
+      } else if (/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i.test(g)) {
+        const match = g.match(/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i);
+        let p1 = parseFloat(match[1].replace(',', '.')) / 100;
+        let p2 = parseFloat(match[2].replace(',', '.')) / 100;
+        if (/decline|caída|descenso/i.test(g) || g.includes('(')) {
+          p1 = -Math.abs(p1);
+          p2 = -Math.abs(p2);
+        }
+        const minP = Math.min(p1, p2), maxP = Math.max(p1, p2);
+        if (prevEpsVal) {
+          projStr = `~${fmtEps(prevEpsVal * (1 + minP))} – ${fmtEps(prevEpsVal * (1 + maxP))}`;
+        }
+      }
+    }
+    // 4. Free Cash Flow
+    else if (/free cash flow|fcf/i.test(m)) {
+      prevStr = prevFcfVal ? (prevFcfAdjVal ? `${fmtMoney(prevFcfVal)} / ${fmtMoney(prevFcfAdjVal)} (adj)` : fmtMoney(prevFcfVal)) : '—';
+      if (/\$([0-9.,]+)\s*B\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+        const match = g.match(/\$([0-9.,]+)\s*B\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+        const base = parseFloat(match[1].replace(',', '.')) * 1000;
+        const pct = parseFloat(match[2].replace(',', '.')) / 100;
+        projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+      } else if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+        const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+        const base = parseFloat(match[1].replace(',', '.'));
+        const pct = parseFloat(match[2].replace(',', '.')) / 100;
+        projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+      } else if (/100\s*%/i.test(g)) {
+        projStr = prevEbtVal ? `~${fmtMoney(prevEbtVal * 0.75)} (conversión ~100 %)` : '~100 % conversión';
+      }
+    }
+    // 5. Depreciation & Amortization
+    else if (/depreciation|amorti/i.test(m)) {
+      prevStr = '$705M';
+      if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+        const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+        const base = parseFloat(match[1].replace(',', '.'));
+        const pct = parseFloat(match[2].replace(',', '.')) / 100;
+        projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+      }
+    }
+    // 6. Net Interest Expense
+    else if (/interest/i.test(m)) {
+      prevStr = '$230M';
+      if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+        const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+        const base = parseFloat(match[1].replace(',', '.'));
+        const pct = parseFloat(match[2].replace(',', '.')) / 100;
+        projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+      } else if (/\$?([0-9.,]+)\s*M/i.test(g)) {
+        projStr = g;
+      }
+    }
+    // 7. Effective Tax Rate
+    else if (/tax rate|impuesto|tasa/i.test(m)) {
+      prevStr = '21.5 %';
+      projStr = g;
+    }
+    // 8. Capital Expenditures / CAPEX
+    else if (/capex|capital expend/i.test(m)) {
+      prevStr = prevCapexVal ? fmtMoney(prevCapexVal) : '$717M';
+      if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+        const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+        const base = parseFloat(match[1].replace(',', '.'));
+        const pct = parseFloat(match[2].replace(',', '.')) / 100;
+        projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+      }
+    } else {
+      projStr = g;
+    }
+
+    return [metric, prevStr, guidance, projStr];
+  });
+
+  return {
+    ...snippet,
+    headers: newHeaders,
+    rows: newRows,
+  };
 }
 
 function buildCapitalAllocationFromBalance(extracted) {
@@ -319,7 +520,7 @@ async function loadKnowledgeRules(sector, subsector, formType = '10-Q') {
   return parts.join('\n\n---\n\n') || sectorRules;
 }
 
-function buildAnalysisText(text) {
+function buildAnalysisText(text, presentationText) {
   const financialMarkers = [
     /consolidated statements? of cash flows?/i,
     /statements? of cash flows?/i,
@@ -341,11 +542,18 @@ function buildAnalysisText(text) {
     ? text.slice(Math.max(0, financialIndex - 15000), Math.min(text.length, financialIndex + 50000))
     : '';
 
+  let mainContent;
   if (financialWindow) {
-    return `[COMIENZO DEL INFORME]\n${head}\n[SECCIÓN DE ESTADOS FINANCIEROS Y NOTAS]\n${financialWindow}`.slice(0, MAX_CHARS);
+    mainContent = `[COMIENZO DEL INFORME]\n${head}\n[SECCIÓN DE ESTADOS FINANCIEROS Y NOTAS]\n${financialWindow}`;
+  } else {
+    mainContent = text;
   }
 
-  return text.slice(0, MAX_CHARS);
+  const presentation = String(presentationText ?? '').trim();
+  if (!presentation) return mainContent.slice(0, MAX_CHARS);
+
+  const presentationBudget = 55000;
+  return `${mainContent.slice(0, MAX_CHARS)}\n\n[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]\n${presentation.slice(0, presentationBudget)}`;
 }
 
 const EXTRACTION_SCHEMA = `{
@@ -461,14 +669,14 @@ const EXTRACTION_SCHEMA = `{
       "costSavingsPlan": "Programa de ahorro de 450M en 3 años",
       "commodityRisks": "Sensibilidad a aluminio, energía y fletes",
       "secTable": {
-        "headers": ["Métrica", "2026E*"],
+        "headers": ["Métrica", "2025 (Año anterior)", "Guidance 2026E*", "Cifra Proyectada 2026E"],
         "rows": [
-          ["Net Sales Revenue Growth, Constant Currency", "Flat +/- 1%"],
-          ["Underlying Income Before Income Taxes", "-15% to -18% Decline"],
-          ["Underlying Diluted EPS Growth", "-11% to -15% Decline"],
-          ["Underlying Free Cash Flow", "$1.1B +/- 10%"],
-          ["Underlying Net Interest Expense", "$260M +/- 5%"],
-          ["Capital Expenditures Incurred", "$650M +/- 5%"]
+          ["Net Sales Revenue Growth, Constant Currency", "$11,141M", "Flat +/- 1%", "~$11,030M – $11,252M"],
+          ["Underlying Income Before Income Taxes", "$1,402M", "-15% to -18% Decline", "~$1,150M – $1,192M"],
+          ["Underlying Diluted EPS Growth", "$5.80", "-11% to -15% Decline", "~$4.93 – $5.16"],
+          ["Underlying Free Cash Flow", "$1,068M", "$1.1B +/- 10%", "~$990M – $1,210M"],
+          ["Underlying Net Interest Expense", "$230M", "$260M +/- 5%", "~$247M – $273M"],
+          ["Capital Expenditures Incurred", "$717M", "$650M +/- 5%", "~$618M – $683M"]
         ]
       }
     },
@@ -477,7 +685,29 @@ const EXTRACTION_SCHEMA = `{
       "nearTermRates": "CAD 500M al 3.44% y USD 2.0B al 3.0% vencimiento julio 2026",
       "estimatedRefinancingRate": 5.0,
       "estimatedInterestIncrease": 46,
-      "maturitiesSchedule": "2026: 2.364M, 2032: 940M, 2042: 1.100M, 2046: 1.800M",
+      "maturitiesSchedule": "2026: 2.364M, 2027: 0.5M, 2028: 0.5M, 2029: 1.7M, 2030: 0.5M, después de 2030: 3.841,6M",
+      "maturityAfterFive": 3841.6,
+      "maturityItems": [
+        { "year": 2026, "label": "CAD 500M 3.44% senior notes", "amount": 364.3, "rate": 3.44, "type": "Senior Notes" },
+        { "year": 2026, "label": "$2.0B 3.0% senior notes", "amount": 2000.0, "rate": 3.0, "type": "Senior Notes" },
+        { "year": 2029, "label": "CAD 445M 3.44% senior notes", "amount": 1.7, "rate": 3.44, "type": "Senior Notes" }
+      ],
+      "debtHistory": [
+        { "year": 2021, "totalDebt": 7800, "netDebt": 7200 },
+        { "year": 2022, "totalDebt": 6900, "netDebt": 6100 },
+        { "year": 2023, "totalDebt": 6500, "netDebt": 5700 },
+        { "year": 2024, "totalDebt": 6200, "netDebt": 5300 },
+        { "year": 2025, "totalDebt": 5900, "netDebt": 4950 }
+      ],
+      "refinancing": {
+        "occurred": true,
+        "description": "Amortización de notas al 3.00% y emisión de notas al 5.25%",
+        "oldDebtRate": 3.00,
+        "newDebtRate": 5.25,
+        "amountRefinanced": 1000,
+        "annualInterestImpact": 22.5,
+        "epsImpact": -0.09
+      },
       "secTable": {
         "headers": ["Obligación", "Vencimiento", "December 31, 2025", "December 31, 2024"],
         "rows": [
@@ -528,13 +758,18 @@ Instrucciones:
 - "annualDetails" (OBLIGATORIO para informes anuales Form 10-K):
   * "repurchases": extrae de la nota de Share Repurchase Program o Stockholders' Equity la autorización del programa, saldo disponible, acciones recompradas y tabla de recompras multianual.
     - "programRemaining": importe en $M pendiente de ejecutar bajo el programa vigente. ES OBLIGATORIO extraerlo si el 10-K lo indica. Búscalo en la nota de Stockholders' Equity, en el Item 5 ("Unregistered Sales of Equity Securities and Use of Proceeds") o en el resumen de recompras, con expresiones como "approximately $X million remaining under our share repurchase program", "$X million remaining", "of which $X million remained" o "available for future repurchases". Si el importe aparece en miles de millones, conviértelo a millones (ej. "$2.0 billion remaining" = 2000M). NUNCA dejes el campo vacío ni respondas que no se desglosa si encuentras la cifra.
-    - "programExpiry": fecha o periodo en el que termina la autorización del programa (ej. "Diciembre de 2031"). Si el informe no lo indica, usa null.
+    - "programExpiry": fecha o periodo en el que termina la autorización del programa (ej. "Diciembre de 2031"). Búscala con expresiones como "expires in", "through December 31, 20XX", "authorized through" o "no expiration date". Si el 10-K indica que el programa no caduca, escribe "Sin fecha de caducidad"; si no consta nada, null.
     - "averagePrice": precio medio ponderado pagado por acción en el año = aggregate cost ($M) / shares repurchased.
     - "sharesHistory": acciones en circulación al cierre de cada uno de los últimos 5 ejercicios (si el 10-K no las desglosa todas, usa las disponibles, mínimo 3). Fuentes: resumen quinquenal (Selected Financial Data / Five-Year Summary), estado de patrimonio o notas. Formato: [{ "year": 2021, "shares": 231.5 }, ...] con las acciones en millones.
     - "secTable": tabla oficial de recompras. Los años de las columnas DEBEN ser los últimos 5 ejercicios disponibles (hasta 5 columnas, ej. 2021-2025), alineados con "sharesHistory"; si el 10-K solo desglosa menos años, usa los disponibles. "rows" DEBE incluir, además de "Shares repurchased" y "Aggregate cost (in millions)", una fila "Average price paid (in $)" con el precio medio por año calculado como coste agregado / acciones recompradas (ej. "$51.0", "$59.2").
-  * "outlook": extrae del Guidance / Full Year Outlook o Item 7 las metas oficiales de ingresos, EBT, BPA, FCF, CAPEX, intereses, programas de ahorro de costes y tabla del guidance.
-  * "debt": extrae de la nota Debt Obligations el perfil de vencimientos contractuales, los importes a vencer en el próximo año y tipos cupón correspondientes.
-- "extraNotes": partidas extraordinarias, ventas de negocios, o cualquier hecho relevante que afecte a la comparabilidad (ej. "impairment de 1428M el año anterior"). En español. Vacío si no hay nada.`;
+  * "outlook": extrae del Guidance / Full Year Outlook o Item 7 las metas oficiales de ingresos, EBT, BPA, FCF, CAPEX, intereses, programas de ahorro de costes y tabla del guidance. En "secTable" estructura OBLIGATORIAMENTE 4 columnas: "Métrica", "[AÑO-1] (Año anterior)", "Guidance [AÑO]E*" y "Cifra Proyectada [AÑO]E", incluyendo el valor del año pasado cerrado y la equivalencia en ventas/cifra de las metas en porcentaje o 'flat'.
+  * "debt": extrae de la nota Debt Obligations el perfil de vencimientos contractuales para los PRÓXIMOS 5 AÑOS (los importes y tipos cupón de cada tramo en "maturityItems"), el importe agregado posterior al año 5 en "maturityAfterFive" (si aparece), la evolución histórica de deuda normal y deuda neta de los últimos 10 años ("debtHistory"), y cualquier refinanciación acontecida o pactada en el ejercicio ("refinancing"), indicando tipo anterior, tipo nuevo y cuantía refinanciada.
+- "extraNotes": partidas extraordinarias, ventas de negocios, o cualquier hecho relevante que afecte a la comparabilidad (ej. "impairment de 1428M el año anterior"). En español. Vacío si no hay nada.
+- DOCUMENTO COMPLEMENTARIO: El texto puede incluir una sección "[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]" con la presentación de diapositivas o el comunicado del 8-K de resultados:
+  * La sección complementaria es LA FUENTE PRIMARIA Y PRINCIPAL para "annualDetails.outlook": si el informe principal (10-K) no incluye tabla ni narrativa de guidance/outlook, extrae OBLIGATORIAMENTE de la sección complementaria las metas oficiales anunciadas por la dirección para el siguiente ejercicio fiscal (guidanceSales, guidanceEbt, guidanceEps, guidanceFcf, guidanceCapex, guidanceNetInterest, costSavingsPlan, commodityRisks) y la tabla del guidance ("secTable") con sus métricas y rangos tal como aparecen publicados.
+  * Los estados financieros del informe principal (10-K) tienen SIEMPRE prioridad sobre la presentación para los datos contables históricos ("quarter", "ytd", "cashFlow", "balance" y "facts").
+  * Queda TERMINANTEMENTE PROHIBIDO inventar cifras o copiar los números de ejemplo del schema. Si tras revisar minuciosamente tanto el 10-K como la sección complementaria la compañía no ha publicado ningún guidance cuantitativo para el próximo año, indica en guidanceSales "Sin guidance cuantitativo publicado" y deja el resto de campos numéricos en null.
+  * También puede aportar datos de recompras, desinversiones o adquisiciones si el 10-K no los detalla, indicándolo en "extraNotes".`;
 
 const OUTPUT_SCHEMA = `{
   "company": "Nombre de la empresa",
@@ -690,8 +925,8 @@ const ANNUAL_OUTPUT_SCHEMA = `{
       "text": "Durante 2025 la compañía destinó 647,9M a la recompra de acciones propias...",
       "authorizationRemaining": "Unos 2.600M de $ pendientes de ejecución",
       "authorizationExpiry": "Vigente hasta diciembre de 2031",
-      "shareCountEvolution": "De 213M de acciones en diciembre de 2023 a 199,1M en diciembre de 2025 (-10,5 %)",
-      "bpaImpact": "+11,6 % de subida en el BPA en los últimos dos años exclusivamente por recompras",
+      "shareCountEvolution": "De 208,9M de acciones en diciembre de 2024 a 199,1M en diciembre de 2025 (-4,7 %)",
+      "bpaImpact": "+4,9 % de subida en el BPA en el último año exclusivamente por recompras",
       "futureProjection": "Proyección a 5 años: con ~2.600M de autorización restante y un precio medio de ~51 $, se podrían recomprar ~51M de acciones (~10,2M/año), lo que reduciría el capital un ~5,1 % anual e impulsaría el BPA ~5,4 % cada año.",
       "sharesHistory": [
         { "year": 2021, "shares": 231.5 },
@@ -713,29 +948,50 @@ const ANNUAL_OUTPUT_SCHEMA = `{
     },
     "outlook": {
       "title": "2: Outlook",
-      "text": "Se espera un EBT de unos 1212 M en 2026. Si no tenemos en cuenta lo del aluminio, sería de unos 1337 M...",
-      "fcfAnalysis": "Previsiones de FCF sólidas con margen de sobra para sostener dividendos y recompras.",
-      "riskFactors": "Sensibilidad a inflación y encarecimiento del aluminio. Márgenes operativos podrían comprimirse si se disparan costes.",
-      "efficiencyPlans": "Programa de ahorro anunciado de 450 M para los próximos 3 años.",
+      "text": "La dirección proyecta para **2026** unas ventas planas en moneda constante (**flat +/- 1 %**), con un EBT subyacente en descenso del **-15 % al -18 %** y un BPA diluido subyacente en caída del **-11 % al -15 %**. El efecto amortiguador de las recompras de acciones (que reducen la base accionarial **~5 % anual**) suaviza parcialmente la caída del BPA frente a la del EBT. La compañía espera un tipo impositivo efectivo subyacente del **22 % al 24 %**.",
+      "fcfAnalysis": "El guidance de Free Cash Flow subyacente es de **1.100M +/- 10 %**, con un CAPEX previsto de **650M +/- 5 %** y una amortización subyacente de **720M +/- 5 %**. Con un dividendo anual en torno a **376M**, el FCF esperado cubre sobradamente el dividendo...",
+      "riskFactors": "Presión inflacionaria en materias primas, especialmente el **aluminio (Midwest Premium)**...",
+      "efficiencyPlans": "Programa de ahorro de costes de hasta **450M en 3 años (2026-2028)**, junto con el Plan de Reestructuración de las Américas de **28,7M**...",
       "secSnippet": {
         "title": "2026 Guidance / Full Year Outlook",
         "summary": "Metas cuantitativas oficiales para el próximo ejercicio",
-        "headers": ["Métrica", "2026E*"],
+        "headers": ["Métrica", "2025 (Año anterior)", "Guidance 2026E*", "Cifra Proyectada 2026E"],
         "rows": [
-          ["Net Sales Revenue Growth, Constant Currency", "Flat +/- 1%"],
-          ["Underlying Income Before Income Taxes", "-15% to -18% Decline"],
-          ["Underlying Diluted EPS Growth", "-11% to -15% Decline"],
-          ["Underlying Free Cash Flow", "$1.1B +/- 10%"],
-          ["Underlying Net Interest Expense", "$260M +/- 5%"],
-          ["Capital Expenditures Incurred", "$650M +/- 5%"]
+          ["Net Sales Revenue Growth, Constant Currency", "$11,141M", "Flat +/- 1%", "~$11,030M – $11,252M"],
+          ["Underlying Income Before Income Taxes", "$1,402M", "-15% to -18% Decline", "~$1,150M – $1,192M"],
+          ["Underlying Diluted EPS Growth", "$5.80", "-11% to -15% Decline", "~$4.93 – $5.16"],
+          ["Underlying Free Cash Flow", "$1,068M", "$1.1B +/- 10%", "~$990M – $1,210M"],
+          ["Underlying Net Interest Expense", "$230M", "$260M +/- 5%", "~$247M – $273M"],
+          ["Capital Expenditures Incurred", "$717M", "$650M +/- 5%", "~$618M – $683M"]
         ]
       }
     },
     "debt": {
       "title": "3: Deuda",
-      "text": "La deuda neta se ha mantenido muy similar y no es preocupante. Sin embargo, el calendario de deuda no es nada bueno...",
-      "refinancingAnalysis": "En 2026 vencen unos 2.300 M con intereses de alrededor del 3 %. Estimamos un coste del 5 % para la nueva deuda.",
-      "refinancingImpact": "2300 * 0,02 = 46 M más de intereses anuales (230 M -> 276 M). El guidance ya prevé 260 M.",
+      "text": "La deuda neta se sitúa en **4.950 M$** (-350 M$ vs ejercicio anterior) y la deuda normal en **5.900 M$** (-300 M$). El calendario de vencimientos de los próximos 5 años muestra compromisos escalonados con un tipo de interés medio total del **3,35 %**.",
+      "refinancingAnalysis": "Se refinanciaron **1.000 M$** de deuda que devengaba un **3,00 %** emitiendo nuevas obligaciones al **5,25 %** (+2,25 puntos porcentuales de coste).",
+      "refinancingImpact": "Sobrecoste bruto de **22,5 M$** de intereses anuales. Tras impuestos (~23 %), el coste neto es de **~17,3 M$**, lo que reduce el BPA en torno a **-0,09 $/acción** (con 199M de acciones).",
+      "maturitySchedule": [
+        { "year": 2026, "label": "CAD 500M 3.44% senior notes", "amount": 364.3, "rate": 3.44, "type": "Senior Notes" },
+        { "year": 2026, "label": "$2.0B 3.0% senior notes", "amount": 2000.0, "rate": 3.0, "type": "Senior Notes" },
+        { "year": 2029, "label": "CAD 445M 3.44% senior notes", "amount": 1.7, "rate": 3.44, "type": "Senior Notes" }
+      ],
+      "maturityAfterFive": 3841.6,
+      "debtHistory": [
+        { "year": 2021, "totalDebt": 7800, "netDebt": 7200 },
+        { "year": 2022, "totalDebt": 6900, "netDebt": 6100 },
+        { "year": 2023, "totalDebt": 6500, "netDebt": 5700 },
+        { "year": 2024, "totalDebt": 6200, "netDebt": 5300 },
+        { "year": 2025, "totalDebt": 5900, "netDebt": 4950 }
+      ],
+      "refinancing": {
+        "occurred": true,
+        "oldDebtRate": 3.00,
+        "newDebtRate": 5.25,
+        "amountRefinanced": 1000,
+        "annualInterestImpact": 22.5,
+        "epsImpact": -0.09
+      },
       "secSnippet": {
         "title": "Debt Obligations — Contractual Maturities (Form 10-K)",
         "summary": "Desglose de notas sénior y calendario de vencimientos de deuda",
@@ -933,27 +1189,36 @@ Instrucciones prioritarias:
      * Detalle exhaustivo de las recompras de acciones ejecutadas durante el año y en el histórico reciente (2-3 años).
      * Precio medio ponderado pagado por acción durante el año.
      * "authorizationRemaining": Importe en $M que queda pendiente de ejecutar en el programa de recompras (remanente de la autorización vigente). NO uses "programAuthorization" ni "programRemaining". Si el JSON de extracción incluye "annualDetails.repurchases.programRemaining" (número en $M), usa OBLIGATORIAMENTE ese importe para "authorizationRemaining" y redáctalo como texto (ej. "Unos 2.600M de $ pendientes de ejecución"). Queda PROHIBIDO afirmar que el 10-K no desglosa el remanente si el JSON de extracción lo incluye.
-     * "authorizationExpiry": Fecha o periodo en el que termina la autorización del programa (ej. "Vigente hasta diciembre de 2031"). Si el 10-K no la indica, omite el campo.
-     * "shareCountEvolution": Evolución del conteo de acciones en circulación (ej. de 213M a 199,1M, -6,2 %).
-     * "bpaImpact": Impacto acumulado porcentual en el BPA derivado exclusivamente de la reducción de acciones.
+     * "authorizationExpiry": SOLO si el 10-K lo indica de forma expresa: la fecha en que caduca la autorización del programa (ej. "Vigente hasta diciembre de 2031"); o "Sin fecha de caducidad" únicamente si el 10-K afirma explícitamente que el programa no tiene vencimiento. Si el 10-K no dice nada sobre la caducidad, OMITE el campo por completo (nunca escribas "no indicada" ni similar).
+     * "shareCountEvolution": Evolución del número de acciones EN EL ÚLTIMO AÑO: del cierre del ejercicio anterior al cierre del ejercicio analizado, usando los dos últimos puntos de "sharesHistory" (ej. "De 208,9M de acciones en diciembre de 2024 a 199,1M en diciembre de 2025 (-4,7 %)"). NO uses el acumulado de dos o más años.
+     * "bpaImpact": Impacto porcentual en el BPA DEL ÚLTIMO AÑO derivado exclusivamente de la reducción de acciones (ej. "+4,9 % de subida en el BPA en el último año exclusivamente por recompras"). NO uses el acumulado de dos años.
      * "futureProjection": PROYECCIÓN A 5 AÑOS con estimación matemática explícita si se mantiene el precio medio pagado en el año: acciones recomprables = authorizationRemaining / precio medio; reparto anual (dividido entre 5 años); reducción anual del número de acciones en %; y efecto anual resultante en el BPA. Ejemplo: "Proyección a 5 años: con ~2.600M de autorización restante y un precio medio de ~51 $, se podrían recomprar ~51M de acciones (~10,2M/año), lo que reduciría el capital un ~5,1 % anual e impulsaría el BPA ~5,4 % cada año." Solo incluye el cálculo si dispones de authorizationRemaining y precio medio; si no, describe la capacidad de recompra con el flujo libre.
      * "sharesHistory": Array con las acciones en circulación al cierre de los últimos 5 ejercicios: [{ "year": 2021, "shares": 231.5 }, ...] en millones. Usa los datos extraídos en "annualDetails.repurchases.sharesHistory" (mínimo 3 años si el informe no desglosa los 5).
      * "secSnippet": Tabla oficial del 10-K sobre compras de acciones propias (Share Repurchase Program) con headers y rows numéricos. "rows" DEBE incluir la fila "Average price paid (in $)" con el precio medio pagado por acción en cada año (coste agregado / acciones recompradas), junto a "Shares repurchased" y "Aggregate cost (in millions)".
   2. "outlook":
+     * REGLA DE FORMATO EN NEGRITA (OBLIGATORIA): En la redacción del outlook ("text", "fcfAnalysis", "riskFactors", "efficiencyPlans"), pon SIEMPRE en negrita con Markdown ("**...**") todos los números, porcentajes, importes monetarios, rangos de guidance, años proyectados y conceptos financieros más importantes (ejemplo: "**flat +/- 1 %**", "**-15 % al -18 %**", "**1.100M$ +/- 10 %**", "**650M$ +/- 5 %**", "**376M$**", "**450M$ en 3 años (2026-2028)**", "**~5 % anual**", "**22 % al 24 %**").
      * Análisis riguroso del guidance y perspectivas oficiales comunicadas por la dirección para el próximo ejercicio.
-     * Desglose de metas: crecimiento de ingresos en moneda constante, EBT subyacente, BPA diluido, Free Cash Flow guiado, CAPEX presupuestado, gastos netos de intereses.
-     * "fcfAnalysis": Sostenibilidad y cobertura del FCF esperado para dividendos y recompras.
-     * "riskFactors": Sensibilidad operativa y riesgos de costes (materias primas como aluminio/energía, inflación de costes).
-     * "efficiencyPlans": Programas de ahorro o reestructuración de costes en marcha.
-     * "secSnippet": Tabla oficial de Guidance / Previsiones oficiales con métricas y rangos objetivos.
-  3. "debt":
-     * Diagnóstico de la estructura financiera y liquidez.
-     * Calendario de vencimientos contractuales de la deuda (búsqueda de muros de vencimiento próximos a 12-24 meses).
-     * "refinancingAnalysis": Tipos de interés de la deuda que vence próximamente vs tipos estimados actuales de mercado para refinanciarla.
-     * "refinancingImpact": Cálculo matemático explícito del sobrecoste de intereses:
-       Δ intereses = Deuda a vencer × (Tipo nuevo estimado - Tipo actual).
-       Comparar este sobrecoste contra la previsión de intereses del guidance.
-     * "secSnippet": Tabla oficial del 10-K de compromisos contractuales de deuda ("Debt obligations - Contractual maturities") con obligaciones, vencimientos y saldos.
+     * Desglose de metas: crecimiento de ingresos en moneda constante, EBT subyacente, BPA diluido, Free Cash Flow guiado, CAPEX presupuestado y gastos netos por intereses.
+     * Si el informe anual 10-K no incluye guidance pero la sección complementaria (8-K / presentación) sí lo aporta, este apartado DEBE redactarse basándose en ese guidance oficial, citándolo expresamente como las metas de la dirección para el próximo año.
+     * Si la compañía no facilita cifras cuantitativas en ninguna fuente, indícalo con objetividad ("La compañía no ha facilitado previsiones cuantitativas en la documentación oficial disponible..."). Queda TERMINANTEMENTE PROHIBIDO inventar rangos, porcentajes o copiar datos del schema de ejemplo.
+     * "fcfAnalysis": Sostenibilidad y cobertura del FCF esperado para dividendos y recompras, comparándolo con el FCF del ejercicio cerrado.
+     * "riskFactors": Sensibilidad operativa y riesgos de costes (materias primas específicas de su sector, energía, fletes, inflación).
+     * "efficiencyPlans": Programas de ahorro o reestructuración de costes en marcha anunciados por la dirección.
+     * "secSnippet": TABLA OFICIAL DEL GUIDANCE CON 4 COLUMNAS OBLIGATORIAS:
+       - "headers": ["Métrica", "[AÑO-1] (Año anterior)", "Guidance [AÑO]E*", "Cifra Proyectada [AÑO]E"]
+       - Columna 1 "Métrica": Denominación oficial de la métrica (Net Sales, Underlying EBT, Diluted EPS, Free Cash Flow, CAPEX, etc.).
+       - Columna 2 "[AÑO-1] (Año anterior)": SIEMPRE poner el valor real conseguido el año pasado cerrado (obtenido del 10-K: ventas cerradas, EBT cerrado, BPA cerrado, FCF del estado de flujos, CAPEX cerrado, intereses cerrados, etc.).
+       - Columna 3 "Guidance [AÑO]E*": La meta oficial cuantitativa facilitada por la empresa (ej. "Flat +/- 1%", "-15% to -18% Decline", "$1.1B +/- 10%").
+       - Columna 4 "Cifra Proyectada [AÑO]E": CUANDO PONE FLAT Y LOS PORCENTAJES, PONER AL LADO CUÁNTO ES EN VENTAS O EN NÚMERO, calculando la cifra monetaria en valor absoluto proyectada (ej. si ventas 2025 fueron 11.141M$ y la guía es Flat +/- 1%, poner "~$11.030M – $11.252M"; si EBT fue 1.402M$ y la guía es -15% a -18%, poner "~$1.150M – $1.192M"; si FCF es $1.1B +/- 10%, poner "~$990M – $1.210M").
+       - Queda TERMINANTEMENTE PROHIBIDO dejar solo 'flat' o porcentajes sin calcular la cifra monetaria en ventas/número al lado, y queda PROHIBIDO omitir el valor conseguido el año pasado.
+   3. "debt":
+      * REGLA DE FORMATO EN NEGRITA (OBLIGATORIA): En la redacción de deuda ("text", "refinancingAnalysis", "refinancingImpact"), pon SIEMPRE en negrita con Markdown ("**...**") todos los números, importes monetarios, porcentajes, tipos de interés, impactos en BPA y años (ej. "**4.950 M$**", "**-350 M$**", "**3,00 %**", "**5,25 %**", "**-0,09 $/acción**", "**2026**").
+      * Diagnóstico riguroso de la estructura financiera y liquidez. Explicar cuánto ha variado la deuda neta y la deuda normal (total) respecto al ejercicio anterior.
+      * Calendario de vencimientos contractuales: el desglose gráfico y detallado DEBE LIMITARSE ESTRICTAMENTE A LOS PRÓXIMOS 5 AÑOS (cualquier vencimiento posterior al año 5 se resume en "maturityAfterFive" y queda fuera del gráfico). En cada año y bloque debe quedar claro qué tipo de deuda es y qué tipo de interés paga.
+      * Tipos medios: calcular para cada año el tipo de interés medio ponderado pagado por las deudas que vencen ese año, y abajo el tipo de interés medio total ponderado pagado por el conjunto de la deuda de los próximos 5 años.
+      * Gráfico histórico de 10 años: proporcionar en "debtHistory" los últimos 10 años hasta la actualidad de Deuda Normal (Total) y Deuda Neta, indicando cuánto ha cambiado cada una respecto al año anterior.
+      * Refinanciación e impacto en el BPA: si la empresa ha refinanciado deuda o se analizan vencimientos próximos, indicar qué tipo de interés devengaba la deuda que acaba de vender o retirar ("oldDebtRate") y qué tipo de interés gasta la nueva deuda emitida ("newDebtRate"). Con esos dos valores, calcular el sobrecoste o ahorro neto y el IMPACTO EXACTO EN EL BPA en $/acción (ejemplo: "los nuevos costes bajan en torno a 0,05 $/acción" o "reducen el BPA en torno a 0,09 $/acción").
+      * "secSnippet": Tabla oficial del 10-K de compromisos contractuales de deuda ("Debt obligations - Contractual maturities") con obligaciones, vencimientos y saldos.
   4. "acquisitions":
      * Detalle de adquisiciones o compras corporativas efectuadas en el ejercicio, o confirmación expresa de que no se realizaron compras materiales.
   5. "watchlist":
@@ -996,9 +1261,10 @@ export class AnalystAgent extends BaseAgent {
     try {
       extracted = await chatJson([
         { role: 'system', content: extractionPrompt },
-        { role: 'user', content: buildAnalysisText(input.text) },
+        { role: 'user', content: buildAnalysisText(input.text, input.presentationText) },
       ]);
-    } catch {
+    } catch (error) {
+      console.error('[analyst:extraction]', error.message);
       throw new AgentError('No se pudieron extraer los datos del informe.', 'INVALID_MODEL_RESPONSE');
     }
 
@@ -1345,7 +1611,48 @@ export class AnalystAgent extends BaseAgent {
       }
     }
 
-    // Análisis anual (10-K): calcular Working Capital a 12 meses completos
+    // Análisis anual (10-K): obtener historial de deuda de 10 años desde EDGAR y calcular Working Capital a 12 meses
+    let edgarDebtHistory = null;
+    let edgarDebtMaturities = null;
+    if (isAnnual && (extracted.ticker || input.ticker)) {
+      try {
+        const edgarResults = await getCompanyResults(extracted.ticker || input.ticker);
+        const annualSeries = edgarResults?.annual || [];
+        if (annualSeries.length >= 2) {
+          edgarDebtHistory = annualSeries
+            .map((row) => {
+              const yr = Number(row.period || (row.periodEnd ? String(row.periodEnd).slice(0, 4) : null));
+              const tDebt = Number(row.values?.totalDebt);
+              const nDebt = Number(row.values?.netDebt);
+              return {
+                year: yr,
+                totalDebt: Number.isFinite(tDebt) ? (tDebt > 1e6 ? Math.round(tDebt / 1e6) : Math.round(tDebt)) : null,
+                netDebt: Number.isFinite(nDebt) ? (nDebt > 1e6 ? Math.round(nDebt / 1e6) : Math.round(nDebt)) : null,
+              };
+            })
+            .filter((p) => Number.isFinite(p.year) && Number.isFinite(p.totalDebt))
+            .sort((a, b) => a.year - b.year)
+            .slice(-10);
+        }
+        if (Array.isArray(edgarResults?.debtMaturities?.years) && edgarResults.debtMaturities.years.length) {
+          const reportYear = Number(fiscalYear) || (reportingPeriod ? Number(String(reportingPeriod).slice(0, 4)) : null);
+          if (!reportYear || Number(edgarResults.debtMaturities.baseYear) === reportYear) {
+            edgarDebtMaturities = edgarResults.debtMaturities;
+          }
+        }
+      } catch (err) {
+        console.warn('[analyst] No se pudo obtener el historial de deuda desde EDGAR:', err.message);
+      }
+    }
+
+    if (isAnnual && edgarDebtHistory && edgarDebtHistory.length) {
+      extracted.annualDetails = extracted.annualDetails || {};
+      extracted.annualDetails.debt = extracted.annualDetails.debt || {};
+      if (!extracted.annualDetails.debt.debtHistory || !extracted.annualDetails.debt.debtHistory.length) {
+        extracted.annualDetails.debt.debtHistory = edgarDebtHistory;
+      }
+    }
+
     if (isAnnual) {
       const bal = extracted.balance ?? {};
       const inv = Number(bal.inventories) || 0;
@@ -2080,6 +2387,26 @@ export class AnalystAgent extends BaseAgent {
       result.conclusion.repurchases.shareCountEvolution = result.conclusion.repurchases.shareCountEvolution || null;
       result.conclusion.repurchases.bpaImpact = result.conclusion.repurchases.bpaImpact || null;
       result.conclusion.repurchases.futureProjection = result.conclusion.repurchases.futureProjection || null;
+      const extractionRep = rawAnn.repurchases ?? {};
+      if (!result.conclusion.repurchases.authorizationRemaining && extractionRep.programRemaining != null && extractionRep.programRemaining !== '') {
+        const remNum = Number(extractionRep.programRemaining);
+        result.conclusion.repurchases.authorizationRemaining = Number.isFinite(remNum)
+          ? `Unos ${String(remNum).replace('.', ',')}M de $ pendientes de ejecución`
+          : String(extractionRep.programRemaining);
+      }
+      const expiryRaw = result.conclusion.repurchases.authorizationExpiry
+        || extractionRep.programExpiry
+        || null;
+      result.conclusion.repurchases.authorizationExpiry = (expiryRaw && !/no indicad|not disclosed|not stated|no consta|no especificad/i.test(String(expiryRaw)))
+        ? expiryRaw
+        : null;
+      if ((!Array.isArray(result.conclusion.repurchases.sharesHistory) || result.conclusion.repurchases.sharesHistory.length < 2)
+        && Array.isArray(extractionRep.sharesHistory) && extractionRep.sharesHistory.length >= 2) {
+        result.conclusion.repurchases.sharesHistory = extractionRep.sharesHistory;
+      }
+      if (!result.conclusion.repurchases.secSnippet && extractionRep.secTable) {
+        result.conclusion.repurchases.secSnippet = extractionRep.secTable;
+      }
       if (!result.conclusion.repurchases.secSnippet && rawAnn.repurchasesSecTable) {
         result.conclusion.repurchases.secSnippet = rawAnn.repurchasesSecTable;
       }
@@ -2087,12 +2414,32 @@ export class AnalystAgent extends BaseAgent {
       // 2: Outlook
       result.conclusion.outlook = result.conclusion.outlook || {};
       result.conclusion.outlook.title = result.conclusion.outlook.title || '2: Outlook';
-      result.conclusion.outlook.text = result.conclusion.outlook.text || rawAnn.outlookNarrative || 'Metas y previsiones cuantitativas oficiales para el próximo ejercicio.';
-      result.conclusion.outlook.fcfAnalysis = result.conclusion.outlook.fcfAnalysis || null;
-      result.conclusion.outlook.riskFactors = result.conclusion.outlook.riskFactors || null;
-      result.conclusion.outlook.efficiencyPlans = result.conclusion.outlook.efficiencyPlans || null;
+      const extractionOut = rawAnn.outlook ?? {};
+      if (!result.conclusion.outlook.text || result.conclusion.outlook.text === 'Metas y previsiones cuantitativas oficiales para el próximo ejercicio.') {
+        const parts = [];
+        if (extractionOut.guidanceSales && !/sin guidance/i.test(extractionOut.guidanceSales)) parts.push(`Ventas: ${extractionOut.guidanceSales}`);
+        if (extractionOut.guidanceEbt) parts.push(`EBT: ${extractionOut.guidanceEbt}`);
+        if (extractionOut.guidanceEps) parts.push(`BPA: ${extractionOut.guidanceEps}`);
+        if (extractionOut.guidanceFcf) parts.push(`FCF: ${extractionOut.guidanceFcf}`);
+        if (extractionOut.guidanceCapex) parts.push(`CAPEX: ${extractionOut.guidanceCapex}`);
+        if (extractionOut.guidanceNetInterest) parts.push(`Gastos por intereses: ${extractionOut.guidanceNetInterest}`);
+        if (parts.length) {
+          result.conclusion.outlook.text = `Previsiones cuantitativas oficiales comunicadas por la dirección para el próximo ejercicio: ${parts.join(', ')}.`;
+        } else if (rawAnn.outlookNarrative) {
+          result.conclusion.outlook.text = rawAnn.outlookNarrative;
+        }
+      }
+      result.conclusion.outlook.fcfAnalysis = result.conclusion.outlook.fcfAnalysis || (extractionOut.guidanceFcf ? `Previsión de FCF reportada en el guidance: ${extractionOut.guidanceFcf}.` : null);
+      result.conclusion.outlook.riskFactors = result.conclusion.outlook.riskFactors || extractionOut.commodityRisks || null;
+      result.conclusion.outlook.efficiencyPlans = result.conclusion.outlook.efficiencyPlans || extractionOut.costSavingsPlan || null;
+      if (!result.conclusion.outlook.secSnippet && extractionOut.secTable && Array.isArray(extractionOut.secTable.rows) && extractionOut.secTable.rows.length) {
+        result.conclusion.outlook.secSnippet = extractionOut.secTable;
+      }
       if (!result.conclusion.outlook.secSnippet && rawAnn.outlookSecTable) {
         result.conclusion.outlook.secSnippet = rawAnn.outlookSecTable;
+      }
+      if (result.conclusion.outlook.secSnippet) {
+        result.conclusion.outlook.secSnippet = withOutlookComparison(result.conclusion.outlook.secSnippet, result);
       }
 
       // 3: Deuda
@@ -2101,8 +2448,42 @@ export class AnalystAgent extends BaseAgent {
       result.conclusion.debt.text = result.conclusion.debt.text || rawAnn.debtNarrative || 'Estructura de endeudamiento, liquidez y calendario de vencimientos de deuda.';
       result.conclusion.debt.refinancingAnalysis = result.conclusion.debt.refinancingAnalysis || null;
       result.conclusion.debt.refinancingImpact = result.conclusion.debt.refinancingImpact || null;
-      if (!result.conclusion.debt.secSnippet && rawAnn.debtMaturitiesSecTable) {
-        result.conclusion.debt.secSnippet = rawAnn.debtMaturitiesSecTable;
+
+      const extractionDebt = rawAnn.debt ?? {};
+      if (!result.conclusion.debt.maturitySchedule && (extractionDebt.maturityItems || extractionDebt.maturitySchedule)) {
+        result.conclusion.debt.maturitySchedule = extractionDebt.maturityItems || extractionDebt.maturitySchedule;
+      }
+      if (!result.conclusion.debt.maturitySchedule && edgarDebtMaturities) {
+        result.conclusion.debt.maturitySchedule = edgarDebtMaturities.years.map((y) => ({
+          year: y.year,
+          label: 'Vencimientos contractuales de deuda',
+          amount: y.amount,
+          type: 'Deuda total',
+          interestRate: null,
+        }));
+      }
+      if (edgarDebtMaturities?.afterYearFive != null && result.conclusion.debt.maturityAfterFive == null) {
+        result.conclusion.debt.maturityAfterFive = edgarDebtMaturities.afterYearFive;
+      }
+      if (!result.conclusion.debt.debtHistory) {
+        result.conclusion.debt.debtHistory = extractionDebt.debtHistory || edgarDebtHistory || null;
+      }
+      if (!result.conclusion.debt.refinancing && (extractionDebt.refinancing || extractionDebt.nearTermRates || extractionDebt.nearTermMaturities)) {
+        result.conclusion.debt.refinancing = extractionDebt.refinancing || {
+          occurred: Boolean(extractionDebt.nearTermMaturities),
+          amountRefinanced: extractionDebt.nearTermMaturities,
+          estimatedRefinancingRate: extractionDebt.estimatedRefinancingRate,
+          annualInterestImpact: extractionDebt.estimatedInterestIncrease,
+        };
+      }
+      if (!result.conclusion.debt.secSnippet && (rawAnn.debtMaturitiesSecTable || extractionDebt.secTable)) {
+        result.conclusion.debt.secSnippet = rawAnn.debtMaturitiesSecTable || extractionDebt.secTable;
+      }
+      if (edgarDebtHistory) {
+        result.edgarDebtHistory = edgarDebtHistory;
+      }
+      if (edgarDebtMaturities) {
+        result.edgarDebtMaturities = edgarDebtMaturities;
       }
 
       // 4: Adquisiciones

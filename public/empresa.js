@@ -47,7 +47,7 @@ let chartRange = '5y';
 let chartPoints = [];
 let chartMaPoints = [];
 let chartMovingAveragesData = {};
-const MA_PALETTE = ['#3b82f6', '#8b5cf6', '#10b981', '#ec4899', '#06b6d4', '#eab308', '#f97316'];
+const MA_PALETTE = ['#3b82f6', '#8b5cf6', '#10b981', '#ec4899', '#06b6d4', '#eab308', '#4f46e5'];
 const MA_STORAGE_KEY = 'cifra_chart_ma_config_v1';
 
 function loadChartMaConfig() {
@@ -363,6 +363,56 @@ function renderCompanyLogo(el, ticker, fallbackLetter) {
   el.appendChild(img);
 }
 
+const SEO_LOWER_WORDS = new Set(['de', 'del', 'la', 'las', 'el', 'y', 'of', 'the', 'and']);
+
+function seoTitleCase(name) {
+  const words = String(name ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  return words
+    .map((word, index) => {
+      if (index > 0 && SEO_LOWER_WORDS.has(word)) return word;
+      return word.split(/(-)/).map((part) => (part === '-' ? part : part.charAt(0).toUpperCase() + part.slice(1))).join('');
+    })
+    .join(' ');
+}
+
+function setSeoMeta(tag, attribute, value) {
+  if (tag === 'title') {
+    document.title = value;
+    return;
+  }
+  const selector = attribute === 'property' ? `meta[property="${tag}"]` : `meta[name="${tag}"]`;
+  const element = document.head.querySelector(selector);
+  if (element) element.setAttribute('content', value);
+}
+
+function updateCompanySeoMeta(data) {
+  const landingPath = window.location.pathname === '/' || window.location.pathname === '/empresa';
+  const hasTickerQuery = new URLSearchParams(window.location.search).has('ticker');
+  if (landingPath && !hasTickerQuery) return;
+
+  const company = data?.company ?? {};
+  const info = data?.profile?.info ?? {};
+  const ticker = company.ticker ?? companyTicker;
+  const rawName = company.name ?? ticker;
+  const name = seoTitleCase(rawName);
+  const sectorPart = info.sector && info.sector !== '—' ? ` del sector ${info.sector.toLowerCase()}` : '';
+  const exchangePart = info.exchange ? ` Cotiza en ${info.exchange}` : '';
+  const title = `${ticker} (${name}) — resultados 10-Q y 10-K | Cifra`;
+  const description = `Perfil y análisis de ${name}${sectorPart}: resultados de sus informes 10-Q y 10-K ante la SEC, con análisis con IA de ventas, flujo de caja libre y asignación de capital.${exchangePart}`;
+  const url = new URL(`/empresa/${encodeURIComponent(ticker)}`, window.location.origin).toString();
+
+  document.title = title;
+  setSeoMeta('description', 'name', description);
+  setSeoMeta('og:title', 'property', title);
+  setSeoMeta('og:description', 'property', description);
+  setSeoMeta('twitter:title', 'name', title);
+  setSeoMeta('twitter:description', 'name', description);
+
+  const canonical = document.head.querySelector('link[rel="canonical"]');
+  if (canonical) canonical.setAttribute('href', url);
+  setSeoMeta('og:url', 'property', url);
+}
+
 function renderCompany(data) {
   screenerYearMin = null;
   screenerYearMax = null;
@@ -377,7 +427,7 @@ function renderCompany(data) {
   const metrics = profile.metrics ?? {};
   const info = profile.info ?? {};
 
-  document.title = `Cifra Terminal | ${company.name ?? companyTicker}`;
+  updateCompanySeoMeta(data);
   const companyLogo = (company.name ?? companyTicker).slice(0, 1).toUpperCase();
   renderCompanyLogo(document.querySelector('#company-logo'), company.ticker ?? companyTicker, companyLogo);
   document.querySelector('#company-name').textContent = company.name ?? '—';
@@ -926,7 +976,7 @@ function renderAnnualNetDebtEbitdaChart() {
     const barY = isNegative ? zeroY : y(it.ratio);
     const barH = Math.max(3, Math.abs(y(it.ratio) - zeroY));
     const isTtm = it.year === 'TTM';
-    const color = isNegative ? '#16a34a' : (isTtm ? '#ea580c' : 'var(--orange)');
+    const color = isNegative ? '#16a34a' : (isTtm ? '#4338ca' : 'var(--accent)');
     const labelY = isNegative ? (barY + barH + 14) : (barY - 8);
 
     barsHtml += `
@@ -1041,7 +1091,7 @@ function updateValTimelineSliderUi() {
           d += `${d ? ' L' : 'M'}${sx.toFixed(1)} ${sy.toFixed(1)}`;
         }
       });
-      sparkEl.innerHTML = `<path d="${d}" fill="none" stroke="rgba(249, 115, 22, 0.65)" stroke-width="1.4"/>`;
+      sparkEl.innerHTML = `<path d="${d}" fill="none" stroke="rgba(79, 70, 229, 0.65)" stroke-width="1.4"/>`;
     }
   }
 }
@@ -1408,7 +1458,7 @@ function renderValuationChart() {
     const linePath = segment.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
     const areaPath = `${linePath} L${segment[segment.length - 1].x.toFixed(1)} ${baselineY.toFixed(1)} L${segment[0].x.toFixed(1)} ${baselineY.toFixed(1)} Z`;
     pathsHtml += `<path d="${areaPath}" fill="url(#val-area-gradient)"/>`;
-    pathsHtml += `<path d="${linePath}" fill="none" stroke="var(--orange)" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    pathsHtml += `<path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/>`;
   });
 
   const lastPoint = points[points.length - 1];
@@ -1425,8 +1475,8 @@ function renderValuationChart() {
   svg.innerHTML = `
     <defs>
       <linearGradient id="val-area-gradient" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="var(--orange)" stop-opacity="0.28"/>
-        <stop offset="95%" stop-color="var(--orange)" stop-opacity="0.01"/>
+        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28"/>
+        <stop offset="95%" stop-color="var(--accent)" stop-opacity="0.01"/>
       </linearGradient>
     </defs>
     ${gridLines}
@@ -1464,16 +1514,16 @@ function renderValuationChart() {
       <line class="pf-chart-crosshair pf-chart-crosshair-v" x1="0" y1="${pad.top}" x2="0" y2="${height - pad.bottom}"/>
       <line class="pf-chart-crosshair pf-chart-crosshair-h" x1="${pad.left}" y1="0" x2="${width - pad.right}" y2="0"/>
       <g class="pf-chart-hover-dot-wrap" transform="translate(0, 0)">
-        <circle class="pf-chart-hover-dot-halo" r="10" fill="var(--orange)" fill-opacity="0.25"/>
-        <circle class="pf-chart-hover-dot" r="5" fill="#ffffff" stroke="var(--orange)" stroke-width="2.6"/>
+        <circle class="pf-chart-hover-dot-halo" r="10" fill="var(--accent)" fill-opacity="0.25"/>
+        <circle class="pf-chart-hover-dot" r="5" fill="#ffffff" stroke="var(--accent)" stroke-width="2.6"/>
       </g>
       <g class="pf-chart-x-badge" transform="translate(0, ${height - pad.bottom})">
         <rect class="pf-chart-x-badge-bg" x="-42" y="2" width="84" height="20" rx="4" ry="4"/>
         <text class="pf-chart-x-badge-text" x="0" y="16" text-anchor="middle">--</text>
       </g>
       <g class="pf-chart-y-badge" transform="translate(${width - pad.right + 6}, 0)">
-        <path class="pf-chart-y-badge-arrow" d="M -5,0 L 0,-6 L 0,6 Z" fill="var(--orange)"/>
-        <rect class="pf-chart-y-badge-bg" x="0" y="-10" width="${pad.right - 8}" height="20" rx="3" fill="var(--orange)"/>
+        <path class="pf-chart-y-badge-arrow" d="M -5,0 L 0,-6 L 0,6 Z" fill="var(--accent)"/>
+        <rect class="pf-chart-y-badge-bg" x="0" y="-10" width="${pad.right - 8}" height="20" rx="3" fill="var(--accent)"/>
         <text class="pf-chart-y-badge-text" x="${(pad.right - 8) / 2}" y="0" text-anchor="middle">--</text>
       </g>
     </g>
@@ -1558,10 +1608,10 @@ function updateValuationChartHover(event) {
     hoverYBadge.setAttribute('transform', `translate(${bx.toFixed(1)}, ${clampedY.toFixed(1)})`);
     if (hoverYBadgeBg) {
       hoverYBadgeBg.setAttribute('width', badgeW.toFixed(1));
-      hoverYBadgeBg.setAttribute('fill', 'var(--orange)');
+      hoverYBadgeBg.setAttribute('fill', 'var(--accent)');
     }
     const arrowEl = hoverYBadge.querySelector('.pf-chart-y-badge-arrow');
-    if (arrowEl) arrowEl.setAttribute('fill', 'var(--orange)');
+    if (arrowEl) arrowEl.setAttribute('fill', 'var(--accent)');
     hoverYBadgeText.setAttribute('x', (badgeW / 2).toFixed(1));
     hoverYBadgeText.textContent = formatted;
     hoverYBadge.hidden = false;
@@ -2807,8 +2857,8 @@ function renderPriceChart() {
   svg.innerHTML = `
     <defs>
       <linearGradient id="company-chart-grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#f97316" stop-opacity="0.22"/>
-        <stop offset="100%" stop-color="#f97316" stop-opacity="0.00"/>
+        <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.22"/>
+        <stop offset="100%" stop-color="#4f46e5" stop-opacity="0.00"/>
       </linearGradient>
     </defs>
     ${gridLines}
@@ -2848,8 +2898,8 @@ function renderPriceChart() {
       <line class="pf-chart-crosshair pf-chart-crosshair-v" x1="0" y1="${pad.top}" x2="0" y2="${height - pad.bottom}"/>
       <line class="pf-chart-crosshair pf-chart-crosshair-h" x1="${pad.left}" y1="0" x2="${width - pad.right}" y2="0"/>
       <g class="pf-chart-hover-dot-wrap" transform="translate(0, 0)">
-        <circle class="pf-chart-hover-dot-halo" cx="0" cy="0" r="10" fill="#f97316" fill-opacity="0.3"/>
-        <circle class="pf-chart-hover-dot" cx="0" cy="0" r="5.5" fill="#f97316" stroke="#ffffff" stroke-width="2.2"/>
+        <circle class="pf-chart-hover-dot-halo" cx="0" cy="0" r="10" fill="#4f46e5" fill-opacity="0.3"/>
+        <circle class="pf-chart-hover-dot" cx="0" cy="0" r="5.5" fill="#4f46e5" stroke="#ffffff" stroke-width="2.2"/>
       </g>
       <g class="pf-chart-hover-ma-dots"></g>
       <g class="pf-chart-x-badge" transform="translate(0, ${height - pad.bottom})">
@@ -2857,8 +2907,8 @@ function renderPriceChart() {
         <text class="pf-chart-x-badge-text" x="0" y="16" text-anchor="middle">--</text>
       </g>
       <g class="pf-chart-y-badge" transform="translate(${width - pad.right + 6}, 0)">
-        <path class="pf-chart-y-badge-arrow" d="M -5,0 L 0,-6 L 0,6 Z" fill="#f97316"/>
-        <rect class="pf-chart-y-badge-bg" x="0" y="-10" width="${pad.right - 8}" height="20" rx="3" fill="#f97316"/>
+        <path class="pf-chart-y-badge-arrow" d="M -5,0 L 0,-6 L 0,6 Z" fill="#4f46e5"/>
+        <rect class="pf-chart-y-badge-bg" x="0" y="-10" width="${pad.right - 8}" height="20" rx="3" fill="#4f46e5"/>
         <text class="pf-chart-y-badge-text" x="${(pad.right - 8) / 2}" y="0" text-anchor="middle">--</text>
       </g>
     </g>
@@ -3610,7 +3660,7 @@ function wireCompanyChartInteractions() {
         label: companyTicker || 'Precio',
         value: point.v,
         py: pyPrice,
-        color: '#f97316',
+        color: '#4f46e5',
       }
     ];
 
@@ -3680,7 +3730,7 @@ function wireCompanyChartInteractions() {
       dotWrap.style.display = 'inline';
       if (hoverDot) {
         hoverDot.setAttribute('stroke', '#ffffff');
-        hoverDot.setAttribute('fill', '#f97316');
+        hoverDot.setAttribute('fill', '#4f46e5');
       }
     }
 
@@ -3768,7 +3818,7 @@ function wireCompanyChartInteractions() {
         <span class="pf-chart-tooltip-title">${escapeHtml(companyTicker)} · Cotización</span>
         <span class="pf-chart-tooltip-date" style="display:block; color:#94a3b8; font-size:10px;">${escapeHtml(formatTradingViewHoverDate(point.date))}</span>
       </div>
-      <div style="font-size: 14px; font-weight: 700; color: #ffffff; display: flex; align-items: baseline; ${isPriceActive && candidates.length > 1 ? 'background: rgba(249,115,22,0.15); border-radius: 4px; padding: 2px 4px;' : ''}">
+      <div style="font-size: 14px; font-weight: 700; color: #ffffff; display: flex; align-items: baseline; ${isPriceActive && candidates.length > 1 ? 'background: rgba(79, 70, 229,0.15); border-radius: 4px; padding: 2px 4px;' : ''}">
         ${escapeHtml(formatPriceValue(point.v))}
         ${changeHtml}
       </div>
@@ -4476,6 +4526,10 @@ function renderStatementTable(rows, visibleIndexes, items) {
   const table = document.querySelector('#screener-statement-table');
   const title = document.querySelector('#screener-table-title').textContent;
   const colspan = visibleIndexes.length + 1;
+  table.querySelector('colgroup')?.remove();
+  table.insertAdjacentHTML('afterbegin', `<colgroup><col style="width:330px">${visibleIndexes.map(() => '<col>').join('')}</colgroup>`);
+  table.style.minWidth = `${330 + visibleIndexes.length * 96}px`;
+  table.style.maxWidth = `${330 + visibleIndexes.length * 320}px`;
   table.querySelector('thead').innerHTML = `<tr><th class="sticky-col">${escapeHtml(title)}</th>${visibleIndexes.map((rowIndex) => `<th>${periodDateLabel(rows[rowIndex])}</th>`).join('')}</tr>`;
   table.querySelector('tbody').innerHTML = items.map((item, index) => {
     if (item.kind === 'section') return `<tr class="section-row"><td class="sticky-col" colspan="${colspan}">${escapeHtml(item.label)}</td></tr>`;
@@ -4640,7 +4694,7 @@ function syncScreenerRange() {
   const span = high - low;
   const pctMin = span > 0 ? ((screenerYearMin - low) / span) * 100 : 0;
   const pctMax = span > 0 ? ((screenerYearMax - low) / span) * 100 : 100;
-  document.querySelector('#screener-range-track').style.background = `linear-gradient(to right, #e2e2e2 0%, #e2e2e2 ${pctMin}%, var(--orange) ${pctMin}%, var(--orange) ${pctMax}%, #e2e2e2 ${pctMax}%, #e2e2e2 100%)`;
+  document.querySelector('#screener-range-track').style.background = `linear-gradient(to right, #e2e2e2 0%, #e2e2e2 ${pctMin}%, var(--accent) ${pctMin}%, var(--accent) ${pctMax}%, #e2e2e2 ${pctMax}%, #e2e2e2 100%)`;
 }
 
 document.querySelector('#screener-range-min').addEventListener('input', (event) => {
@@ -4853,7 +4907,7 @@ screenerTableDragController = initScreenerTableDrag();
 /* ── Gráfico de métricas (datos financieros) ────────────────── */
 
 const METRICS_CHART_COLORS = [
-  '#ff9900', '#3a7bd5', '#2e9e5b', '#d64545',
+  '#4f46e5', '#3a7bd5', '#2e9e5b', '#d64545',
   '#7b5cd6', '#009aa6', '#e06fb0', '#d96a2b',
   '#6c3483', '#2874a6', '#1e8449', '#c0392b',
   '#8a8a3a', '#5f6b7a', '#d4ac0d', '#34495e',
@@ -4933,7 +4987,7 @@ function syncMarginSelector() {
     const dot = button.querySelector('.margin-chip-dot');
     if (dot) {
       const baseSeriesId = `${key}__${companyTicker}`;
-      const color = seriesColorMap.get(baseSeriesId) || chartMetrics.get(key)?.color || '#ff9900';
+      const color = seriesColorMap.get(baseSeriesId) || chartMetrics.get(key)?.color || '#4f46e5';
       dot.style.background = isSelected ? color : 'transparent';
       dot.style.borderColor = isSelected ? color : '#999';
     }
@@ -4979,7 +5033,7 @@ function syncChartRowSelection() {
     const dot = row.querySelector('td:first-child .metric-chart-dot');
     if (dot) {
       const baseSeriesId = `${key}__${companyTicker}`;
-      const color = seriesColorMap.get(baseSeriesId) || chartMetrics.get(key)?.color || '#ff9900';
+      const color = seriesColorMap.get(baseSeriesId) || chartMetrics.get(key)?.color || '#4f46e5';
       dot.style.background = isSelected ? color : '';
     }
   });
@@ -5848,6 +5902,22 @@ function renderFilingsTable() {
       ? `<button type="button" class="filing-action filing-action-regenerate admin-only" data-action="regenerate" data-form-type="${escapeHtml(filing.formType)}" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}" title="Volver a generar este informe de nuevo con IA (elimina el informe actual)">🔄 Regenerar</button>`
       : '';
 
+    const presentations = Array.isArray(filing.presentations) ? filing.presentations : [];
+    const deckItem = presentations.find((item) => item.docType === 'presentation') ?? null;
+    const releaseItem = presentations.find((item) => item.docType === 'release') ?? null;
+
+    const presentationBtn = deckItem
+      ? `<a class="filing-action filing-action-presentation" href="${escapeHtml(deckItem.documentUrl)}" target="_blank" rel="noopener" title="${escapeHtml(deckItem.documentName || deckItem.name || 'Presentación de resultados (PDF)')}">Presentación</a>`
+      : '';
+
+    const releaseBtn = (releaseItem && releaseItem.documentUrl !== deckItem?.documentUrl)
+      ? `<a class="filing-action filing-action-release" href="${escapeHtml(releaseItem.documentUrl)}" target="_blank" rel="noopener" title="${escapeHtml(releaseItem.documentName || releaseItem.name || 'Comunicado de resultados (8-K)')}">Comunicado</a>`
+      : '';
+
+    const loadingPresBtn = (!presentationBtn && !releaseBtn && filing.presentationsLoading)
+      ? `<span class="filing-action filing-action-loading" title="Buscando presentación y comunicado de resultados..."><span class="loading-spinner-sm"></span> Cargando…</span>`
+      : '';
+
     return `<tr>
       <td><span class="filing-badge ${badgeClass}">${escapeHtml(filing.formType)}</span></td>
       <td class="filing-period">${escapeHtml(filing.periodLabel ?? '—')}</td>
@@ -5857,6 +5927,9 @@ function renderFilingsTable() {
         <button type="button" class="filing-action" data-action="preview" data-doc="${escapeHtml(documentUrl)}" data-name="${escapeHtml(filing.documentName)}">Vista previa</button>
         <a class="filing-action filing-action-download" href="${escapeHtml(documentUrl)}?download=1" download>Descargar</a>
         <button type="button" class="filing-action filing-action-analyze${hasAnalysis ? ' filing-action-ready' : ''}" data-action="analyze" data-form-type="${escapeHtml(filing.formType)}" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}">${analyzeButtonLabel}</button>
+        ${presentationBtn}
+        ${releaseBtn}
+        ${loadingPresBtn}
         ${adminRegenBtn}
         ${ratingBadge}
       </td>
@@ -5895,20 +5968,90 @@ function renderFilingsTable() {
   });
 }
 
+let filingsPresentationsController = null;
+
+function updatePresentationsStatus(isLoading) {
+  const statusEl = document.querySelector('#filings-presentations-status');
+  if (!statusEl) return;
+  statusEl.hidden = !isLoading;
+}
+
+async function loadFilingsPresentations(ticker) {
+  if (filingsPresentationsController) {
+    filingsPresentationsController.abort();
+  }
+  filingsPresentationsController = new AbortController();
+  const { signal } = filingsPresentationsController;
+
+  try {
+    const response = await fetch(`/api/screener/company/${encodeURIComponent(ticker)}/filings/presentations`, { signal });
+    if (!response.ok) return;
+    const data = await response.json();
+    if (companyTicker !== ticker || !screenerFilings?.filings) return;
+
+    const map = data.presentationsByAccession || {};
+    screenerFilings.filings.forEach((filing) => {
+      if (map[filing.accession]) {
+        filing.presentations = map[filing.accession];
+      }
+      filing.presentationsLoading = false;
+      filing.presentationsLoaded = true;
+    });
+    renderFilingsTable();
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    if (companyTicker === ticker && screenerFilings?.filings) {
+      screenerFilings.filings.forEach((f) => { f.presentationsLoading = false; });
+      renderFilingsTable();
+    }
+  } finally {
+    if (companyTicker === ticker) {
+      updatePresentationsStatus(false);
+    }
+    filingsPresentationsController = null;
+  }
+}
+
 async function loadFilings() {
   if (screenerFilingsLoading || !companyTicker) return;
   screenerFilingsLoading = true;
+
+  const countEl = document.querySelector('#filings-count');
+  const table = document.querySelector('#filings-table');
+  if (countEl && (!screenerFilings || !screenerFilings.filings?.length)) {
+    countEl.textContent = 'Cargando informes…';
+  }
+  if (table && (!screenerFilings || !screenerFilings.filings?.length)) {
+    table.querySelector('thead').innerHTML = '<tr><th>Formulario</th><th>Periodo</th><th>Periodo que cubre</th><th>Fecha de presentación</th><th>Acciones</th></tr>';
+    table.querySelector('tbody').innerHTML = '<tr><td colspan="5" class="filing-table-loading-cell"><span class="loading-spinner"></span> Cargando informes trimestrales de SEC EDGAR…</td></tr>';
+  }
+
   try {
     const response = await fetch(`/api/screener/company/${encodeURIComponent(companyTicker)}/filings`);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       showToast(data.error || 'No se pudieron cargar los informes.');
+      if (countEl) countEl.textContent = 'Error al cargar informes';
       return;
     }
     screenerFilings = data;
+    const pendingPresentations = Boolean(data.presentationsPending);
+    if (pendingPresentations && Array.isArray(screenerFilings.filings)) {
+      screenerFilings.filings.forEach((filing, idx) => {
+        if (!filing.presentationsLoaded && idx < 16) {
+          filing.presentationsLoading = true;
+        }
+      });
+    }
     renderFilingsTable();
+    updatePresentationsStatus(pendingPresentations);
+
+    if (pendingPresentations) {
+      loadFilingsPresentations(companyTicker);
+    }
   } catch {
     showToast('No se pudieron cargar los informes. Comprueba la conexión.');
+    if (countEl) countEl.textContent = 'Error de conexión';
   } finally {
     screenerFilingsLoading = false;
   }
@@ -6166,6 +6309,7 @@ function showSection(key) {
     perfil: document.querySelector('#section-perfil'),
     favoritos: document.querySelector('#section-favoritos'),
     cartera: document.querySelector('#section-cartera'),
+    calendario: document.querySelector('#section-calendario'),
     analisis: document.querySelector('#section-analisis'),
     novedades: document.querySelector('#section-novedades'),
     reportes: document.querySelector('#section-reportes'),
@@ -6179,7 +6323,7 @@ function showSection(key) {
 
   Object.values(sections).forEach((section) => { if (section) section.hidden = true; });
 
-  const isGlobalSection = ['favoritos', 'alertas', 'cartera', 'analisis', 'novedades', 'reportes'].includes(key);
+  const isGlobalSection = ['favoritos', 'alertas', 'cartera', 'calendario', 'analisis', 'novedades', 'reportes'].includes(key);
   if (companyHeadRow) {
     companyHeadRow.hidden = isGlobalSection;
   }
@@ -6219,6 +6363,17 @@ function showSection(key) {
     const root = document.querySelector('#portfolio-section');
     if (root) {
       Portfolio.mountSection(root, {
+        onNavigate: goToCompany,
+      });
+    }
+    return;
+  }
+
+  if (key === 'calendario') {
+    if (sections.calendario) sections.calendario.hidden = false;
+    const root = document.querySelector('#calendar-section');
+    if (root) {
+      Portfolio.mountCalendarSection(root, {
         onNavigate: goToCompany,
       });
     }
@@ -6296,6 +6451,8 @@ document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
       history.pushState(null, '', '/seguimiento');
     } else if (sectionKey === 'cartera') {
       history.pushState(null, '', '/cartera');
+    } else if (sectionKey === 'calendario') {
+      history.pushState(null, '', '/calendario');
     } else if (sectionKey === 'alertas') {
       history.pushState(null, '', '/alertas');
     } else if (sectionKey === 'analisis') {
@@ -6438,6 +6595,12 @@ window.addEventListener('auth:change', (event) => {
 });
 
 async function loadCompany() {
+  screenerFilings = null;
+  screenerFilingsLoading = false;
+  if (filingsPresentationsController) {
+    filingsPresentationsController.abort();
+    filingsPresentationsController = null;
+  }
   companyLoading.hidden = false;
   companyError.hidden = true;
   companyBody.hidden = true;
@@ -6496,6 +6659,9 @@ function resolveInitialSection() {
   if (path.startsWith('/cartera') || searchParams.get('cartera') === '1') {
     return 'cartera';
   }
+  if (path.startsWith('/calendario') || searchParams.get('calendario') === '1') {
+    return 'calendario';
+  }
   if (path.startsWith('/seguimiento') || path.startsWith('/favoritos')) {
     return 'favoritos';
   }
@@ -6512,7 +6678,7 @@ function resolveInitialSection() {
     return 'reportes';
   }
   const urlSec = searchParams.get('seccion') || searchParams.get('section') || window.location.hash.replace('#', '');
-  if (urlSec && ['perfil', 'favoritos', 'alertas', 'cartera', 'analisis', 'novedades', 'reportes', 'informes', 'datos', 'accionariado', 'foros'].includes(urlSec)) {
+  if (urlSec && ['perfil', 'favoritos', 'alertas', 'cartera', 'calendario', 'analisis', 'novedades', 'reportes', 'informes', 'datos', 'accionariado', 'foros'].includes(urlSec)) {
     return urlSec;
   }
   return 'perfil';
@@ -6541,10 +6707,6 @@ window.addEventListener('popstate', () => {
 
 // Inicializar módulo de análisis
 window.AnalysisModule?.init();
-
-if (window.location.pathname === '/' || window.location.pathname === '/empresa') {
-  history.replaceState(null, '', `/empresa/${encodeURIComponent(companyTicker)}`);
-}
 
 const currentInitialSection = resolveInitialSection();
 document.querySelectorAll('.nav-link[data-section]').forEach((item) => {
@@ -6580,4 +6742,3 @@ window.addEventListener('auth:change', () => {
     window.ReportsModule?.render();
   }
 });
-

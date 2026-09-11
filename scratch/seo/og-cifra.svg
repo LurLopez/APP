@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#34d399" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#34d399" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g opacity="0.25" stroke="#334155" stroke-width="1">
+    <line x1="0" y1="126" x2="1200" y2="126"/>
+    <line x1="0" y1="252" x2="1200" y2="252"/>
+    <line x1="0" y1="378" x2="1200" y2="378"/>
+    <line x1="0" y1="504" x2="1200" y2="504"/>
+  </g>
+  <path d="M96 96 168 220 H24 Z" fill="#34d399"/>
+  <text x="196" y="200" font-family="DejaVu Sans" font-size="120" font-weight="bold" fill="#f1f5f9">Cifra</text>
+  <text x="96" y="330" font-family="DejaVu Sans" font-size="46" font-weight="bold" fill="#f1f5f9">Análisis de informes 10-Q y 10-K con IA</text>
+  <text x="96" y="406" font-family="DejaVu Sans" font-size="40" fill="#94a3b8">Ingresos, flujo de caja libre y asignación de capital de</text>
+  <text x="96" y="460" font-family="DejaVu Sans" font-size="40" fill="#94a3b8">empresas estadounidenses, explicados en segundos.</text>
+  <rect x="96" y="512" width="360" height="4" fill="url(#line)"/>
+  <text x="96" y="568" font-family="DejaVu Sans" font-size="30" fill="#34d399">Datos de SEC EDGAR · consumo defensivo</text>
+</svg>

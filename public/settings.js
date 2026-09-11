@@ -36,6 +36,7 @@ const Settings = (() => {
       if (data?.preferences) {
         preferences = { ...preferences, ...data.preferences };
         renderForm();
+        window.dispatchEvent(new CustomEvent('settings:change', { detail: { preferences } }));
       }
     } catch {
       // Usar defaults
@@ -187,6 +188,7 @@ const Settings = (() => {
       } else {
         preferences = { ...preferences, ...newPrefs };
       }
+      window.dispatchEvent(new CustomEvent('settings:change', { detail: { preferences } }));
       showToast?.('Ajustes guardados correctamente.');
       close();
     } catch (error) {

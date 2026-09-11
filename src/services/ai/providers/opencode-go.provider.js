@@ -3,8 +3,11 @@ import { randomUUID } from 'node:crypto';
 const API_URL = 'https://opencode.ai/zen/go/v1/chat/completions';
 const MODEL = process.env.OPENCODE_GO_MODEL || 'deepseek-v4-flash';
 const REQUEST_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS || 180000);
+const CLIENT_USER_AGENT = process.env.AI_CLIENT_USER_AGENT || 'Cifra-FinancialAnalyzer/0.1';
 
-let currentSessionId = randomUUID();
+// OpenCode Go pide una sesión estable por conversación (x-opencode-session).
+// La sesión llega por opciones (una por análisis); nunca se comparte entre análisis.
+let defaultSessionId = null;
 
 function cleanResponse(raw) {
   const trimmed = raw.trim();
@@ -16,7 +19,7 @@ export const opencodeGoProvider = {
   name: 'opencode-go',
 
   setSessionId(id) {
-    currentSessionId = id || randomUUID();
+    defaultSessionId = id || null;
   },
 
   async chat(messages, options = {}) {
@@ -25,7 +28,7 @@ export const opencodeGoProvider = {
       throw new Error('Falta OPENCODE_GO_API_KEY en el archivo .env');
     }
 
-    const sessionId = options?.sessionId || currentSessionId;
+    const sessionId = options?.sessionId || defaultSessionId || randomUUID();
 
     let response;
     try {
@@ -34,6 +37,7 @@ export const opencodeGoProvider = {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
+          'User-Agent': CLIENT_USER_AGENT,
           'x-opencode-session': sessionId,
         },
         body: JSON.stringify({

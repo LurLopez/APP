@@ -17,8 +17,8 @@ import {
   getReportsStats,
 } from "../../../db/repositories/generalReportsRepository.js";
 import { cleanupGeneratedReports } from "../../services/report.service.js";
-import { getFilingContentBuffer } from "../../services/edgar.service.js";
-import { analyzePdf, analyzeText, htmlToText } from "../../services/analysis.service.js";
+import { getFilingContentBuffer, getPresentationBuffers } from "../../services/edgar.service.js";
+import { analyzePdf, analyzeText, htmlToText, buildPresentationText } from "../../services/analysis.service.js";
 import { AgentError } from "../../agents/baseAgent.js";
 
 const router = express.Router();
@@ -175,12 +175,26 @@ router.post("/admin/reports/ai-analysis/:id/regenerate", requireAdmin, async (re
       return;
     }
 
+    // Documento complementario: presentación de resultados (8-K) con outlook / guidance
+    let presentationText = null;
+    try {
+      const presentations = await getPresentationBuffers(ticker, accession);
+      if (presentations.length) {
+        presentationText = await buildPresentationText(presentations);
+      }
+    } catch (presentationError) {
+      console.warn("[analysis:presentation]", presentationError.message);
+    }
+
     const options = {
-      userId: req.user.id,
+      userId: existing.is_public ? null : req.user.id,
+      isPublic: existing.is_public === true,
       filename: `${ticker}-${accession}.pdf`,
       ticker,
       accession,
       sourceUrl: content.filing?.documentUrl ?? null,
+      formType: content.filing?.formType ?? null,
+      presentationText,
     };
 
     const result = content.kind === "pdf"

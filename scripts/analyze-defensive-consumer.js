@@ -23,8 +23,8 @@
  *   --loop-delay=15         Minutos de espera entre rondas completas en modo continuo (por defecto: 15).
  */
 
-import { getCompanyFilings, getFilingContentBuffer } from '../src/services/edgar.service.js';
-import { analyzePdf, analyzeText, htmlToText } from '../src/services/analysis.service.js';
+import { getCompanyFilings, getFilingContentBuffer, getPresentationBuffers } from '../src/services/edgar.service.js';
+import { analyzePdf, analyzeText, htmlToText, buildPresentationText } from '../src/services/analysis.service.js';
 import { findLatestDoneAnalysis } from '../db/repositories/analysisRepository.js';
 import { pool } from '../db/pool.js';
 
@@ -159,13 +159,26 @@ async function analyzeSingleFiling(ticker, filing) {
     return { ok: false, reason: 'FILING_CONTENT_EMPTY' };
   }
 
+  let presentationText = null;
+  try {
+    const presentations = await getPresentationBuffers(ticker, filing.accession);
+    if (presentations.length) {
+      presentationText = await buildPresentationText(presentations);
+    }
+  } catch (presentationError) {
+    console.warn(`[${timestamp()}] [analysis:presentation] ${presentationError.message}`);
+  }
+
   const options = {
     userId: null,
+    isPublic: true,
     filename: `${ticker}-${filing.accession}.pdf`,
     ticker,
     accession: filing.accession,
     sourceUrl: content.filing?.documentUrl ?? null,
     modelUsed: TARGET_PROVIDER,
+    formType: filing.formType ?? null,
+    presentationText,
   };
 
   const result = content.kind === 'pdf'

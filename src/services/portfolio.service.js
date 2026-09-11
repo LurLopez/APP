@@ -1,5 +1,5 @@
 import * as portfolioRepository from '../../db/repositories/portfolioRepository.js';
-import { listCalendarTickers } from '../../db/repositories/watchlistRepository.js';
+import { listCalendarTickers, getUserPreferences } from '../../db/repositories/watchlistRepository.js';
 import { getMarketQuote, getDividendHistory, getHistoricalPrices } from './market.service.js';
 import { getCompanyOrigin, getCompanyFilings } from './edgar.service.js';
 
@@ -465,12 +465,13 @@ export async function getPortfolio(userId) {
   const now = todayIso();
   const ttmFrom = daysAgoIso(365);
 
-  const [tabs, groups, rules, lotAssignments, calendarItems] = await Promise.all([
+  const [tabs, groups, rules, lotAssignments, calendarItems, userPreferences] = await Promise.all([
     portfolioRepository.listTabs(userId),
     portfolioRepository.listGroups(userId),
     portfolioRepository.listGroupRules(userId),
     portfolioRepository.listGroupLots(userId),
     listCalendarTickers(userId),
+    getUserPreferences(userId),
   ]);
 
   const groupsById = new Map(groups.map((group) => [group.id, group]));
@@ -694,7 +695,7 @@ export async function getPortfolio(userId) {
   }
 
   const dividendDashboardData = buildPortfolioDividends(positions, state, dividendMap, ttmFrom, now);
-  const calendarEvents = buildPortfolioCalendarEvents(positions, calendarItems, dividendMap, filingsMap, quoteMap);
+  const { events: calendarEvents, companies: calendarCompanies } = buildPortfolioCalendarEvents(positions, calendarItems, dividendMap, filingsMap, quoteMap);
 
   return {
     summary: {
@@ -711,6 +712,8 @@ export async function getPortfolio(userId) {
     positions,
     dividends: dividendDashboardData,
     calendarEvents,
+    calendarCompanies,
+    userPreferences,
     transactions: transactions.map((transaction) => ({
       ...transaction,
       realizedGain: transaction.type === 'sell' ? round(saleGains.get(transaction.id) ?? 0) : null,
@@ -745,9 +748,11 @@ function buildPortfolioCalendarEvents(positions, calendarItems, dividendMap, fil
     });
   }
 
+  const seenCalendarTickers = new Set(portfolioTickers);
   for (const calItem of (calendarItems || [])) {
     const ticker = String(calItem.ticker ?? '').toUpperCase();
-    if (!ticker || portfolioTickers.has(ticker)) continue;
+    if (!ticker || seenCalendarTickers.has(ticker)) continue;
+    seenCalendarTickers.add(ticker);
     allEntries.push({
       ticker,
       name: calItem.companyName || quoteMap?.get(ticker)?.name || ticker,
@@ -755,6 +760,11 @@ function buildPortfolioCalendarEvents(positions, calendarItems, dividendMap, fil
       isPortfolio: false,
     });
   }
+
+  allEntries.sort((a, b) => {
+    if (a.isPortfolio !== b.isPortfolio) return a.isPortfolio ? -1 : 1;
+    return a.ticker.localeCompare(b.ticker);
+  });
 
   for (const entry of allEntries) {
     const { ticker, name, shares, isPortfolio } = entry;
@@ -865,7 +875,10 @@ function buildPortfolioCalendarEvents(positions, calendarItems, dividendMap, fil
 
   // Ordenar cronológicamente
   events.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-  return events;
+  return {
+    events,
+    companies: allEntries,
+  };
 }
 
 const DIVIDEND_ENGINE_PALETTE = [

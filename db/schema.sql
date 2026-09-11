@@ -31,6 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_verification_codes_user ON verification_codes (us
 CREATE TABLE IF NOT EXISTS analyses (
     id           SERIAL PRIMARY KEY,
     user_id      INT REFERENCES users(id) ON DELETE CASCADE,
+    is_public    BOOLEAN NOT NULL DEFAULT false,
     filename     TEXT NOT NULL,
     status       TEXT NOT NULL DEFAULT 'processing'
                  CHECK (status IN ('processing', 'done', 'error')),
@@ -52,10 +53,15 @@ ALTER TABLE analyses ADD COLUMN IF NOT EXISTS period_end DATE;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS pdf_url TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS source_url TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS accession TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS idx_analyses_ticker_accession ON analyses (ticker, accession);
+CREATE INDEX IF NOT EXISTS idx_analyses_public_created ON analyses (is_public, created_at DESC);
 UPDATE analyses
 SET accession = substring(filename from '([0-9]{10}-[0-9]{2}-[0-9]{6})')
 WHERE accession IS NULL AND filename ~ '[0-9]{10}-[0-9]{2}-[0-9]{6}';
+UPDATE analyses
+SET is_public = true
+WHERE user_id IS NULL AND status = 'done' AND source_url IS NOT NULL AND is_public = false;
 
 CREATE TABLE IF NOT EXISTS filings (
     id            SERIAL PRIMARY KEY,
@@ -320,4 +326,3 @@ CREATE INDEX IF NOT EXISTS idx_general_reports_user ON general_reports (user_id)
 
 ALTER TABLE general_reports ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE analysis_error_reports ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
-

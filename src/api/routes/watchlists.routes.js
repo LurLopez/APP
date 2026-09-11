@@ -4,6 +4,7 @@ import * as watchlistRepository from '../../../db/repositories/watchlistReposito
 import { getCompanyByTicker } from '../../services/edgar.service.js';
 import { getMarketQuote } from '../../services/market.service.js';
 import { checkAndDispatchAlerts } from '../../services/alertScanner.service.js';
+import * as portfolioService from '../../services/portfolio.service.js';
 
 const router = Router();
 
@@ -142,6 +143,12 @@ router.delete('/calendar/items/:ticker', requireAuth, async (req, res, next) => 
     const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
     if (!TICKER_PATTERN.test(ticker)) {
       res.status(400).json({ error: 'Ticker no válido.' });
+      return;
+    }
+    const portfolio = await portfolioService.getPortfolio(req.user.id);
+    const inPortfolio = (portfolio?.positions || []).some((p) => p.ticker === ticker && Number(p.shares) > 0);
+    if (inPortfolio) {
+      res.status(400).json({ error: 'No se pueden eliminar del calendario las empresas con posición en tu cartera.' });
       return;
     }
     await watchlistRepository.removeCalendarTicker(req.user.id, ticker);

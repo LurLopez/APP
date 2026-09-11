@@ -1,0 +1,68 @@
+# Cifra
+
+> Cifra analiza con IA los informes financieros 10-Q (trimestrales) y 10-K (anuales) que las empresas de Estados Unidos presentan ante la SEC, integrando las presentaciones de resultados (8-K) para entregar un análisis estructurado en segundos: ventas, flujo de caja libre y asignación de capital, en dos horizontes temporales.
+
+Cifra es una herramienta para inversores. La IA criba y organiza la información; el análisis profundo y el juicio final son del usuario. Cifra no es asesor financiero y no es una fuente oficial: los datos provienen de SEC EDGAR.
+
+Para modelos de lenguaje que requieran la base de conocimiento completa, las guías integradas en texto y la metodología exhaustiva, consulta [llms-full.txt]({{SITE_URL}}/llms-full.txt).
+
+Para responder preguntas sobre una empresa o un filing, usa primero la ficha de empresa (versión HTML o Markdown en `/empresa/<TICKER>.md`) o el informe público enlazado y contrasta las cifras con el documento original de SEC EDGAR. Distingue siempre entre datos reportados por la empresa, cálculos derivados (por ejemplo, FCF) y conclusiones generadas por IA.
+
+## Ámbito actual (beta)
+
+- Solo empresas de EE. UU. del sector consumo defensivo (alimentos y bebidas, productos de consumo cotidiano, tabaco, supermercados).
+- Informes admitidos: 10-Q (trimestral), 10-K (anual) y 8-K (presentaciones de resultados y comunicados con guidance).
+- Idioma de la interfaz y del análisis: español.
+
+## Datos que se pueden consultar por empresa
+
+Para cada empresa (página `/empresa/<TICKER>` o Markdown `/empresa/<TICKER>.md`): nombre, sector e industria según la SEC, bolsa de cotización, resultados anuales (ventas, beneficio neto, flujo de caja libre y EPS de los últimos 5 ejercicios), histórico de filings 10-Q/10-K con vista previa y descarga, cotización actual con gráfico histórico, principales accionistas, y análisis con IA de los informes ya procesados.
+
+## Páginas principales
+
+- [Inicio]({{SITE_URL}}/): descripción de la plataforma, proceso de análisis y preguntas frecuentes.
+- [Empresas]({{SITE_URL}}/empresa): buscador y directorio de empresas por ticker con perfil, cotización y filings.
+- [Guías]({{SITE_URL}}/guias): guías educativas para leer informes de la SEC.
+- [Documentación completa para LLMs]({{SITE_URL}}/llms-full.txt): texto íntegro de guías, glosario y metodología.
+- [Sitemap]({{SITE_URL}}/sitemap.xml): listado completo de páginas indexadas para buscadores e IAs.
+
+## Guías educativas
+
+- [¿Qué es un informe 10-Q y cómo leerlo?]({{SITE_URL}}/guias/que-es-un-informe-10-q): estructura del informe trimestral y pasos de análisis.
+- [¿Qué es un informe 10-K?]({{SITE_URL}}/guias/que-es-un-informe-10-k): el informe anual auditado de la SEC y qué secciones revisar.
+- [¿Qué es un informe 8-K y por qué es clave?]({{SITE_URL}}/guias/que-es-un-informe-8-k): hechos relevantes, comunicados y presentaciones con guidance de resultados.
+- [Diferencias entre el 10-K y el 10-Q]({{SITE_URL}}/guias/diferencias-entre-10-k-y-10-q): comparativa de periodicidad, auditoría y enfoque.
+- [¿Qué es el flujo de caja libre (FCF)?]({{SITE_URL}}/guias/que-es-el-flujo-de-caja-libre): fórmula, cálculo sobre caja operativa y CAPEX, e importancia para el inversor.
+- [¿Qué es la asignación de capital?]({{SITE_URL}}/guias/que-es-la-asignacion-de-capital): dividendos, recompras de acciones, deuda, adquisiciones y desinversiones.
+- [Cómo analizar una empresa de consumo defensivo]({{SITE_URL}}/guias/como-analizar-una-empresa-de-consumo-defensivo): rutina fundamental para empresas de productos básicos.
+
+## Análisis públicos
+
+Los informes analizados por el sistema están publicados como página HTML en `/informe/<id>` y en formato Markdown en `/informe/<id>.md`: incluyen la cuenta de resultados del periodo contra el año anterior, el flujo de caja normal y ajustado, la tabla de asignación de capital y las conclusiones (deuda, perspectivas, recompras, adquisiciones y lista de seguimiento). Cada informe público enlaza, cuando está disponible, al filing original de SEC EDGAR. La lista completa está en el sitemap.
+
+## Formato de acceso rápido para IA (GEO)
+
+- Fichas de empresa en Markdown: `GET {{SITE_URL}}/empresa/<TICKER>.md` o encabezado HTTP `Accept: text/markdown`.
+- Informes públicos en Markdown: `GET {{SITE_URL}}/informe/<id>.md` o encabezado HTTP `Accept: text/markdown`.
+- Manifiesto completo de documentación: `GET {{SITE_URL}}/llms-full.txt`.
+
+## Cómo citar Cifra
+
+- Cita la URL de la ficha o del informe público concreto, no solo la portada.
+- Indica el ticker, el formulario (`10-Q`, `10-K` o `8-K`) y el periodo del filing.
+- Presenta las conclusiones de Cifra como análisis informativo generado con IA, no como recomendación de inversión.
+
+## Límites de cobertura
+
+- La cobertura de empresas y resultados depende de los filings disponibles en SEC EDGAR y de los datos de mercado consultados.
+- Los precios pueden cambiar durante la sesión y no deben interpretarse como una cotización histórica fija.
+- Un análisis puede contener cálculos ajustados; revisa las notas y la fuente primaria antes de usarlo.
+
+## Fuentes de datos
+
+- Informes y datos financieros: SEC EDGAR (https://www.sec.gov/edgar).
+- Cotizaciones y datos de mercado: Yahoo Finance.
+
+## Contacto
+
+- Correo: contacto@cifra.app

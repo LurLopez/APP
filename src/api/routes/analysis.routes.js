@@ -3,7 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import { pool } from '../../../db/pool.js';
-import { analyzePdf, buildDownloadBase } from '../../services/analysis.service.js';
+import { analyzePdf, buildDownloadBase, buildPresentationText } from '../../services/analysis.service.js';
 import { AgentError } from '../../agents/baseAgent.js';
 import { GENERATED_DIR } from '../../services/report.service.js';
 import {
@@ -41,22 +41,42 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 },
 });
 
-router.post('/upload', upload.single('file'), async (req, res, next) => {
+router.post('/upload', upload.fields([
+  { name: 'file', maxCount: 1 },
+  { name: 'presentation', maxCount: 1 },
+]), async (req, res, next) => {
   try {
-    if (!req.file) {
+    const mainFile = req.files?.file?.[0];
+    const presentationFile = req.files?.presentation?.[0];
+    if (!mainFile) {
       res.status(400).json({ error: 'No se recibió ningún archivo. Selecciona o arrastra un PDF válido.' });
       return;
     }
 
-    const isPdf = req.file.mimetype === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf');
+    const isPdf = mainFile.mimetype === 'application/pdf' || mainFile.originalname.toLowerCase().endsWith('.pdf');
     if (!isPdf) {
       throw new AgentError('Solo se admiten archivos PDF.', 'NOT_PDF');
     }
 
+    let presentationText = null;
+    if (presentationFile) {
+      const isPresentationPdf = presentationFile.mimetype === 'application/pdf' || presentationFile.originalname.toLowerCase().endsWith('.pdf');
+      if (isPresentationPdf) {
+        try {
+          presentationText = await buildPresentationText([
+            { name: presentationFile.originalname, buffer: presentationFile.buffer, kind: 'pdf' },
+          ]);
+        } catch (presentationError) {
+          console.warn('[analysis:presentation-upload]', presentationError.message);
+        }
+      }
+    }
+
     const user = await resolveUser(req);
-    const result = await analyzePdf(req.file.buffer, {
+    const result = await analyzePdf(mainFile.buffer, {
       userId: user?.id ?? null,
-      filename: req.file.originalname,
+      filename: mainFile.originalname,
+      presentationText,
     });
     res.json({
       ok: true,
@@ -197,7 +217,7 @@ router.get('/analyses/:id', async (req, res, next) => {
       return;
     }
     // Si el análisis pertenece a un usuario concreto y no es público (user_id !== null), requiere ser el propietario
-    if (analysis.user_id !== null && (!user || analysis.user_id !== user.id)) {
+    if (!analysis.is_public && (!user || analysis.user_id !== user.id)) {
       res.status(404).json({ error: 'El análisis solicitado no existe.' });
       return;
     }
@@ -319,32 +339,35 @@ router.get('/reports/:file', async (req, res, next) => {
     const [_, baseId, ext] = match;
     const filePath = path.join(GENERATED_DIR, file);
 
-    // Si el archivo no existe o si es un análisis anual desactualizado, regenerar al vuelo desde BD
-    let needsRegeneration = !fs.existsSync(filePath);
-    if (!needsRegeneration && ext === 'pdf') {
-      try {
-        const stats = fs.statSync(filePath);
-        if (stats.size < 6000) {
-          const { rows } = await pool.query(
-            "SELECT report FROM analyses WHERE pdf_url LIKE $1 AND report IS NOT NULL ORDER BY id DESC LIMIT 1",
-            [`%${baseId}%`]
+    // Si el archivo no existe o si está desactualizado respecto a la BD o al código de generación, regenerar al vuelo
+    let needsRegeneration = !fs.existsSync(filePath) || req.query.refresh === '1' || req.query.force === '1';
+
+    const { rows } = await pool.query(
+      "SELECT report, created_at FROM analyses WHERE pdf_url LIKE $1 AND report IS NOT NULL ORDER BY id DESC LIMIT 1",
+      [`%${baseId}%`]
+    );
+
+    if (rows.length && rows[0].report) {
+      if (!needsRegeneration) {
+        try {
+          const stats = fs.statSync(filePath);
+          const reportServicePath = path.join(__dirname, '../../services/report.service.js');
+          const exportServicePath = path.join(__dirname, '../../services/reportExport.service.js');
+          const codeMtime = Math.max(
+            fs.existsSync(reportServicePath) ? fs.statSync(reportServicePath).mtimeMs : 0,
+            fs.existsSync(exportServicePath) ? fs.statSync(exportServicePath).mtimeMs : 0
           );
-          if (rows.length && rows[0].report && (rows[0].report.conclusion || rows[0].report.rating || String(rows[0].report.formType || '').includes('10-K'))) {
+          const dbTime = rows[0].created_at ? new Date(rows[0].created_at).getTime() : 0;
+          if (stats.mtimeMs < codeMtime || stats.mtimeMs < dbTime) {
             needsRegeneration = true;
           }
+        } catch {
+          needsRegeneration = true;
         }
-      } catch {
-        // En caso de fallo de lectura de stats, continuar
       }
-    }
 
-    if (needsRegeneration) {
-      try {
-        const { rows } = await pool.query(
-          "SELECT report FROM analyses WHERE pdf_url LIKE $1 AND report IS NOT NULL ORDER BY id DESC LIMIT 1",
-          [`%${baseId}%`]
-        );
-        if (rows.length && rows[0].report) {
+      if (needsRegeneration) {
+        try {
           const { buildReportPdf } = await import('../../services/report.service.js');
           const { buildReportHtml, buildReportDocx, buildReportOdt } = await import('../../services/reportExport.service.js');
           const [pdf, html, docx, odt] = await Promise.all([
@@ -360,9 +383,9 @@ router.get('/reports/:file', async (req, res, next) => {
             fs.promises.writeFile(path.join(GENERATED_DIR, `${baseId}.docx`), docx),
             fs.promises.writeFile(path.join(GENERATED_DIR, `${baseId}.odt`), odt),
           ]);
+        } catch (regenErr) {
+          console.warn('[reports:on-demand-regen]', regenErr.message);
         }
-      } catch (regenErr) {
-        console.warn('[reports:on-demand-regen]', regenErr.message);
       }
     }
 
@@ -370,6 +393,8 @@ router.get('/reports/:file', async (req, res, next) => {
       ? `${String(req.query.name).replace(/[^\w.-]/g, '_')}.${ext}`
       : file;
     const isDownload = req.query.download === '1' || (ext !== 'pdf' && ext !== 'html');
+
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
     if (isDownload) {
       res.setHeader('Content-Type', REPORT_CONTENT_TYPES[ext]);

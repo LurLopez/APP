@@ -917,6 +917,7 @@ const Watchlists = (() => {
     isInAnyList,
     listsContaining,
     isInCalendar,
+    getCalendarTickers: () => [...calendarTickers],
     toggleCalendar,
     getEmailAlert,
     saveEmailAlert,

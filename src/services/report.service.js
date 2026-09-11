@@ -4,7 +4,17 @@ import fs from 'node:fs';
 import { mkdir, writeFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildReportHtml, buildReportDocx, buildReportOdt, withAveragePriceRow, buildSharesChartModel } from './reportExport.service.js';
+import {
+  buildReportHtml,
+  buildReportDocx,
+  buildReportOdt,
+  withAveragePriceRow,
+  withOutlookComparison,
+  buildSharesChartModel,
+  buildDebtMaturityModel,
+  buildDebtHistoryModel,
+  buildDebtRefinancingModel,
+} from './reportExport.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const GENERATED_DIR = path.join(__dirname, '..', '..', 'uploads', 'generated');
@@ -239,50 +249,342 @@ function drawSharesChart(doc, chart, y) {
   if (!chart || !Array.isArray(chart.points) || chart.points.length < 2) return y;
   const margin = doc.page.margins.left;
   const pageWidth = doc.page.width - margin * 2;
-  const hasMetrics = Array.isArray(chart.metrics) && chart.metrics.length;
-  const metricsH = hasMetrics ? 26 : 0;
-  const chartHeight = 26 + chart.points.length * 16 + metricsH;
-  if (y + chartHeight > doc.page.height - doc.page.margins.bottom - 20) {
+  const padL = 46;
+  const padR = 6;
+  const plotH = 130;
+  const boxH = 22 + plotH + 22;
+  if (y + boxH > doc.page.height - doc.page.margins.bottom - 20) {
     doc.addPage();
     y = doc.page.margins.top;
   }
-  doc.rect(margin, y, pageWidth, chartHeight).fill('#f8fafc');
-  doc.rect(margin, y, pageWidth, chartHeight).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
+  doc.rect(margin, y, pageWidth, boxH).fill('#f8fafc');
+  doc.rect(margin, y, pageWidth, boxH).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
   doc.font('Helvetica-Bold').fontSize(8).fillColor('#475569').text(sanitize(chart.title), margin + 8, y + 5, { width: pageWidth - 16 });
 
-  const labelW = 42;
-  const valueW = 52;
-  const trackX = margin + 8 + labelW;
-  const trackW = pageWidth - 16 - labelW - valueW;
-  const last = chart.points[chart.points.length - 1];
-  let barY = y + 16;
-  chart.points.forEach((p) => {
-    const pct = Math.max(0.04, p.shares / chart.max);
-    const barW = trackW * pct;
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#334155').text(String(p.year), margin + 8, barY + 1, { width: labelW });
-    doc.rect(trackX, barY, trackW, 10).fill('#e2e8f0');
-    const isCurrent = p === last;
-    doc.rect(trackX, barY, Math.max(2, barW), 10).fill(isCurrent ? '#f59e0b' : '#38bdf8');
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#0f172a').text(`${String(p.shares).replace('.', ',')}M`, trackX + trackW + 4, barY + 1, { width: valueW });
-    barY += 16;
-  });
-  if (hasMetrics) {
-    barY += 4;
-    doc.moveTo(margin + 8, barY).lineTo(margin + pageWidth - 8, barY).lineWidth(0.5).dash(2, 2).strokeColor('#cbd5e1').stroke();
-    doc.undash();
-    barY += 6;
-    chart.metrics.forEach((m) => {
-      const pctStr = `${m.pct < 0 ? '' : '-'}${m.pct.toFixed(1).replace('.', ',')} %`;
-      const bpaStr = `+${m.bpa.toFixed(1).replace('.', ',')} %`;
-      const labelWide = pageWidth * 0.48;
-      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#475569').text(sanitize(m.label) + ':', margin + 8, barY, { width: labelWide });
-      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#b91c1c').text(pctStr, margin + 8 + labelWide, barY, { width: 62 });
-      doc.font('Helvetica-Oblique').fontSize(7.5).fillColor('#64748b').text(`(impacto en BPA ${bpaStr})`, margin + 8 + labelWide + 66, barY, { width: pageWidth - 16 - 66 - labelWide });
-      barY += 11;
-    });
-    barY += 3;
+  const plotX = margin + padL;
+  const plotW = pageWidth - padL - padR;
+  const plotTop = y + 22;
+  const n = chart.points.length;
+  const max = chart.max;
+  const step = max > 500 ? 100 : (max > 100 ? 50 : 10);
+  const niceMax = Math.ceil(max / step) * step || max;
+  const yFor = (v) => plotTop + plotH * (1 - v / niceMax);
+
+  for (let g = 0; g <= 3; g += 1) {
+    const v = (niceMax * (3 - g)) / 3;
+    const gy = yFor(v);
+    doc.moveTo(plotX, gy).lineTo(plotX + plotW, gy).lineWidth(0.5).strokeColor(g === 3 ? '#cbd5e1' : '#e2e8f0').stroke();
+    doc.font('Helvetica').fontSize(6.5).fillColor('#64748b').text(`${Math.round(v)}M`, margin + 2, gy - 3.5, { width: padL - 8, align: 'right', lineBreak: false });
   }
-  return barY + 4;
+
+  const slotW = plotW / n;
+  const barW = Math.min(44, slotW * 0.6);
+  chart.points.forEach((p, i) => {
+    const cx = plotX + slotW * (i + 0.5);
+    const top = yFor(p.shares);
+    doc.rect(cx - barW / 2, top, barW, plotTop + plotH - top).fill('#f59e0b');
+    doc.font('Helvetica-Bold').fontSize(7).fillColor('#334155').text(String(p.year), cx - slotW / 2, plotTop + plotH + 5, { width: slotW, align: 'center', lineBreak: false });
+  });
+
+  const fmtP = (v) => `${v < 0 ? '' : '-'}${v.toFixed(1).replace('.', ',')} %`;
+  const fmtB = (v) => `+${v.toFixed(1).replace('.', ',')} %`;
+  const mets = Array.isArray(chart.metrics) ? chart.metrics : [];
+  const drawDashed = (x1, y1, x2, y2, color) => {
+    doc.moveTo(x1, y1).lineTo(x2, y2).lineWidth(1.2).dash(5, 4).strokeColor(color).stroke();
+    doc.undash();
+  };
+  const drawLabelBox = (label, cx, boxY, bg) => {
+    doc.font('Helvetica-Bold').fontSize(6.5);
+    const w = doc.widthOfString(label) + 10;
+    const x = Math.max(plotX + 2, Math.min(cx - w / 2, plotX + plotW - w - 2));
+    const yy = Math.max(y + 18, boxY);
+    doc.roundedRect(x, yy, w, 13, 3).fill(bg);
+    doc.fillColor('#ffffff').text(label, x + 5, yy + 3.5, { width: w - 10, align: 'center', lineBreak: false });
+  };
+
+  if (mets.length) {
+    const x0 = plotX + slotW * 0.5;
+    const xN = plotX + slotW * (n - 0.5);
+    const y0 = yFor(chart.points[0].shares);
+    const yN = yFor(chart.points[n - 1].shares);
+    drawDashed(x0, y0, xN, yN, '#1f2937');
+    drawLabelBox(`CAGR: ${fmtP(mets[0].pct)} · BPA ${fmtB(mets[0].bpa)}`, (x0 + xN) / 2, (y0 + yN) / 2 - 20, '#1f2937');
+    if (mets[1]) {
+      const xPrev = plotX + slotW * (n - 1.5);
+      const yPrev = yFor(chart.points[n - 2].shares);
+      drawDashed(xPrev, yPrev, xN, yN, '#dc2626');
+      drawLabelBox(`Últ. año: ${fmtP(mets[1].pct)} · BPA ${fmtB(mets[1].bpa)}`, (xPrev + xN) / 2, (yPrev + yN) / 2 - 34, '#dc2626');
+    }
+  }
+  return y + boxH + 6;
+}
+
+function drawDebtMaturityChart(doc, chart, y) {
+  if (!chart || !Array.isArray(chart.years) || !chart.years.length) return y;
+  const margin = doc.page.margins.left;
+  const pageWidth = doc.page.width - margin * 2;
+  const padL = 46;
+  const padR = 10;
+  const plotH = 120;
+  const headerH = 20;
+  const footerH = 22;
+  const boxH = headerH + plotH + footerH + 20;
+
+  if (y + boxH > doc.page.height - doc.page.margins.bottom - 20) {
+    doc.addPage();
+    y = doc.page.margins.top;
+  }
+
+  // Fondo y borde del contenedor
+  doc.rect(margin, y, pageWidth, boxH).fill('#f8fafc');
+  doc.rect(margin, y, pageWidth, boxH).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
+
+  // Título
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#475569').text(sanitize(chart.title), margin + 8, y + 6, { width: pageWidth - 16 });
+
+  const plotX = margin + padL;
+  const plotW = pageWidth - padL - padR;
+  const plotTop = y + headerH + 6;
+  const max = chart.maxYearAmount || 1;
+  const step = max > 5000 ? 1000 : (max > 1000 ? 500 : (max > 200 ? 100 : 50));
+  const niceMax = Math.ceil(max / step) * step || max;
+  const yFor = (v) => plotTop + plotH * (1 - v / niceMax);
+
+  // Líneas de cuadrícula Y
+  for (let g = 0; g <= 3; g += 1) {
+    const v = (niceMax * (3 - g)) / 3;
+    const gy = yFor(v);
+    doc.moveTo(plotX, gy).lineTo(plotX + plotW, gy).lineWidth(0.5).strokeColor(g === 3 ? '#cbd5e1' : '#e2e8f0').stroke();
+    doc.font('Helvetica').fontSize(6.5).fillColor('#64748b').text(`$${Math.round(v)}M`, margin + 2, gy - 3.5, { width: padL - 8, align: 'right', lineBreak: false });
+  }
+
+  const n = chart.years.length;
+  const slotW = plotW / n;
+  const barW = Math.min(46, slotW * 0.65);
+
+  chart.years.forEach((yr, i) => {
+    const cx = plotX + slotW * (i + 0.5);
+    let curBaseline = plotTop + plotH;
+
+    yr.items.forEach((it) => {
+      const blockH = Math.max(2, (it.amount / niceMax) * plotH);
+      const top = curBaseline - blockH;
+      doc.rect(cx - barW / 2, top, barW, blockH).fill(it.color || '#f59e0b');
+
+      // Tipo de interés en cada bloque
+      if (blockH >= 11 && it.interestRate != null) {
+        doc.font('Helvetica-Bold').fontSize(6.5).fillColor(it.textColor || '#ffffff').text(
+          `${Number(it.interestRate).toFixed(1).replace('.', ',')}%`,
+          cx - barW / 2,
+          top + (blockH - 7) / 2,
+          { width: barW, align: 'center', lineBreak: false }
+        );
+      }
+      curBaseline = top;
+    });
+
+    // Cifra sobre la barra: importe que vence ese año (en negrita) y tipo medio anual
+    if (yr.totalAmount > 0) {
+      const totalLabel = `$${yr.totalAmount.toFixed(1).replace('.', ',')}M`;
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#0f172a').text(totalLabel, cx - slotW / 2, curBaseline - 15, { width: slotW, align: 'center', lineBreak: false });
+      if (yr.averageRate != null) {
+        const rateLabel = `Media: ${yr.averageRate.toFixed(2).replace('.', ',')}%`;
+        doc.font('Helvetica-Bold').fontSize(6).fillColor('#c2410c').text(rateLabel, cx - slotW / 2, curBaseline - 6, { width: slotW, align: 'center', lineBreak: false });
+      }
+    } else {
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#94a3b8').text('—', cx - slotW / 2, plotTop + plotH - 12, { width: slotW, align: 'center', lineBreak: false });
+    }
+
+    // Año abajo
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#334155').text(String(yr.year), cx - slotW / 2, plotTop + plotH + 5, { width: slotW, align: 'center', lineBreak: false });
+  });
+
+  // Banner inferior: tipo de interés medio total y deuda a amortizar
+  const bannerY = y + boxH - footerH - 4;
+  doc.rect(margin + 6, bannerY, pageWidth - 12, footerH).fill('#1e293b');
+  const afterText = chart.afterYearFive != null ? `   |   Después del año 5: $${chart.afterYearFive.toFixed(1).replace('.', ',')}M` : '';
+  const bannerText = chart.totalAverageRate != null
+    ? `Tipo de interés medio total (próximos 5 años): ${chart.totalAverageRate.toFixed(2).replace('.', ',')} %   |   Deuda a amortizar: $${chart.totalAmount.toFixed(1).replace('.', ',')}M${afterText}`
+    : `Deuda a amortizar en los próximos 5 años: $${chart.totalAmount.toFixed(1).replace('.', ',')}M${afterText}`;
+  doc.font('Helvetica-Bold').fontSize(7).fillColor('#ffffff').text(sanitize(bannerText), margin + 8, bannerY + 7, { width: pageWidth - 16, align: 'center', lineBreak: false });
+
+  return y + boxH + 8;
+}
+
+function drawDebtHistoryChart(doc, chart, y) {
+  if (!chart || !Array.isArray(chart.points) || chart.points.length < 2) return y;
+  const margin = doc.page.margins.left;
+  const pageWidth = doc.page.width - margin * 2;
+  const padL = 46;
+  const padR = 10;
+  const plotH = 120;
+  const headerH = 22;
+  const boxH = headerH + plotH + 26;
+
+  if (y + boxH > doc.page.height - doc.page.margins.bottom - 20) {
+    doc.addPage();
+    y = doc.page.margins.top;
+  }
+
+  doc.rect(margin, y, pageWidth, boxH).fill('#f8fafc');
+  doc.rect(margin, y, pageWidth, boxH).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
+
+  // Título y Leyenda
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#475569').text(sanitize(chart.title), margin + 8, y + 6, { width: 300 });
+
+  const legX = margin + pageWidth - 190;
+  doc.rect(legX, y + 6, 8, 8).fill('#1e40af');
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text('Deuda Normal', legX + 11, y + 6.5);
+  doc.rect(legX + 85, y + 6, 8, 8).fill('#d97706');
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text('Deuda Neta', legX + 96, y + 6.5);
+
+  const plotX = margin + padL;
+  const plotW = pageWidth - padL - padR;
+  const plotTop = y + headerH;
+  const max = chart.maxVal || 1;
+  const step = max > 5000 ? 1000 : (max > 1000 ? 500 : (max > 200 ? 100 : 50));
+  const niceMax = Math.ceil(max / step) * step || max;
+  const yFor = (v) => plotTop + plotH * (1 - Math.max(0, v) / niceMax);
+
+  for (let g = 0; g <= 3; g += 1) {
+    const v = (niceMax * (3 - g)) / 3;
+    const gy = yFor(v);
+    doc.moveTo(plotX, gy).lineTo(plotX + plotW, gy).lineWidth(0.5).strokeColor(g === 3 ? '#cbd5e1' : '#e2e8f0').stroke();
+    doc.font('Helvetica').fontSize(6.5).fillColor('#64748b').text(`$${Math.round(v)}M`, margin + 2, gy - 3.5, { width: padL - 8, align: 'right', lineBreak: false });
+  }
+
+  const n = chart.points.length;
+  const slotW = plotW / n;
+  const groupW = Math.min(44, slotW * 0.76);
+  const barW = (groupW - 4) / 2;
+
+  chart.points.forEach((p, i) => {
+    const cx = plotX + slotW * (i + 0.5);
+    const top1 = yFor(p.totalDebt);
+    const top2 = Number.isFinite(p.netDebt) ? yFor(p.netDebt) : plotTop + plotH;
+
+    // Barra 1: Deuda Normal
+    doc.rect(cx - groupW / 2, top1, barW, plotTop + plotH - top1).fill('#1e40af');
+    doc.font('Helvetica-Bold').fontSize(5.5).fillColor('#1e40af').text(
+      `${Math.round(p.totalDebt)}M`,
+      cx - groupW / 2 - 2,
+      top1 - 7,
+      { width: barW + 4, align: 'center', lineBreak: false }
+    );
+
+    // Barra 2: Deuda Neta
+    if (Number.isFinite(p.netDebt)) {
+      doc.rect(cx - groupW / 2 + barW + 4, top2, barW, plotTop + plotH - top2).fill('#d97706');
+      doc.font('Helvetica-Bold').fontSize(5.5).fillColor('#d97706').text(
+        `${Math.round(p.netDebt)}M`,
+        cx - groupW / 2 + barW + 2,
+        top2 - 7,
+        { width: barW + 4, align: 'center', lineBreak: false }
+      );
+    }
+
+    // Año
+    doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text(String(p.year), cx - slotW / 2, plotTop + plotH + 4, { width: slotW, align: 'center', lineBreak: false });
+
+    // Variación respecto al año anterior de cada barra (verde si se redujo, rojo si aumentó)
+    const deltaY = plotTop + plotH + 12;
+    if (p.deltaTotalDebt != null) {
+      const dColor = p.deltaTotalDebt < 0 ? '#16a34a' : '#dc2626';
+      const dSign = p.deltaTotalDebt > 0 ? '+' : '';
+      doc.font('Helvetica-Bold').fontSize(5).fillColor(dColor).text(
+        `${dSign}${Math.round(p.deltaTotalDebt)}M`,
+        cx - groupW / 2 - 1,
+        deltaY,
+        { width: barW + 4, align: 'center', lineBreak: false }
+      );
+    }
+    if (p.deltaNetDebt != null) {
+      const dColor = p.deltaNetDebt < 0 ? '#16a34a' : '#dc2626';
+      const dSign = p.deltaNetDebt > 0 ? '+' : '';
+      doc.font('Helvetica-Bold').fontSize(5).fillColor(dColor).text(
+        `${dSign}${Math.round(p.deltaNetDebt)}M`,
+        cx - groupW / 2 + barW + 3,
+        deltaY,
+        { width: barW + 4, align: 'center', lineBreak: false }
+      );
+    }
+  });
+
+  return y + boxH + 8;
+}
+
+function drawDebtRefinancingBox(doc, refinancing, y) {
+  if (!refinancing) return y;
+  const margin = doc.page.margins.left;
+  const boxWidth = doc.page.width - margin * 2;
+  const boxPad = 8;
+  const boxLabel = 'Refinanciación de deuda e impacto en BPA:';
+
+  doc.font('Helvetica-Bold').fontSize(8.5);
+  const labelH = doc.heightOfString(boxLabel, { width: boxWidth - 16 });
+
+  let textH = 0;
+  if (refinancing.explanation) {
+    doc.font('Helvetica').fontSize(8);
+    textH = doc.heightOfString(refinancing.explanation, { width: boxWidth - 16, lineBreak: true });
+  }
+  let impactH = 0;
+  if (refinancing.impactExplanation) {
+    doc.font('Helvetica').fontSize(7.5);
+    impactH = doc.heightOfString(refinancing.impactExplanation, { width: boxWidth - 16, lineBreak: true });
+  }
+
+  const boxHeight = boxPad + labelH + 28 + (textH ? textH + 8 : 0) + (impactH ? impactH + 6 : 0) + boxPad;
+  if (y + boxHeight > doc.page.height - doc.page.margins.bottom - 20) {
+    doc.addPage();
+    y = doc.page.margins.top;
+  }
+
+  const boxStartY = y;
+  doc.rect(margin, boxStartY, boxWidth, boxHeight).fill('#fff7ed');
+  doc.rect(margin, boxStartY, 3.5, boxHeight).fill('#ea580c');
+
+  let curY = boxStartY + boxPad;
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#9a3412').text(boxLabel, margin + 10, curY);
+  curY += labelH + 6;
+
+  // Fila de métricas clave en negrita
+  const badgeW = (boxWidth - 20) / 4;
+  const badges = [
+    { label: 'Tipo deuda anterior', val: refinancing.oldDebtRate != null ? `${refinancing.oldDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
+    { label: 'Tipo nueva emisión', val: refinancing.newDebtRate != null ? `${refinancing.newDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
+    { label: 'Volumen refinanciado', val: refinancing.amount != null ? `$${Math.round(refinancing.amount)}M` : '—' },
+    {
+      label: 'Impacto en BPA',
+      val: refinancing.epsImpact != null ? `${refinancing.epsImpact >= 0 ? '+' : ''}${refinancing.epsImpact.toFixed(2).replace('.', ',')} $/acc` : '—',
+      highlight: true,
+    },
+  ];
+
+  badges.forEach((b, idx) => {
+    const bx = margin + 10 + idx * badgeW;
+    if (b.highlight) {
+      doc.roundedRect(bx, curY, badgeW - 6, 22, 3).fill('#fed7aa');
+      doc.font('Helvetica').fontSize(6).fillColor('#7c2d12').text(b.label, bx + 2, curY + 2, { width: badgeW - 10, align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#7c2d12').text(b.val, bx + 2, curY + 11, { width: badgeW - 10, align: 'center' });
+    } else {
+      doc.roundedRect(bx, curY, badgeW - 6, 22, 3).fill('#ffedd5');
+      doc.font('Helvetica').fontSize(6).fillColor('#9a3412').text(b.label, bx + 2, curY + 2, { width: badgeW - 10, align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#431407').text(b.val, bx + 2, curY + 11, { width: badgeW - 10, align: 'center' });
+    }
+  });
+
+  curY += 28;
+
+  if (refinancing.explanation) {
+    drawPdfFormattedText(doc, refinancing.explanation, margin + 10, curY, boxWidth - 20, 'Helvetica', 'Helvetica-Bold', 7.5, '#431407');
+    curY = doc.y + 6;
+  }
+  if (refinancing.impactExplanation) {
+    drawPdfFormattedText(doc, refinancing.impactExplanation, margin + 10, curY, boxWidth - 20, 'Helvetica-Bold', 'Helvetica-Bold', 7.5, '#c2410c');
+  }
+
+  return boxStartY + boxHeight + 10;
 }
 
 function tokenizeNumbersPdf(text) {
@@ -317,12 +619,103 @@ function drawHighlightedText(doc, text, x, y, { width, baseFont = 'Helvetica', b
   return doc.y;
 }
 
+function parseMarkdownAndNumbers(text) {
+  if (!text) return [];
+  const str = String(text);
+  const rawParts = str.split(/(\*\*.*?\*\*)/g).filter(Boolean);
+  const result = [];
+
+  for (const part of rawParts) {
+    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      result.push({ text: part.slice(2, -2), bold: true });
+    } else {
+      const autoRegex = /(\bflat\s*(?:[±+\-/]+|\+\/-)\s*\d+(?:[\.,]\d+)?\s*%?|\b[~±+\-]?\s*\$?\d+(?:[\.,]\d+)?\s*(?:M|B|k|%)?\s*(?:al?|to|-)\s*[~±+\-]?\s*\$?\d+(?:[\.,]\d+)?\s*(?:M|B|k|%|\$|€)?|[~±+\-]?\s*\$?\d+(?:[\.,]\d+)*\s*(?:M|B|k|%|\$|€)(?:\s*(?:[±+\-/]+|\+\/-)\s*\d+(?:[\.,]\d+)?\s*%)?|\b20\d\d\s*-\s*20\d\d\b)/gi;
+      let last = 0;
+      let m;
+      while ((m = autoRegex.exec(part)) !== null) {
+        if (m.index > last) {
+          result.push({ text: part.slice(last, m.index), bold: false });
+        }
+        result.push({ text: m[0], bold: true });
+        last = m.index + m[0].length;
+      }
+      if (last < part.length) {
+        result.push({ text: part.slice(last), bold: false });
+      }
+    }
+  }
+
+  const merged = [];
+  for (const seg of result) {
+    if (!seg.text) continue;
+    if (merged.length && merged[merged.length - 1].bold === seg.bold) {
+      merged[merged.length - 1].text += seg.text;
+    } else {
+      merged.push({ ...seg });
+    }
+  }
+  return merged;
+}
+
+function drawPdfFormattedText(doc, text, x, y, width, baseFont = 'Helvetica', boldFont = 'Helvetica-Bold', fontSize = 8.5, color = '#374151') {
+  if (!text) return y;
+  const segments = parseMarkdownAndNumbers(text);
+  if (!segments.length) return y;
+
+  if (x != null && y != null) {
+    doc.x = x;
+    doc.y = y;
+  }
+  segments.forEach((seg, idx) => {
+    const isLast = idx === segments.length - 1;
+    const clean = sanitize(seg.text);
+    const font = seg.bold ? boldFont : baseFont;
+    const textColor = seg.bold ? '#0f172a' : color;
+    doc.font(font).fontSize(fontSize).fillColor(textColor).text(clean, {
+      continued: !isLast,
+      width,
+      lineBreak: isLast,
+    });
+  });
+  return doc.y;
+}
+
 function drawPdfSecSnippet(doc, snippet, y) {
   if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return y;
   const margin = doc.page.margins.left;
   const pageWidth = doc.page.width - margin * 2;
+  const pageBottom = doc.page.height - doc.page.margins.bottom;
 
-  if (y + 50 > doc.page.height - doc.page.margins.bottom) {
+  const headers = Array.isArray(snippet.headers) ? snippet.headers : [];
+  const rows = snippet.rows.map((r) => Array.isArray(r) ? r.map(sanitize) : [sanitize(r.metric ?? r.name), sanitize(r.value)]);
+  const numCols = headers.length || (rows[0] ? rows[0].length : 2);
+
+  let colWidths;
+  if (numCols === 4) {
+    const wMetric = 160;
+    const wPrev = 90;
+    const wGuidance = 110;
+    const wProj = Math.max(80, pageWidth - wMetric - wPrev - wGuidance);
+    colWidths = [wMetric, wPrev, wGuidance, wProj];
+  } else {
+    const firstColWidth = numCols === 2 ? 220 : 160;
+    const remainingWidth = (pageWidth - firstColWidth) / Math.max(1, numCols - 1);
+    colWidths = [firstColWidth, ...Array(numCols - 1).fill(remainingWidth)];
+  }
+
+  // Altura estimada de cabecera
+  let headerH = 16;
+  if (headers.length) {
+    doc.font('Helvetica-Bold').fontSize(7.5);
+    headers.forEach((h, i) => {
+      const hh = doc.heightOfString(sanitize(h), { width: colWidths[i] - 8 });
+      headerH = Math.max(headerH, hh + 8);
+    });
+  }
+
+  // Si no queda espacio para cabecera y al menos 4 filas (~110 pt), mover a nueva página
+  const minStartSpace = 32 + headerH + 60;
+  if (y + minStartSpace > pageBottom) {
     doc.addPage();
     y = doc.page.margins.top;
   }
@@ -337,57 +730,77 @@ function drawPdfSecSnippet(doc, snippet, y) {
 
   if (snippet.title) {
     doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(9).text(sanitize(snippet.title), margin, y);
-    y += 12;
+    y += 13;
   }
 
-  const headers = Array.isArray(snippet.headers) ? snippet.headers : [];
-  const rows = snippet.rows.map((r) => Array.isArray(r) ? r.map(sanitize) : [sanitize(r.metric ?? r.name), sanitize(r.value)]);
-  const numCols = headers.length || (rows[0] ? rows[0].length : 2);
-  const firstColWidth = numCols === 2 ? 220 : 160;
-  const remainingWidth = (pageWidth - firstColWidth) / Math.max(1, numCols - 1);
-  const colWidths = [firstColWidth, ...Array(numCols - 1).fill(remainingWidth)];
-
-  if (headers.length) {
-    doc.rect(margin, y, pageWidth, 15).fill('#1e293b');
+  function drawSnippetHeaderRow() {
+    if (!headers.length) return;
+    doc.rect(margin, y, pageWidth, headerH).fill('#1e293b');
     doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(7.5);
     let curX = margin;
     headers.forEach((h, i) => {
-      doc.text(sanitize(h), curX + 4, y + 4, { width: colWidths[i] - 8 });
+      const align = i > 0 ? 'right' : 'left';
+      doc.text(sanitize(h), curX + 4, y + 4, { width: colWidths[i] - 8, align });
       curX += colWidths[i];
     });
-    y += 15;
+    y += headerH;
   }
 
+  drawSnippetHeaderRow();
+
   rows.forEach((row, rIdx) => {
-    let rowHeight = 15;
+    let rowHeight = 16;
     row.forEach((cellText, cIdx) => {
       const cellH = doc.fontSize(7.5).font(cIdx === 0 ? 'Helvetica-Bold' : 'Helvetica')
         .heightOfString(sanitize(cellText), { width: colWidths[cIdx] - 8 });
       rowHeight = Math.max(rowHeight, cellH + 9);
     });
-    if (y + rowHeight > doc.page.height - doc.page.margins.bottom - 15) {
+    if (y + rowHeight > pageBottom - 15) {
       doc.addPage();
       y = doc.page.margins.top;
+      drawSnippetHeaderRow();
     }
     const isOdd = rIdx % 2 === 1;
     if (isOdd) doc.rect(margin, y, pageWidth, rowHeight).fill('#f8fafc');
 
     const rowText = row.join(' ').toLowerCase();
-    const isYellow = rowText.includes('repurchased') || rowText.includes('recomprad') || rowText.includes('2026');
+    const isYellow = rowText.includes('repurchased') || rowText.includes('recomprad');
     const isOrange = rowText.includes('aggregate') || rowText.includes('cost');
 
     let curX = margin;
     row.forEach((cellText, cIdx) => {
-      if (cIdx > 0 && isYellow) {
+      let font = cIdx === 0 ? 'Helvetica-Bold' : 'Helvetica';
+      let textColor = '#1e293b';
+
+      if (numCols === 4) {
+        if (cIdx === 1) {
+          doc.rect(curX + 1, y + 1, colWidths[cIdx] - 2, rowHeight - 2).fill('#f8fafc');
+          textColor = '#475569';
+          font = 'Helvetica-Bold';
+        } else if (cIdx === 2) {
+          font = 'Helvetica-Bold';
+        } else if (cIdx === 3) {
+          doc.rect(curX + 1, y + 1, colWidths[cIdx] - 2, rowHeight - 2).fill('#f0fdfa');
+          textColor = '#0d9488';
+          font = 'Helvetica-Bold';
+        }
+      } else if (cIdx > 0 && isYellow) {
         doc.rect(curX + 1, y + 1, colWidths[cIdx] - 2, rowHeight - 2).fill('#fef08a');
-        doc.fillColor('#854d0e').font('Helvetica-Bold');
+        textColor = '#854d0e';
+        font = 'Helvetica-Bold';
       } else if (cIdx > 0 && isOrange) {
         doc.rect(curX + 1, y + 1, colWidths[cIdx] - 2, rowHeight - 2).fill('#fed7aa');
-        doc.fillColor('#c2410c').font('Helvetica-Bold');
-      } else {
-        doc.fillColor('#1e293b').font(cIdx === 0 ? 'Helvetica-Bold' : 'Helvetica');
+        textColor = '#c2410c';
+        font = 'Helvetica-Bold';
+      } else if (cIdx > 0) {
+        font = 'Helvetica-Bold';
       }
-      doc.fontSize(7.5).text(sanitize(cellText), curX + 4, y + 4, { width: colWidths[cIdx] - 8 });
+
+      const align = cIdx > 0 ? 'right' : 'left';
+      doc.fillColor(textColor).font(font).fontSize(7.5).text(sanitize(cellText), curX + 4, y + 4, {
+        width: colWidths[cIdx] - 8,
+        align,
+      });
       curX += colWidths[cIdx];
     });
     y += rowHeight;
@@ -531,9 +944,12 @@ export function buildReportPdf(report) {
         if (rep.text) {
           y = drawHighlightedText(doc, sanitize(rep.text), margin, y, { width: doc.page.width - margin * 2, baseSize: 8.5, baseColor: '#374151', boldColor: '#0f172a' }) + 8;
         }
+        const repExpiry = (rep.authorizationExpiry && !/no indicad|not disclosed|not stated|no consta|no especificad/i.test(String(rep.authorizationExpiry)))
+          ? rep.authorizationExpiry
+          : null;
         const repBadges = [
           (rep.authorizationRemaining || rep.programRemaining) ? `Autorización restante: ${rep.authorizationRemaining || rep.programRemaining}` : null,
-          rep.authorizationExpiry ? `Vigencia: ${rep.authorizationExpiry}` : null,
+          repExpiry ? `Vigencia: ${repExpiry}` : null,
           rep.shareCountEvolution ? `Evolución acciones: ${rep.shareCountEvolution}` : null,
           rep.bpaImpact ? `Impacto BPA: ${rep.bpaImpact}` : null,
           rep.futureProjection ? `Proyección 5 años: ${rep.futureProjection}` : null,
@@ -562,8 +978,7 @@ export function buildReportPdf(report) {
         ensureSpace(60);
         y = drawSectionTitle(doc, out.title || '2: OUTLOOK', y);
         if (out.text) {
-          doc.font('Helvetica').fontSize(8.5).fillColor('#374151').text(sanitize(out.text), margin, y, { width: doc.page.width - margin * 2, lineBreak: true });
-          y = doc.y + 8;
+          y = drawPdfFormattedText(doc, out.text, margin, y, doc.page.width - margin * 2, 'Helvetica', 'Helvetica-Bold', 8.5, '#374151') + 8;
         }
         const outDetails = [
           out.fcfAnalysis ? `Análisis FCF: ${out.fcfAnalysis}` : null,
@@ -572,15 +987,14 @@ export function buildReportPdf(report) {
         ].filter(Boolean);
         if (outDetails.length) {
           ensureSpace(20);
-          doc.font('Helvetica').fontSize(8).fillColor('#4b5563');
           outDetails.forEach((d) => {
-            doc.text(`• ${sanitize(d)}`, margin + 6, y, { width: doc.page.width - margin * 2 - 12 });
-            y = doc.y + 3;
+            y = drawPdfFormattedText(doc, `• ${d}`, margin + 6, y, doc.page.width - margin * 2 - 12, 'Helvetica', 'Helvetica-Bold', 8, '#4b5563') + 3;
           });
           y += 5;
         }
-        if (out.secSnippet) {
-          y = drawPdfSecSnippet(doc, out.secSnippet, y);
+        const outSnippet = out.secSnippet || out.secTable;
+        if (outSnippet) {
+          y = drawPdfSecSnippet(doc, withOutlookComparison(outSnippet, report), y);
         }
         y = drawHorizontalRule(doc, y);
       }
@@ -591,10 +1005,26 @@ export function buildReportPdf(report) {
         ensureSpace(60);
         y = drawSectionTitle(doc, debt.title || '3: DEUDA', y);
         if (debt.text) {
-          doc.font('Helvetica').fontSize(8.5).fillColor('#374151').text(sanitize(debt.text), margin, y, { width: doc.page.width - margin * 2, lineBreak: true });
-          y = doc.y + 8;
+          y = drawPdfFormattedText(doc, debt.text, margin, y, doc.page.width - margin * 2, 'Helvetica', 'Helvetica-Bold', 8.5, '#374151') + 8;
         }
-        if (debt.refinancingAnalysis || debt.refinancingImpact) {
+
+        // Gráfico 1: Calendario de vencimientos de la deuda (próximos 10 años)
+        const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear);
+        if (maturityChart) {
+          y = drawDebtMaturityChart(doc, maturityChart, y);
+        }
+
+        // Gráfico 2: Evolución de deuda normal vs neta (últimos 10 años)
+        const historyChart = buildDebtHistoryModel(debt, report);
+        if (historyChart) {
+          y = drawDebtHistoryChart(doc, historyChart, y);
+        }
+
+        // Análisis de refinanciación e impacto en BPA
+        const refinancing = buildDebtRefinancingModel(debt, report);
+        if (refinancing) {
+          y = drawDebtRefinancingBox(doc, refinancing, y);
+        } else if (debt.refinancingAnalysis || debt.refinancingImpact) {
           const boxWidth = doc.page.width - margin * 2;
           const boxPad = 6;
           const boxLabel = 'Refinanciación de deuda próxima a vencer:';
@@ -619,14 +1049,15 @@ export function buildReportPdf(report) {
           doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a').text(boxLabel, margin + 8, boxY);
           boxY += labelH + 6;
           if (boxAnalysis) {
-            doc.font('Helvetica').fontSize(7.5).fillColor('#334155').text(boxAnalysis, margin + 8, boxY, { width: boxWidth - 16, lineBreak: true });
+            drawPdfFormattedText(doc, boxAnalysis, margin + 8, boxY, boxWidth - 16, 'Helvetica', 'Helvetica-Bold', 7.5, '#334155');
             boxY += analysisH + 6;
           }
           if (boxImpact) {
-            doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#c2410c').text(boxImpact, margin + 8, boxY, { width: boxWidth - 16, lineBreak: true });
+            drawPdfFormattedText(doc, boxImpact, margin + 8, boxY, boxWidth - 16, 'Helvetica', 'Helvetica-Bold', 7.5, '#c2410c');
           }
           y = boxStartY + boxHeight + 12;
         }
+
         if (debt.secSnippet) {
           y = drawPdfSecSnippet(doc, debt.secSnippet, y);
         }

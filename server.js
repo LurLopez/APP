@@ -1,5 +1,6 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import config from './config/index.js';
@@ -13,6 +14,7 @@ import forumRoutes from './src/api/routes/forum.routes.js';
 import reportsRoutes from './src/api/routes/reports.routes.js';
 import adminReportsRoutes from './src/api/routes/adminReports.routes.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
+import { seoHtmlMiddleware } from './src/middleware/seo.middleware.js';
 import { startAlertScanner } from './src/services/alertScanner.service.js';
 import { ensureAdminUser } from './src/services/auth.service.js';
 
@@ -29,10 +31,26 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(compression());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+
+app.use(seoHtmlMiddleware);
+
+app.use(express.static(path.join(__dirname, 'public'), {
+  index: false,
+  etag: true,
+  lastModified: true,
+  setHeaders(res, filePath) {
+    const ext = path.extname(filePath);
+    if (ext === '.css' || ext === '.js') {
+      res.set('Cache-Control', 'public, max-age=604800');
+    } else if (ext === '.png' || ext === '.svg' || ext === '.ico' || ext === '.jpg' || ext === '.webp') {
+      res.set('Cache-Control', 'public, max-age=2592000');
+    }
+  },
+}));
 
 app.use('/api/auth', authRoutes);
 app.use('/api', analysisRoutes);
@@ -43,14 +61,6 @@ app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/price-alerts', priceAlertsRoutes);
 app.use('/api/forum', forumRoutes);
 app.use('/api/reports', reportsRoutes);
-
-app.get(['/', '/empresa', '/seguimiento', '/cartera', '/analisis', '/análisis', '/alertas', '/alertas-precio', '/novedades', '/reportes', '/admin/reportes'], (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'empresa.html'));
-});
-
-app.get('/empresa/:ticker', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'empresa.html'));
-});
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'cifra-api', phase: 1 });

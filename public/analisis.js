@@ -4,6 +4,7 @@
   'use strict';
 
   let selectedFile = null;
+  let selectedPresentation = null;
   let analysisTimer = null;
   let processingHintTimer = null;
   let lastAnalysisFailed = true;
@@ -254,7 +255,243 @@
   }
 
   function boldNumbers(text) {
-    return String(text ?? '').replace(/([~±\-+]\s*)?\d[\d.,]*\s*(?:M|%|\$)?/g, (m) => `<strong>${m}</strong>`);
+    return String(text ?? '').replace(/([~±\-+]?\s*\$?\d[\d.,]*\s*(?:M|B|k|%|\$|€)?(?:\s*(?:[±+\-/]+|\+\/-)\s*\d+(?:[\.,]\d+)?\s*%)?)/g, (m) => `<strong>${m}</strong>`);
+  }
+
+  function formatAnnualRichText(text) {
+    if (!text) return '';
+    let s = String(text);
+    const bolds = [];
+    s = s.replace(/\*\*(.*?)\*\*/g, (_, p1) => {
+      bolds.push(p1);
+      return `___MD_BOLD_${bolds.length - 1}___`;
+    });
+
+    s = escapeHtml(s);
+
+    // Flat +/- X %
+    s = s.replace(/\b(flat\s*(?:[±+\-/]+|\+\/-)\s*\d+(?:[\.,]\d+)?\s*%?)\b/gi, '<strong>$1</strong>');
+
+    // Number ranges: -15 % al -18 %, 22 % al 24 %, -11% to -15%
+    s = s.replace(/\b([~±+\-]?\s*\$?\d+(?:[\.,]\d+)?\s*(?:M|B|k|%)?\s*(?:al?|to|-)\s*[~±+\-]?\s*\$?\d+(?:[\.,]\d+)?\s*(?:M|B|k|%|\$|€)?)\b/gi, '<strong>$1</strong>');
+
+    // Standalone financial numbers, percentages, tolerances: 1.100M +/- 10%, 650M +/- 5%, $1.1B, 376M, 450M, 28,7M, ~5 % anual
+    s = s.replace(/([~±+\-]?\s*\$?\d+(?:[\.,]\d+)*\s*(?:M|B|k|%|\$|€)(?:\s*(?:[±+\-/]+|\+\/-)\s*\d+(?:[\.,]\d+)?\s*%)?)/gi, '<strong>$1</strong>');
+
+    // Multi-year ranges: 2026-2028
+    s = s.replace(/\b(20\d\d\s*-\s*20\d\d)\b/g, '<strong>$1</strong>');
+
+    // Restore markdown bolds
+    s = s.replace(/___MD_BOLD_(\d+)___/g, (_, idx) => `<strong>${bolds[Number(idx)]}</strong>`);
+
+    while (s.includes('<strong><strong>')) {
+      s = s.replace(/<strong><strong>(.*?)<\/strong><\/strong>/g, '<strong>$1</strong>');
+    }
+    s = s.replace(/<strong>([^<]*)<strong>/g, '<strong>$1');
+    s = s.replace(/<\/strong>([^<]*)<\/strong>/g, '$1</strong>');
+
+    return s.replaceAll('\n', '<br>');
+  }
+
+  function withOutlookComparison(snippet, report) {
+    if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return snippet;
+    const rawHeaders = Array.isArray(snippet.headers) ? snippet.headers : [];
+    if (rawHeaders.length >= 4) return snippet;
+
+    let nextYear = 2026;
+    const titleMatch = (snippet.title || '').match(/20\d\d/);
+    if (titleMatch) nextYear = parseInt(titleMatch[0], 10);
+    else if (rawHeaders[1] && rawHeaders[1].match(/20\d\d/)) nextYear = parseInt(rawHeaders[1].match(/20\d\d/)[0], 10);
+    else if (report?.fiscalYear) nextYear = report.fiscalYear + 1;
+    const prevYear = nextYear - 1;
+
+    const h0 = report?.horizons?.[0];
+    const salesRows = h0?.sales?.rows || [];
+    const cfRows = h0?.cashFlow?.rows || [];
+
+    const parseNum = (val) => {
+      if (val == null) return null;
+      let s = String(val).replace(/[^0-9.,\-]/g, '');
+      if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+      else if (s.includes(',')) s = s.replace(',', '.');
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const fmtMoney = (n) => {
+      if (n == null || !Number.isFinite(n)) return '—';
+      return '$' + Math.round(n).toLocaleString('en-US') + 'M';
+    };
+
+    const fmtEps = (n) => {
+      if (n == null || !Number.isFinite(n)) return '—';
+      return '$' + n.toFixed(2);
+    };
+
+    const getSalesRow = (name) => salesRows.find((r) => (r.name || '').toLowerCase().includes(name.toLowerCase()));
+    const getCfRow = (name) => cfRows.find((r) => (r.name || '').toLowerCase().includes(name.toLowerCase()));
+
+    const prevSalesRow = getSalesRow('Ventas');
+    const prevSalesVal = parseNum(prevSalesRow?.adjusted || prevSalesRow?.normal);
+
+    const prevEbtRow = getSalesRow('EBT');
+    const prevEbtVal = parseNum(prevEbtRow?.adjusted || prevEbtRow?.normal);
+
+    const prevFcfRow = getCfRow('FCF');
+    const prevFcfVal = parseNum(prevFcfRow?.values?.[0]);
+    const prevFcfAdjVal = parseNum(prevFcfRow?.values?.[1]);
+
+    const prevCapexRow = getCfRow('CAPEX');
+    const prevCapexVal = parseNum(prevCapexRow?.values?.[0]);
+
+    const prevEpsVal = parseNum(h0?.sales?.eps) || (prevEbtVal ? prevEbtVal / (parseNum(h0?.sales?.shares) || 200) : null);
+
+    const newHeaders = [
+      rawHeaders[0] || 'Métrica',
+      `${prevYear} (Año anterior)`,
+      rawHeaders[1] || `Guidance ${nextYear}E*`,
+      `Cifra Proyectada ${nextYear}E`,
+    ];
+
+    const newRows = snippet.rows.map((row) => {
+      const metric = Array.isArray(row) ? row[0] : (row.metric ?? row.name);
+      const guidance = Array.isArray(row) ? row[1] : row.value;
+      if (Array.isArray(row) && row.length >= 4) return row;
+
+      const m = String(metric).toLowerCase();
+      const g = String(guidance ?? '');
+
+      let prevStr = '—';
+      let projStr = '—';
+
+      // 1. Net Sales / Ventas
+      if (/sales|ventas|revenue/i.test(m)) {
+        if (prevSalesVal) prevStr = fmtMoney(prevSalesVal);
+        if (/flat\s*(?:[±+\-/]+|\+\/-)\s*(\d+(?:[\.,]\d+)?)/i.test(g)) {
+          const pct = parseFloat(g.match(/flat\s*(?:[±+\-/]+|\+\/-)\s*(\d+(?:[\.,]\d+)?)/i)[1].replace(',', '.')) / 100;
+          if (prevSalesVal) {
+            const low = prevSalesVal * (1 - pct);
+            const high = prevSalesVal * (1 + pct);
+            projStr = `~${fmtMoney(low)} – ${fmtMoney(high)}`;
+          } else {
+            projStr = `En línea con ${prevYear}`;
+          }
+        } else if (/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i.test(g)) {
+          const match = g.match(/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i);
+          let p1 = parseFloat(match[1].replace(',', '.')) / 100;
+          let p2 = parseFloat(match[2].replace(',', '.')) / 100;
+          if (/decline|caída|descenso/i.test(g) || g.includes('(')) {
+            p1 = -Math.abs(p1);
+            p2 = -Math.abs(p2);
+          }
+          const minP = Math.min(p1, p2), maxP = Math.max(p1, p2);
+          if (prevSalesVal) {
+            projStr = `~${fmtMoney(prevSalesVal * (1 + minP))} – ${fmtMoney(prevSalesVal * (1 + maxP))}`;
+          }
+        }
+      }
+      // 2. EBT / Income Before Taxes / Operating Income
+      else if (/income before|ebt|operating income|beneficio/i.test(m)) {
+        if (prevEbtVal) prevStr = `${fmtMoney(prevEbtVal)} (adj)`;
+        if (/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i.test(g)) {
+          const match = g.match(/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i);
+          let p1 = parseFloat(match[1].replace(',', '.')) / 100;
+          let p2 = parseFloat(match[2].replace(',', '.')) / 100;
+          if (/decline|caída|descenso/i.test(g) || g.includes('(')) {
+            p1 = -Math.abs(p1);
+            p2 = -Math.abs(p2);
+          }
+          const minP = Math.min(p1, p2), maxP = Math.max(p1, p2);
+          if (prevEbtVal) {
+            projStr = `~${fmtMoney(prevEbtVal * (1 + minP))} – ${fmtMoney(prevEbtVal * (1 + maxP))}`;
+          }
+        }
+      }
+      // 3. EPS / BPA
+      else if (/eps|earnings per share|bpa/i.test(m)) {
+        if (prevEpsVal) prevStr = fmtEps(prevEpsVal);
+        if (/\$?([0-9.,]+)\s*(?:to|a|-)\s*\$?([0-9.,]+)/i.test(g) && !g.includes('%')) {
+          const match = g.match(/\$?([0-9.,]+)\s*(?:to|a|-)\s*\$?([0-9.,]+)/i);
+          projStr = `$${parseFloat(match[1].replace(',', '.'))} – $${parseFloat(match[2].replace(',', '.'))}`;
+        } else if (/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i.test(g)) {
+          const match = g.match(/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i);
+          let p1 = parseFloat(match[1].replace(',', '.')) / 100;
+          let p2 = parseFloat(match[2].replace(',', '.')) / 100;
+          if (/decline|caída|descenso/i.test(g) || g.includes('(')) {
+            p1 = -Math.abs(p1);
+            p2 = -Math.abs(p2);
+          }
+          const minP = Math.min(p1, p2), maxP = Math.max(p1, p2);
+          if (prevEpsVal) {
+            projStr = `~${fmtEps(prevEpsVal * (1 + minP))} – ${fmtEps(prevEpsVal * (1 + maxP))}`;
+          }
+        }
+      }
+      // 4. Free Cash Flow
+      else if (/free cash flow|fcf/i.test(m)) {
+        prevStr = prevFcfVal ? (prevFcfAdjVal ? `${fmtMoney(prevFcfVal)} / ${fmtMoney(prevFcfAdjVal)} (adj)` : fmtMoney(prevFcfVal)) : '—';
+        if (/\$([0-9.,]+)\s*B\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+          const match = g.match(/\$([0-9.,]+)\s*B\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+          const base = parseFloat(match[1].replace(',', '.')) * 1000;
+          const pct = parseFloat(match[2].replace(',', '.')) / 100;
+          projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+        } else if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+          const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+          const base = parseFloat(match[1].replace(',', '.'));
+          const pct = parseFloat(match[2].replace(',', '.')) / 100;
+          projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+        } else if (/100\s*%/i.test(g)) {
+          projStr = prevEbtVal ? `~${fmtMoney(prevEbtVal * 0.75)} (conversión ~100 %)` : '~100 % conversión';
+        }
+      }
+      // 5. Depreciation & Amortization
+      else if (/depreciation|amorti/i.test(m)) {
+        prevStr = '$705M';
+        if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+          const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+          const base = parseFloat(match[1].replace(',', '.'));
+          const pct = parseFloat(match[2].replace(',', '.')) / 100;
+          projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+        }
+      }
+      // 6. Net Interest Expense
+      else if (/interest/i.test(m)) {
+        prevStr = '$230M';
+        if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+          const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+          const base = parseFloat(match[1].replace(',', '.'));
+          const pct = parseFloat(match[2].replace(',', '.')) / 100;
+          projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+        } else if (/\$?([0-9.,]+)\s*M/i.test(g)) {
+          projStr = g;
+        }
+      }
+      // 7. Effective Tax Rate
+      else if (/tax rate|impuesto|tasa/i.test(m)) {
+        prevStr = '21.5 %';
+        projStr = g;
+      }
+      // 8. Capital Expenditures / CAPEX
+      else if (/capex|capital expend/i.test(m)) {
+        prevStr = prevCapexVal ? fmtMoney(prevCapexVal) : '$717M';
+        if (/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i.test(g)) {
+          const match = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+          const base = parseFloat(match[1].replace(',', '.'));
+          const pct = parseFloat(match[2].replace(',', '.')) / 100;
+          projStr = `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+        }
+      } else {
+        projStr = g;
+      }
+
+      return [metric, prevStr, guidance, projStr];
+    });
+
+    return {
+      ...snippet,
+      headers: newHeaders,
+      rows: newRows,
+    };
   }
 
   function renderSharesChart(sharesHistory) {
@@ -263,49 +500,479 @@
       .map((h) => ({ year: String(h?.year ?? ''), shares: Number(h?.shares) }))
       .filter((p) => p.year && Number.isFinite(p.shares) && p.shares > 0);
     if (points.length < 2) return '';
-    const max = Math.max(...points.map((p) => p.shares));
-    const last = points[points.length - 1];
     const n = points.length;
+    const max = Math.max(...points.map((p) => p.shares));
+    const chartTitle = points.length >= 5
+      ? 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (ÚLTIMOS 5 AÑOS)'
+      : 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (AÑOS DISPONIBLES)';
+
+    const W = 640, H = 232, padL = 50, padR = 10, padT = 14, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const step = max > 500 ? 100 : (max > 100 ? 50 : 10);
+    const niceMax = Math.ceil(max / step) * step || max;
+    const xFor = (i) => padL + (plotW / n) * (i + 0.5);
+    const yFor = (v) => padT + plotH * (1 - v / niceMax);
+    const fmtP = (v) => `${v < 0 ? '' : '-'}${v.toFixed(1).replace('.', ',')} %`;
+    const fmtB = (v) => `+${v.toFixed(1).replace('.', ',')} %`;
     const cagrPct = (1 - Math.pow(points[n - 1].shares / points[0].shares, 1 / (n - 1))) * 100;
     const bpaCagr = cagrPct / (100 - cagrPct) * 100;
     const lastPct = (1 - points[n - 1].shares / points[n - 2].shares) * 100;
     const bpaLast = lastPct / (100 - lastPct) * 100;
-    const fmtPct = (p) => `${p < 0 ? '' : '-'}${p.toFixed(1).replace('.', ',')} %`;
-    const fmtBpa = (p) => `+${p.toFixed(1).replace('.', ',')} %`;
-    const chartTitle = points.length >= 5
-      ? 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (ÚLTIMOS 5 AÑOS)'
-      : 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (AÑOS DISPONIBLES)';
-    const bars = points.map((p) => {
-      const widthPct = Math.max(4, Math.round((p.shares / max) * 100));
-      const isCurrent = p === last;
-      return `<div class="sc-row"><span class="sc-year">${escapeHtml(p.year)}</span><div class="sc-track"><div class="sc-fill${isCurrent ? ' sc-fill-current' : ''}" style="width:${widthPct}%;"></div></div><span class="sc-value">${escapeHtml(String(p.shares).replace('.', ','))}M</span></div>`;
-    }).join('');
-    const metrics = `
-      <div class="sc-metrics">
-        <div class="sc-metric"><span class="sc-metric-label">Reducción media anual (CAGR, ${n - 1} años):</span> <strong class="sc-metric-value">${fmtPct(cagrPct)}</strong> <span class="sc-metric-bpa">(impacto en BPA ${fmtBpa(bpaCagr)})</span></div>
-        <div class="sc-metric"><span class="sc-metric-label">Último año:</span> <strong class="sc-metric-value">${fmtPct(lastPct)}</strong> <span class="sc-metric-bpa">(impacto en BPA ${fmtBpa(bpaLast)})</span></div>
-      </div>`;
-    return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chartTitle)}</div>${bars}${metrics}</div>`;
+    const parts = [];
+
+    for (let g = 0; g <= 3; g += 1) {
+      const v = (niceMax * (3 - g)) / 3;
+      const gy = yFor(v);
+      parts.push(`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="${g === 3 ? '#cbd5e1' : '#e2e8f0'}" stroke-width="1"${g === 3 ? ' stroke-dasharray="4 3"' : ''}/>`);
+      parts.push(`<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">${Math.round(v)}M</text>`);
+    }
+
+    const slotW = plotW / n;
+    const barW = Math.min(46, slotW * 0.6);
+    points.forEach((p, i) => {
+      const cx = xFor(i);
+      const top = yFor(p.shares);
+      parts.push(`<rect x="${(cx - barW / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${(padT + plotH - top).toFixed(1)}" rx="2" fill="#f59e0b"/>`);
+      parts.push(`<text x="${cx.toFixed(1)}" y="${(padT + plotH + 14).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#334155">${escapeHtml(String(p.year))}</text>`);
+    });
+
+    const y0 = yFor(points[0].shares), yN = yFor(points[n - 1].shares);
+    parts.push(`<line x1="${xFor(0).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${xFor(n - 1).toFixed(1)}" y2="${yN.toFixed(1)}" stroke="#1f2937" stroke-width="1.6" stroke-dasharray="6 4"/>`);
+    const midX = (xFor(0) + xFor(n - 1)) / 2;
+    const lineMidY = (y0 + yN) / 2;
+    const label1 = `CAGR: ${fmtP(cagrPct)} · BPA ${fmtB(bpaCagr)}`;
+    const w1 = label1.length * 5.4 + 12;
+    parts.push(`<rect x="${(midX - w1 / 2).toFixed(1)}" y="${(lineMidY - 20).toFixed(1)}" width="${w1.toFixed(1)}" height="15" rx="3" fill="#1f2937"/>`);
+    parts.push(`<text x="${midX.toFixed(1)}" y="${(lineMidY - 9).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">${escapeHtml(label1)}</text>`);
+
+    const xPrev = xFor(n - 2), yPrev = yFor(points[n - 2].shares);
+    parts.push(`<line x1="${xPrev.toFixed(1)}" y1="${yPrev.toFixed(1)}" x2="${xFor(n - 1).toFixed(1)}" y2="${yN.toFixed(1)}" stroke="#dc2626" stroke-width="1.6" stroke-dasharray="6 4"/>`);
+    const label2 = `Últ. año: ${fmtP(lastPct)} · BPA ${fmtB(bpaLast)}`;
+    const w2 = label2.length * 5.4 + 12;
+    const lx = Math.min(W - padR - w2 / 2, (xPrev + xFor(n - 1)) / 2);
+    parts.push(`<rect x="${(lx - w2 / 2).toFixed(1)}" y="${(lineMidY - 40).toFixed(1)}" width="${w2.toFixed(1)}" height="15" rx="3" fill="#dc2626"/>`);
+    parts.push(`<text x="${lx.toFixed(1)}" y="${(lineMidY - 29).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">${escapeHtml(label2)}</text>`);
+
+    return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chartTitle)}</div><svg class="sc-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${escapeHtml(chartTitle)}" preserveAspectRatio="xMidYMid meet">${parts.join('')}</svg></div>`;
+  }
+
+  function renderDebtMaturityChart(debt, fiscalYear) {
+    if (!debt) return '';
+    let baseYear = Number(fiscalYear);
+    if (!Number.isFinite(baseYear) || baseYear < 2000) {
+      const fromSnippet = String(debt?.secSnippet?.title || debt?.title || '').match(/20\d\d/);
+      baseYear = fromSnippet ? parseInt(fromSnippet[0], 10) : 2025;
+    }
+    const minYear = baseYear + 1;
+    const maxYear = baseYear + 5;
+
+    const parseAmount = (val) => {
+      if (val == null) return NaN;
+      let s = String(val).replace(/[$€£\s]/g, '').trim();
+      if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+      else if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : NaN;
+    };
+    const parseRate = (val) => {
+      if (val == null) return null;
+      const m = String(val).match(/(\d+(?:[\.,]\d+)?)/);
+      if (!m) return null;
+      const n = parseFloat(m[1].replace(',', '.'));
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+
+    let rawItems = [];
+    const pushItem = (entry, fallbackYear) => {
+      const yr = Number(entry?.year ?? fallbackYear);
+      const amount = parseAmount(entry?.amount ?? entry?.totalAmount ?? entry?.value);
+      const rate = parseRate(entry?.interestRate ?? entry?.rate ?? entry?.averageRate);
+      const type = String(entry?.type || entry?.name || entry?.label || 'Deuda total').trim();
+      if (!Number.isFinite(yr) || !Number.isFinite(amount) || amount <= 0) return;
+      rawItems.push({
+        year: yr,
+        name: String(entry?.name || entry?.label || type).trim(),
+        type,
+        amount,
+        interestRate: rate,
+      });
+    };
+
+    if (Array.isArray(debt.maturitySchedule)) {
+      debt.maturitySchedule.forEach((entry) => {
+        if (Array.isArray(entry?.items) && entry.items.length) entry.items.forEach((it) => pushItem(it, entry.year));
+        else pushItem(entry, entry?.year);
+      });
+    } else if (debt.maturitySchedule && Array.isArray(debt.maturitySchedule.years)) {
+      debt.maturitySchedule.years.forEach((entry) => {
+        if (Array.isArray(entry?.items) && entry.items.length) entry.items.forEach((it) => pushItem(it, entry.year));
+        else pushItem(entry, entry?.year);
+      });
+    }
+
+    // Calendario XBRL de la SEC
+    if (rawItems.length === 0 && Array.isArray(debt.maturityCalendar?.years)) {
+      debt.maturityCalendar.years.forEach((entry) => pushItem({ ...entry, type: 'Deuda total' }));
+    }
+
+    if (rawItems.length === 0) {
+      const snippetRows = debt.secSnippet?.rows || debt.secTable?.rows;
+      if (Array.isArray(snippetRows) && snippetRows.length) {
+        snippetRows.forEach((r) => {
+          const rowArr = Array.isArray(r) ? r : [r.metric ?? r.name, r.value];
+          const rowText = rowArr.join(' ');
+          const name = String(rowArr[0] || '').trim();
+
+          let yr = null;
+          rowArr.slice(1).forEach((cellValue) => {
+            if (yr != null) return;
+            const yearMatch = String(cellValue ?? '').match(/\b(20\d\d)\b/);
+            if (yearMatch) yr = parseInt(yearMatch[1], 10);
+          });
+          if (!Number.isFinite(yr)) return;
+
+          let amount = NaN;
+          rowArr.slice(1).forEach((cellValue) => {
+            if (Number.isFinite(amount)) return;
+            const text = String(cellValue ?? '');
+            if (!/(\$|€|£|million|billion|\d[.,]\d)/i.test(text)) return;
+            const parsed = parseAmount(cellValue);
+            if (Number.isFinite(parsed) && parsed > 0) amount = parsed;
+          });
+          if (!Number.isFinite(amount) || amount <= 0) return;
+
+          const rateMatch = rowText.match(/(\d+(?:[\.,]\d+)?)\s*%/);
+          pushItem({
+            year: yr,
+            name,
+            type: (name || 'Deuda total').replace(/^(\$|CAD|EUR|GBP)?\s*[\d.,]+\s*(?:billion|million|B|M)?\s*/i, '').replace(/\s+senior\s+notes/i, ' Notes').trim() || 'Deuda total',
+            amount,
+            interestRate: rateMatch ? parseFloat(rateMatch[1].replace(',', '.')) : null,
+          });
+        });
+      }
+    }
+
+    // Regla estricta: el gráfico solo muestra los próximos 5 años
+    const futureItems = rawItems.filter((it) => Number.isFinite(it.year) && it.year > maxYear && Number.isFinite(it.amount));
+    const filtered = rawItems.filter((it) => Number.isFinite(it.year) && it.year >= minYear && it.year <= maxYear && Number.isFinite(it.amount) && it.amount > 0);
+    if (filtered.length === 0) return '';
+
+    const palette = ['#0284c7', '#d97706', '#7c3aed', '#059669', '#e11d48', '#0891b2', '#4f46e5', '#ea580c', '#475569'];
+    const distinctTypes = [...new Set(filtered.map((it) => it.type || it.name))];
+    const typeColorMap = new Map();
+    if (distinctTypes.length <= 1) typeColorMap.set(distinctTypes[0] ?? 'Deuda total', '#f59e0b');
+    else distinctTypes.forEach((t, i) => typeColorMap.set(t, palette[i % palette.length]));
+
+    filtered.forEach((it) => {
+      it.color = typeColorMap.get(it.type || it.name) || '#f59e0b';
+    });
+
+    const yearsMap = new Map();
+    filtered.forEach((it) => {
+      if (!yearsMap.has(it.year)) yearsMap.set(it.year, []);
+      yearsMap.get(it.year).push(it);
+    });
+
+    const groupedYears = [];
+    for (let yr = minYear; yr <= maxYear; yr += 1) {
+      const items = yearsMap.get(yr) ?? [];
+      const totalAmount = items.reduce((s, it) => s + it.amount, 0);
+      const ratedItems = items.filter((it) => it.interestRate != null);
+      const ratedAmount = ratedItems.reduce((s, it) => s + it.amount, 0);
+      const averageRate = ratedAmount > 0 ? ratedItems.reduce((s, it) => s + it.amount * it.interestRate, 0) / ratedAmount : null;
+      groupedYears.push({ year: yr, totalAmount, averageRate, items });
+    }
+
+    const allAmount = filtered.reduce((s, it) => s + it.amount, 0);
+    const ratedItems = filtered.filter((it) => it.interestRate != null);
+    const ratedAmount = ratedItems.reduce((s, it) => s + it.amount, 0);
+    const totalAverageRate = ratedAmount > 0 ? ratedItems.reduce((s, it) => s + it.amount * it.interestRate, 0) / ratedAmount : null;
+    let afterYearFive = parseAmount(debt.maturityAfterFive);
+    if (!Number.isFinite(afterYearFive) && futureItems.length) afterYearFive = futureItems.reduce((s, it) => s + it.amount, 0);
+    if (!Number.isFinite(afterYearFive)) afterYearFive = null;
+    const max = Math.max(...groupedYears.map((y) => y.totalAmount), 1);
+
+    const W = 640, H = 265, padL = 52, padR = 14, padT = 32, padB = 52;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const step = max > 5000 ? 1000 : (max > 1000 ? 500 : (max > 200 ? 100 : 50));
+    const niceMax = Math.ceil(max / step) * step || max;
+    const n = groupedYears.length;
+    const slotW = plotW / n;
+    const barW = Math.min(50, slotW * 0.65);
+    const parts = [];
+
+    // Leyenda
+    let legX = padL;
+    if (distinctTypes.length > 1) {
+      distinctTypes.forEach((t) => {
+        parts.push(`<rect x="${legX}" y="10" width="10" height="10" rx="2" fill="${typeColorMap.get(t)}"/>`);
+        parts.push(`<text x="${legX + 13}" y="18" font-size="8.5" font-weight="700" fill="#334155">${escapeHtml(t)}</text>`);
+        legX += (t.length * 5.2) + 26;
+      });
+    }
+
+    // Líneas horizontales de cuadrícula
+    for (let g = 0; g <= 3; g += 1) {
+      const v = (niceMax * (3 - g)) / 3;
+      const gy = padT + plotH * (1 - v / niceMax);
+      parts.push(`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="${g === 3 ? '#cbd5e1' : '#e2e8f0'}" stroke-width="1"${g === 3 ? ' stroke-dasharray="4 3"' : ''}/>`);
+      parts.push(`<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">$${Math.round(v)}M</text>`);
+    }
+
+    groupedYears.forEach((yr, i) => {
+      const cx = padL + slotW * (i + 0.5);
+      let curBaseline = padT + plotH;
+
+      yr.items.forEach((it) => {
+        const blockH = Math.max(3, (it.amount / niceMax) * plotH);
+        const topY = curBaseline - blockH;
+        parts.push(`<rect x="${(cx - barW / 2).toFixed(1)}" y="${topY.toFixed(1)}" width="${barW.toFixed(1)}" height="${blockH.toFixed(1)}" rx="2" fill="${it.color || '#f59e0b'}"/>`);
+        if (blockH >= 12 && it.interestRate != null) {
+          parts.push(`<text x="${cx.toFixed(1)}" y="${(topY + blockH / 2 + 3.5).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="#ffffff">${it.interestRate.toFixed(1).replace('.', ',')}%</text>`);
+        }
+        curBaseline = topY;
+      });
+
+      if (yr.totalAmount > 0) {
+        parts.push(`<text x="${cx.toFixed(1)}" y="${(curBaseline - 12).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#0f172a">$${yr.totalAmount.toFixed(1).replace('.', ',')}M</text>`);
+        if (yr.averageRate != null) {
+          parts.push(`<text x="${cx.toFixed(1)}" y="${(curBaseline - 2).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="#c2410c">Media: ${yr.averageRate.toFixed(2).replace('.', ',')}%</text>`);
+        }
+      } else {
+        parts.push(`<text x="${cx.toFixed(1)}" y="${(padT + plotH - 4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#94a3b8">—</text>`);
+      }
+      parts.push(`<text x="${cx.toFixed(1)}" y="${(padT + plotH + 15).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#334155">${yr.year}</text>`);
+    });
+
+    const bannerY = H - 28;
+    parts.push(`<rect x="${padL}" y="${bannerY}" width="${plotW}" height="22" rx="4" fill="#1e293b"/>`);
+    const afterText = afterYearFive != null ? `  ·  Después del año 5: $${afterYearFive.toFixed(1).replace('.', ',')}M` : '';
+    const bannerText = totalAverageRate != null
+      ? `Tipo de interés medio total (próximos 5 años): ${totalAverageRate.toFixed(2).replace('.', ',')} %  ·  Deuda a amortizar: $${allAmount.toFixed(1).replace('.', ',')}M${afterText}`
+      : `Deuda a amortizar en los próximos 5 años: $${allAmount.toFixed(1).replace('.', ',')}M${afterText}`;
+    parts.push(`<text x="${(padL + plotW / 2).toFixed(1)}" y="${bannerY + 14.5}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#ffffff">${escapeHtml(bannerText)}</text>`);
+
+    const title = `CALENDARIO DE VENCIMIENTOS DE DEUDA (PRÓXIMOS 5 AÑOS: ${minYear}–${maxYear})`;
+    return `<div class="shares-chart"><div class="sc-title">${escapeHtml(title)}</div><svg class="sc-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${escapeHtml(title)}" preserveAspectRatio="xMidYMid meet">${parts.join('')}</svg></div>`;
+  }
+
+  function renderDebtHistoryChart(debt, report) {
+    const rawList = debt?.debtHistory || report?.edgarDebtHistory || report?.annualDebtHistory || null;
+    if (!Array.isArray(rawList) || rawList.length < 2) return '';
+
+    const parseNum = (val) => {
+      if (val == null) return NaN;
+      let s = String(val).replace(/[$€£\s]/g, '').trim();
+      if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+      else if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+      return parseFloat(s);
+    };
+
+    const points = rawList
+      .map((p) => ({
+        year: Number(p?.year || (p?.periodEnd ? parseInt(String(p.periodEnd).slice(0, 4), 10) : null)),
+        totalDebt: parseNum(p?.totalDebt),
+        netDebt: parseNum(p?.netDebt),
+      }))
+      .filter((p) => Number.isFinite(p.year) && Number.isFinite(p.totalDebt))
+      .sort((a, b) => a.year - b.year)
+      .slice(-10);
+
+    if (points.length < 2) return '';
+
+    points.forEach((p, i) => {
+      if (i > 0) {
+        const prev = points[i - 1];
+        p.deltaTotalDebt = Number.isFinite(prev.totalDebt) ? Math.round((p.totalDebt - prev.totalDebt) * 10) / 10 : null;
+        p.deltaNetDebt = (Number.isFinite(p.netDebt) && Number.isFinite(prev.netDebt)) ? Math.round((p.netDebt - prev.netDebt) * 10) / 10 : null;
+      } else {
+        p.deltaTotalDebt = null;
+        p.deltaNetDebt = null;
+      }
+    });
+
+    const allVals = points.flatMap((p) => [p.totalDebt, Number.isFinite(p.netDebt) ? p.netDebt : p.totalDebt]);
+    const max = Math.max(...allVals) || 1;
+    const W = 640, H = 260, padL = 52, padR = 14, padT = 32, padB = 44;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const step = max > 5000 ? 1000 : (max > 1000 ? 500 : (max > 200 ? 100 : 50));
+    const niceMax = Math.ceil(max / step) * step || max;
+    const n = points.length;
+    const slotW = plotW / n;
+    const groupW = Math.min(48, slotW * 0.76);
+    const barW = (groupW - 4) / 2;
+    const parts = [];
+
+    parts.push(`<rect x="170" y="10" width="10" height="10" rx="2" fill="#1e40af"/>`);
+    parts.push(`<text x="185" y="18" font-size="8.5" font-weight="700" fill="#334155">Deuda Normal / Total</text>`);
+    parts.push(`<rect x="330" y="10" width="10" height="10" rx="2" fill="#d97706"/>`);
+    parts.push(`<text x="345" y="18" font-size="8.5" font-weight="700" fill="#334155">Deuda Neta</text>`);
+
+    for (let g = 0; g <= 3; g += 1) {
+      const v = (niceMax * (3 - g)) / 3;
+      const gy = padT + plotH * (1 - v / niceMax);
+      parts.push(`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="${g === 3 ? '#cbd5e1' : '#e2e8f0'}" stroke-width="1"${g === 3 ? ' stroke-dasharray="4 3"' : ''}/>`);
+      parts.push(`<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">$${Math.round(v)}M</text>`);
+    }
+
+    points.forEach((p, i) => {
+      const cx = padL + slotW * (i + 0.5);
+      const top1 = padT + plotH * (1 - p.totalDebt / niceMax);
+      const top2 = Number.isFinite(p.netDebt) ? padT + plotH * (1 - Math.max(0, p.netDebt) / niceMax) : padT + plotH;
+
+      parts.push(`<rect x="${(cx - groupW / 2).toFixed(1)}" y="${top1.toFixed(1)}" width="${barW.toFixed(1)}" height="${(padT + plotH - top1).toFixed(1)}" rx="2" fill="#1e40af"/>`);
+      parts.push(`<text x="${(cx - groupW / 2 + barW / 2).toFixed(1)}" y="${(top1 - 3).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#1e40af">${Math.round(p.totalDebt)}M</text>`);
+
+      if (Number.isFinite(p.netDebt)) {
+        parts.push(`<rect x="${(cx - groupW / 2 + barW + 4).toFixed(1)}" y="${top2.toFixed(1)}" width="${barW.toFixed(1)}" height="${(padT + plotH - top2).toFixed(1)}" rx="2" fill="#d97706"/>`);
+        parts.push(`<text x="${(cx - groupW / 2 + barW + 4 + barW / 2).toFixed(1)}" y="${(top2 - 3).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#d97706">${Math.round(p.netDebt)}M</text>`);
+      }
+
+      parts.push(`<text x="${cx.toFixed(1)}" y="${(padT + plotH + 13).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#334155">${p.year}</text>`);
+
+      const deltaY = padT + plotH + 24;
+      if (p.deltaTotalDebt != null) {
+        const dColor = p.deltaTotalDebt < 0 ? '#16a34a' : '#dc2626';
+        const dSign = p.deltaTotalDebt > 0 ? '+' : '';
+        parts.push(`<text x="${(cx - groupW / 2 + barW / 2).toFixed(1)}" y="${deltaY.toFixed(1)}" text-anchor="middle" font-size="6.5" font-weight="700" fill="${dColor}">${dSign}${Math.round(p.deltaTotalDebt)}M</text>`);
+      }
+      if (p.deltaNetDebt != null) {
+        const dColor = p.deltaNetDebt < 0 ? '#16a34a' : '#dc2626';
+        const dSign = p.deltaNetDebt > 0 ? '+' : '';
+        parts.push(`<text x="${(cx - groupW / 2 + barW + 4 + barW / 2).toFixed(1)}" y="${deltaY.toFixed(1)}" text-anchor="middle" font-size="6.5" font-weight="700" fill="${dColor}">${dSign}${Math.round(p.deltaNetDebt)}M</text>`);
+      }
+    });
+
+    const title = `EVOLUCIÓN DE LA DEUDA: NORMAL VS NETA (${points[0].year}–${points[points.length - 1].year})`;
+    return `<div class="shares-chart"><div class="sc-title">${escapeHtml(title)}</div><svg class="sc-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${escapeHtml(title)}" preserveAspectRatio="xMidYMid meet">${parts.join('')}</svg></div>`;
+  }
+
+  function renderDebtRefinancingCard(debt, report) {
+    if (!debt) return '';
+    let oldDebtRate = debt.refinancing?.oldDebtRate ?? null;
+    let newDebtRate = debt.refinancing?.newDebtRate ?? debt.refinancing?.estimatedRefinancingRate ?? null;
+    let amount = debt.refinancing?.amountRefinanced ?? debt.refinancing?.nearTermMaturities ?? null;
+
+    const narrative = `${debt.refinancingAnalysis || ''} ${debt.refinancingImpact || ''} ${debt.text || ''}`;
+    const parseLocaleNumber = (raw) => {
+      let s = String(raw ?? '').trim();
+      if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+      else if (s.includes(',')) s = s.replace(',', '.');
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : null;
+    };
+    if (oldDebtRate == null) {
+      const patterns = [
+        /(?:tipo anterior|antigua|vencida|vendida|retirada|emisi[oó]n original|original(?:es)?|devengaba|pagaba)[^.%]{0,60}?(\d+(?:[.,]\d+)?)\s*%/i,
+        /(?:alrededor del|al)\s*(\d+(?:[.,]\d+)?)\s*%/i,
+      ];
+      for (const re of patterns) {
+        const m = narrative.match(re);
+        if (m) { oldDebtRate = parseLocaleNumber(m[1]); break; }
+      }
+    }
+    if (newDebtRate == null) {
+      const patterns = [
+        /(?:nueva deuda|nueva emisi[oó]n|nuevo tipo|coste estimado|refinanciaci[oó]n)[^.%]{0,80}?(\d+(?:[.,]\d+)?)\s*%/i,
+        /(?:mercado actual|nuevo coste|estima(?:mos|do)?)[^.%]{0,60}?(\d+(?:[.,]\d+)?)\s*%/i,
+      ];
+      for (const re of patterns) {
+        const m = narrative.match(re);
+        if (m) { newDebtRate = parseLocaleNumber(m[1]); break; }
+      }
+    }
+    if (amount == null) {
+      const m = narrative.match(/(?:vencen unos|vencen|nominal de|importe de|asciende a|deuda que vence[^.]{0,50}?)(?:~?\$?)([\d.,]+)\s*(?:M|mil millones|B)\b/i);
+      if (m) {
+        const parsed = parseLocaleNumber(m[1]);
+        amount = /mil millones|B\b/i.test(m[0]) ? parsed * 1000 : parsed;
+      }
+    }
+
+    let shares = null;
+    const sharesRow = report?.horizons?.[0]?.sales?.shares;
+    if (sharesRow) {
+      const sMatch = String(sharesRow).match(/([\d\.,]+)\s*M/i);
+      if (sMatch) shares = parseLocaleNumber(sMatch[1]);
+    }
+    if (!shares && report?.shares) shares = Number(report.shares);
+    if (!shares && Array.isArray(report?.conclusion?.repurchases?.sharesHistory)) {
+      const lastP = report.conclusion.repurchases.sharesHistory.slice(-1)[0];
+      if (lastP?.shares) shares = Number(lastP.shares);
+    }
+
+    let interestDelta = null, netInterestDelta = null, epsImpact = null, epsText = null;
+    if (Number.isFinite(oldDebtRate) && Number.isFinite(newDebtRate) && Number.isFinite(amount)) {
+      const rateDiff = newDebtRate - oldDebtRate;
+      interestDelta = Math.round((amount * (rateDiff / 100)) * 10) / 10;
+      netInterestDelta = Math.round((interestDelta * (1 - 0.23)) * 10) / 10;
+      if (shares && shares > 0) {
+        epsImpact = Math.round((-netInterestDelta / shares) * 100) / 100;
+      }
+    }
+
+    if (epsImpact != null) {
+      const absEps = Math.abs(epsImpact).toFixed(2).replace('.', ',');
+      if (epsImpact < 0) {
+        epsText = `los nuevos costes suben reduciendo en torno a <strong>${absEps} $/acción</strong> el BPA (impacto: <strong>-${absEps} $/acc</strong>)`;
+      } else {
+        epsText = `los nuevos costes bajan en torno a <strong>${absEps} $/acción</strong> (impacto favorable en el BPA de <strong>+${absEps} $/acc</strong>)`;
+      }
+    }
+
+    const hasRef = Number.isFinite(oldDebtRate) || Number.isFinite(newDebtRate) || debt.refinancingAnalysis || debt.refinancingImpact;
+    if (!hasRef) return '';
+
+    return `
+      <div class="annual-calc-box" style="border-left-color:#ea580c;background:#fff7ed;">
+        <strong style="color:#9a3412;">Refinanciación de deuda e impacto en BPA:</strong>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;">
+          <div class="annual-badge"><strong>Tipo anterior:</strong> ${oldDebtRate != null ? `${oldDebtRate.toFixed(2).replace('.', ',')} %` : '—'}</div>
+          <div class="annual-badge"><strong>Tipo nueva emisión:</strong> ${newDebtRate != null ? `${newDebtRate.toFixed(2).replace('.', ',')} %` : '—'}</div>
+          <div class="annual-badge"><strong>Volumen:</strong> ${amount != null ? `$${Math.round(amount)}M` : '—'}</div>
+          ${epsImpact != null ? `<div class="annual-badge badge-accent" style="background:#fed7aa;border-color:#fdba74;color:#7c2d12;"><strong>Impacto BPA:</strong> ${epsImpact >= 0 ? '+' : ''}${epsImpact.toFixed(2).replace('.', ',')} $/acc</div>` : ''}
+        </div>
+        ${debt.refinancingAnalysis ? `<p>${formatAnnualRichText(debt.refinancingAnalysis)}</p>` : ''}
+        ${debt.refinancingImpact ? `<p class="calc-impact" style="color:#9a3412;"><strong>Impacto en costes e intereses:</strong> ${formatAnnualRichText(debt.refinancingImpact)}</p>` : ''}
+        ${epsText ? `<p style="font-weight:600;color:#9a3412;margin-top:4px;">${epsText}</p>` : ''}
+      </div>
+    `;
   }
 
   function renderSecSnippet(snippet) {
     if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return '';
     const headers = Array.isArray(snippet.headers) ? snippet.headers : [];
+    const isOutlook = headers.some((h) => /guidance|outlook|proyectad/i.test(h)) || /guidance|outlook/i.test(snippet.title || '');
+
     const thead = headers.length
-      ? `<thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>`
+      ? `<thead><tr>${headers.map((h, i) => {
+          const alignClass = i > 0 ? ' class="sec-th-num"' : '';
+          return `<th${alignClass}>${escapeHtml(h)}</th>`;
+        }).join('')}</tr></thead>`
       : '';
     const tbody = snippet.rows.map((row) => {
       const isArr = Array.isArray(row);
       const cells = isArr ? row : [row.metric ?? row.name, row.value];
       const rowText = cells.join(' ').toLowerCase();
-      const isBuybackRow = rowText.includes('repurchased') || rowText.includes('recomprad') || rowText.includes('2026');
+      const isBuybackRow = rowText.includes('repurchased') || rowText.includes('recomprad');
       const isCostRow = rowText.includes('cost') || rowText.includes('coste') || rowText.includes('aggregate');
 
       const cellsHtml = cells.map((c, colIdx) => {
         let cls = '';
-        if (colIdx > 0 && isBuybackRow) cls = ' class="sec-highlight-yellow"';
-        else if (colIdx > 0 && isCostRow) cls = ' class="sec-highlight-orange"';
-        return `<td${cls}>${escapeHtml(c)}</td>`;
+        if (isOutlook && cells.length >= 4) {
+          if (colIdx === 0) cls = ' class="sec-col-metric"';
+          else if (colIdx === 1) cls = ' class="sec-col-prev"';
+          else if (colIdx === 2) cls = ' class="sec-col-guidance"';
+          else if (colIdx === 3) cls = ' class="sec-col-proj"';
+        } else {
+          if (colIdx > 0 && isBuybackRow) cls = ' class="sec-highlight-yellow"';
+          else if (colIdx > 0 && isCostRow) cls = ' class="sec-highlight-orange"';
+          else if (colIdx > 0) cls = ' class="sec-col-num"';
+        }
+        const valStr = String(c ?? '');
+        const formatted = colIdx > 0 ? boldNumbers(escapeHtml(valStr)) : escapeHtml(valStr);
+        return `<td${cls}>${formatted}</td>`;
       }).join('');
       return `<tr>${cellsHtml}</tr>`;
     }).join('');
@@ -327,7 +994,7 @@
     `;
   }
 
-  function renderAnnualConclusion(conclusion) {
+  function renderAnnualConclusion(conclusion, report) {
     if (!conclusion) return '';
     let html = `<div class="annual-conclusion-section">
       <div class="annual-conclusion-header">
@@ -338,16 +1005,19 @@
     // 1: Recompras
     const rep = conclusion.repurchases;
     if (rep) {
+      const repExpiry = (rep.authorizationExpiry && !/no indicad|not disclosed|not stated|no consta|no especificad/i.test(String(rep.authorizationExpiry)))
+        ? rep.authorizationExpiry
+        : null;
       html += `
         <div class="annual-deepdive-card">
           <h5 class="annual-card-title">${escapeHtml(rep.title || '1: Recompras')}</h5>
-          ${rep.text ? `<p class="annual-card-text">${boldNumbers(escapeHtml(rep.text)).replaceAll('\n', '<br>')}</p>` : ''}
+          ${rep.text ? `<p class="annual-card-text">${formatAnnualRichText(rep.text)}</p>` : ''}
           <div class="annual-metric-badges">
-            ${(rep.authorizationRemaining || rep.programRemaining) ? `<div class="annual-badge"><strong>Autorización restante:</strong> ${boldNumbers(escapeHtml(rep.authorizationRemaining || rep.programRemaining))}</div>` : ''}
-            ${rep.authorizationExpiry ? `<div class="annual-badge"><strong>Vigencia:</strong> ${boldNumbers(escapeHtml(rep.authorizationExpiry))}</div>` : ''}
-            ${rep.shareCountEvolution ? `<div class="annual-badge"><strong>Evolución de acciones:</strong> ${boldNumbers(escapeHtml(rep.shareCountEvolution))}</div>` : ''}
-            ${rep.bpaImpact ? `<div class="annual-badge badge-accent"><strong>Impacto BPA:</strong> ${boldNumbers(escapeHtml(rep.bpaImpact))}</div>` : ''}
-            ${rep.futureProjection ? `<div class="annual-badge"><strong>Proyección 5 años:</strong> ${boldNumbers(escapeHtml(rep.futureProjection))}</div>` : ''}
+            ${(rep.authorizationRemaining || rep.programRemaining) ? `<div class="annual-badge"><strong>Autorización restante:</strong> ${formatAnnualRichText(rep.authorizationRemaining || rep.programRemaining)}</div>` : ''}
+            ${repExpiry ? `<div class="annual-badge"><strong>Vigencia:</strong> ${formatAnnualRichText(repExpiry)}</div>` : ''}
+            ${rep.shareCountEvolution ? `<div class="annual-badge"><strong>Evolución de acciones:</strong> ${formatAnnualRichText(rep.shareCountEvolution)}</div>` : ''}
+            ${rep.bpaImpact ? `<div class="annual-badge badge-accent"><strong>Impacto BPA:</strong> ${formatAnnualRichText(rep.bpaImpact)}</div>` : ''}
+            ${rep.futureProjection ? `<div class="annual-badge"><strong>Proyección 5 años:</strong> ${formatAnnualRichText(rep.futureProjection)}</div>` : ''}
           </div>
           ${renderSharesChart(rep.sharesHistory)}
           ${renderSecSnippet(withAveragePrice(rep.secSnippet))}
@@ -361,11 +1031,11 @@
       html += `
         <div class="annual-deepdive-card">
           <h5 class="annual-card-title">${escapeHtml(out.title || '2: Outlook')}</h5>
-          ${out.text ? `<p class="annual-card-text">${escapeHtml(out.text).replaceAll('\n', '<br>')}</p>` : ''}
-          ${out.fcfAnalysis ? `<p class="annual-card-text"><strong>Análisis FCF:</strong> ${escapeHtml(out.fcfAnalysis)}</p>` : ''}
-          ${out.riskFactors ? `<p class="annual-card-text"><strong>Riesgos y Sensibilidad:</strong> ${escapeHtml(out.riskFactors)}</p>` : ''}
-          ${out.efficiencyPlans ? `<p class="annual-card-text"><strong>Programas de eficiencia:</strong> ${escapeHtml(out.efficiencyPlans)}</p>` : ''}
-          ${renderSecSnippet(out.secSnippet)}
+          ${out.text ? `<p class="annual-card-text">${formatAnnualRichText(out.text)}</p>` : ''}
+          ${out.fcfAnalysis ? `<p class="annual-card-text"><strong>Análisis FCF:</strong> ${formatAnnualRichText(out.fcfAnalysis)}</p>` : ''}
+          ${out.riskFactors ? `<p class="annual-card-text"><strong>Riesgos y Sensibilidad:</strong> ${formatAnnualRichText(out.riskFactors)}</p>` : ''}
+          ${out.efficiencyPlans ? `<p class="annual-card-text"><strong>Programas de eficiencia:</strong> ${formatAnnualRichText(out.efficiencyPlans)}</p>` : ''}
+          ${renderSecSnippet(withOutlookComparison(out.secSnippet, report))}
         </div>
       `;
     }
@@ -376,14 +1046,10 @@
       html += `
         <div class="annual-deepdive-card">
           <h5 class="annual-card-title">${escapeHtml(debt.title || '3: Deuda')}</h5>
-          ${debt.text ? `<p class="annual-card-text">${escapeHtml(debt.text).replaceAll('\n', '<br>')}</p>` : ''}
-          ${(debt.refinancingAnalysis || debt.refinancingImpact) ? `
-            <div class="annual-calc-box">
-              <strong>Refinanciación de deuda a corto plazo:</strong>
-              ${debt.refinancingAnalysis ? `<p>${escapeHtml(debt.refinancingAnalysis)}</p>` : ''}
-              ${debt.refinancingImpact ? `<p class="calc-impact"><strong>Impacto en intereses:</strong> ${escapeHtml(debt.refinancingImpact)}</p>` : ''}
-            </div>
-          ` : ''}
+          ${debt.text ? `<p class="annual-card-text">${formatAnnualRichText(debt.text)}</p>` : ''}
+          ${renderDebtMaturityChart(debt, report?.fiscalYear)}
+          ${renderDebtHistoryChart(debt, report)}
+          ${renderDebtRefinancingCard(debt, report)}
           ${renderSecSnippet(debt.secSnippet)}
         </div>
       `;
@@ -395,7 +1061,7 @@
       html += `
         <div class="annual-deepdive-card">
           <h5 class="annual-card-title">${escapeHtml(acq.title || '4: Adquisiciones')}</h5>
-          <p class="annual-card-text">${escapeHtml(acq.text || 'No se realizaron adquisiciones materiales durante el ejercicio.').replaceAll('\n', '<br>')}</p>
+          <p class="annual-card-text">${formatAnnualRichText(acq.text || 'No se realizaron adquisiciones materiales durante el ejercicio.')}</p>
         </div>
       `;
     }
@@ -407,7 +1073,7 @@
         <div class="annual-deepdive-card watchlist-card">
           <h5 class="annual-card-title">${escapeHtml(watch.title || 'Cosas a tener en cuenta')}</h5>
           <ul class="watchlist-list">
-            ${watch.items.map((item) => `<li><span class="watchlist-check">✓</span> <span>${escapeHtml(item)}</span></li>`).join('')}
+            ${watch.items.map((item) => `<li><span class="watchlist-check">✓</span> <span>${formatAnnualRichText(item)}</span></li>`).join('')}
           </ul>
         </div>
       `;
@@ -427,7 +1093,7 @@
           <span class="annual-rating-badge">${escapeHtml(rating.label || `NOTA DE RESULTADOS: ${score}`)}</span>
           <span class="annual-rating-score">${score} <small>/ 10</small></span>
         </div>
-        <p class="annual-rating-rationale">${escapeHtml(rating.rationale || '')}</p>
+        <p class="annual-rating-rationale">${formatAnnualRichText(rating.rationale || '')}</p>
         <p class="annual-rating-disclaimer">Nota puramente financiera basada exclusivamente en las cuentas anuales, el outlook oficial y la asignación de capital ejecutada. Sin especulación sobre el cumplimiento futuro de expectativas.</p>
       </div>
     `;
@@ -442,7 +1108,7 @@
     if (reportBody) {
       let html = horizons.map(renderHorizon).join('');
       if (report.conclusion) {
-        html += renderAnnualConclusion(report.conclusion);
+        html += renderAnnualConclusion(report.conclusion, report);
       }
       if (report.rating) {
         html += renderAnnualRating(report.rating);
@@ -492,6 +1158,43 @@
     if (dropzone) dropzone.hidden = false;
     if (filePreview) filePreview.hidden = true;
     if (analyzeButton) analyzeButton.disabled = true;
+    clearPresentationFile();
+  }
+
+  function setPresentationFile(file) {
+    if (!file) return;
+    const presentationInput = document.querySelector('#presentation-input');
+    const presentationPreview = document.querySelector('#presentation-preview');
+    const presentationName = document.querySelector('#presentation-name');
+    const presentationSize = document.querySelector('#presentation-size');
+    const selectPresentation = document.querySelector('#select-presentation');
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      showToast('La presentación debe ser un archivo PDF.');
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      showToast('La presentación supera el límite de 25 MB.');
+      return;
+    }
+
+    selectedPresentation = file;
+    if (presentationName) presentationName.textContent = file.name;
+    if (presentationSize) presentationSize.textContent = formatFileSize(file.size);
+    if (presentationPreview) presentationPreview.hidden = false;
+    if (selectPresentation) selectPresentation.hidden = true;
+    if (presentationInput) presentationInput.value = '';
+  }
+
+  function clearPresentationFile() {
+    selectedPresentation = null;
+    const presentationInput = document.querySelector('#presentation-input');
+    const presentationPreview = document.querySelector('#presentation-preview');
+    const selectPresentation = document.querySelector('#select-presentation');
+    if (presentationInput) presentationInput.value = '';
+    if (presentationPreview) presentationPreview.hidden = true;
+    if (selectPresentation) selectPresentation.hidden = false;
   }
 
   function setAgentState(agent, state) {
@@ -843,6 +1546,7 @@
 
     const formData = new FormData();
     formData.append('file', selectedFile);
+    if (selectedPresentation) formData.append('presentation', selectedPresentation);
 
     try {
       const response = await fetch('/api/upload', { method: 'POST', body: formData });
@@ -1241,6 +1945,22 @@
       if (event.target.files && event.target.files[0]) {
         setFile(event.target.files[0]);
       }
+    });
+
+    document.querySelector('#select-presentation')?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      document.querySelector('#presentation-input')?.click();
+    });
+
+    document.querySelector('#presentation-input')?.addEventListener('change', (event) => {
+      if (event.target.files && event.target.files[0]) {
+        setPresentationFile(event.target.files[0]);
+      }
+    });
+
+    document.querySelector('#remove-presentation')?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      clearPresentationFile();
     });
 
     removeFileButton?.addEventListener('click', clearFile);

@@ -1,0 +1,26 @@
+{
+  "name": "Cifra — Análisis de informes 10-Q y 10-K con IA",
+  "short_name": "Cifra",
+  "description": "Cifra convierte los informes financieros 10-Q y 10-K que las empresas de EE. UU. presentan ante la SEC en un análisis estructurado en segundos.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "lang": "es",
+  "categories": ["finance", "investing"],
+  "icons": [
+    {
+      "src": "/logo-cifra.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-cifra.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

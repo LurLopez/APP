@@ -15,10 +15,24 @@
 
 const NOVEDADES_DATA = [
   {
+    version: 'v1.5.0',
+    fecha: '10 de Septiembre, 2026',
+    titulo: 'Presentaciones de resultados integradas en el análisis',
+    esUltima: true,
+    explicacion: 'El outlook/guidance casi nunca aparece en el 10-K: se publica en la presentación o comunicado de resultados del 8-K. A partir de ahora el analista recibe el 10-K/10-Q junto con la presentación de resultados asociada y usa ambas fuentes para el informe. En la pestaña de informes trimestrales aparecen ahora los dos documentos de cada periodo.',
+    cambios: [
+      { tipo: 'nuevo', texto: 'Detección automática del 8-K de resultados (item 2.02) vinculado a cada 10-Q/10-K y de sus presentaciones/comunicados (exhibits ex-99).' },
+      { tipo: 'nuevo', texto: 'El analista IA recibe el 10-K/10-Q y la presentación de resultados y extrae el outlook/guidance de la presentación cuando el 10-K no lo incluye.' },
+      { tipo: 'nuevo', texto: 'Botón "Presentación" en cada informe de la pestaña de informes trimestrales: abre el deck de resultados real publicado en la web de inversores de la empresa (y, si no existe, el comunicado del 8-K).' },
+      { tipo: 'nuevo', texto: 'El analista IA recibe el 10-K/10-Q, el deck de la web de inversores y el comunicado del 8-K, y extrae el outlook/guidance de la presentación cuando el 10-K no lo incluye.' },
+      { tipo: 'nuevo', texto: 'Subida manual opcional de la presentación junto al 10-Q/10-K para que la IA la use como documento complementario.' }
+    ]
+  },
+  {
     version: 'v1.4.0',
     fecha: '10 de Septiembre, 2026',
     titulo: 'Sistema de valoración de análisis y reporte de incidencias',
-    esUltima: true,
+    esUltima: false,
     explicacion: 'En esta versión incorporamos mecanismos directos de feedback para mejorar continuamente la precisión de los análisis financieros realizados por los agentes inteligentes de Cifra. Los usuarios ahora pueden calificar cada análisis fundamental completado y reportar cualquier discrepancia o anomalía encontrada.',
     cambios: [
       { tipo: 'nuevo', texto: 'Barra de valoración interactiva de 1 a 5 estrellas al pie de cada informe generado.' },

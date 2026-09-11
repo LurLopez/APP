@@ -5,6 +5,8 @@ const Portfolio = (() => {
   let data = null;
   let sectionRoot = null;
   let sectionOptions = {};
+  let calendarSectionRoot = null;
+  let calendarSectionOptions = {};
   let formExpanded = false;
   let formBusy = false;
   let searchDebounceTimer;
@@ -38,7 +40,7 @@ const Portfolio = (() => {
   let chartCachedData = null;
   let chartRedrawRaf = null;
 
-  const COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#e11d48', '#4f46e5', '#16a34a', '#ca8a04', '#9333ea', '#0d9488', '#ea580c', '#6366f1', '#64748b'];
+  const COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#e11d48', '#4f46e5', '#16a34a', '#ca8a04', '#9333ea', '#0d9488', '#db2777', '#6366f1', '#64748b'];
 
   function emitChange() {
     window.dispatchEvent(new CustomEvent('portfolio:change'));
@@ -144,6 +146,7 @@ const Portfolio = (() => {
     closeGroupPopover();
     emitChange();
     if (sectionRoot) renderSection();
+    if (calendarSectionRoot) renderCalendarSection();
     renderCompanyPanels();
   }
 
@@ -166,6 +169,7 @@ const Portfolio = (() => {
     }
     emitChange();
     if (sectionRoot) renderSection();
+    if (calendarSectionRoot) renderCalendarSection();
     renderCompanyPanels();
   }
 
@@ -2408,7 +2412,6 @@ const Portfolio = (() => {
     const tabs = [
       ['cartera', '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>', 'Cartera'],
       ['dividendos', '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>', 'Dividendos'],
-      ['calendario', '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>', 'Calendario'],
       ['operaciones', '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10M6 10h10M6 14h6"/></svg>', 'Operaciones'],
     ];
     return `
@@ -2474,14 +2477,159 @@ const Portfolio = (() => {
 
   /* ── Estado del panel de calendario ──────────────────────── */
 
+  const CALENDAR_VISIBILITY_STORAGE_KEY = 'cifra_calendar_visibility_v1';
+
+  function loadCalendarVisibility() {
+    try {
+      const raw = localStorage.getItem(CALENDAR_VISIBILITY_STORAGE_KEY);
+      if (!raw) {
+        return {
+          earnings: true,
+          exdiv: true,
+          payout: true,
+          portfolio: true,
+          watchlist: true,
+        };
+      }
+      const data = JSON.parse(raw);
+      return {
+        earnings: data.earnings !== false,
+        exdiv: data.exdiv !== false,
+        payout: data.payout !== false,
+        portfolio: data.portfolio !== false,
+        watchlist: data.watchlist !== false,
+      };
+    } catch {
+      return {
+        earnings: true,
+        exdiv: true,
+        payout: true,
+        portfolio: true,
+        watchlist: true,
+      };
+    }
+  }
+
+  function saveCalendarVisibility(vis) {
+    try {
+      localStorage.setItem(CALENDAR_VISIBILITY_STORAGE_KEY, JSON.stringify(vis));
+    } catch {
+      // ignore
+    }
+  }
+
+  const CALENDAR_COMPANY_VISIBILITY_STORAGE_KEY = 'cifra_calendar_company_visibility_v2';
+
+  function loadCalendarCompanyVisibility() {
+    try {
+      const raw = localStorage.getItem(CALENDAR_COMPANY_VISIBILITY_STORAGE_KEY);
+      if (!raw) return {};
+      return JSON.parse(raw) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveCalendarCompanyVisibility(map) {
+    try {
+      localStorage.setItem(CALENDAR_COMPANY_VISIBILITY_STORAGE_KEY, JSON.stringify(map));
+    } catch {
+      // ignore
+    }
+  }
+
+  function getUserPreferences() {
+    if (data?.userPreferences) return data.userPreferences;
+    if (typeof Settings !== 'undefined' && typeof Settings.getPreferences === 'function') {
+      return Settings.getPreferences();
+    }
+    return {
+      watchlistAutoCalendar: true,
+      watchlistAutoNotify: true,
+      watchlistNotifyEarnings: true,
+      watchlistNotifyExdiv: false,
+      watchlistNotifyPayout: false,
+      portfolioAutoNotify: true,
+      portfolioNotifyEarnings: true,
+      portfolioNotifyExdiv: true,
+      portfolioNotifyPayout: true,
+    };
+  }
+
+  function isCompanyInPortfolio(ticker) {
+    const up = String(ticker || '').toUpperCase();
+    if (hasPosition(up)) return true;
+    const comps = getCalendarCompanies();
+    const c = comps.find((item) => item.ticker.toUpperCase() === up);
+    return Boolean(c?.isPortfolio);
+  }
+
+  function getCompanyDefaultVisibility(ticker) {
+    const isPort = isCompanyInPortfolio(ticker);
+    const prefs = getUserPreferences();
+    if (isPort) {
+      return {
+        earnings: prefs.portfolioNotifyEarnings !== false,
+        exdiv: prefs.portfolioNotifyExdiv !== false,
+        payout: prefs.portfolioNotifyPayout !== false,
+      };
+    }
+    return {
+      earnings: prefs.watchlistNotifyEarnings !== false,
+      exdiv: Boolean(prefs.watchlistNotifyExdiv),
+      payout: Boolean(prefs.watchlistNotifyPayout),
+    };
+  }
+
   let calendarYear = 2026;
   let calendarMonth = 7; // Agosto (0-indexed)
-  let calendarFilter = 'all'; // 'all' | 'earnings' | 'exdiv' | 'payout'
+  let calendarVisibility = loadCalendarVisibility();
+  let calendarCompanyVisibility = loadCalendarCompanyVisibility();
+  let calendarEditingCompanyTicker = null;
+  let calendarConfigModalOpen = false;
   let calendarViewMode = 'grid'; // 'grid' | 'list'
   let calendarActiveModalEvent = null;
   let calendarAiLoading = false;
   let calendarAiResult = null;
   let calendarAiError = null;
+
+  function getCompanyVisibility(ticker) {
+    const up = String(ticker || '').toUpperCase();
+    const def = getCompanyDefaultVisibility(up);
+    const custom = calendarCompanyVisibility[up];
+    if (!custom) {
+      return def;
+    }
+    return {
+      earnings: custom.earnings !== undefined ? Boolean(custom.earnings) : def.earnings,
+      exdiv: custom.exdiv !== undefined ? Boolean(custom.exdiv) : def.exdiv,
+      payout: custom.payout !== undefined ? Boolean(custom.payout) : def.payout,
+    };
+  }
+
+  function hasCustomCompanyFilters(ticker) {
+    const up = String(ticker || '').toUpperCase();
+    const custom = calendarCompanyVisibility[up];
+    if (!custom) return false;
+    const def = getCompanyDefaultVisibility(up);
+    return (
+      (custom.earnings !== undefined && Boolean(custom.earnings) !== def.earnings) ||
+      (custom.exdiv !== undefined && Boolean(custom.exdiv) !== def.exdiv) ||
+      (custom.payout !== undefined && Boolean(custom.payout) !== def.payout)
+    );
+  }
+
+  function hasCustomCalendarFilters() {
+    const hasAnyCustomCompany = Object.keys(calendarCompanyVisibility).some((t) => hasCustomCompanyFilters(t));
+    return (
+      !calendarVisibility.earnings ||
+      !calendarVisibility.exdiv ||
+      !calendarVisibility.payout ||
+      !calendarVisibility.portfolio ||
+      !calendarVisibility.watchlist ||
+      hasAnyCustomCompany
+    );
+  }
 
   function fmtEur(value) {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
@@ -2504,7 +2652,7 @@ const Portfolio = (() => {
       payDatesCount: 46,
     },
     cashFlowYears: [
-      { year: 2023, total: 5292.09, color: '#f07b3f' },
+      { year: 2023, total: 5292.09, color: '#3b82f6' },
       { year: 2024, total: 5571.75, color: '#bf3865' },
       { year: 2025, total: 5645.86, color: '#83277d' },
       { year: 2026, total: 5810.19, color: '#4f1c80' },
@@ -2599,7 +2747,7 @@ const Portfolio = (() => {
       {
         ticker: 'VHYL',
         name: 'Vanguard FTSE All-World High Div Yield',
-        color: '#fcd877',
+        color: '#93c5fd',
         ttm: 373.23,
         pct: 6.49,
         sum: 2450.10,
@@ -2610,7 +2758,7 @@ const Portfolio = (() => {
       {
         ticker: 'UL',
         name: 'Unilever PLC',
-        color: '#f8b868',
+        color: '#60a5fa',
         ttm: 364.04,
         pct: 6.33,
         sum: 2980.60,
@@ -2621,7 +2769,7 @@ const Portfolio = (() => {
       {
         ticker: 'JNJ',
         name: 'Johnson & Johnson',
-        color: '#f58e57',
+        color: '#818cf8',
         ttm: 360.59,
         pct: 6.27,
         sum: 3420.80,
@@ -2632,7 +2780,7 @@ const Portfolio = (() => {
       {
         ticker: 'MSFT',
         name: 'Microsoft Corp',
-        color: '#e76747',
+        color: '#6366f1',
         ttm: 339.30,
         pct: 5.90,
         sum: 2650.40,
@@ -2684,9 +2832,9 @@ const Portfolio = (() => {
         displayTotal: 420,
         items: [
           { ticker: 'SHEL', name: 'Shell PLC', color: '#389fa5', amount: 117.49 },
-          { ticker: 'UL', name: 'Unilever PLC', color: '#f8b868', amount: 95.01 },
-          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#f58e57', amount: 88.80 },
-          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#e76747', amount: 78.49 },
+          { ticker: 'UL', name: 'Unilever PLC', color: '#60a5fa', amount: 95.01 },
+          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#818cf8', amount: 88.80 },
+          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#6366f1', amount: 78.49 },
           { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.82 },
         ],
       },
@@ -2698,7 +2846,7 @@ const Portfolio = (() => {
         items: [
           { ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', color: '#3a79b8', amount: 176.09 },
           { ticker: 'KO', name: 'Coca-Cola Co', color: '#e8ef7b', amount: 92.10 },
-          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#fcd877', amount: 76.90 },
+          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#93c5fd', amount: 76.90 },
           { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.49 },
         ],
       },
@@ -2721,11 +2869,11 @@ const Portfolio = (() => {
         displayTotal: 594,
         items: [
           { ticker: 'SHEL', name: 'Shell PLC', color: '#389fa5', amount: 118.47 },
-          { ticker: 'UL', name: 'Unilever PLC', color: '#f8b868', amount: 95.49 },
+          { ticker: 'UL', name: 'Unilever PLC', color: '#60a5fa', amount: 95.49 },
           { ticker: 'KO', name: 'Coca-Cola Co', color: '#e8ef7b', amount: 91.98 },
-          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#f58e57', amount: 89.48 },
-          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#e76747', amount: 86.05 },
-          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#fcd877', amount: 72.71 },
+          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#818cf8', amount: 89.48 },
+          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#6366f1', amount: 86.05 },
+          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#93c5fd', amount: 72.71 },
           { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.12 },
         ],
       },
@@ -2758,8 +2906,8 @@ const Portfolio = (() => {
         displayTotal: 344,
         items: [
           { ticker: 'SHEL', name: 'Shell PLC', color: '#389fa5', amount: 125.92 },
-          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#f58e57', amount: 89.87 },
-          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#e76747', amount: 87.67 },
+          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#818cf8', amount: 89.87 },
+          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#6366f1', amount: 87.67 },
           { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 41.20 },
         ],
       },
@@ -2770,8 +2918,8 @@ const Portfolio = (() => {
         displayTotal: 343,
         items: [
           { ticker: 'KO', name: 'Coca-Cola Co', color: '#e8ef7b', amount: 96.92 },
-          { ticker: 'UL', name: 'Unilever PLC', color: '#f8b868', amount: 86.78 },
-          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#fcd877', amount: 69.57 },
+          { ticker: 'UL', name: 'Unilever PLC', color: '#60a5fa', amount: 86.78 },
+          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#93c5fd', amount: 69.57 },
           { ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', color: '#3a79b8', amount: 49.59 },
           { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.11 },
         ],
@@ -2797,9 +2945,9 @@ const Portfolio = (() => {
         displayTotal: 441,
         items: [
           { ticker: 'SHEL', name: 'Shell PLC', color: '#389fa5', amount: 132.67 },
-          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#f58e57', amount: 92.89 },
-          { ticker: 'UL', name: 'Unilever PLC', color: '#f8b868', amount: 87.51 },
-          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#e76747', amount: 87.38 },
+          { ticker: 'JNJ', name: 'Johnson & Johnson', color: '#818cf8', amount: 92.89 },
+          { ticker: 'UL', name: 'Unilever PLC', color: '#60a5fa', amount: 87.51 },
+          { ticker: 'MSFT', name: 'Microsoft Corp', color: '#6366f1', amount: 87.38 },
           { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 40.85 },
         ],
       },
@@ -2810,7 +2958,7 @@ const Portfolio = (() => {
         displayTotal: 690,
         items: [
           { ticker: 'EXW1.DE', name: 'iShares STOXX Europe Select Dividend 30', color: '#3a79b8', amount: 396.37 },
-          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#fcd877', amount: 153.86 },
+          { ticker: 'VHYL', name: 'Vanguard FTSE All-World High Div Yield', color: '#93c5fd', amount: 153.86 },
           { ticker: 'KO', name: 'Coca-Cola Co', color: '#e8ef7b', amount: 98.78 },
           { ticker: 'O', name: 'Realty Income Corp', color: '#5cb88a', amount: 41.36 },
         ],
@@ -2963,7 +3111,7 @@ const Portfolio = (() => {
   function computeClientDividendData(pfData) {
     const currentYear = new Date().getFullYear();
     const years = [currentYear - 3, currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
-    const yearColors = ['#f07b3f', '#bf3865', '#83277d', '#4f1c80', '#6866c2'];
+    const yearColors = ['#3b82f6', '#bf3865', '#83277d', '#4f1c80', '#6866c2'];
     const positions = (pfData?.positions || []).filter((p) => (Number(p.shares) > 0 || Number(p.dividendsTotal) > 0));
 
     if (!positions.length) return BENCHMARK_DIVIDEND_DATA;
@@ -3769,7 +3917,7 @@ const Portfolio = (() => {
       el.addEventListener('mouseenter', () => {
         const idx = el.dataset.distIndex;
         const name = el.dataset.distName;
-        const color = el.dataset.distColor || '#f06e4d';
+        const color = el.dataset.distColor || '#4f46e5';
         const pct = el.dataset.distPct;
         const val = Number(el.dataset.distVal) || 0;
 
@@ -4018,6 +4166,122 @@ const Portfolio = (() => {
     return events;
   }
 
+  function getCalendarCompanies() {
+    if (data?.calendarCompanies && Array.isArray(data.calendarCompanies)) {
+      return data.calendarCompanies;
+    }
+    const userPositions = (data?.positions || []).filter((p) => Number(p.shares) > 0);
+    const portfolioTickers = new Set(userPositions.map((p) => p.ticker.toUpperCase()));
+    const list = userPositions.map((p) => ({
+      ticker: p.ticker.toUpperCase(),
+      name: p.companyName || p.ticker,
+      shares: Number(p.shares) || 0,
+      isPortfolio: true,
+    }));
+    if (typeof Watchlists !== 'undefined' && typeof Watchlists.getCalendarTickers === 'function') {
+      Watchlists.getCalendarTickers().forEach((t) => {
+        const up = t.toUpperCase();
+        if (!portfolioTickers.has(up)) {
+          list.push({
+            ticker: up,
+            name: up,
+            shares: 0,
+            isPortfolio: false,
+          });
+        }
+      });
+    }
+    list.sort((a, b) => {
+      if (a.isPortfolio !== b.isPortfolio) return a.isPortfolio ? -1 : 1;
+      return a.ticker.localeCompare(b.ticker);
+    });
+    return list;
+  }
+
+  function calendarCompaniesPanelHtml() {
+    const companies = getCalendarCompanies();
+    const portfolioCount = companies.filter((c) => c.isPortfolio).length;
+    const trackingCount = companies.filter((c) => !c.isPortfolio).length;
+
+    return `
+      <div class="pf-cal-companies-card">
+        <div class="pf-cal-companies-head">
+          <div class="pf-cal-companies-title-col">
+            <div class="pf-cal-companies-title-row">
+              <span class="pf-cal-card-icon" aria-hidden="true">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+              </span>
+              <h4>Empresas en seguimiento del calendario</h4>
+              <span class="pf-cal-companies-total-badge">${companies.length}</span>
+              <button class="pf-cal-companies-quick-edit-btn" type="button" data-cal-open-config title="Editar qué tipos de eventos mostrar en el calendario">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                <span>Editar qué mostrar</span>
+              </button>
+            </div>
+            <p class="pf-cal-companies-sub">
+              <span><strong>${portfolioCount}</strong> en cartera (incluidas permanentemente)</span> ·
+              <span><strong>${trackingCount}</strong> en seguimiento</span>
+            </p>
+          </div>
+
+          <div class="pf-cal-add-company-wrap">
+            <div class="pf-cal-add-search-box">
+              <svg class="pf-cal-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" class="pf-cal-add-input" placeholder="Añadir empresa (ej. KO, AAPL, MSFT)..." autocomplete="off" aria-label="Añadir empresa al calendario">
+              <div class="pf-cal-add-results" hidden></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pf-cal-companies-body">
+          ${companies.length === 0 ? `
+            <div class="pf-cal-companies-empty">
+              <p>No estás siguiendo ninguna empresa en el calendario. Añade acciones con el buscador de arriba o regístralas en tu cartera para ver automáticamente sus resultados y dividendos.</p>
+            </div>
+          ` : `
+            <div class="pf-cal-companies-chips">
+              ${companies.map((c) => {
+                const isCustomComp = hasCustomCompanyFilters(c.ticker);
+                return `
+                <div class="pf-cal-company-chip ${c.isPortfolio ? 'chip-portfolio' : 'chip-tracking'}" data-cal-chip-ticker="${escapeHtml(c.ticker)}" title="${escapeHtml(c.name)} (${c.isPortfolio ? 'En Cartera' : 'En Seguimiento'})">
+                  <img class="pf-cal-chip-logo" src="https://companiesmarketcap.com/img/company-logos/64/${encodeURIComponent(c.ticker)}.webp" alt="" loading="lazy" data-letter="${escapeHtml((c.name || c.ticker || '?').slice(0, 1).toUpperCase())}">
+                  <div class="pf-cal-chip-text">
+                    <strong class="pf-cal-chip-sym">${escapeHtml(c.ticker)}</strong>
+                    <span class="pf-cal-chip-comp-name">${escapeHtml(c.name || c.ticker)}</span>
+                  </div>
+                  ${c.isPortfolio ? `
+                    <span class="pf-cal-chip-origin-pill origin-portfolio" title="Empresa con posición en tu cartera (permanente en el calendario)">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                      Cartera
+                    </span>
+                    <button class="pf-cal-chip-edit-btn ${isCustomComp ? 'is-custom' : ''}" type="button" data-cal-edit-company="${escapeHtml(c.ticker)}" title="Editar qué mostrar de ${escapeHtml(c.ticker)} (dividendos, resultados, ex-dividend)" aria-label="Editar eventos de ${escapeHtml(c.ticker)}">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                      ${isCustomComp ? '<span class="pf-cal-chip-custom-dot" title="Eventos personalizados"></span>' : ''}
+                    </button>
+                    <span class="pf-cal-chip-lock" title="Las empresas de la cartera no se pueden eliminar del calendario">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </span>
+                  ` : `
+                    <span class="pf-cal-chip-origin-pill origin-tracking" title="Empresa en seguimiento del calendario">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+                      Seguimiento
+                    </span>
+                    <button class="pf-cal-chip-edit-btn ${isCustomComp ? 'is-custom' : ''}" type="button" data-cal-edit-company="${escapeHtml(c.ticker)}" title="Editar qué mostrar de ${escapeHtml(c.ticker)} (dividendos, resultados, ex-dividend)" aria-label="Editar eventos de ${escapeHtml(c.ticker)}">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                      ${isCustomComp ? '<span class="pf-cal-chip-custom-dot" title="Eventos personalizados"></span>' : ''}
+                    </button>
+                    <button class="pf-cal-chip-delete-btn" type="button" data-cal-remove-ticker="${escapeHtml(c.ticker)}" title="Eliminar ${escapeHtml(c.ticker)} del calendario" aria-label="Eliminar ${escapeHtml(c.ticker)}">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  `}
+                </div>
+              `;}).join('')}
+            </div>
+          `}
+        </div>
+      </div>`;
+  }
+
   function calendarPanelHtml() {
     const allEvents = getPortfolioCalendarEvents(calendarYear, calendarMonth);
     const earningsCount = allEvents.filter((e) => e.type === 'earnings').length;
@@ -4026,56 +4290,88 @@ const Portfolio = (() => {
     const payoutCount = payoutEvents.length;
     const totalPayoutAmount = payoutEvents.reduce((acc, e) => acc + (e.amount || 0), 0);
 
-    const filteredEvents = calendarFilter === 'all'
-      ? allEvents
-      : allEvents.filter((e) => e.type === calendarFilter);
+    const filteredEvents = allEvents.filter((e) => {
+      // 1. Tipo de evento
+      if (e.type === 'earnings' && !calendarVisibility.earnings) return false;
+      if (e.type === 'exdiv' && !calendarVisibility.exdiv) return false;
+      if (e.type === 'payout' && !calendarVisibility.payout) return false;
 
+      // 2. Origen (cartera vs seguimiento)
+      if (e.isPortfolio && !calendarVisibility.portfolio) return false;
+      if (!e.isPortfolio && !calendarVisibility.watchlist) return false;
+
+      // 3. Filtro específico por empresa (configurado con el lápiz ✏️)
+      const ticker = (e.ticker || '').toUpperCase();
+      const compVis = getCompanyVisibility(ticker);
+      if (e.type === 'earnings' && !compVis.earnings) return false;
+      if (e.type === 'exdiv' && !compVis.exdiv) return false;
+      if (e.type === 'payout' && !compVis.payout) return false;
+
+      return true;
+    });
+
+    const isCustom = hasCustomCalendarFilters();
     const monthName = MONTH_NAMES_ES[calendarMonth];
 
     return `
       <div class="pf-calendar-dashboard">
-        <!-- 1. KPIs del mes -->
+        <!-- 0. Panel de Empresas en el Calendario -->
+        ${calendarCompaniesPanelHtml()}
+
+        <!-- 1. KPIs del mes (interactivos) -->
         <div class="pf-cal-kpis-grid">
-          <article class="pf-cal-kpi-card">
+          <article class="pf-cal-kpi-card pf-cal-kpi-interactive" data-cal-kpi-toggle="all" title="Clic para restablecer y mostrar todos los eventos">
             <div class="pf-cal-kpi-icon icon-all">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
             </div>
             <div class="pf-cal-kpi-body">
-              <span class="pf-cal-kpi-label">Eventos en ${monthName}</span>
-              <strong class="pf-cal-kpi-value">${allEvents.length}</strong>
-              <small class="pf-cal-kpi-sub">Total en cartera</small>
+              <div class="pf-cal-kpi-head-line">
+                <span class="pf-cal-kpi-label">Eventos en ${monthName}</span>
+                ${isCustom ? '<span class="pf-cal-kpi-pill filter-note">Filtro activo</span>' : ''}
+              </div>
+              <strong class="pf-cal-kpi-value">${filteredEvents.length}</strong>
+              <small class="pf-cal-kpi-sub">${isCustom ? `${allEvents.length} eventos en total` : 'Total cartera y seguimiento'}</small>
             </div>
           </article>
 
-          <article class="pf-cal-kpi-card">
+          <article class="pf-cal-kpi-card pf-cal-kpi-interactive ${!calendarVisibility.earnings ? 'kpi-dimmed' : ''}" data-cal-kpi-toggle="earnings" title="Clic para ${calendarVisibility.earnings ? 'ocultar' : 'mostrar'} resultados empresariales">
             <div class="pf-cal-kpi-icon icon-earnings">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
             </div>
             <div class="pf-cal-kpi-body">
-              <span class="pf-cal-kpi-label">Resultados empresariales</span>
+              <div class="pf-cal-kpi-head-line">
+                <span class="pf-cal-kpi-label">Resultados empresariales</span>
+                <span class="pf-cal-kpi-pill ${calendarVisibility.earnings ? 'visible' : 'hidden'}">${calendarVisibility.earnings ? 'Visible' : 'Oculto'}</span>
+              </div>
               <strong class="pf-cal-kpi-value">${earningsCount}</strong>
               <small class="pf-cal-kpi-sub">Informes 10-Q / 10-K</small>
             </div>
           </article>
 
-          <article class="pf-cal-kpi-card">
+          <article class="pf-cal-kpi-card pf-cal-kpi-interactive ${!calendarVisibility.exdiv ? 'kpi-dimmed' : ''}" data-cal-kpi-toggle="exdiv" title="Clic para ${calendarVisibility.exdiv ? 'ocultar' : 'mostrar'} fechas ex-dividend">
             <div class="pf-cal-kpi-icon icon-exdiv">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <div class="pf-cal-kpi-body">
-              <span class="pf-cal-kpi-label">Fechas Ex-Dividend</span>
+              <div class="pf-cal-kpi-head-line">
+                <span class="pf-cal-kpi-label">Fechas Ex-Dividend</span>
+                <span class="pf-cal-kpi-pill ${calendarVisibility.exdiv ? 'visible' : 'hidden'}">${calendarVisibility.exdiv ? 'Visible' : 'Oculto'}</span>
+              </div>
               <strong class="pf-cal-kpi-value">${exdivCount}</strong>
               <small class="pf-cal-kpi-sub">Corte con derecho a cobro</small>
             </div>
           </article>
 
-          <article class="pf-cal-kpi-card">
+          <article class="pf-cal-kpi-card pf-cal-kpi-interactive ${!calendarVisibility.payout ? 'kpi-dimmed' : ''}" data-cal-kpi-toggle="payout" title="Clic para ${calendarVisibility.payout ? 'ocultar' : 'mostrar'} pagos de dividendos">
             <div class="pf-cal-kpi-icon icon-payout">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>
             </div>
             <div class="pf-cal-kpi-body">
-              <span class="pf-cal-kpi-label">Total a cobrar en el mes</span>
-              <strong class="pf-cal-kpi-value text-emerald">${fmtEur(totalPayoutAmount)}</strong>
+              <div class="pf-cal-kpi-head-line">
+                <span class="pf-cal-kpi-label">Total a cobrar en el mes</span>
+                <span class="pf-cal-kpi-pill ${calendarVisibility.payout ? 'visible' : 'hidden'}">${calendarVisibility.payout ? 'Visible' : 'Oculto'}</span>
+              </div>
+              <strong class="pf-cal-kpi-value ${calendarVisibility.payout ? 'text-emerald' : ''}">${fmtEur(totalPayoutAmount)}</strong>
               <small class="pf-cal-kpi-sub">${payoutCount} pagos previstos</small>
             </div>
           </article>
@@ -4096,21 +4392,28 @@ const Portfolio = (() => {
             </div>
 
             <div class="pf-cal-toolbar-actions">
-              <!-- Filtros de eventos -->
+              <!-- Filtros rápidos de eventos -->
               <div class="pf-cal-filters" role="group" aria-label="Filtrar eventos">
-                <button class="pf-cal-filter-btn ${calendarFilter === 'all' ? 'active' : ''}" type="button" data-cal-filter="all">
+                <button class="pf-cal-filter-btn ${!isCustom ? 'active' : ''}" type="button" data-cal-filter-toggle="all" title="Mostrar todos los eventos">
                   Todos <span class="pf-filter-badge">${allEvents.length}</span>
                 </button>
-                <button class="pf-cal-filter-btn filter-earnings ${calendarFilter === 'earnings' ? 'active' : ''}" type="button" data-cal-filter="earnings">
+                <button class="pf-cal-filter-btn filter-earnings ${calendarVisibility.earnings ? 'active' : 'inactive'}" type="button" data-cal-filter-toggle="earnings" title="${calendarVisibility.earnings ? 'Ocultar Resultados' : 'Mostrar Resultados'}">
                   <span class="pf-filter-dot dot-earnings"></span>Resultados <span class="pf-filter-badge">${earningsCount}</span>
                 </button>
-                <button class="pf-cal-filter-btn filter-exdiv ${calendarFilter === 'exdiv' ? 'active' : ''}" type="button" data-cal-filter="exdiv">
+                <button class="pf-cal-filter-btn filter-exdiv ${calendarVisibility.exdiv ? 'active' : 'inactive'}" type="button" data-cal-filter-toggle="exdiv" title="${calendarVisibility.exdiv ? 'Ocultar Ex-Dividend' : 'Mostrar Ex-Dividend'}">
                   <span class="pf-filter-dot dot-exdiv"></span>Ex-Dividend <span class="pf-filter-badge">${exdivCount}</span>
                 </button>
-                <button class="pf-cal-filter-btn filter-payout ${calendarFilter === 'payout' ? 'active' : ''}" type="button" data-cal-filter="payout">
+                <button class="pf-cal-filter-btn filter-payout ${calendarVisibility.payout ? 'active' : 'inactive'}" type="button" data-cal-filter-toggle="payout" title="${calendarVisibility.payout ? 'Ocultar Cobros' : 'Mostrar Cobros'}">
                   <span class="pf-filter-dot dot-payout"></span>Cobro <span class="pf-filter-badge">${payoutCount}</span>
                 </button>
               </div>
+
+              <!-- Botón Configurar / Editar qué mostrar -->
+              <button class="pf-outline-button pf-cal-config-trigger-btn ${isCustom ? 'has-active-filters' : ''}" type="button" data-cal-open-config title="Editar qué tipos de eventos y empresas mostrar en el calendario">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="21" y2="21"/><line x1="4" x2="20" y1="14" y2="14"/><line x1="4" x2="20" y1="7" y2="7"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="14" r="2"/><circle cx="10" cy="21" r="2"/></svg>
+                <span>Editar qué mostrar</span>
+                ${isCustom ? '<span class="pf-cal-config-active-dot" title="Filtros personalizados activos"></span>' : ''}
+              </button>
 
               <!-- Vista Cuadrícula / Lista -->
               <div class="pf-segmented-toggle" role="group" aria-label="Modo de visualización">
@@ -4132,6 +4435,8 @@ const Portfolio = (() => {
         </div>
 
         ${calendarModalHtml()}
+        ${calendarConfigModalHtml()}
+        ${calendarCompanyEditModalHtml()}
       </div>`;
   }
 
@@ -4211,13 +4516,32 @@ const Portfolio = (() => {
       }
     }
 
-    const emptyNotice = events.length === 0 ? `
-      <div class="pf-cal-grid-empty-notice">
-        <span class="pf-cal-notice-icon">ℹ️</span>
-        <span>Sin eventos anunciados oficialmente para ${MONTH_NAMES_ES[month]} de ${year}. Las empresas comunican sus fechas oficiales de resultados y declaraciones de dividendos con 1 a 3 meses de antelación.</span>
-      </div>` : '';
+    const allMonthEvents = getPortfolioCalendarEvents(year, month);
+    let emptyNotice = '';
+    if (events.length === 0) {
+      if (allMonthEvents.length > 0) {
+        emptyNotice = `
+          <div class="pf-cal-hidden-banner">
+            <div class="pf-cal-hidden-text">
+              <strong>⚠️ Todos los eventos de este mes están ocultos</strong>
+              <span>Hay ${allMonthEvents.length} eventos en ${MONTH_NAMES_ES[month]} de ${year}, pero no se muestran según tus preferencias de visualización.</span>
+            </div>
+            <div class="pf-cal-hidden-btns">
+              <button class="pf-cal-hidden-action" type="button" data-cal-preset="all">Mostrar todo</button>
+              <button class="pf-cal-hidden-action secondary" type="button" data-cal-open-config>Editar qué mostrar</button>
+            </div>
+          </div>`;
+      } else {
+        emptyNotice = `
+          <div class="pf-cal-grid-empty-notice">
+            <span class="pf-cal-notice-icon">ℹ️</span>
+            <span>Sin eventos anunciados oficialmente para ${MONTH_NAMES_ES[month]} de ${year}. Las empresas comunican sus fechas oficiales de resultados y declaraciones de dividendos con 1 a 3 meses de antelación.</span>
+          </div>`;
+      }
+    }
 
     return `
+      ${emptyNotice}
       <div class="pf-cal-grid-container">
         <div class="pf-cal-weekdays-row">
           ${weekdayHeaders}
@@ -4225,12 +4549,24 @@ const Portfolio = (() => {
         <div class="pf-cal-grid">
           ${cellsHtml.join('')}
         </div>
-      </div>
-      ${emptyNotice}`;
+      </div>`;
   }
 
   function calendarListViewHtml(events) {
     if (!events || events.length === 0) {
+      const allMonthEvents = getPortfolioCalendarEvents(calendarYear, calendarMonth);
+      if (allMonthEvents.length > 0) {
+        return `
+          <div class="pf-cal-empty-state">
+            <div class="pf-cal-empty-icon">🔍</div>
+            <h4>No hay eventos visibles con la configuración actual</h4>
+            <p>Hay ${allMonthEvents.length} eventos en ${MONTH_NAMES_ES[calendarMonth]} de ${calendarYear}, pero están ocultos por los filtros de visualización.</p>
+            <div class="pf-cal-empty-actions">
+              <button class="primary-button" type="button" data-cal-preset="all">Mostrar todos los eventos</button>
+              <button class="pf-outline-button" type="button" data-cal-open-config>Editar qué mostrar</button>
+            </div>
+          </div>`;
+      }
       return `
         <div class="pf-cal-empty-state">
           <div class="pf-cal-empty-icon">📅</div>
@@ -4596,6 +4932,231 @@ const Portfolio = (() => {
       </div>`;
   }
 
+  function calendarConfigModalHtml() {
+    if (!calendarConfigModalOpen) return '';
+
+    return `
+      <div class="pf-cal-modal-backdrop" data-cal-close-config>
+        <div class="pf-cal-modal pf-cal-config-modal" onclick="event.stopPropagation()">
+          <div class="pf-cal-modal-head">
+            <div class="pf-cal-modal-brand">
+              <span class="pf-cal-config-modal-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="21" y2="21"/><line x1="4" x2="20" y1="14" y2="14"/><line x1="4" x2="20" y1="7" y2="7"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="14" r="2"/><circle cx="10" cy="21" r="2"/></svg>
+              </span>
+              <div>
+                <h4>Personalizar qué mostrar en el calendario</h4>
+                <p>Configura qué fechas financieras y qué empresas deseas ver en el calendario.</p>
+              </div>
+            </div>
+            <button class="pf-cal-modal-close" type="button" data-cal-close-config title="Cerrar modal">×</button>
+          </div>
+
+          <div class="pf-cal-modal-body">
+            <!-- Sección 1: Tipos de eventos financieros -->
+            <div class="pf-cal-config-section">
+              <h5 class="pf-cal-config-section-title">Tipos de eventos financieros</h5>
+
+              <!-- Resultados empresariales -->
+              <label class="pf-cal-config-item">
+                <input type="checkbox" data-cal-toggle-key="earnings" ${calendarVisibility.earnings ? 'checked' : ''}>
+                <div class="pf-cal-config-item-icon earnings">
+                  <span class="pf-filter-dot dot-earnings"></span>
+                </div>
+                <div class="pf-cal-config-item-info">
+                  <div class="pf-cal-config-item-title-row">
+                    <strong>Resultados empresariales</strong>
+                    <span class="pf-cal-config-tag earnings">Informes 10-Q / 10-K</span>
+                  </div>
+                  <span>Presentación oficial de cuentas trimestrales y anuales ante la SEC con análisis de IA y vista previa.</span>
+                </div>
+              </label>
+
+              <!-- Fechas Ex-Dividend -->
+              <label class="pf-cal-config-item">
+                <input type="checkbox" data-cal-toggle-key="exdiv" ${calendarVisibility.exdiv ? 'checked' : ''}>
+                <div class="pf-cal-config-item-icon exdiv">
+                  <span class="pf-filter-dot dot-exdiv"></span>
+                </div>
+                <div class="pf-cal-config-item-info">
+                  <div class="pf-cal-config-item-title-row">
+                    <strong>Fechas Ex-Dividend</strong>
+                    <span class="pf-cal-config-tag exdiv">Corte de cupón</span>
+                  </div>
+                  <span>Día límite para tener acciones en posesión con derecho a percibir el dividendo anunciado.</span>
+                </div>
+              </label>
+
+              <!-- Pagos de dividendos -->
+              <label class="pf-cal-config-item">
+                <input type="checkbox" data-cal-toggle-key="payout" ${calendarVisibility.payout ? 'checked' : ''}>
+                <div class="pf-cal-config-item-icon payout">
+                  <span class="pf-filter-dot dot-payout"></span>
+                </div>
+                <div class="pf-cal-config-item-info">
+                  <div class="pf-cal-config-item-title-row">
+                    <strong>Pagos y cobros de dividendos</strong>
+                    <span class="pf-cal-config-tag payout">Abono en efectivo</span>
+                  </div>
+                  <span>Fecha estimada o confirmada de abono de los dividendos en la cuenta de valores.</span>
+                </div>
+              </label>
+            </div>
+
+            <!-- Sección 2: Origen de las empresas -->
+            <div class="pf-cal-config-section">
+              <h5 class="pf-cal-config-section-title">Origen de las empresas</h5>
+
+              <!-- Empresas en cartera -->
+              <label class="pf-cal-config-item">
+                <input type="checkbox" data-cal-toggle-key="portfolio" ${calendarVisibility.portfolio ? 'checked' : ''}>
+                <div class="pf-cal-config-item-icon portfolio">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                </div>
+                <div class="pf-cal-config-item-info">
+                  <div class="pf-cal-config-item-title-row">
+                    <strong>Empresas en mi cartera</strong>
+                    <span class="pf-cal-config-tag portfolio">💼 Cartera</span>
+                  </div>
+                  <span>Mostrar eventos de compañías donde posees acciones compradas actualmente.</span>
+                </div>
+              </label>
+
+              <!-- Empresas en seguimiento -->
+              <label class="pf-cal-config-item">
+                <input type="checkbox" data-cal-toggle-key="watchlist" ${calendarVisibility.watchlist ? 'checked' : ''}>
+                <div class="pf-cal-config-item-icon watchlist">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+                </div>
+                <div class="pf-cal-config-item-info">
+                  <div class="pf-cal-config-item-title-row">
+                    <strong>Empresas en seguimiento</strong>
+                    <span class="pf-cal-config-tag watchlist">📅 Seguimiento</span>
+                  </div>
+                  <span>Mostrar eventos de compañías agregadas a seguir en el calendario sin posición en cartera.</span>
+                </div>
+              </label>
+            </div>
+
+            <!-- Accesos rápidos -->
+            <div class="pf-cal-config-presets-box">
+              <span class="pf-cal-presets-heading">Vistas rápidas:</span>
+              <div class="pf-cal-presets-btns">
+                <button class="pf-cal-preset-pill" type="button" data-cal-preset="all">Mostrar todo</button>
+                <button class="pf-cal-preset-pill" type="button" data-cal-preset="dividends">Solo Dividendos (Ex-Div + Cobro)</button>
+                <button class="pf-cal-preset-pill" type="button" data-cal-preset="earnings">Solo Resultados SEC</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pf-cal-modal-footer">
+            <button class="pf-outline-button" type="button" data-cal-reset-config>Restablecer por defecto</button>
+            <button class="primary-button" type="button" data-cal-close-config>Guardar y ver calendario</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function calendarCompanyEditModalHtml() {
+    if (!calendarEditingCompanyTicker) return '';
+    const ticker = calendarEditingCompanyTicker.toUpperCase();
+    const companies = getCalendarCompanies();
+    const targetComp = companies.find((c) => c.ticker.toUpperCase() === ticker) || {
+      ticker,
+      name: ticker,
+      isPortfolio: false,
+      shares: 0,
+    };
+    const vis = getCompanyVisibility(ticker);
+
+    return `
+      <div class="pf-cal-modal-backdrop" data-cal-close-company-modal>
+        <div class="pf-cal-modal pf-cal-company-edit-modal" onclick="event.stopPropagation()">
+          <div class="pf-cal-modal-head">
+            <div class="pf-cal-modal-brand">
+              <img class="pf-cal-chip-logo" style="width:32px;height:32px;border-radius:7px;object-fit:contain;background:#f8fafc;padding:2px;border:1px solid #e2e8f0;" src="https://companiesmarketcap.com/img/company-logos/64/${encodeURIComponent(targetComp.ticker)}.webp" alt="" data-letter="${escapeHtml((targetComp.name || targetComp.ticker || '?').slice(0, 1).toUpperCase())}">
+              <div>
+                <h4>Configurar eventos · ${escapeHtml(targetComp.ticker)}</h4>
+                <p>${escapeHtml(targetComp.name || targetComp.ticker)} · ${targetComp.isPortfolio ? '💼 En Cartera' : '📅 En Seguimiento'}</p>
+              </div>
+            </div>
+            <button class="pf-cal-modal-close" type="button" data-cal-close-company-modal title="Cerrar modal">×</button>
+          </div>
+
+          <div class="pf-cal-modal-body">
+            <p class="pf-cal-modal-desc">
+              Elige qué tipos de eventos de <strong>${escapeHtml(targetComp.name || targetComp.ticker)}</strong> quieres mostrar en el calendario financiero.
+              ${hasCustomCompanyFilters(ticker)
+                ? 'Esta empresa tiene una configuración personalizada activa.'
+                : `Por defecto se aplican tus reglas de <strong>${targetComp.isPortfolio ? '💼 Cartera' : '⭐ Favoritos / Seguimiento'}</strong>.`}
+            </p>
+
+            <div class="pf-cal-config-section">
+              <!-- 1. Dividendos (Pagos y cobros) -->
+              <label class="pf-cal-config-item">
+                <input type="checkbox" data-cal-company-toggle="payout" ${vis.payout ? 'checked' : ''}>
+                <div class="pf-cal-config-item-icon payout">
+                  <span class="pf-filter-dot dot-payout"></span>
+                </div>
+                <div class="pf-cal-config-item-info">
+                  <div class="pf-cal-config-item-title-row">
+                    <strong>Dividendos (Pagos y cobros)</strong>
+                    <span class="pf-cal-config-tag payout">Efectivo</span>
+                  </div>
+                  <span>Fechas estimadas o confirmadas de cobro del dividendo en tu cuenta.</span>
+                </div>
+              </label>
+
+              <!-- 2. Resultados empresariales -->
+              <label class="pf-cal-config-item">
+                <input type="checkbox" data-cal-company-toggle="earnings" ${vis.earnings ? 'checked' : ''}>
+                <div class="pf-cal-config-item-icon earnings">
+                  <span class="pf-filter-dot dot-earnings"></span>
+                </div>
+                <div class="pf-cal-config-item-info">
+                  <div class="pf-cal-config-item-title-row">
+                    <strong>Resultados empresariales</strong>
+                    <span class="pf-cal-config-tag earnings">Informes 10-Q / 10-K</span>
+                  </div>
+                  <span>Presentaciones de cuentas ante la SEC con opción de análisis interactivo con IA.</span>
+                </div>
+              </label>
+
+              <!-- 3. Fechas Ex-Dividend -->
+              <label class="pf-cal-config-item">
+                <input type="checkbox" data-cal-company-toggle="exdiv" ${vis.exdiv ? 'checked' : ''}>
+                <div class="pf-cal-config-item-icon exdiv">
+                  <span class="pf-filter-dot dot-exdiv"></span>
+                </div>
+                <div class="pf-cal-config-item-info">
+                  <div class="pf-cal-config-item-title-row">
+                    <strong>Fecha del Ex-Dividendo</strong>
+                    <span class="pf-cal-config-tag exdiv">Corte de cupón</span>
+                  </div>
+                  <span>Día límite para tener las acciones en cartera y conservar el derecho al cobro.</span>
+                </div>
+              </label>
+            </div>
+
+            <!-- Presets rápidos para esta empresa -->
+            <div class="pf-cal-config-presets-box">
+              <span class="pf-cal-presets-heading">Vistas rápidas para ${escapeHtml(targetComp.ticker)}:</span>
+              <div class="pf-cal-presets-btns">
+                <button class="pf-cal-preset-pill" type="button" data-cal-company-preset="all">Mostrar todo</button>
+                <button class="pf-cal-preset-pill" type="button" data-cal-company-preset="dividends">Solo Dividendos (Ex-Div + Cobro)</button>
+                <button class="pf-cal-preset-pill" type="button" data-cal-company-preset="earnings">Solo Resultados SEC</button>
+                <button class="pf-cal-preset-pill" type="button" data-cal-company-preset="default">Por defecto (${targetComp.isPortfolio ? 'Cartera' : 'Seguimiento'})</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pf-cal-modal-footer">
+            <button class="pf-outline-button" type="button" data-cal-company-reset="${escapeHtml(targetComp.ticker)}">Restablecer por defecto (${targetComp.isPortfolio ? 'Cartera' : 'Seguimiento'})</button>
+            <button class="primary-button" type="button" data-cal-close-company-modal>Guardar y aplicar</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   let calPreviewLoadTimeout = null;
 
   function openCalendarFilingPreview(url, name) {
@@ -4665,11 +5226,19 @@ const Portfolio = (() => {
     document.body.style.overflow = '';
   }
 
+  function renderCalendarView() {
+    if (calendarSectionRoot) {
+      renderCalendarSection();
+    } else if (sectionRoot) {
+      renderSection();
+    }
+  }
+
   async function runCalendarFilingAnalysis(ticker, accession) {
     calendarAiLoading = true;
     calendarAiError = null;
     calendarAiResult = null;
-    renderSection();
+    renderCalendarView();
 
     try {
       let targetAccession = accession;
@@ -4698,11 +5267,11 @@ const Portfolio = (() => {
 
       calendarAiResult = data;
       calendarAiLoading = false;
-      renderSection();
+      renderCalendarView();
     } catch (err) {
       calendarAiError = err.message || 'Error al conectar con el servidor de análisis.';
       calendarAiLoading = false;
-      renderSection();
+      renderCalendarView();
     }
   }
 
@@ -4717,7 +5286,7 @@ const Portfolio = (() => {
           calendarMonth = 11;
           calendarYear--;
         }
-        renderSection();
+        renderCalendarView();
       });
     });
 
@@ -4728,7 +5297,7 @@ const Portfolio = (() => {
           calendarMonth = 0;
           calendarYear++;
         }
-        renderSection();
+        renderCalendarView();
       });
     });
 
@@ -4736,15 +5305,117 @@ const Portfolio = (() => {
       btn.addEventListener('click', () => {
         calendarYear = 2026;
         calendarMonth = 7;
-        renderSection();
+        renderCalendarView();
       });
     });
 
-    // Filtros
-    scope.querySelectorAll('[data-cal-filter]').forEach((btn) => {
+    // Filtros rápidos de eventos
+    scope.querySelectorAll('[data-cal-filter-toggle]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        calendarFilter = btn.dataset.calFilter;
-        renderSection();
+        const toggleKey = btn.dataset.calFilterToggle;
+        if (toggleKey === 'all') {
+          calendarVisibility.earnings = true;
+          calendarVisibility.exdiv = true;
+          calendarVisibility.payout = true;
+          calendarVisibility.portfolio = true;
+          calendarVisibility.watchlist = true;
+        } else if (toggleKey in calendarVisibility) {
+          calendarVisibility[toggleKey] = !calendarVisibility[toggleKey];
+        }
+        saveCalendarVisibility(calendarVisibility);
+        renderCalendarView();
+      });
+    });
+
+    // Clic en tarjetas KPI para alternar visibilidad de eventos
+    scope.querySelectorAll('[data-cal-kpi-toggle]').forEach((card) => {
+      card.addEventListener('click', () => {
+        const toggleKey = card.dataset.calKpiToggle;
+        if (toggleKey === 'all') {
+          calendarVisibility.earnings = true;
+          calendarVisibility.exdiv = true;
+          calendarVisibility.payout = true;
+          calendarVisibility.portfolio = true;
+          calendarVisibility.watchlist = true;
+        } else if (toggleKey in calendarVisibility) {
+          calendarVisibility[toggleKey] = !calendarVisibility[toggleKey];
+        }
+        saveCalendarVisibility(calendarVisibility);
+        renderCalendarView();
+      });
+    });
+
+    // Abrir modal de configuración
+    scope.querySelectorAll('[data-cal-open-config]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        calendarConfigModalOpen = true;
+        renderCalendarView();
+      });
+    });
+
+    // Cerrar modal de configuración
+    scope.querySelectorAll('[data-cal-close-config]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        calendarConfigModalOpen = false;
+        renderCalendarView();
+      });
+    });
+
+    // Checkboxes dentro del modal de configuración
+    scope.querySelectorAll('[data-cal-toggle-key]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const key = input.dataset.calToggleKey;
+        if (key in calendarVisibility) {
+          calendarVisibility[key] = input.checked;
+          saveCalendarVisibility(calendarVisibility);
+        }
+      });
+    });
+
+    // Presets rápidos (Mostrar todo, Solo Dividendos, Solo Resultados)
+    scope.querySelectorAll('[data-cal-preset]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const preset = btn.dataset.calPreset;
+        if (preset === 'all') {
+          calendarVisibility.earnings = true;
+          calendarVisibility.exdiv = true;
+          calendarVisibility.payout = true;
+          calendarVisibility.portfolio = true;
+          calendarVisibility.watchlist = true;
+        } else if (preset === 'dividends') {
+          calendarVisibility.earnings = false;
+          calendarVisibility.exdiv = true;
+          calendarVisibility.payout = true;
+          calendarVisibility.portfolio = true;
+          calendarVisibility.watchlist = true;
+        } else if (preset === 'earnings') {
+          calendarVisibility.earnings = true;
+          calendarVisibility.exdiv = false;
+          calendarVisibility.payout = false;
+          calendarVisibility.portfolio = true;
+          calendarVisibility.watchlist = true;
+        }
+        saveCalendarVisibility(calendarVisibility);
+        renderCalendarView();
+      });
+    });
+
+    // Restablecer valores por defecto
+    scope.querySelectorAll('[data-cal-reset-config]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        calendarVisibility = {
+          earnings: true,
+          exdiv: true,
+          payout: true,
+          portfolio: true,
+          watchlist: true,
+        };
+        saveCalendarVisibility(calendarVisibility);
+        renderCalendarView();
       });
     });
 
@@ -4752,7 +5423,7 @@ const Portfolio = (() => {
     scope.querySelectorAll('[data-cal-view]').forEach((btn) => {
       btn.addEventListener('click', () => {
         calendarViewMode = btn.dataset.calView;
-        renderSection();
+        renderCalendarView();
       });
     });
 
@@ -4768,7 +5439,7 @@ const Portfolio = (() => {
           calendarAiLoading = false;
           calendarAiResult = null;
           calendarAiError = null;
-          renderSection();
+          renderCalendarView();
         }
       });
     });
@@ -4812,7 +5483,7 @@ const Portfolio = (() => {
     scope.querySelectorAll('[data-cal-open-day]').forEach((btn) => {
       btn.addEventListener('click', () => {
         calendarViewMode = 'list';
-        renderSection();
+        renderCalendarView();
       });
     });
 
@@ -4823,11 +5494,11 @@ const Portfolio = (() => {
         calendarAiLoading = false;
         calendarAiResult = null;
         calendarAiError = null;
-        renderSection();
+        renderCalendarView();
       });
     });
 
-    // Navegación a empresa
+    // Navegación a empresa desde modal o lista
     scope.querySelectorAll('[data-cal-goto]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -4836,9 +5507,255 @@ const Portfolio = (() => {
         calendarAiResult = null;
         calendarAiError = null;
         const ticker = btn.dataset.calGoto;
-        if (ticker) sectionOptions.onNavigate?.(ticker);
+        const onNav = calendarSectionOptions.onNavigate || sectionOptions.onNavigate || window.goToCompany;
+        if (ticker && onNav) onNav(ticker);
+        else if (ticker) window.location.href = `/empresa/${encodeURIComponent(ticker)}`;
       });
     });
+
+    // Navegación a empresa desde chip de seguimiento
+    scope.querySelectorAll('[data-cal-chip-ticker]').forEach((chip) => {
+      chip.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-cal-remove-ticker]') || ev.target.closest('[data-cal-edit-company]')) return;
+        const ticker = chip.dataset.calChipTicker;
+        const onNav = calendarSectionOptions.onNavigate || sectionOptions.onNavigate || window.goToCompany;
+        if (ticker && onNav) onNav(ticker);
+        else if (ticker) window.location.href = `/empresa/${encodeURIComponent(ticker)}`;
+      });
+    });
+
+    // Clic en lápiz de empresa para editar qué eventos mostrar (dividendos, resultados, ex-dividend)
+    scope.querySelectorAll('[data-cal-edit-company]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        calendarEditingCompanyTicker = btn.dataset.calEditCompany;
+        renderCalendarView();
+      });
+    });
+
+    // Cerrar modal de edición de empresa
+    scope.querySelectorAll('[data-cal-close-company-modal]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        calendarEditingCompanyTicker = null;
+        renderCalendarView();
+      });
+    });
+
+    // Checkboxes dentro del modal de edición de empresa
+    scope.querySelectorAll('[data-cal-company-toggle]').forEach((input) => {
+      input.addEventListener('change', () => {
+        if (!calendarEditingCompanyTicker) return;
+        const key = input.dataset.calCompanyToggle;
+        const up = calendarEditingCompanyTicker.toUpperCase();
+        if (!calendarCompanyVisibility[up]) {
+          calendarCompanyVisibility[up] = { ...getCompanyDefaultVisibility(up) };
+        }
+        calendarCompanyVisibility[up][key] = input.checked;
+        const def = getCompanyDefaultVisibility(up);
+        if (
+          calendarCompanyVisibility[up].earnings === def.earnings &&
+          calendarCompanyVisibility[up].exdiv === def.exdiv &&
+          calendarCompanyVisibility[up].payout === def.payout
+        ) {
+          delete calendarCompanyVisibility[up];
+        }
+        saveCalendarCompanyVisibility(calendarCompanyVisibility);
+      });
+    });
+
+    // Presets rápidos para la empresa
+    scope.querySelectorAll('[data-cal-company-preset]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!calendarEditingCompanyTicker) return;
+        const up = calendarEditingCompanyTicker.toUpperCase();
+        const preset = btn.dataset.calCompanyPreset;
+        if (preset === 'all') {
+          calendarCompanyVisibility[up] = { earnings: true, exdiv: true, payout: true };
+        } else if (preset === 'dividends') {
+          calendarCompanyVisibility[up] = { earnings: false, exdiv: true, payout: true };
+        } else if (preset === 'earnings') {
+          calendarCompanyVisibility[up] = { earnings: true, exdiv: false, payout: false };
+        } else if (preset === 'default') {
+          delete calendarCompanyVisibility[up];
+        }
+        if (calendarCompanyVisibility[up]) {
+          const def = getCompanyDefaultVisibility(up);
+          if (
+            calendarCompanyVisibility[up].earnings === def.earnings &&
+            calendarCompanyVisibility[up].exdiv === def.exdiv &&
+            calendarCompanyVisibility[up].payout === def.payout
+          ) {
+            delete calendarCompanyVisibility[up];
+          }
+        }
+        saveCalendarCompanyVisibility(calendarCompanyVisibility);
+        renderCalendarView();
+      });
+    });
+
+    // Restablecer valores de la empresa por defecto
+    scope.querySelectorAll('[data-cal-company-reset]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!calendarEditingCompanyTicker) return;
+        const up = calendarEditingCompanyTicker.toUpperCase();
+        delete calendarCompanyVisibility[up];
+        saveCalendarCompanyVisibility(calendarCompanyVisibility);
+        renderCalendarView();
+      });
+    });
+
+    // Fallback de logo para chips de empresas
+    scope.querySelectorAll('.pf-cal-chip-logo').forEach((logo) => {
+      logo.addEventListener('error', () => {
+        const letter = document.createElement('span');
+        letter.className = 'pf-cal-chip-fallback';
+        letter.textContent = logo.dataset.letter || '?';
+        logo.replaceWith(letter);
+      });
+    });
+
+    // Eliminar empresa del calendario (solo seguimiento, no cartera)
+    scope.querySelectorAll('[data-cal-remove-ticker]').forEach((btn) => {
+      btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        const ticker = btn.dataset.calRemoveTicker;
+        if (hasPosition(ticker)) {
+          window.showToast?.(`No se puede eliminar ${ticker} porque está en tu cartera.`);
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/watchlists/calendar/items/${encodeURIComponent(ticker)}`, {
+            method: 'DELETE',
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(payload.error || 'No se pudo eliminar del calendario.');
+          window.showToast?.(`${ticker} eliminada del calendario.`);
+          await refresh();
+          if (typeof Watchlists !== 'undefined') await Watchlists.refresh();
+        } catch (err) {
+          window.showToast?.(err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // Buscador interactivo para añadir empresas al calendario
+    const addInput = scope.querySelector('.pf-cal-add-input');
+    const addResults = scope.querySelector('.pf-cal-add-results');
+    let calSearchTimer = null;
+    if (addInput && addResults) {
+      addInput.addEventListener('input', () => {
+        clearTimeout(calSearchTimer);
+        const query = addInput.value.trim();
+        if (!query) {
+          addResults.hidden = true;
+          addResults.innerHTML = '';
+          return;
+        }
+        calSearchTimer = setTimeout(async () => {
+          try {
+            const res = await fetch(`/api/screener/search?q=${encodeURIComponent(query)}`);
+            if (!res.ok) return;
+            const payload = await res.json().catch(() => null);
+            const matches = payload?.companies ?? [];
+            if (!matches.length) {
+              addResults.innerHTML = '<div class="pf-ticker-empty">Sin resultados en EDGAR.</div>';
+              addResults.hidden = false;
+              return;
+            }
+            const existingTickers = new Set(getCalendarCompanies().map((c) => c.ticker.toUpperCase()));
+            addResults.innerHTML = matches.map((comp) => {
+              const already = existingTickers.has(comp.ticker.toUpperCase());
+              return `
+                <button class="pf-ticker-result" type="button" data-add-ticker="${escapeHtml(comp.ticker)}" data-add-name="${escapeHtml(comp.name)}">
+                  <img class="search-result-logo" src="https://companiesmarketcap.com/img/company-logos/64/${encodeURIComponent(comp.ticker)}.webp" alt="" loading="lazy" data-letter="${escapeHtml((comp.name || comp.ticker || '?').slice(0, 1).toUpperCase())}">
+                  <span>${escapeHtml(comp.name)}</span>
+                  ${already ? '<span class="pf-cal-result-already">En calendario</span>' : ''}
+                  <strong>${escapeHtml(comp.ticker)}</strong>
+                </button>
+              `;
+            }).join('');
+            addResults.hidden = false;
+
+            addResults.querySelectorAll('.pf-ticker-result').forEach((item) => {
+              item.addEventListener('click', async () => {
+                const t = item.dataset.addTicker;
+                const n = item.dataset.addName;
+                addInput.value = '';
+                addResults.hidden = true;
+                addResults.innerHTML = '';
+                await addCalendarTickerAction(t, n);
+              });
+            });
+
+            addResults.querySelectorAll('.search-result-logo').forEach((logo) => {
+              logo.addEventListener('error', () => {
+                const letter = document.createElement('span');
+                letter.className = 'search-result-logo search-result-logo-fallback';
+                letter.textContent = logo.dataset.letter || '?';
+                logo.replaceWith(letter);
+              });
+            });
+          } catch {
+            // Silencioso ante error de red
+          }
+        }, 250);
+      });
+
+      addInput.addEventListener('keydown', async (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          const val = addInput.value.trim().toUpperCase();
+          if (val) {
+            addInput.value = '';
+            addResults.hidden = true;
+            addResults.innerHTML = '';
+            await addCalendarTickerAction(val, val);
+          }
+        } else if (ev.key === 'Escape') {
+          addResults.hidden = true;
+          addInput.blur();
+        }
+      });
+
+      document.addEventListener('click', (ev) => {
+        if (!ev.target.closest('.pf-cal-add-company-wrap')) {
+          addResults.hidden = true;
+        }
+      });
+    }
+
+    async function addCalendarTickerAction(ticker, name) {
+      ticker = String(ticker || '').trim().toUpperCase();
+      if (!ticker) return;
+      if (hasPosition(ticker)) {
+        window.showToast?.(`${ticker} ya está en tu cartera y siempre aparece en el calendario.`);
+        return;
+      }
+      const current = getCalendarCompanies();
+      if (current.some((c) => c.ticker === ticker)) {
+        window.showToast?.(`${ticker} ya está en el calendario.`);
+        return;
+      }
+      try {
+        const res = await fetch('/api/watchlists/calendar/items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticker, companyName: name || ticker }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload.error || 'No se pudo añadir al calendario.');
+        window.showToast?.(`${ticker} añadida al calendario.`);
+        await refresh();
+        if (typeof Watchlists !== 'undefined') await Watchlists.refresh();
+      } catch (err) {
+        window.showToast?.(err.message);
+      }
+    }
 
     // Eventos de cierre del visor de vista previa
     const previewCloseBtn = document.querySelector('#filings-preview-close');
@@ -4855,6 +5772,19 @@ const Portfolio = (() => {
       if (event.key === 'Escape') {
         const bd = document.querySelector('#filings-preview-backdrop');
         if (bd && !bd.hidden) closeCalendarFilingPreview();
+        if (calendarEditingCompanyTicker) {
+          calendarEditingCompanyTicker = null;
+          renderCalendarView();
+        } else if (calendarConfigModalOpen) {
+          calendarConfigModalOpen = false;
+          renderCalendarView();
+        } else if (calendarActiveModalEvent) {
+          calendarActiveModalEvent = null;
+          calendarAiLoading = false;
+          calendarAiResult = null;
+          calendarAiError = null;
+          renderCalendarView();
+        }
       }
     });
   }
@@ -4888,7 +5818,7 @@ const Portfolio = (() => {
     ['weight', 'Peso de cartera (%)'],
   ];
   const CHART_RANGES = [['1m', '1M'], ['3m', '3M'], ['6m', '6M'], ['1y', '1A'], ['2y', '2A'], ['3y', '3A'], ['5y', '5A'], ['all', 'Todo']];
-  const CHART_PALETTE = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6', '#e11d48'];
+  const CHART_PALETTE = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#4f46e5', '#6366f1', '#14b8a6', '#e11d48'];
 
   function chartChoices() {
     const choices = [];
@@ -7240,9 +8170,8 @@ const Portfolio = (() => {
   function portfolioContentHtml() {
     if (portfolioTab === 'cartera') return `${allocationPanelHtml()}${chartOpen ? chartPanelHtml() : ''}${positionsPanelHtml()}`;
     if (portfolioTab === 'dividendos') return dividendPanelHtml();
-    if (portfolioTab === 'calendario') return calendarPanelHtml();
     if (portfolioTab === 'operaciones') return operationsPanelHtml();
-    return '';
+    return `${allocationPanelHtml()}${chartOpen ? chartPanelHtml() : ''}${positionsPanelHtml()}`;
   }
 
   function wirePortfolioDashboard(scope) {
@@ -7444,6 +8373,49 @@ const Portfolio = (() => {
     renderSection();
   }
 
+  function renderCalendarSection() {
+    if (!calendarSectionRoot) return;
+
+    if (!userLogged) {
+      calendarSectionRoot.innerHTML = `
+        <div class="pf-dashboard pf-calendar-page">
+          <div class="pf-empty-state">
+            <div style="font-size:32px;margin-bottom:12px;">📅</div>
+            <h3>Calendario de Resultados y Dividendos</h3>
+            <p>Inicia sesión para consultar las fechas oficiales de resultados (10-Q / 10-K) y dividendos de tus empresas.</p>
+            <button class="primary-button" type="button" data-cal-login-btn>Iniciar sesión</button>
+          </div>
+        </div>`;
+      calendarSectionRoot.querySelector('[data-cal-login-btn]')?.addEventListener('click', () => {
+        window.openModal?.('login');
+      });
+      return;
+    }
+
+    if (!data) {
+      calendarSectionRoot.innerHTML = '<div class="watch-section-empty">Cargando tu calendario…</div>';
+      return;
+    }
+
+    calendarSectionRoot.innerHTML = `
+      <div class="pf-dashboard pf-calendar-page">
+        ${calendarPanelHtml()}
+      </div>
+    `;
+
+    wireCalendarDashboard(calendarSectionRoot);
+  }
+
+  function mountCalendarSection(root, options = {}) {
+    calendarSectionRoot = root;
+    calendarSectionOptions = options;
+    if (!data && userLogged) {
+      refresh();
+    } else {
+      renderCalendarSection();
+    }
+  }
+
   /* ── Panel de empresa ────────────────────────────────────── */
 
   const companyPanels = new Set();
@@ -7521,7 +8493,19 @@ const Portfolio = (() => {
 
   window.addEventListener('portfolio:change', () => {
     if (sectionRoot) renderSection();
+    if (calendarSectionRoot) renderCalendarSection();
     renderCompanyPanels();
+  });
+
+  window.addEventListener('watchlists:change', () => {
+    if (calendarSectionRoot) renderCalendarSection();
+  });
+
+  window.addEventListener('settings:change', (event) => {
+    if (data && event.detail?.preferences) {
+      data.userPreferences = event.detail.preferences;
+    }
+    if (calendarSectionRoot) renderCalendarSection();
   });
 
   return {
@@ -7532,6 +8516,7 @@ const Portfolio = (() => {
     hasPosition,
     openSection,
     mountSection,
+    mountCalendarSection,
     registerCompanyPanel,
   };
 })();

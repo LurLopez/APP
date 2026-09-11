@@ -3,10 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#242424">
-  <meta name="description" content="Cifra: perfil y análisis fundamental de empresas.">
-  <title>Cifra Terminal | Empresa</title>
-  <link rel="stylesheet" href="/styles.css?v=89">
+  <meta name="theme-color" content="#1e293b">
+
+  <title>Cifra | Empresas de consumo defensivo de EE. UU.: resultados y análisis</title>
+  <meta name="description" content="Perfil y análisis fundamental de empresas estadounidenses de consumo defensivo: resultados de 10-Q y 10-K, cotización, histórico de filings y análisis con IA de ingresos, flujo de caja libre y asignación de capital.">
+  <meta name="keywords" content="empresas consumo defensivo, informes 10-Q, informes 10-K, filings SEC EDGAR, resultados trimestrales bolsa EE. UU., análisis de acciones estadounidenses, flujo de caja libre">
+  <meta name="author" content="Cifra">
+  <meta name="rating" content="general">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <link rel="canonical" href="{{SITE_URL}}/empresa">
+  <link rel="alternate" type="text/plain" href="{{SITE_URL}}/llms.txt" title="Resumen para modelos de lenguaje (LLMs)">
+  <link rel="alternate" type="text/plain" href="{{SITE_URL}}/llms-full.txt" title="Documentación completa para modelos de lenguaje (LLMs)">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Cifra">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:title" content="Cifra | Empresas de consumo defensivo de EE. UU.">
+  <meta property="og:description" content="Perfil, cotización, histórico de filings y análisis con IA de las empresas estadounidenses de consumo defensivo.">
+  <meta property="og:url" content="{{SITE_URL}}/empresa">
+  <meta property="og:image" content="{{SITE_URL}}/og-cifra.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Cifra — análisis de resultados financieros con IA">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Cifra | Empresas de consumo defensivo de EE. UU.">
+  <meta name="twitter:description" content="Perfil, cotización, filings y análisis con IA de empresas estadounidenses de consumo defensivo.">
+  <meta name="twitter:image" content="{{SITE_URL}}/og-cifra.png">
+
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "{{SITE_URL}}/#website",
+        "name": "Cifra",
+        "url": "{{SITE_URL}}/",
+        "inLanguage": "es",
+        "description": "Análisis de informes financieros 10-Q y 10-K de empresas estadounidenses con IA.",
+        "publisher": { "@id": "{{SITE_URL}}/#organization" },
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "{{SITE_URL}}/empresa?ticker={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        }
+      },
+      {
+        "@type": "Organization",
+        "@id": "{{SITE_URL}}/#organization",
+        "name": "Cifra",
+        "url": "{{SITE_URL}}/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{SITE_URL}}/logo-cifra.png",
+          "width": 512,
+          "height": 512
+        }
+      },
+      {
+        "@type": "CollectionPage",
+        "@id": "{{SITE_URL}}/empresa#webpage",
+        "name": "Empresas de consumo defensivo de EE. UU. — Resultados 10-Q y 10-K",
+        "url": "{{SITE_URL}}/empresa",
+        "inLanguage": "es",
+        "description": "Perfiles, cotizaciones, filings ante la SEC y análisis con IA de empresas estadounidenses de consumo defensivo.",
+        "isPartOf": { "@id": "{{SITE_URL}}/#website" },
+        "publisher": { "@id": "{{SITE_URL}}/#organization" }
+      }
+    ]
+  }
+  </script>
+
+  <link rel="stylesheet" href="/styles.css?v=99">
 </head>
 <body class="company-page">
   <div class="app-shell">
@@ -58,6 +135,10 @@
           <a class="nav-link" href="#" data-section="cartera">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
             <span>Cartera</span>
+          </a>
+          <a class="nav-link" href="#" data-section="calendario">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
+            <span>Calendario</span>
           </a>
           <a class="nav-link" href="#" data-section="analisis">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5"/><path d="M10 12h6M10 16h6"/></svg>
@@ -339,6 +420,10 @@
             <div id="portfolio-section"></div>
           </section>
 
+          <section class="company-section portfolio-page-section calendar-page-section" id="section-calendario" hidden aria-label="Calendario financiero de resultados y dividendos">
+            <div id="calendar-section"></div>
+          </section>
+
           <section class="company-section home-analisis-section" id="section-analisis" hidden aria-label="Análisis de resultados y historial">
             <section class="analysis-section" id="nuevo">
               <div class="section-title-row analysis-title"><div><span class="eyebrow">ANÁLISIS FUNDAMENTAL</span><h2>Sube un informe para empezar</h2><p class="section-subtitle">La beta acepta informes 10-Q y 10-K de empresas estadounidenses de consumo defensivo.</p></div><span class="scope-badge">FASE 1 · BETA</span></div>
@@ -357,6 +442,7 @@
                       <h3>Arrastra tu PDF aquí</h3><p>o <button class="inline-link" id="select-file" type="button">selecciona un archivo</button> desde tu equipo</p><div class="dropzone-hint">⌁ Procesamiento privado en esta beta</div>
                     </div>
                     <div class="file-preview" id="file-preview" hidden><div class="pdf-badge">PDF</div><div class="file-details"><strong id="file-name">informe.pdf</strong><span id="file-size">0 MB</span></div><span class="file-ready"><span class="status-dot"></span> Listo</span><button class="remove-file" id="remove-file" type="button" aria-label="Quitar archivo">×</button></div>
+                    <div class="presentation-upload" id="presentation-upload"><input id="presentation-input" type="file" accept="application/pdf,.pdf" hidden><button class="presentation-select" id="select-presentation" type="button">+ Añadir presentación de resultados (opcional)</button><div class="presentation-preview" id="presentation-preview" hidden><div class="pdf-badge">PDF</div><div class="file-details"><strong id="presentation-name">presentacion.pdf</strong><span id="presentation-size">0 MB</span></div><button class="remove-file" id="remove-presentation" type="button" aria-label="Quitar presentación">×</button></div><p class="presentation-hint">Si el informe no incluye el outlook, la IA lo extraerá de la presentación.</p></div>
                     <div class="form-footer"><p><span class="info-icon">i</span> El documento se comprobará antes de generar el informe.</p><button class="primary-button" id="analyze-button" type="submit" disabled>Analizar informe <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></div>
                   </form>
 
@@ -399,7 +485,7 @@
 
           <section class="company-section" id="section-informes" hidden>
             <div class="filings-view">
-              <div class="filings-head"><span class="screener-units">10-Q · 10-K · Fuente: SEC EDGAR</span><span class="screener-period-range" id="filings-count">—</span><span class="filings-scope-note">Análisis 10-Q y 10-K disponibles</span></div>
+              <div class="filings-head"><span class="screener-units">10-Q · 10-K · Fuente: SEC EDGAR</span><span class="screener-period-range" id="filings-count">—</span><span class="filings-presentations-status" id="filings-presentations-status" hidden><span class="loading-spinner-sm"></span> Cargando presentaciones y comunicados…</span><span class="filings-scope-note">Análisis 10-Q y 10-K disponibles</span></div>
               <div class="table-wrap"><table class="filings-table" id="filings-table"><thead></thead><tbody></tbody></table></div>
             </div>
           </section>
@@ -1084,7 +1170,7 @@
 
       <div class="settings-modal-header" style="margin-bottom:14px">
         <h3 class="modal-title" id="app-report-modal-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" style="vertical-align:-3px;margin-right:6px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4338ca" stroke-width="2" style="vertical-align:-3px;margin-right:6px">
             <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
             <line x1="4" y1="22" x2="4" y2="15"/>
           </svg>
@@ -1363,15 +1449,15 @@
   </div>
 
   <script src="/auth.js?v=10"></script>
-  <script src="/watchlists.js?v=9"></script>
-  <script src="/portfolio.js?v=61"></script>
-  <script src="/settings.js?v=3"></script>
+  <script src="/watchlists.js?v=10"></script>
+  <script src="/portfolio.js?v=66"></script>
+  <script src="/settings.js?v=4"></script>
   <script src="/priceAlerts.js?v=5"></script>
   <script src="/forum.js?v=3"></script>
   <script src="/reports.js?v=3"></script>
-  <script src="/analisis.js?v=16"></script>
-  <script src="/novedades.js?v=1"></script>
+  <script src="/analisis.js?v=17"></script>
+  <script src="/novedades.js?v=4"></script>
   <script src="/donations.js?v=1"></script>
-  <script src="/empresa.js?v=55"></script>
+  <script src="/empresa.js?v=63"></script>
 </body>
 </html>

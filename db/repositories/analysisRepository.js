@@ -1,12 +1,13 @@
 import { query } from '../pool.js';
 
 const ANALYSIS_COLUMNS = `
-    id, user_id, filename, status, error, origin, sector, report,
+    id, user_id, is_public, filename, status, error, origin, sector, report,
     model_used, ticker, company_name, period_end, pdf_url, source_url, accession, created_at
 `;
 
 export async function createAnalysis({
   userId = null,
+  isPublic = false,
   filename,
   status = 'processing',
   ticker = null,
@@ -17,10 +18,10 @@ export async function createAnalysis({
   accession = null,
 } = {}) {
   const { rows } = await query(
-    `INSERT INTO analyses (user_id, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING ${ANALYSIS_COLUMNS}`,
-    [userId, filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession],
+    [userId, Boolean(isPublic && userId === null), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession],
   );
   return rows[0];
 }
@@ -128,7 +129,7 @@ export async function listAnalysisCompanies({ userId = null, search = null } = {
 
 export async function updateAnalysis(id, fields) {
   const allowed = [
-    'status', 'error', 'origin', 'sector', 'report', 'model_used',
+    'status', 'error', 'origin', 'sector', 'report', 'model_used', 'is_public',
     'ticker', 'company_name', 'period_end', 'pdf_url', 'source_url', 'accession',
   ];
   const entries = Object.entries(fields).filter(([key]) => allowed.includes(key));
@@ -149,24 +150,25 @@ export async function updateAnalysis(id, fields) {
   return rows[0] ?? null;
 }
 
-export async function findLatestDoneAnalysis({ ticker, accession }) {
+export async function findLatestDoneAnalysis({ ticker, accession, userId = null }) {
   if (!ticker || !accession) return null;
   const filename = `${ticker}-${accession}.pdf`;
   const { rows } = await query(
     `SELECT ${ANALYSIS_COLUMNS}
      FROM analyses
      WHERE UPPER(ticker) = UPPER($1)
-       AND (accession = $2 OR filename = $3)
-       AND status = 'done'
-       AND report IS NOT NULL
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [ticker, accession, filename],
+        AND (accession = $2 OR filename = $3)
+        AND status = 'done'
+        AND report IS NOT NULL
+        AND (is_public = true OR ($4::int IS NOT NULL AND user_id = $4))
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [ticker, accession, filename, userId],
   );
   return rows[0] ?? null;
 }
 
-export async function getAnalyzedAccessionsWithRatings(ticker, accessions = []) {
+export async function getAnalyzedAccessionsWithRatings(ticker, accessions = [], userId = null) {
   if (!ticker || !accessions.length) return new Map();
   const filenames = accessions.map((a) => `${ticker}-${a}.pdf`);
   const { rows } = await query(
@@ -178,14 +180,15 @@ export async function getAnalyzedAccessionsWithRatings(ticker, accessions = []) 
      FROM analyses a
      LEFT JOIN analysis_ratings r ON r.analysis_id = a.id
      WHERE UPPER(a.ticker) = UPPER($1)
-       AND a.status = 'done'
-       AND a.report IS NOT NULL
-       AND (
+        AND a.status = 'done'
+        AND a.report IS NOT NULL
+        AND (a.is_public = true OR ($4::int IS NOT NULL AND a.user_id = $4))
+        AND (
          a.accession = ANY($2::text[])
          OR a.filename = ANY($3::text[])
        )
      GROUP BY COALESCE(a.accession, substring(a.filename from '([0-9]{10}-[0-9]{2}-[0-9]{6})'))`,
-    [ticker, accessions, filenames],
+     [ticker, accessions, filenames, userId],
   );
   const map = new Map();
   for (const r of rows) {
@@ -404,4 +407,3 @@ export async function deleteAnalysisErrorReport(id) {
   );
   return rows[0] ?? null;
 }
-

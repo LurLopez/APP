@@ -9,6 +9,8 @@ const TICKER_MAP_TTL = 24 * 60 * 60 * 1000;
 const FACTS_TTL = 6 * 60 * 60 * 1000;
 const FILINGS_TTL = 6 * 60 * 60 * 1000;
 const FILINGS_LIMIT = 40;
+const EARNINGS_WINDOW_DAYS = 65;
+const FILING_PRESENTATIONS_LIMIT = 16;
 
 const STATEMENTS = {
   valuation: [
@@ -639,6 +641,42 @@ export async function getCompanySector(ticker) {
   return origin.sector;
 }
 
+export async function getCompanySeoProfile(ticker) {
+  const company = await getCompanyByTicker(ticker);
+  const submissions = await getCompanySubmissions(company);
+  const recent = normalizeRecentFilings(submissions?.filings?.recent);
+  const lastFiling = recent.find((entry) => entry.form === '10-K' || entry.form === '10-Q');
+  const recentFilings = recent
+    .filter((entry) => entry.form === '10-Q' || entry.form === '10-K')
+    .slice(0, 8)
+    .map((entry) => {
+      const periodInfo = getFiscalPeriodInfo(entry.form, entry.reportDate, submissions?.fiscalYearEnd);
+      return {
+        form: entry.form,
+        filedAt: entry.filingDate ?? null,
+        period: entry.reportDate ?? null,
+        periodLabel: periodInfo.label,
+        quarter: periodInfo.quarter,
+        fiscalYear: periodInfo.fiscalYear,
+        accession: entry.accessionNumber ?? null,
+        primaryDocument: entry.primaryDocument ?? null,
+      };
+    });
+  return {
+    ticker: company.ticker,
+    name: company.name,
+    cik: company.cik,
+    exchange: profileExchange(company, submissions),
+    sector: profileSector(submissions?.sic),
+    industry: profileIndustry(submissions?.sicDescription),
+    country: profileCountry(submissions),
+    lastFiling: lastFiling
+      ? { form: lastFiling.form, filedAt: lastFiling.filingDate ?? null, period: lastFiling.reportDate ?? null }
+      : null,
+    recentFilings,
+  };
+}
+
 function profileIndustry(description) {
   const translations = {
     'Malt Beverages': 'Bebidas malteadas',
@@ -773,12 +811,52 @@ function buildCompanyProfile(company, facts, submissions, annual, quarterly, mar
   };
 }
 
-function filingPeriodLabel(formType, reportDate) {
-  if (!reportDate) return '—';
-  const year = reportDate.slice(0, 4);
-  if (formType === '10-K') return `FY ${year}`;
-  const quarter = Math.min(4, Math.ceil(Number(reportDate.slice(5, 7)) / 3));
-  return `Q${quarter} ${year}`;
+export function getFiscalPeriodInfo(formType, reportDate, fiscalYearEnd = null) {
+  if (!reportDate) {
+    return { quarter: null, fiscalYear: null, label: '—' };
+  }
+  const is10K = Boolean(formType && formType.startsWith('10-K'));
+  const d = new Date(`${reportDate}T00:00:00Z`);
+  const year = Number.isNaN(d.getTime()) ? Number(reportDate.slice(0, 4)) : d.getUTCFullYear();
+  if (is10K) {
+    return { quarter: 'FY', fiscalYear: year, label: `FY ${year}` };
+  }
+
+  const month = Number.isNaN(d.getTime()) ? Number(reportDate.slice(5, 7)) : d.getUTCMonth() + 1;
+  const day = Number.isNaN(d.getTime()) ? Number(reportDate.slice(8, 10)) : d.getUTCDate();
+
+  let fyeMonth = 12;
+  let fyeDay = 31;
+  if (typeof fiscalYearEnd === 'string' && fiscalYearEnd.length >= 4) {
+    const parsedM = parseInt(fiscalYearEnd.slice(0, 2), 10);
+    const parsedD = parseInt(fiscalYearEnd.slice(2, 4), 10);
+    if (!Number.isNaN(parsedM) && parsedM >= 1 && parsedM <= 12) fyeMonth = parsedM;
+    if (!Number.isNaN(parsedD) && parsedD >= 1 && parsedD <= 31) fyeDay = parsedD;
+  }
+
+  let fy = year;
+  const reportMD = month * 100 + day;
+  const fyeMD = fyeMonth * 100 + Math.min(31, fyeDay + 7);
+  if (reportMD > fyeMD) {
+    fy = year + 1;
+  }
+
+  const fyeDate = new Date(Date.UTC(fy, fyeMonth - 1, fyeDay));
+  const diffDays = Math.round((fyeDate.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+
+  let q = 1;
+  if (diffDays <= 135) {
+    q = 3;
+  } else if (diffDays <= 227) {
+    q = 2;
+  } else {
+    q = 1;
+  }
+  return { quarter: `Q${q}`, fiscalYear: fy, label: `Q${q} ${fy}` };
+}
+
+export function filingPeriodLabel(formType, reportDate, fiscalYearEnd = null) {
+  return getFiscalPeriodInfo(formType, reportDate, fiscalYearEnd).label;
 }
 
 function normalizeRecentFilings(recent) {
@@ -800,6 +878,7 @@ export async function getCompanyFilings(ticker, options = {}) {
   const company = await getCompanyByTicker(ticker);
   const submissions = await getCompanySubmissions(company);
   const recent = normalizeRecentFilings(submissions?.filings?.recent);
+  const fiscalYearEnd = submissions?.fiscalYearEnd ?? null;
   const filings = recent
     .filter((entry) => entry.form === '10-Q' || entry.form === '10-K')
     .filter((entry) => entry.accessionNumber && entry.primaryDocument)
@@ -810,10 +889,13 @@ export async function getCompanyFilings(ticker, options = {}) {
       const formShort = entry.form.slice(3).toLowerCase();
       const primaryDocument = entry.primaryDocument ?? '';
       const isPdf = primaryDocument.toLowerCase().endsWith('.pdf');
+      const periodInfo = getFiscalPeriodInfo(entry.form, entry.reportDate, fiscalYearEnd);
       return {
         formType: entry.form,
         period: entry.reportDate ?? null,
-        periodLabel: filingPeriodLabel(entry.form, entry.reportDate),
+        periodLabel: periodInfo.label,
+        quarter: periodInfo.quarter,
+        fiscalYear: periodInfo.fiscalYear,
         filedAt,
         accession: entry.accessionNumber,
         documentUrl: `https://www.sec.gov/Archives/edgar/data/${company.cik}/${accessionNoDashes}/${primaryDocument}`,
@@ -824,6 +906,763 @@ export async function getCompanyFilings(ticker, options = {}) {
     company: { ticker: company.ticker, name: company.name, cik: company.cik },
     filings,
   };
+}
+
+const PRESENTATION_NAME_RE = /presentation|slides?|deck|investor.?present|webcast|earnings.?call/i;
+const PRESS_RELEASE_NAME_RE = /press.?release|news.?release|earnings.?release|releas|pressrelease|release.?\d|press.?releases/i;
+const EARNINGS_DOC_NAME_RE = /ex.?99|exhibit.?99|exhibits?99|earnings|results|press|presentation|slides?|deck/i;
+const NON_EARNINGS_DOC_NAME_RE = /proxy|voting|annual.?meeting|bylaws|charter|code.?of.?ethics|compensation|employment|credit.?agreement|indenture|underwriting|auditor|consent/i;
+
+function looksLikePresentationName(name) {
+  return PRESENTATION_NAME_RE.test(String(name ?? '').toLowerCase());
+}
+
+function looksLikePressReleaseName(name) {
+  return PRESS_RELEASE_NAME_RE.test(String(name ?? '').toLowerCase());
+}
+
+function classifyEarningsDocument(name, primaryDocument) {
+  const raw = String(name ?? '');
+  const lower = raw.toLowerCase();
+  if (!raw || raw === primaryDocument) return null;
+  if (!/\.(pdf|htm|html)$/i.test(lower)) return null;
+  if (lower.includes('index') || /^r\d+\.(htm|html)$/i.test(lower)) return null;
+  if (NON_EARNINGS_DOC_NAME_RE.test(lower)) return null;
+  if (looksLikePresentationName(lower)) return 'presentation';
+  if (/\.pdf$/i.test(lower) && !looksLikePressReleaseName(lower)) return 'presentation';
+  if (/(?:^|[^a-z0-9]|x)(?:ex|exhibit)[-_.]?99(?:[._-][2-9]|d[2-9])(?![0-9])/i.test(lower) && !looksLikePressReleaseName(lower)) return 'presentation';
+  if (EARNINGS_DOC_NAME_RE.test(lower)) return 'release';
+  return null;
+}
+
+function addDaysToDate(dateStr, days) {
+  const d = new Date(`${String(dateStr).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+const IR_DECK_TTL = 12 * 60 * 60 * 1000;
+const IR_DECK_EMPTY_TTL = 5 * 60 * 1000;
+const irDeckCache = new Map();
+const irDeckInFlight = new Map();
+const IR_BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
+const IR_QUARTERLY_PATHS = [
+  '/financials/quarterly-results/default.aspx',
+  '/financials/quarterly-results',
+  '/financial-information/quarterly-results/default.aspx',
+  '/quarterly-results',
+  '/events-and-presentations/default.aspx',
+  '/events-and-presentations',
+];
+
+const DECK_NAME_RE = /presentation|deck|slides|business.?update|investor.?present|earnings.?call.?present/i;
+const NON_DECK_NAME_RE = /press.?release|earnings.?release|news.?release|transcript|q\s*&\s*a|qa_|\bqa\b|pre.?recorded|recorded.?management|(?:^|[^a-z0-9])er(?:[^a-z0-9]|$)/i;
+
+function isDeckDocument(text, url) {
+  const combined = `${String(text ?? '')} ${String(url ?? '')}`;
+  return DECK_NAME_RE.test(combined) && !NON_DECK_NAME_RE.test(combined);
+}
+
+function normalizeQuarterKey(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function stripHtmlTags(value) {
+  return String(value ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function expandYear(value) {
+  const year = String(value ?? '');
+  if (/^\d{4}$/.test(year)) return year;
+  if (/^\d{2}$/.test(year)) return Number(year) >= 40 ? `19${year}` : `20${year}`;
+  return null;
+}
+
+function extractQuarterKeys(text, url, yearHint) {
+  const keys = new Set();
+  const sources = [String(text ?? ''), String(url ?? '')];
+  const quarterPattern = /(?:^|[^a-z0-9])(?:q|qtr|quarter)\s*([1-4])\s*[,./-]?\s*(?:(?:fy|fiscal)\s*)?((?:20)?\d{2})(?![0-9])/gi;
+  const numericQuarterPattern = /(?:^|[^a-z0-9])([1-4])\s*q\s*(?:(?:fy|fiscal)\s*)?((?:20)?\d{2})(?![0-9])/gi;
+  const fiscalQuarterPattern = /(?:^|[^a-z0-9])(?:f|fy)\s*(\d{2})[\s._-]*q\s*([1-4])(?![0-9])/gi;
+  const fiscalPattern = /(?:fy|full\s*year|fiscal\s*year|fiscal|annual)\s*((?:20)?\d{2})(?![0-9])/gi;
+  const ordinalPattern = /(first|second|third|fourth)[\s-]*quarter[^a-z0-9]*(?:(?:fy|fiscal)\s*)?((?:20)?\d{2})/gi;
+  const ordinals = { first: '1', second: '2', third: '3', fourth: '4' };
+  for (const source of sources) {
+    let match;
+    while ((match = quarterPattern.exec(source))) {
+      const year = expandYear(match[2]);
+      if (year) {
+        keys.add(`q${match[1]}${year}`);
+        keys.add(`q${match[1]}fy${year}`);
+      }
+    }
+    while ((match = numericQuarterPattern.exec(source))) {
+      const year = expandYear(match[2]);
+      if (year) keys.add(`q${match[1]}${year}`);
+    }
+    while ((match = fiscalQuarterPattern.exec(source))) {
+      const year = expandYear(match[1]);
+      if (year) keys.add(`q${match[2]}${year}`);
+    }
+    while ((match = fiscalPattern.exec(source))) {
+      const year = expandYear(match[1]);
+      if (year) {
+        keys.add(`fy${year}`);
+        if (/full\s*year/i.test(match[0])) keys.add(`fullyear${year}`);
+      }
+    }
+    while ((match = ordinalPattern.exec(source))) {
+      const year = expandYear(match[2]);
+      const quarter = ordinals[match[1].toLowerCase()];
+      if (year && quarter) keys.add(`q${quarter}${year}`);
+    }
+  }
+  if (yearHint && /^\d{4}$/.test(String(yearHint))) {
+    const textTrim = String(text ?? '').trim();
+    const qOnly = /(?:^|[^a-z0-9])(?:q|qtr|quarter)\s*([1-4])\s*$/i.exec(textTrim);
+    const qOnlyNumeric = /(?:^|[^a-z0-9])([1-4])\s*q\s*$/i.exec(textTrim);
+    const quarter = qOnly?.[1] ?? qOnlyNumeric?.[1];
+    if (quarter) keys.add(`q${quarter}${yearHint}`);
+  }
+  return keys;
+}
+
+async function fetchIrPage(url) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let html = null;
+    try {
+      const { execFile } = await import('node:child_process');
+      const { promisify } = await import('node:util');
+      const execFileAsync = promisify(execFile);
+      const { stdout } = await execFileAsync(CHROME_BIN, [
+        '--headless=new',
+        '--disable-gpu',
+        '--no-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        `--user-agent=${IR_BROWSER_UA}`,
+        '--virtual-time-budget=60000',
+        '--dump-dom',
+        url,
+      ], { timeout: 90000, maxBuffer: 12 * 1024 * 1024 });
+      html = stdout || null;
+    } catch {
+      html = null;
+    }
+    const errorType = irPageErrorType(html);
+    if (!errorType) return html;
+    if (errorType === 'skip') return null;
+  }
+  return null;
+}
+
+function irPageErrorType(html) {
+  if (!html || String(html).length < 2000) return 'retry';
+  const title = String(html).match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '';
+  if (/error 404|404: not found|page not found|does not exist/i.test(title)) return 'skip';
+  const sample = `${title} ${String(html).slice(0, 4000)}`;
+  if (/just a moment|un momento|access denied|attention required|forbidden|service unavailable|verificación de seguridad|security check|challenges\.cloudflare\.com/i.test(sample)) return 'retry';
+  return null;
+}
+
+async function probeIrSiteAlive(url) {
+  try {
+    const response = await fetch(url, {
+      headers: { 'User-Agent': IR_BROWSER_UA, Accept: 'text/html' },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(6000),
+    });
+    // 200, 403 (protegido por WAF) o 429 (rate limit) indican un sitio vivo; 404/000 no.
+    return response.status === 200 || response.status === 403 || response.status === 429
+      || response.status === 301 || response.status === 302 || response.status === 307;
+  } catch {
+    return false;
+  }
+}
+
+function parseIrDocumentLinks(html) {
+  const links = [];
+  const yearHeaderPattern = /<span[^>]*class="[^"]*documents__head[^"]*"[^>]*>\s*(20\d{2})\s*<\/span>/gi;
+  const parts = String(html ?? '').split(/(?=<span[^>]*class="[^"]*documents__head[^"]*"[^>]*>\s*20\d{2}\s*<\/span>)/i);
+  let currentYear = null;
+  const anchorPattern = /<a\s+([^>]*)>([\s\S]*?)<\/a>/gi;
+  for (const part of parts) {
+    const yearMatch = part.match(/<span[^>]*class="[^"]*documents__head[^"]*"[^>]*>\s*(20\d{2})\s*<\/span>/i);
+    if (yearMatch) currentYear = yearMatch[1];
+    let match;
+    anchorPattern.lastIndex = 0;
+    while ((match = anchorPattern.exec(part))) {
+      const attrs = match[1];
+      const hrefMatch = attrs.match(/href="([^"]+)"/i);
+      if (!hrefMatch) continue;
+      const url = hrefMatch[1];
+      const titleMatch = attrs.match(/title="([^"]*)"/i);
+      const labelMatch = attrs.match(/aria-label="([^"]*)"/i);
+      const innerText = stripHtmlTags(match[2]);
+      const rawName = (labelMatch?.[1] || titleMatch?.[1] || innerText || '').trim();
+      const combined = `${url} ${rawName}`;
+      const looksLikeDocument = /\.pdf(?:\?|$)/i.test(url)
+        || /slides|presentation|deck|press|transcript|remarks|earnings/i.test(combined);
+      if (!looksLikeDocument) continue;
+      links.push({ url, text: rawName || innerText, year: currentYear });
+    }
+  }
+  return links;
+}
+
+async function getIrQuarterlyLinks(irSite) {
+  for (const path of IR_QUARTERLY_PATHS) {
+    const pageUrl = `${irSite}${path}`;
+    const html = await fetchIrPage(pageUrl);
+    if (!html) continue;
+    const pageLinks = parseIrDocumentLinks(html).map((link) => ({ ...link, base: pageUrl }));
+    const hasDecks = pageLinks.some((link) => isDeckDocument(link.text, link.url)
+      && extractQuarterKeys(link.text, link.url, link.year).size > 0);
+    if (hasDecks) return pageLinks;
+  }
+  return [];
+}
+
+const Q4_API_HEADERS = {
+  'User-Agent': IR_BROWSER_UA,
+  Accept: 'application/json, text/javascript, */*; q=0.01',
+  'X-Requested-With': 'XMLHttpRequest',
+};
+
+function deckNameFromUrl(url, fallback) {
+  let name = cleanDeckName(fallback) || 'Presentación de resultados';
+  if (/^q[1-4]\s*$/i.test(name.trim()) || !/(20\d{2}|q\s*[1-4]\s*(?:20)?\d{2}|fy)/i.test(name)) {
+    const fileName = decodeURIComponent(String(url).split('/').pop().split('?')[0]).replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ');
+    name = cleanDeckName(fileName) || name;
+  }
+  return name;
+}
+
+async function getQ4EventDeckMap(irSite) {
+  const map = new Map();
+  const currentYear = new Date().getFullYear();
+  const years = [];
+  for (let year = currentYear + 1; year >= currentYear - 5; year -= 1) years.push(year);
+  for (const year of years) {
+    let events = null;
+    try {
+      const response = await fetch(`${irSite}/feed/Event.svc/GetEventList?year=${year}&languageId=1`, {
+        headers: Q4_API_HEADERS,
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) continue;
+      const json = await response.json();
+      events = json?.GetEventListResult;
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(events)) continue;
+    for (const event of events) {
+      const eventTitle = String(event?.Title ?? '');
+      for (const attachment of event?.Attachments ?? []) {
+        if (String(attachment?.Extension ?? '').toLowerCase() !== 'pdf') continue;
+        const attachmentUrl = attachment?.Url;
+        if (!attachmentUrl) continue;
+        const attachmentTitle = String(attachment?.Title ?? '');
+        if (!/presentation|slides|deck/i.test(`${attachmentTitle} ${attachmentUrl}`)) continue;
+        const keys = extractQuarterKeys(`${eventTitle} ${attachmentTitle}`, attachmentUrl);
+        if (!keys.size) continue;
+        const name = deckNameFromUrl(attachmentUrl, attachmentTitle);
+        for (const key of keys) {
+          if (!map.has(key)) map.set(key, { url: attachmentUrl, name });
+        }
+      }
+    }
+  }
+  return map;
+}
+
+function extractSubpageUrls(html, baseUrl) {
+  const urls = [];
+  const seen = new Set();
+  const anchorPattern = /<a\s+([^>]*)>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = anchorPattern.exec(html))) {
+    const attrs = match[1];
+    const hrefMatch = attrs.match(/href="([^"]+)"/i);
+    if (!hrefMatch) continue;
+    const href = hrefMatch[1];
+    const text = stripHtmlTags(match[2]);
+    if (!/event|calendar|quarterly|result|financial|presentation|earnings/i.test(`${href} ${text}`)) continue;
+    try {
+      const abs = new URL(href, baseUrl).href;
+      const normalized = abs.replace(/\/+$/, '');
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        urls.push(normalized);
+      }
+    } catch {
+      // Enlace no resoluble
+    }
+  }
+  return urls;
+}
+
+async function getMainSiteIrPageUrls(website) {
+  const candidates = [];
+  const seen = new Set();
+  const add = (url) => {
+    const normalized = String(url ?? '').replace(/\/+$/, '');
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    candidates.push(normalized);
+  };
+  try {
+    const response = await fetch(website, {
+      headers: { 'User-Agent': IR_BROWSER_UA, Accept: 'text/html' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (response.ok) {
+      const html = await response.text();
+      const anchorPattern = /<a\s+([^>]*)>([\s\S]*?)<\/a>/gi;
+      let match;
+      while ((match = anchorPattern.exec(html))) {
+        const attrs = match[1];
+        const hrefMatch = attrs.match(/href="([^"]+)"/i);
+        if (!hrefMatch) continue;
+        const href = hrefMatch[1];
+        const text = stripHtmlTags(match[2]);
+        if (!/investor/i.test(`${href} ${text}`)) continue;
+        try {
+          const abs = new URL(href, website).href;
+          if (/investor/i.test(abs)) add(abs);
+        } catch {
+          // Enlace no resoluble
+        }
+      }
+    }
+  } catch {
+    // La web principal no responde; se prueban las rutas típicas.
+  }
+  add(`${website}/investor-relations/financial-news/events-calendar`);
+  add(`${website}/investor-relations`);
+  add(`${website}/investors`);
+  return candidates;
+}
+
+function cleanDeckName(text) {
+  return String(text ?? '')
+    .replace(/[,]?\s*(?:PDF file|Report|opens? in new window).*$/i, '')
+    .replace(/[>]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function getCompanyIrDeckMap(company) {
+  const cached = irDeckCache.get(company.ticker);
+  if (cached) {
+    const ttl = cached.empty ? IR_DECK_EMPTY_TTL : IR_DECK_TTL;
+    if (Date.now() - cached.at < ttl) return cached.data;
+  }
+  const inFlight = irDeckInFlight.get(company.ticker);
+  if (inFlight) return inFlight;
+  const promise = buildCompanyIrDeckMap(company).finally(() => irDeckInFlight.delete(company.ticker));
+  irDeckInFlight.set(company.ticker, promise);
+  return promise;
+}
+
+async function buildCompanyIrDeckMap(company) {
+  const map = new Map();
+  if (company?.ticker === 'CAG') {
+    return map;
+  }
+  try {
+    const { getCompanyIrSites } = await import('./market.service.js');
+    const candidates = await getCompanyIrSites(company.ticker);
+    const candidateProbes = await Promise.all(
+      candidates.map(async (candidate) => ({
+        candidate,
+        alive: await probeIrSiteAlive(candidate.url),
+      }))
+    );
+    const aliveCandidates = candidateProbes
+      .filter((p) => p.alive)
+      .map((p) => p.candidate)
+      .sort((a, b) => (a.kind === 'ir' ? -1 : (b.kind === 'ir' ? 1 : 0)));
+
+    // Fase 1: Comprobar rápidamente la API pública de Q4 Inc en los candidatos vivos (sin Chrome)
+    for (const candidate of aliveCandidates) {
+      const q4Map = await getQ4EventDeckMap(candidate.url);
+      if (q4Map.size) {
+        for (const [key, value] of q4Map) {
+          if (!map.has(key)) map.set(key, value);
+        }
+        break;
+      }
+    }
+
+    // Fase 2: Si no es un sitio Q4, crawlear la sección IR
+    for (let pass = 0; pass < 2 && map.size === 0; pass += 1) {
+      for (const candidate of aliveCandidates.slice(0, 2)) {
+      let links = [];
+      let base = candidate.url;
+      if (candidate.kind === 'website') {
+        const pageUrls = await getMainSiteIrPageUrls(candidate.url);
+        const crawlQueue = pageUrls.slice(0, 3);
+        const visited = new Set();
+        const triedOrigins = new Set();
+        let fetches = 0;
+        while (crawlQueue.length && fetches < 5) {
+          const pageUrl = crawlQueue.shift();
+          if (visited.has(pageUrl)) continue;
+          visited.add(pageUrl);
+          try {
+            const origin = new URL(pageUrl).origin;
+            if (!triedOrigins.has(origin)) {
+              triedOrigins.add(origin);
+              const q4Map = await getQ4EventDeckMap(origin);
+              if (q4Map.size) {
+                for (const [key, value] of q4Map) {
+                  if (!map.has(key)) map.set(key, value);
+                }
+                break;
+              }
+            }
+          } catch {
+            // Origen no resoluble
+          }
+          fetches += 1;
+          const html = await fetchIrPage(pageUrl);
+          if (!html) continue;
+          const pageLinks = parseIrDocumentLinks(html).map((link) => ({ ...link, base: pageUrl }));
+          const hasDecks = pageLinks.some((link) => isDeckDocument(link.text, link.url)
+            && extractQuarterKeys(link.text, link.url, link.year).size > 0);
+          if (hasDecks) {
+            links = pageLinks;
+            break;
+          }
+          const innerUrls = extractSubpageUrls(html, pageUrl);
+          for (const inner of innerUrls) {
+            if (!visited.has(inner)) crawlQueue.push(inner);
+          }
+        }
+      } else {
+        links = await getIrQuarterlyLinks(candidate.url);
+      }
+      if (!links.length) continue;
+      for (const link of links) {
+        if (!isDeckDocument(link.text, link.url)) continue;
+        const keys = extractQuarterKeys(link.text, link.url, link.year);
+        if (!keys.size) continue;
+        let absoluteUrl = link.url;
+        try {
+          absoluteUrl = new URL(link.url, link.base || base).href;
+        } catch {
+          continue;
+        }
+        let name = deckNameFromUrl(absoluteUrl, link.text);
+        for (const key of keys) {
+          if (!map.has(key)) map.set(key, { url: absoluteUrl, name });
+        }
+      }
+      if (map.size) break;
+    }
+    }
+  } catch {
+    // Si falla la web de IR, se continúa solo con los documentos del 8-K.
+  }
+  irDeckCache.set(company.ticker, { data: map, at: Date.now(), empty: map.size === 0 });
+  return map;
+}
+
+function getCagDeckForFiling(filing) {
+  const filed = filing.filedAt ? String(filing.filedAt).slice(0, 10) : null;
+  if (!filed) return null;
+  const year = parseInt(filed.slice(0, 4), 10);
+  const month = parseInt(filed.slice(5, 7), 10);
+  let q;
+  let fy;
+  if (month >= 6 && month <= 8) {
+    q = 4;
+    fy = year;
+  } else if (month >= 9 && month <= 11) {
+    q = 1;
+    fy = year + 1;
+  } else if (month === 12) {
+    q = 2;
+    fy = year + 1;
+  } else if (month === 1) {
+    q = 2;
+    fy = year;
+  } else if (month >= 2 && month <= 5) {
+    q = 3;
+    fy = year;
+  } else {
+    return null;
+  }
+  const fyShort = String(fy).slice(2);
+  const url = `https://www.conagrabrands.com/files/events/${filed}/Q${q}FY${fyShort}-Earnings-Slides`;
+  return {
+    url,
+    name: `Conagra Brands Q${q} FY${fy} Earnings Slides`,
+  };
+}
+
+async function getIrDeckForFiling(company, filing) {
+  if (company?.ticker === 'CAG') {
+    const cagDeck = getCagDeckForFiling(filing);
+    if (cagDeck) return cagDeck;
+  }
+  const map = await getCompanyIrDeckMap(company);
+  if (!map.size) return null;
+  const year = String(filing.period ?? '').slice(0, 4);
+  if (!/^\d{4}$/.test(year)) return null;
+  const candidates = [];
+  if (String(filing.formType ?? '').includes('10-K')) {
+    candidates.push(`q4${year}`, `fy${year}`, `fullyear${year}`);
+    if (filing.fiscalYear) {
+      candidates.push(`q4${filing.fiscalYear}`, `fy${filing.fiscalYear}`, `fullyear${filing.fiscalYear}`);
+    }
+  } else {
+    const quarterMatch = String(filing.periodLabel ?? '').match(/Q([1-4])\s*(\d{4})/);
+    const quarter = quarterMatch?.[1];
+    const fy = quarterMatch?.[2];
+    if (quarter) {
+      if (fy) {
+        candidates.push(`q${quarter}${fy}`, `q${quarter}fy${fy}`);
+      }
+      candidates.push(`q${quarter}${year}`, `q${quarter}fy${year}`);
+    }
+  }
+  for (const key of candidates) {
+    const hit = map.get(key);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let index = 0;
+  async function worker() {
+    while (index < items.length) {
+      const current = index;
+      index += 1;
+      results[current] = await mapper(items[current], current);
+    }
+  }
+  const workers = Array.from({ length: Math.min(concurrency, Math.max(1, items.length)) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
+const filingPresentationsCache = new Map();
+const filingPresentationsInFlight = new Map();
+const FILING_PRESENTATIONS_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+export function getCachedFilingPresentations(ticker, accession) {
+  if (!ticker || !accession) return null;
+  const key = `${ticker}:${accession}`;
+  const hit = filingPresentationsCache.get(key);
+  if (hit && Date.now() - hit.at < FILING_PRESENTATIONS_CACHE_TTL) {
+    return hit.data;
+  }
+  return null;
+}
+
+async function findFilingPresentations(company, filing) {
+  const cacheKey = `${company.ticker}:${filing.accession}`;
+  const cached = filingPresentationsCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < FILING_PRESENTATIONS_CACHE_TTL) {
+    return cached.data;
+  }
+  const inFlight = filingPresentationsInFlight.get(cacheKey);
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    const presentations = [];
+    const irDeck = await getIrDeckForFiling(company, filing);
+    if (irDeck) {
+      presentations.push({
+        kind: 'presentation',
+        source: 'ir',
+        docType: 'presentation',
+        name: irDeck.name || 'Presentación de resultados',
+        documentName: irDeck.name || 'Presentación de resultados',
+        period: filing.period ?? null,
+        filedAt: filing.filedAt ?? null,
+        accession: null,
+        documentUrl: irDeck.url,
+      });
+    }
+
+    const submissions = await getCompanySubmissions(company);
+    const recent = normalizeRecentFilings(submissions?.filings?.recent);
+    if (!Array.isArray(recent)) return presentations;
+
+    const periodEnd = filing.period ? String(filing.period).slice(0, 10) : null;
+    const candidates = [];
+    const fallbackStart = periodEnd ? null : (filing.filedAt ? addDaysToDate(filing.filedAt, -35) : null);
+    const fallbackEnd = periodEnd ? null : (filing.filedAt ? addDaysToDate(filing.filedAt, 35) : null);
+    const earningsWindowEnd = periodEnd ? addDaysToDate(periodEnd, EARNINGS_WINDOW_DAYS) : null;
+
+    for (const entry of recent) {
+      if (entry.form !== '8-K' || !entry.accessionNumber) continue;
+      const rep = (entry.reportDate || entry.filingDate) ? String(entry.reportDate || entry.filingDate).slice(0, 10) : null;
+      const filed = entry.filingDate ? String(entry.filingDate).slice(0, 10) : null;
+      let matches = false;
+      if (periodEnd && rep && earningsWindowEnd && rep >= periodEnd && rep <= earningsWindowEnd) {
+        matches = true;
+      }
+      if (!matches && filing.filedAt && filed) {
+        const filedTarget = String(filing.filedAt).slice(0, 10);
+        const windowStart = addDaysToDate(filedTarget, -45);
+        const windowEnd = addDaysToDate(filedTarget, 45);
+        if (windowStart && windowEnd && filed >= windowStart && filed <= windowEnd) {
+          matches = true;
+        }
+      }
+      if (!matches && fallbackStart && fallbackEnd && filed && filed >= fallbackStart && filed <= fallbackEnd) {
+        matches = true;
+      }
+      if (matches) {
+        candidates.push(entry);
+      }
+    }
+    if (!candidates.length) return presentations;
+
+    // El 8-K de resultados se identifica por el item 2.02 (Results of Operations and
+    // Financial Condition). Si la empresa no lo usa, se recurre a la ventana temporal.
+    const earningsCandidates = candidates.filter((entry) => String(entry.items ?? '').includes('2.02'));
+    let pool = earningsCandidates.length ? earningsCandidates : candidates;
+    if (filing.filedAt && pool.length > 1) {
+      const targetTime = new Date(filing.filedAt).getTime();
+      pool = [...pool].sort((a, b) => {
+        const diffA = a.filingDate ? Math.abs(new Date(a.filingDate).getTime() - targetTime) : Infinity;
+        const diffB = b.filingDate ? Math.abs(new Date(b.filingDate).getTime() - targetTime) : Infinity;
+        return diffA - diffB;
+      });
+    }
+    const selected = earningsCandidates.length ? pool.slice(0, 1) : pool.slice(0, 4);
+
+    const indexed = await mapWithConcurrency(selected, 3, async (entry) => ({
+      entry,
+      items: await getFilingIndexItems(company, { accession: entry.accessionNumber }),
+    }));
+
+    const seen = new Set();
+    for (const { entry, items } of indexed) {
+      if (!Array.isArray(items)) continue;
+      const picks = [];
+      for (const item of items) {
+        const docType = classifyEarningsDocument(item.name, entry.primaryDocument);
+        if (!docType) continue;
+        picks.push({ name: item.name, docType });
+      }
+      // Las presentaciones tienen prioridad sobre los comunicados; se limita a 2 documentos por filing.
+      picks.sort((a, b) => (a.docType === b.docType ? 0 : (a.docType === 'presentation' ? -1 : 1)));
+      for (const pick of picks.slice(0, 2)) {
+        if (seen.has(pick.name)) continue;
+        seen.add(pick.name);
+        presentations.push({
+          kind: 'presentation',
+          docType: pick.docType,
+          formType: '8-K',
+          name: pick.name,
+          period: entry.reportDate ?? null,
+          filedAt: entry.filingDate ?? null,
+          accession: entry.accessionNumber,
+          documentName: pick.name,
+          documentUrl: `https://www.sec.gov/Archives/edgar/data/${company.cik}/${entry.accessionNumber.replaceAll('-', '')}/${pick.name}`,
+        });
+      }
+    }
+    return presentations;
+  })().then((res) => {
+    filingPresentationsCache.set(cacheKey, { data: res, at: Date.now() });
+    return res;
+  }).finally(() => {
+    filingPresentationsInFlight.delete(cacheKey);
+  });
+
+  filingPresentationsInFlight.set(cacheKey, promise);
+  return promise;
+}
+
+export async function getFilingsPresentationsMap(ticker, options = {}) {
+  const limit = Math.min(Number(options?.presentationLimit) || FILING_PRESENTATIONS_LIMIT, FILINGS_LIMIT);
+  const { company, filings } = await getCompanyFilings(ticker, options);
+  const recent = filings.slice(0, limit);
+  const results = await mapWithConcurrency(recent, 4, async (filing) => {
+    const presentations = await findFilingPresentations(company, filing);
+    return { accession: filing.accession, presentations };
+  });
+  const map = {};
+  for (const item of results) {
+    if (item.accession) {
+      map[item.accession] = item.presentations || [];
+    }
+  }
+  return map;
+}
+
+export async function getFilingsWithPresentations(ticker, options = {}) {
+  const limit = Math.min(Number(options?.presentationLimit) || FILING_PRESENTATIONS_LIMIT, FILINGS_LIMIT);
+  const { company, filings } = await getCompanyFilings(ticker, options);
+  const recent = filings.slice(0, limit);
+  const withPresentations = await mapWithConcurrency(recent, 4, async (filing) => ({
+    ...filing,
+    presentations: await findFilingPresentations(company, filing),
+  }));
+  const rest = filings.slice(limit).map((filing) => ({ ...filing, presentations: [] }));
+  return {
+    company: { ticker: company.ticker, name: company.name, cik: company.cik },
+    filings: [...withPresentations, ...rest],
+  };
+}
+
+export async function getFilingPresentations(ticker, accession) {
+  const { company, filings } = await getCompanyFilings(ticker);
+  const filing = filings.find((item) => item.accession === accession);
+  if (!filing) return [];
+  return findFilingPresentations(company, filing);
+}
+
+export async function getPresentationBuffers(ticker, accession) {
+  const presentations = await getFilingPresentations(ticker, accession);
+  if (!presentations.length) return [];
+
+  const downloadOne = async (presentation) => {
+    try {
+      const isSecUrl = String(presentation.documentUrl ?? '').includes('sec.gov');
+      const response = await fetch(presentation.documentUrl, {
+        headers: {
+          'User-Agent': isSecUrl ? USER_AGENT : IR_BROWSER_UA,
+          Accept: 'application/pdf,text/html',
+        },
+        signal: AbortSignal.timeout(isSecUrl ? 25000 : 35000),
+      });
+      if (!response.ok) return null;
+      const contentType = response.headers.get('content-type') ?? '';
+      const arrayBuffer = await response.arrayBuffer();
+      if (!arrayBuffer.byteLength) return null;
+      return {
+        name: presentation.documentName ?? presentation.name,
+        buffer: Buffer.from(arrayBuffer),
+        kind: contentType.includes('pdf') ? 'pdf' : (contentType.includes('html') ? 'html' : 'pdf'),
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const results = await Promise.allSettled(presentations.map(downloadOne));
+  return results
+    .filter((r) => r.status === 'fulfilled' && r.value)
+    .map((r) => r.value);
 }
 
 const extensionFactsCache = new Map();
@@ -2183,6 +3022,130 @@ function buildSeries(facts) {
   return { annual, quarterly };
 }
 
+const DEBT_MATURITY_TAG_RE = /^(?:LongTermDebt|LongTermDebtAndCapitalLeaseObligations)MaturitiesRepaymentsOfPrincipal(InNextTwelveMonths|InRemainderOfFiscalYear|InYearTwo|InYearThree|InYearFour|InYearFive|AfterYearFive|InRollingYearTwo|InRollingYearThree|InRollingYearFour|InRollingYearFive|InRollingAfterYearFive)$/;
+
+const DEBT_MATURITY_SLOT = {
+  InNextTwelveMonths: { slot: 'nextTwelveMonths', offset: 1 },
+  InRemainderOfFiscalYear: { slot: 'nextTwelveMonths', offset: 1 },
+  InYearTwo: { slot: 'yearTwo', offset: 2 },
+  InYearThree: { slot: 'yearThree', offset: 3 },
+  InYearFour: { slot: 'yearFour', offset: 4 },
+  InYearFive: { slot: 'yearFive', offset: 5 },
+  AfterYearFive: { slot: 'afterYearFive', offset: null },
+  InRollingYearTwo: { slot: 'yearTwo', offset: 2 },
+  InRollingYearThree: { slot: 'yearThree', offset: 3 },
+  InRollingYearFour: { slot: 'yearFour', offset: 4 },
+  InRollingYearFive: { slot: 'yearFive', offset: 5 },
+  InRollingAfterYearFive: { slot: 'afterYearFive', offset: null },
+};
+
+// Calendario contractual de vencimientos (XBRL): próximos 5 años + tramo posterior.
+export function buildDebtMaturitiesFromFacts(facts) {
+  const usGaap = facts?.facts?.['us-gaap'];
+  if (!usGaap) return null;
+
+  const byEnd = new Map();
+  for (const [tag, meta] of Object.entries(usGaap)) {
+    const match = tag.match(DEBT_MATURITY_TAG_RE);
+    if (!match) continue;
+    const slotInfo = DEBT_MATURITY_SLOT[match[1]];
+    if (!slotInfo) continue;
+    const unitData = meta?.units?.USD;
+    if (!Array.isArray(unitData)) continue;
+
+    for (const entry of unitData) {
+      const val = Number(entry.val);
+      if (!Number.isFinite(val) || val < 0 || !entry.end) continue;
+      if (!byEnd.has(entry.end)) byEnd.set(entry.end, new Map());
+      const bucket = byEnd.get(entry.end);
+      const candidate = {
+        val,
+        filed: String(entry.filed ?? ''),
+        isAnnual: String(entry.form ?? '').toUpperCase() === '10-K',
+      };
+      const prev = bucket.get(slotInfo.slot);
+      if (!prev
+        || (candidate.isAnnual && !prev.isAnnual)
+        || (candidate.isAnnual === prev.isAnnual && candidate.filed > prev.filed)) {
+        bucket.set(slotInfo.slot, candidate);
+      }
+    }
+  }
+
+  if (!byEnd.size) {
+    // Respaldo: si el 10-K no etiqueta el calendario completo, usar al menos la
+    // porción corriente de deuda a largo plazo (vencimiento en los próximos 12 meses).
+    const candidates = [];
+    for (const tag of ['LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent']) {
+      const unitData = usGaap?.[tag]?.units?.USD;
+      if (!Array.isArray(unitData)) continue;
+      for (const entry of unitData) {
+        const val = Number(entry.val);
+        if (!Number.isFinite(val) || val <= 0 || !entry.end) continue;
+        candidates.push({
+          val,
+          end: entry.end,
+          filed: String(entry.filed ?? ''),
+          isAnnual: String(entry.form ?? '').toUpperCase() === '10-K',
+        });
+      }
+    }
+    const pool = candidates.filter((c) => c.isAnnual);
+    const poolToUse = pool.length ? pool : candidates;
+    if (!poolToUse.length) return null;
+    poolToUse.sort((a, b) => {
+      const end = b.end.localeCompare(a.end);
+      if (end !== 0) return end;
+      return b.filed.localeCompare(a.filed);
+    });
+    const fallback = poolToUse[0];
+    const fallbackYear = Number(String(fallback.end).slice(0, 4));
+    const fallbackAmount = Math.round((fallback.val / 1e6) * 10) / 10;
+    return {
+      baseYear: fallbackYear,
+      asOf: fallback.end,
+      years: [{ year: fallbackYear + 1, amount: fallbackAmount }],
+      afterYearFive: null,
+      totalAmount: fallbackAmount,
+      partial: true,
+      source: 'SEC XBRL (porción corriente de deuda a largo plazo)',
+    };
+  }
+
+  const ends = [...byEnd.keys()].sort().reverse();
+  const pickEnd = ends.find((end) => {
+    const bucket = byEnd.get(end);
+    return [...bucket.values()].some((e) => e.isAnnual);
+  }) ?? ends[0];
+  const bucket = byEnd.get(pickEnd);
+
+  const toMillions = (entry) => (entry && Number.isFinite(entry.val) ? Math.round((entry.val / 1e6) * 10) / 10 : null);
+  const baseYear = Number(String(pickEnd).slice(0, 4));
+
+  const years = [];
+  for (const [slot, info] of Object.entries(DEBT_MATURITY_SLOT)) {
+    if (info.offset == null) continue;
+    if (years.some((y) => y.offset === info.offset)) continue;
+    const amount = toMillions(bucket.get(info.slot));
+    if (amount != null) years.push({ offset: info.offset, amount });
+  }
+  years.sort((a, b) => a.offset - b.offset);
+
+  if (!years.length) return null;
+
+  const afterYearFive = toMillions(bucket.get('afterYearFive'));
+  const totalAmount = years.reduce((sum, y) => sum + y.amount, 0) + (afterYearFive ?? 0);
+
+  return {
+    baseYear,
+    asOf: pickEnd,
+    years: years.map((y) => ({ year: baseYear + y.offset, amount: y.amount })),
+    afterYearFive,
+    totalAmount: Number.isFinite(totalAmount) ? Math.round(totalAmount * 10) / 10 : null,
+    source: 'SEC XBRL (contractual maturities)',
+  };
+}
+
 export async function getCompanyResults(ticker, options = {}) {
   const company = await getCompanyByTicker(ticker);
   const [facts, submissions, market] = await Promise.all([
@@ -2191,6 +3154,7 @@ export async function getCompanyResults(ticker, options = {}) {
     getMarketProfile(company.ticker).catch(() => null),
   ]);
   const { annual, quarterly } = buildSeries(facts);
+  const debtMaturities = buildDebtMaturitiesFromFacts(facts);
   try {
     const extensionFacts = await getExtensionFacts(company);
     mergeInstanceFacts(annual, quarterly, extensionFacts, company.ticker);
@@ -2211,6 +3175,7 @@ export async function getCompanyResults(ticker, options = {}) {
     statements: publicStatements(),
     annual,
     quarterly,
+    debtMaturities,
   };
 }
 

@@ -5,6 +5,12 @@ const removeFileButton = document.querySelector('#remove-file');
 const filePreview = document.querySelector('#file-preview');
 const fileName = document.querySelector('#file-name');
 const fileSize = document.querySelector('#file-size');
+const presentationInput = document.querySelector('#presentation-input');
+const selectPresentationButton = document.querySelector('#select-presentation');
+const removePresentationButton = document.querySelector('#remove-presentation');
+const presentationPreview = document.querySelector('#presentation-preview');
+const presentationName = document.querySelector('#presentation-name');
+const presentationSize = document.querySelector('#presentation-size');
 const analyzeButton = document.querySelector('#analyze-button');
 const uploadForm = document.querySelector('#upload-form');
 const processingPanel = document.querySelector('#processing-panel');
@@ -17,6 +23,7 @@ const tickerSearch = document.querySelector('#ticker-search');
 const searchResults = document.querySelector('#search-results');
 
 let selectedFile = null;
+let selectedPresentation = null;
 let toastTimer;
 let analysisTimer;
 let lastAnalysisFailed = true;
@@ -269,6 +276,32 @@ function clearFile() {
   dropzone.hidden = false;
   filePreview.hidden = true;
   analyzeButton.disabled = true;
+  clearPresentationFile();
+}
+
+function setPresentationFile(file) {
+  if (!file) return;
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if (!isPdf) {
+    showToast('La presentación debe ser un archivo PDF.');
+    return;
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    showToast('La presentación supera el límite de 25 MB.');
+    return;
+  }
+  selectedPresentation = file;
+  presentationName.textContent = file.name;
+  presentationSize.textContent = formatFileSize(file.size);
+  presentationPreview.hidden = false;
+  selectPresentationButton.hidden = true;
+}
+
+function clearPresentationFile() {
+  selectedPresentation = null;
+  if (presentationInput) presentationInput.value = '';
+  if (presentationPreview) presentationPreview.hidden = true;
+  if (selectPresentationButton) selectPresentationButton.hidden = false;
 }
 
 function setAgentState(agent, state) {
@@ -395,6 +428,7 @@ async function runRealAnalysis() {
 
   const formData = new FormData();
   formData.append('file', selectedFile);
+  if (selectedPresentation) formData.append('presentation', selectedPresentation);
 
   try {
     const response = await fetch('/api/upload', { method: 'POST', body: formData });
@@ -449,6 +483,15 @@ dropzone.addEventListener('keydown', (event) => {
 });
 
 fileInput.addEventListener('change', (event) => setFile(event.target.files[0]));
+selectPresentationButton?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  presentationInput?.click();
+});
+presentationInput?.addEventListener('change', (event) => setPresentationFile(event.target.files?.[0]));
+removePresentationButton?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  clearPresentationFile();
+});
 removeFileButton.addEventListener('click', clearFile);
 
 ['dragenter', 'dragover'].forEach((eventName) => {
@@ -646,6 +689,7 @@ const homeSections = {
   seguimiento: document.querySelector('#favoritos'),
   alertas: document.querySelector('#alertas'),
   cartera: document.querySelector('#cartera'),
+  calendario: document.querySelector('#section-calendario'),
   analisis: document.querySelector('#analisis'),
   novedades: document.querySelector('#section-novedades'),
 };
@@ -654,6 +698,7 @@ const SECTION_TITLES = {
   seguimiento: 'Cifra Terminal | Seguimiento',
   alertas: 'Cifra Terminal | Alertas de Precio',
   cartera: 'Cifra Terminal | Cartera',
+  calendario: 'Cifra Terminal | Calendario',
   analisis: 'Cifra Terminal | Análisis',
   novedades: 'Cifra Terminal | Novedades',
 };
@@ -662,6 +707,7 @@ const SECTION_PATHS = {
   seguimiento: '/seguimiento',
   alertas: '/alertas',
   cartera: '/cartera',
+  calendario: '/calendario',
   analisis: '/analisis',
   novedades: '/novedades',
 };
@@ -675,6 +721,7 @@ function normalizeSection(nameOrPath) {
   if (clean === 'seguimiento' || clean === 'favoritos') return 'seguimiento';
   if (clean === 'alertas' || clean === 'alertas-precio') return 'alertas';
   if (clean === 'cartera' || clean === 'portfolio') return 'cartera';
+  if (clean === 'calendario' || clean === 'calendar') return 'calendario';
   if (clean === 'analisis' || clean === 'análisis') return 'analisis';
   if (clean === 'novedades' || clean === 'novedad') return 'novedades';
   return null;

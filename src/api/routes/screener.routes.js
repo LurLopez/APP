@@ -3,13 +3,18 @@ import { Readable } from 'node:stream';
 import {
   searchCompanies,
   getCompanyResults,
-  getValuationSeries,
   getCompanyFilings,
+  getValuationSeries,
+  getFilingsWithPresentations,
+  getCachedFilingPresentations,
+  getFilingsPresentationsMap,
+  getFilingPresentations,
+  getPresentationBuffers,
   getFilingDocumentStream,
   getFilingPreview,
   getFilingContentBuffer,
 } from '../../services/edgar.service.js';
-import { analyzePdf, analyzeText, htmlToText, buildDownloadBase } from '../../services/analysis.service.js';
+import { analyzePdf, analyzeText, htmlToText, buildPresentationText, buildDownloadBase } from '../../services/analysis.service.js';
 import { generateReportPdf, cleanupGeneratedReports, GENERATED_DIR } from '../../services/report.service.js';
 import {
   findLatestDoneAnalysis,
@@ -133,21 +138,77 @@ router.get('/company/:ticker/filings', async (req, res, next) => {
       res.status(400).json({ error: 'Ticker no válido.' });
       return;
     }
-    const result = await getCompanyFilings(ticker);
+    const includePresentations = req.query.presentations === '1' || req.query.presentations === 'true';
+    let result;
+    if (includePresentations) {
+      result = await getFilingsWithPresentations(ticker);
+    } else {
+      result = await getCompanyFilings(ticker);
+    }
     const accessions = (result?.filings ?? []).map((f) => f.accession).filter(Boolean);
-    const analyzedMap = await getAnalyzedAccessionsWithRatings(ticker, accessions);
-    const filings = (result?.filings ?? []).map((f) => {
-      const info = analyzedMap.get(f.accession);
-      const hasAnalysis = Boolean(info);
+    const user = await resolveUser(req);
+    const analyzedMap = await getAnalyzedAccessionsWithRatings(ticker, accessions, user?.id ?? null);
+    let anyPresentationsMissing = false;
+    const filings = (result?.filings ?? []).map((filing, idx) => {
+      const info = analyzedMap.get(filing.accession);
+      let presentations = filing.presentations;
+      let presentationsLoaded = Boolean(filing.presentations);
+      if (!presentations) {
+        const cached = getCachedFilingPresentations(ticker, filing.accession);
+        if (cached) {
+          presentations = cached;
+          presentationsLoaded = true;
+        } else {
+          presentations = [];
+          presentationsLoaded = false;
+          if (idx < 16) {
+            anyPresentationsMissing = true;
+          }
+        }
+      }
       return {
-        ...f,
-        hasAnalysis,
+        ...filing,
+        kind: 'report',
+        presentations,
+        presentationsLoaded,
+        hasAnalysis: Boolean(info),
         analysisId: info?.analysisId ?? null,
         ratingAverage: info?.ratingAverage ?? null,
         ratingCount: info?.ratingCount ?? 0,
       };
     });
-    res.json({ ok: true, filings, totalCount: result.totalCount ?? filings.length });
+    res.json({
+      ok: true,
+      company: result.company,
+      filings,
+      totalCount: result.totalCount ?? filings.length,
+      presentationsPending: anyPresentationsMissing,
+    });
+  } catch (error) {
+    handleEdgarError(error, res, next);
+  }
+});
+
+router.get('/company/:ticker/filings/presentations', async (req, res, next) => {
+  try {
+    const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
+    if (!TICKER_PATTERN.test(ticker)) {
+      res.status(400).json({ error: 'Ticker no válido.' });
+      return;
+    }
+    const accession = req.query.accession ? String(req.query.accession).trim() : null;
+    let presentationsByAccession = {};
+    if (accession) {
+      if (!ACCESSION_PATTERN.test(accession)) {
+        res.status(400).json({ error: 'Accession no válido.' });
+        return;
+      }
+      const presentations = await getFilingPresentations(ticker, accession);
+      presentationsByAccession[accession] = presentations;
+    } else {
+      presentationsByAccession = await getFilingsPresentationsMap(ticker);
+    }
+    res.json({ ok: true, ticker, presentationsByAccession });
   } catch (error) {
     handleEdgarError(error, res, next);
   }
@@ -213,12 +274,15 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
 
     const user = await resolveUser(req);
     const force = req.query.force === '1' || req.query.force === 'true' || req.body?.force === true;
+    let preservePublic = false;
 
     if (force) {
       if (!user?.isAdmin) {
         res.status(403).json({ error: 'Solo los administradores pueden forzar la regeneración de informes.' });
         return;
       }
+      const existingBeforeRegeneration = await findLatestDoneAnalysis({ ticker, accession, userId: user.id });
+      preservePublic = existingBeforeRegeneration?.is_public === true;
       const deleted = await deleteAnalysesByFiling({ ticker, accession });
       for (const item of deleted) {
         if (item.pdf_url) {
@@ -229,7 +293,7 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
 
     // 1. Si ya tenemos un análisis completado de este informe y no es regeneración, lo servimos de inmediato sin coste ni espera
     if (!force) {
-      const existing = await findLatestDoneAnalysis({ ticker, accession });
+      const existing = await findLatestDoneAnalysis({ ticker, accession, userId: user?.id ?? null });
       if (existing && existing.report) {
         let pdfUrl = existing.pdf_url;
         // Verificar que el archivo PDF exista en disco; si no o si está desactualizado, regenerar exportables
@@ -302,13 +366,28 @@ router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next
       res.status(404).json({ error: 'Informe no encontrado.', code: 'FILING_NOT_FOUND' });
       return;
     }
+
+    // Documento complementario: presentación de resultados (8-K). El outlook suele estar aquí
+    // cuando el 10-K/10-Q no lo incluye.
+    let presentationText = null;
+    try {
+      const presentations = await getPresentationBuffers(ticker, accession);
+      if (presentations.length) {
+        presentationText = await buildPresentationText(presentations);
+      }
+    } catch (presentationError) {
+      console.warn('[analysis:presentation]', presentationError.message);
+    }
+
     const options = {
       userId: user?.id ?? null,
+      isPublic: !user || preservePublic,
       filename: `${ticker}-${accession}.pdf`,
       ticker,
       accession,
       sourceUrl: content.filing?.documentUrl ?? null,
       formType: content.filing?.formType ?? null,
+      presentationText,
     };
     const result = content.kind === 'pdf'
       ? await analyzePdf(content.buffer, options)
