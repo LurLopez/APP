@@ -1,0 +1,70 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [production]
+  pull_request:
+    branches: [production]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Comprobación de sintaxis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: node --check
+        run: |
+          status=0
+          while IFS= read -r f; do
+            node --check "$f" || status=1
+          done < <(git ls-files '*.js')
+          exit $status
+
+  deploy:
+    name: Desplegar en cifraresearch.com
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Comprobar secretos de despliegue
+        id: secrets
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Secretos sin configurar: se omite el despliegue."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Desplegar por SSH
+        if: steps.secrets.outputs.configured == 'true'
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /var/www/cifra-prod
+            git fetch origin production
+            git checkout -B production origin/production
+            git reset --hard origin/production
+            npm ci --omit=dev --no-audit --no-fund
+            npm run db:migrate
+            sudo systemctl restart cifra-prod
+            sleep 3
+            curl -fsS http://127.0.0.1:3000/robots.txt > /dev/null
+            echo "Despliegue de production completado"

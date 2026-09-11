@@ -1,14 +1,14 @@
-name: CI/CD
+name: Deploy Development
 
 on:
   push:
-    branches: [development, main]
+    branches: [development]
   pull_request:
-    branches: [development, main]
+    branches: [development]
   workflow_dispatch:
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-development
   cancel-in-progress: false
 
 jobs:
@@ -31,9 +31,9 @@ jobs:
           exit $status
 
   deploy:
-    name: Desplegar ${{ github.ref_name }}
+    name: Desplegar en dev.cifraresearch.com
     needs: check
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/development' || github.ref == 'refs/heads/main')
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Comprobar secretos de despliegue
@@ -57,25 +57,13 @@ jobs:
           script_stop: true
           script: |
             set -e
-            if [ "${{ github.ref_name }}" = "main" ]; then
-              DIR=/var/www/cifra-prod
-              BRANCH=main
-              SERVICE=cifra-prod
-              PORT=3000
-              NPM_FLAGS="--omit=dev"
-            else
-              DIR=/var/www/cifra-dev
-              BRANCH=development
-              SERVICE=cifra-dev
-              PORT=3001
-              NPM_FLAGS=""
-            fi
-            cd "$DIR"
-            git fetch origin "$BRANCH"
-            git reset --hard "origin/$BRANCH"
-            npm ci $NPM_FLAGS --no-audit --no-fund
+            cd /var/www/cifra-dev
+            git fetch origin development
+            git checkout -B development origin/development
+            git reset --hard origin/development
+            npm ci --no-audit --no-fund
             npm run db:migrate
-            sudo systemctl restart "$SERVICE"
+            sudo systemctl restart cifra-dev
             sleep 3
-            curl -fsS "http://127.0.0.1:$PORT/robots.txt" > /dev/null
-            echo "Despliegue de $BRANCH completado en $DIR"
+            curl -fsS http://127.0.0.1:3001/robots.txt > /dev/null
+            echo "Despliegue de development completado"
