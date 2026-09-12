@@ -38,12 +38,12 @@ Para cada empresa (página `/empresa/<TICKER>` o Markdown `/empresa/<TICKER>.md`
 
 ## Análisis públicos
 
-Los informes analizados por el sistema están publicados como página HTML en `/informe/<id>` y en formato Markdown en `/informe/<id>.md`: incluyen la cuenta de resultados del periodo contra el año anterior, el flujo de caja normal y ajustado, la tabla de asignación de capital y las conclusiones (deuda, perspectivas, recompras, adquisiciones y lista de seguimiento). Cada informe público enlaza, cuando está disponible, al filing original de SEC EDGAR. La lista completa está en el sitemap.
+Los informes analizados por el sistema están publicados con URLs semánticas como página HTML en `/informe/<ticker>/<periodo>` (ej. `/informe/KHC/2025-Q3` o `/informe/TAP/2024-10K`) y en formato Markdown puro en `/informe/<ticker>/<periodo>.md`: incluyen la cuenta de resultados del periodo contra el año anterior, el flujo de caja normal y ajustado, la tabla de asignación de capital y las conclusiones (deuda, perspectivas, recompras, adquisiciones y lista de seguimiento). Cada informe público enlaza a su filing original en SEC EDGAR. Las URLs numéricas heredadas (`/informe/<id>`) redirigen automáticamente con código HTTP 301 a su ruta semántica canónica. La lista completa está en el sitemap.
 
 ## Formato de acceso rápido para IA (GEO)
 
 - Fichas de empresa en Markdown: `GET {{SITE_URL}}/empresa/<TICKER>.md` o encabezado HTTP `Accept: text/markdown`.
-- Informes públicos en Markdown: `GET {{SITE_URL}}/informe/<id>.md` o encabezado HTTP `Accept: text/markdown`.
+- Informes públicos en Markdown: `GET {{SITE_URL}}/informe/<TICKER>/<PERIODO>.md` (ej. `/informe/KHC/2025-Q3.md`) o encabezado HTTP `Accept: text/markdown`.
 - Manifiesto completo de documentación: `GET {{SITE_URL}}/llms-full.txt`.
 
 ## Cómo citar Cifra

@@ -189,6 +189,7 @@ router.post("/admin/reports/ai-analysis/:id/regenerate", requireAdmin, async (re
 
     const options = {
       userId: existing.is_public ? null : req.user.id,
+      actor: req.user.username || req.user.email,
       isPublic: existing.is_public === true,
       filename: `${ticker}-${accession}.pdf`,
       ticker,

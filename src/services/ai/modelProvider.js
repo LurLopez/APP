@@ -1,12 +1,13 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { mockProvider } from './providers/mock.provider.js';
 import { deepseekProvider } from './providers/deepseek.provider.js';
 import { opencodeGoProvider } from './providers/opencode-go.provider.js';
 import { localProvider } from './providers/local.provider.js';
+import { aiContext } from './context.js';
+import { recordAiCall } from './usageTracker.js';
 
 // Contexto por análisis: cada análisis usa su propia sesión de IA (no una global),
 // de modo que varias personas puedan analizar informes a la vez sin interferirse.
-export const aiContext = new AsyncLocalStorage();
+export { aiContext };
 
 const registry = {
   mock: mockProvider,
@@ -26,10 +27,21 @@ export function getProvider(name) {
   return provider;
 }
 
-export function chat(messages, options = {}) {
+export async function chat(messages, options = {}) {
   const provider = options?.provider ? getProvider(options.provider) : getProvider();
   const sessionId = options?.sessionId || aiContext.getStore()?.sessionId || null;
-  return provider.chat(messages, sessionId ? { ...options, sessionId } : options);
+  const response = await provider.chat(messages, sessionId ? { ...options, sessionId } : options);
+
+  // Los proveedores devuelven { content, model, usage, cost }; se admite también
+  // el formato antiguo (string) por compatibilidad.
+  const normalized = typeof response === 'string' ? { content: response } : (response ?? {});
+  recordAiCall({
+    provider: provider.name,
+    model: normalized.model ?? null,
+    usage: normalized.usage ?? null,
+    cost: normalized.cost ?? null,
+  });
+  return normalized.content;
 }
 
 function cleanJsonText(raw) {

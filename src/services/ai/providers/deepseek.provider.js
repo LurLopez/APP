@@ -1,5 +1,6 @@
 const API_URL = 'https://api.deepseek.com/chat/completions';
-const MODEL = process.env.AI_MODEL || 'deepseek-chat';
+const MODEL = process.env.AI_MODEL || 'deepseek-flash';
+const THINKING = (process.env.AI_THINKING || 'disabled').trim().toLowerCase() === 'enabled' ? 'enabled' : 'disabled';
 const REQUEST_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS || 180000);
 
 function cleanResponse(raw) {
@@ -30,6 +31,7 @@ export const deepseekProvider = {
           messages,
           max_tokens: Number(process.env.AI_MAX_TOKENS || 16000),
           temperature: 0,
+          thinking: { type: THINKING },
         }),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
@@ -54,6 +56,6 @@ export const deepseekProvider = {
     if (!cleaned.trim()) {
       throw new Error('DeepSeek devolvió una respuesta vacía.');
     }
-    return cleaned;
+    return { content: cleaned, model: MODEL, usage: data?.usage ?? null };
   },
 };

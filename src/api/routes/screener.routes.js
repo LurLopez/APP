@@ -425,6 +425,7 @@ router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, async
         // (caché global): el siguiente visitante lo lee al instante y sin cupo.
         // En una regeneración de un informe que ya era público se mantiene sin propietario.
         userId: preservePublic ? null : user.id,
+        actor: user.username || user.email,
         isPublic: true,
         filename: `${ticker}-${accession}.pdf`,
         ticker,

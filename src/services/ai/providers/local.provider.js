@@ -81,6 +81,6 @@ export const localProvider = {
       throw new Error('El modelo local devolvió una respuesta vacía.');
     }
 
-    return cleaned;
+    return { content: cleaned, model, usage: data?.usage ?? null };
   },
 };

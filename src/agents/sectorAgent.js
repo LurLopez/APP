@@ -14,6 +14,19 @@ Responde únicamente con un JSON válido con esta forma exacta:
 
 const MAX_CHARS = 80000;
 
+// Versión del análisis definida por el agente de sector. Si el análisis tiene
+// subsector, la versión de ese subsector tiene preferencia sobre la del sector.
+export const VERSION = '0.1';
+
+export const SUBSECTOR_VERSIONS = {
+  cerveceras: '0.1',
+};
+
+export function resolveVersion(subsector = null) {
+  const slug = String(subsector ?? '').trim().toLowerCase();
+  return (slug && SUBSECTOR_VERSIONS[slug]) || VERSION;
+}
+
 export class SectorAgent extends BaseAgent {
   constructor() {
     super({
@@ -26,6 +39,8 @@ export class SectorAgent extends BaseAgent {
     if (!input?.text?.trim()) {
       throw new AgentError('No se pudo leer el contenido del documento.', 'EMPTY_DOCUMENT');
     }
+
+    const subsector = input?.subsector ? String(input.subsector).trim().toLowerCase() : null;
 
     let result;
     try {
@@ -41,6 +56,6 @@ export class SectorAgent extends BaseAgent {
       throw new AgentError('Este informe no corresponde al sector de consumo defensivo.', 'NOT_DEFENSIVE_CONSUMER');
     }
 
-    return { sector: 'defensive_consumer' };
+    return { sector: 'defensive_consumer', subsector, version: resolveVersion(subsector) };
   }
 }

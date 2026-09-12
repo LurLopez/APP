@@ -23,6 +23,8 @@ function getInitialCompanyTicker() {
   let tickerFromUrl = '';
   if (pathParts[0] === 'empresa' && pathParts[1]) {
     tickerFromUrl = decodeURIComponent(pathParts[1]).trim().toUpperCase();
+  } else if (pathParts[0] === 'informe' && pathParts[1] && !/^\d+$/.test(pathParts[1])) {
+    tickerFromUrl = decodeURIComponent(pathParts[1]).trim().toUpperCase();
   } else if (urlParams.get('ticker')) {
     tickerFromUrl = urlParams.get('ticker').trim().toUpperCase();
   }

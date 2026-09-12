@@ -2,7 +2,7 @@ import { query } from '../pool.js';
 
 const ANALYSIS_COLUMNS = `
     id, user_id, is_public, filename, status, error, origin, sector, report,
-    model_used, ticker, company_name, period_end, pdf_url, source_url, accession, created_at
+    model_used, version, ticker, company_name, period_end, pdf_url, source_url, accession, created_at
 `;
 
 export async function createAnalysis({
@@ -16,12 +16,13 @@ export async function createAnalysis({
   pdfUrl = null,
   sourceUrl = null,
   accession = null,
+  version = null,
 } = {}) {
   const { rows } = await query(
-    `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession, version)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING ${ANALYSIS_COLUMNS}`,
-    [userId, Boolean(isPublic), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession],
+    [userId, Boolean(isPublic), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession, version],
   );
   return rows[0];
 }
@@ -129,7 +130,7 @@ export async function listAnalysisCompanies({ userId = null, search = null } = {
 
 export async function updateAnalysis(id, fields) {
   const allowed = [
-    'status', 'error', 'origin', 'sector', 'report', 'model_used', 'is_public',
+    'status', 'error', 'origin', 'sector', 'report', 'model_used', 'version', 'is_public',
     'ticker', 'company_name', 'period_end', 'pdf_url', 'source_url', 'accession',
   ];
   const entries = Object.entries(fields).filter(([key]) => allowed.includes(key));
@@ -327,6 +328,7 @@ export async function listAnalysesForAdminReports({ ticker = null } = {}) {
        a.period_end,
        a.status,
        a.model_used,
+       a.version,
        a.pdf_url,
        a.source_url,
        a.created_at,

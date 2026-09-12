@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS analyses (
     sector       TEXT,
     report       JSONB,
     model_used   TEXT,
+    version      TEXT,
     ticker       TEXT,
     company_name TEXT,
     period_end   DATE,
@@ -54,6 +55,7 @@ ALTER TABLE analyses ADD COLUMN IF NOT EXISTS pdf_url TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS source_url TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS accession TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS version TEXT;
 CREATE INDEX IF NOT EXISTS idx_analyses_ticker_accession ON analyses (ticker, accession);
 CREATE INDEX IF NOT EXISTS idx_analyses_public_created ON analyses (is_public, created_at DESC);
 UPDATE analyses
@@ -62,6 +64,37 @@ WHERE accession IS NULL AND filename ~ '[0-9]{10}-[0-9]{2}-[0-9]{6}';
 UPDATE analyses
 SET is_public = true
 WHERE user_id IS NULL AND status = 'done' AND source_url IS NOT NULL AND is_public = false;
+
+-- Log de consumo de cada análisis (mismo contenido que logs/analisis.log)
+CREATE TABLE IF NOT EXISTS analysis_logs (
+    id                 SERIAL PRIMARY KEY,
+    analysis_id        INT REFERENCES analyses(id) ON DELETE SET NULL,
+    user_id            INT REFERENCES users(id) ON DELETE SET NULL,
+    actor              TEXT,
+    status             TEXT NOT NULL DEFAULT 'ok',
+    error              TEXT,
+    ticker             TEXT,
+    accession          TEXT,
+    filename           TEXT,
+    version            TEXT,
+    providers          TEXT[],
+    models             TEXT[],
+    calls              INT NOT NULL DEFAULT 0,
+    prompt_tokens      INT NOT NULL DEFAULT 0,
+    completion_tokens  INT NOT NULL DEFAULT 0,
+    reasoning_tokens   INT NOT NULL DEFAULT 0,
+    cache_hit_tokens   INT NOT NULL DEFAULT 0,
+    cache_miss_tokens  INT NOT NULL DEFAULT 0,
+    total_tokens       INT NOT NULL DEFAULT 0,
+    cost_usd           NUMERIC(14, 6) NOT NULL DEFAULT 0,
+    cost_known         BOOLEAN NOT NULL DEFAULT true,
+    duration_seconds   NUMERIC(8, 1) NOT NULL DEFAULT 0,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_analysis_logs_created ON analysis_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analysis_logs_actor ON analysis_logs (actor);
+CREATE INDEX IF NOT EXISTS idx_analysis_logs_ticker ON analysis_logs (ticker);
 
 CREATE TABLE IF NOT EXISTS filings (
     id            SERIAL PRIMARY KEY,

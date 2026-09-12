@@ -21,7 +21,7 @@ Ambas plantillas (`public/index.html`, `public/empresa.html`) y las páginas ser
 
 Los motores generativos y agentes LLM consumen preferentemente Markdown limpio y estructurado sin ruido HTML:
 - **Fichas de empresa en Markdown:** `GET /empresa/<TICKER>.md` o cabecera `Accept: text/markdown` sobre `/empresa/<TICKER>`. Devuelve perfil, CIK, bolsa, resumen ejecutivo, tabla de resultados anuales (5 ejercicios con ingresos, beneficio neto, FCF y EPS), últimos filings enlazados a EDGAR, análisis con IA disponibles y FAQ.
-- **Informes públicos en Markdown:** `GET /informe/<id>.md` o cabecera `Accept: text/markdown` sobre `/informe/<id>`. Devuelve la radiografía completa del informe: cuenta de resultados, flujo de caja normal y ajustado, tabla de asignación de capital, rating y conclusiones.
+- **Informes públicos en Markdown:** `GET /informe/<TICKER>/<PERIODO>.md` (ej. `/informe/KHC/2025-Q3.md`) o cabecera `Accept: text/markdown` sobre `/informe/<TICKER>/<PERIODO>`. Devuelve la radiografía completa del informe: cuenta de resultados, flujo de caja normal y ajustado, tabla de asignación de capital, rating y conclusiones. Redirección 301 automática desde las rutas heredadas `/informe/<id>(.md)?`.
 - **`GET /llms.txt`:** Manifiesto estándar según la especificación llmstxt.org con resumen, ámbito, reglas de citación, guías y directorio de empresas con enlaces directos HTML y Markdown.
 - **`GET /llms-full.txt`:** Manifiesto completo para LLMs que integra la metodología de análisis de Cifra (los dos horizontes y tres pilares), el texto íntegro de las 7 guías educativas, el glosario de términos (10-K, 10-Q, 8-K, FCF, CAPEX, etc.) y el directorio exhaustivo de empresas.
 

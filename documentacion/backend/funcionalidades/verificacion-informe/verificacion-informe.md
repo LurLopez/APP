@@ -88,7 +88,8 @@ POST /api/upload (multipart, campo file)
 |---|---|---|
 | `AI_PROVIDER` | `deepseek` | `deepseek` · `opencode`/`opencode-go` · `mock` |
 | `DEEPSEEK_API_KEY` / `OPENCODE_GO_API_KEY` | (según proveedor) | Sin key → error visible |
-| `AI_MODEL` / `OPENCODE_GO_MODEL` | — | Modelo por defecto `deepseek-chat` / `deepseek-v4-flash` |
+| `AI_MODEL` / `OPENCODE_GO_MODEL` | `deepseek-flash` / — | `deepseek-flash` = DeepSeek-V4.1-Flash (por defecto) · `deepseek-v4-pro` |
+| `AI_THINKING` | `disabled` | `enabled` activa el razonamiento de DeepSeek (más lento y caro) |
 | `AI_MAX_TOKENS` | `16000` | Antes 400/8000; el informe superaba 8000 tokens y el modelo devolvía vacío |
 | `AI_REQUEST_TIMEOUT_MS` | `180000` | Timeout por llamada; evita paneles colgados para siempre |
 | `AI_PROVIDER=mock` | (solo desarrollo) | Heurística local sin coste |
@@ -97,7 +98,7 @@ POST /api/upload (multipart, campo file)
 
 | Proveedor | Uso | Notas |
 |---|---|---|
-| `deepseek.provider.js` | Activo | `POST api.deepseek.com/chat/completions`, `temperature: 0`, limpieza de ```json``` |
+| `deepseek.provider.js` | Activo | `POST api.deepseek.com/chat/completions`, modelo `deepseek-flash` (DeepSeek-V4.1-Flash), `temperature: 0`, limpieza de ```json``` |
 | `opencode-go.provider.js` | Alternativo | `https://opencode.ai/zen/go/v1/chat/completions` (formato OpenAI-compatible); intermitente en el chat del analista (vacio/JSON inválido) |
 | `mock.provider.js` | Solo `AI_PROVIDER=mock` | Heurística por patrones (SEC, FORM 10-Q/10-K, sector); incluye respuesta mínima para el analista |
 

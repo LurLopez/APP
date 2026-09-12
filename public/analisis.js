@@ -25,8 +25,58 @@
   let currentAnalysisId = null;
   let currentAnalysisTicker = null;
   let currentAnalysisAccession = null;
+  let currentAnalysisSlug = null;
   let currentUserRating = 0;
   let pendingAuthRetry = null;
+
+  function getAnalysisSlug(item) {
+    if (!item) return '';
+    if (item.slug) return item.slug;
+    const report = item.report || {};
+    const title = String(item.periodTitle || report.periodTitle || '');
+    const formType = String(item.formType || report.formType || '');
+    const isAnnual = report.isAnnual === true || formType === '10-K' || /annual|full year|10-?k/i.test(title);
+
+    let year = report.fiscalYear || item.fiscalYear;
+    if (!year) {
+      const ym = title.match(/\b(20\d\d)\b/);
+      if (ym) year = ym[1];
+    }
+    if (!year && (item.period_end || item.periodEnd)) {
+      year = new Date(item.period_end || item.periodEnd).getUTCFullYear();
+    }
+    if (!year && (item.created_at || item.createdAt)) {
+      year = new Date(item.created_at || item.createdAt).getUTCFullYear();
+    }
+    if (!year) year = new Date().getFullYear();
+
+    if (isAnnual) return `${year}-10K`;
+
+    let quarter = report.fiscalQuarter || item.fiscalQuarter;
+    if (!quarter) {
+      const qm = title.match(/Q([1-4])/i);
+      if (qm) quarter = qm[1];
+    }
+    if (!quarter && (item.period_end || item.periodEnd)) {
+      const m = new Date(item.period_end || item.periodEnd).getUTCMonth();
+      quarter = Math.floor(m / 3) + 1;
+    }
+    if (!quarter) quarter = '1';
+    return `${year}-Q${quarter}`;
+  }
+
+  function getAnalysisPath(item) {
+    if (!item) return '/analisis';
+    const ticker = (item.ticker || item.report?.ticker || currentAnalysisTicker || '').toUpperCase();
+    const slug = getAnalysisSlug(item);
+    if (ticker && slug) {
+      return `/informe/${encodeURIComponent(ticker)}/${slug}`;
+    }
+    if (item.id || currentAnalysisId) {
+      return `/informe/${item.id || currentAnalysisId}`;
+    }
+    return '/analisis';
+  }
 
   function isAuthenticated() {
     return Boolean(window.AuthModule?.getUser?.() || currentUser);
@@ -1733,9 +1783,10 @@
     currentAnalysisId = data.analysisId ?? null;
     currentAnalysisTicker = data.report?.ticker || pendingFiling?.ticker || null;
     currentAnalysisAccession = pendingFiling?.accession || null;
+    currentAnalysisSlug = data.slug || getAnalysisSlug(data);
     loadAnalysisFeedback(currentAnalysisId);
     if (currentAnalysisId) {
-      try { history.replaceState(null, '', `/informe/${currentAnalysisId}`); } catch {}
+      try { history.replaceState(null, '', getAnalysisPath({ ...data, id: currentAnalysisId, ticker: currentAnalysisTicker, slug: currentAnalysisSlug })); } catch {}
     }
 
     const adminRegenBtn = document.querySelector('#admin-regenerate-report');
@@ -2015,11 +2066,12 @@
     currentAnalysisId = analysis.id ? Number(analysis.id) : null;
     currentAnalysisTicker = analysis.ticker || analysis.report?.ticker || null;
     currentAnalysisAccession = analysis.accession || null;
+    currentAnalysisSlug = analysis.slug || getAnalysisSlug(analysis);
 
     loadAnalysisFeedback(currentAnalysisId);
 
     if (currentAnalysisId && updateHistory) {
-      try { history.replaceState(null, '', `/informe/${currentAnalysisId}`); } catch {}
+      try { history.replaceState(null, '', getAnalysisPath({ ...analysis, id: currentAnalysisId, ticker: currentAnalysisTicker, slug: currentAnalysisSlug })); } catch {}
     }
 
     const adminRegenBtn = document.querySelector('#admin-regenerate-report');
@@ -2459,11 +2511,12 @@
 
     const copyReportUrlBtn = document.querySelector('#copy-report-url');
     copyReportUrlBtn?.addEventListener('click', async () => {
-      if (!currentAnalysisId) {
+      if (!currentAnalysisId && !currentAnalysisTicker) {
         showToast('El informe aún no tiene una URL asignada.');
         return;
       }
-      const canonicalUrl = `${window.location.origin}/informe/${currentAnalysisId}`;
+      const path = getAnalysisPath({ id: currentAnalysisId, ticker: currentAnalysisTicker, slug: currentAnalysisSlug });
+      const canonicalUrl = `${window.location.origin}${path}`;
       try {
         await navigator.clipboard.writeText(canonicalUrl);
         showToast('Enlace copiado al portapapeles 📋');
@@ -2674,7 +2727,7 @@
       }
     });
 
-    // Hidratación si se cargó directamente un /informe/:id
+    // Hidratación si se cargó directamente un /informe/:ticker/:slug o /informe/:id
     const initialReportEl = document.querySelector('#cifra-initial-report');
     if (initialReportEl) {
       try {
@@ -2686,8 +2739,25 @@
         console.error('Error al hidratar informe inicial:', err);
       }
     } else {
+      const slugMatch = window.location.pathname.match(/^\/informe\/([A-Za-z0-9.-]{1,10})\/([A-Za-z0-9.-]{2,15})$/);
       const reportMatch = window.location.pathname.match(/^\/informe\/(\d{1,7})$/);
-      if (reportMatch) {
+      if (slugMatch) {
+        fetch(`/api/analyses?ticker=${encodeURIComponent(slugMatch[1])}`)
+          .then((r) => r.json())
+          .then((d) => {
+            const list = Array.isArray(d.analyses) ? d.analyses : [];
+            const target = list.find((a) => getAnalysisSlug(a).toUpperCase() === slugMatch[2].toUpperCase()) || list[0];
+            if (target?.id) {
+              fetch(`/api/analyses/${target.id}`)
+                .then((r) => r.json())
+                .then((res) => {
+                  if (res.analysis?.report) loadReportData(res.analysis, { updateHistory: false });
+                })
+                .catch(() => {});
+            }
+          })
+          .catch(() => {});
+      } else if (reportMatch) {
         fetch(`/api/analyses/${reportMatch[1]}`)
           .then((r) => r.json())
           .then((d) => {

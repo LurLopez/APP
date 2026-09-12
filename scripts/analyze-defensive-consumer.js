@@ -171,6 +171,7 @@ async function analyzeSingleFiling(ticker, filing) {
 
   const options = {
     userId: null,
+    actor: 'programa',
     isPublic: true,
     filename: `${ticker}-${filing.accession}.pdf`,
     ticker,

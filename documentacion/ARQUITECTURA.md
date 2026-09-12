@@ -79,6 +79,7 @@ app/
 │   ├── seed.js                # Datos demo idempotentes
 │   └── repositories/
 │       ├── analysisRepository.js   # create/list/update analyses (filtros)
+│       ├── analysisLogRepository.js # log de consumo (analysis_logs)
 │       ├── userRepository.js       # users + verification_codes
 │       ├── watchlistRepository.js  # listas de seguimiento (CRUD + upsert)
 │       └── portfolioRepository.js  # transacciones de cartera
@@ -97,12 +98,15 @@ app/
 │   │   ├── email.service.js         # nodemailer; MAIL_TO_OVERRIDE; fallback consola
 │   │   ├── edgar.service.js         # SEC: búsqueda, facts, series, rescate XBRL, perfil, filings, documento/preview
 │   │   ├── market.service.js        # Yahoo: chart+MA100, quote, profile, dividendos
-│   │   ├── analysis.service.js      # Pipeline: texto/PDF/HTML → 3 agentes → PDF → guardado
+│   │   ├── analysis.service.js      # Pipeline: texto/PDF/HTML → 3 agentes → PDF → guardado + log de consumo
+│   │   ├── analysisLog.service.js   # Log acumulativo JSONL (logs/analisis.log): usuario, tokens, coste, duración
 │   │   ├── pdf.service.js           # pdf-parse
 │   │   ├── report.service.js        # PDF del informe (pdfkit)
 │   │   ├── portfolio.service.js     # FIFO, dividendos, sector, summary, alocaciones
 │   │   └── ai/
 │   │       ├── modelProvider.js     # chat/chatJson (reintentos) → proveedor activo
+│   │       ├── context.js           # sesión IA por análisis (AsyncLocalStorage)
+│   │       ├── usageTracker.js      # tokens/coste por análisis (precios DeepSeek peak/off-peak)
 │   │       └── providers/
 │   │           ├── mock.provider.js         # heurística local
 │   │           ├── deepseek.provider.js     # API directa DeepSeek (activo)
@@ -170,8 +174,19 @@ CREATE TABLE analyses (
     id SERIAL PRIMARY KEY, user_id INT REFERENCES users(id) ON DELETE CASCADE,
     filename TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'processing'
       CHECK (status IN ('processing','done','error')),
-    error TEXT, origin TEXT, sector TEXT, report JSONB, model_used TEXT,
+    error TEXT, origin TEXT, sector TEXT, report JSONB, model_used TEXT, version TEXT,
     ticker TEXT, company_name TEXT, period_end DATE, pdf_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Log de consumo de cada análisis (espejo de logs/analisis.log)
+CREATE TABLE analysis_logs (
+    id SERIAL PRIMARY KEY, analysis_id INT REFERENCES analyses(id) ON DELETE SET NULL,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL, actor TEXT,
+    status TEXT, error TEXT, ticker TEXT, filename TEXT, version TEXT,
+    calls INT, prompt_tokens INT, completion_tokens INT, reasoning_tokens INT,
+    cache_hit_tokens INT, cache_miss_tokens INT, total_tokens INT,
+    cost_usd NUMERIC(14,6), cost_known BOOLEAN, duration_seconds NUMERIC(8,1),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -244,12 +259,12 @@ export async function chatJson(messages, attempts = 2) { /* reintenta ante vací
 
 | Proveedor | Cuándo | Notas |
 |---|---|---|
-| `deepseek.provider.js` | **Activo** (`AI_PROVIDER=deepseek` o por defecto) | `api.deepseek.com/chat/completions`, modelo `deepseek-chat`/`AI_MODEL`, `temperature: 0`, limpieza de ```json```. 22–23 s por análisis, fiable |
+| `deepseek.provider.js` | **Activo** (`AI_PROVIDER=deepseek` o por defecto) | `api.deepseek.com/chat/completions`, modelo `deepseek-flash` (= **DeepSeek-V4.1-Flash**) o `AI_MODEL`, razonamiento con `AI_THINKING` (`disabled` por defecto), `temperature: 0`, limpieza de ```json```. 22–23 s por análisis, fiable |
 | `opencode-go.provider.js` | `AI_PROVIDER=opencode`/`opencode-go` | `opencode.ai/zen/go/v1/chat/completions`, `deepseek-v4-flash`; probado pero intermitente (145–247 s, fallos de JSON) |
 | `local.provider.js` | `AI_PROVIDER=local`/`ollama` | Endpoint local (Ollama en `http://localhost:11434/v1/chat/completions` u otro compatible OpenAI); configurable vía `LOCAL_AI_URL` y `LOCAL_AI_MODEL` |
 | `mock.provider.js` | Solo `AI_PROVIDER=mock` | Heurística local sin coste; respuesta mínima para el analista |
 
-Configuración en `.env`: `AI_PROVIDER` (`deepseek` · `opencode` · `local`/`ollama` · `mock`), `DEEPSEEK_API_KEY`, `OPENCODE_GO_API_KEY`, `LOCAL_AI_URL`, `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `LOCAL_AI_REQUEST_TIMEOUT_MS`, `AI_MODEL`, `OPENCODE_GO_MODEL`, **`AI_MAX_TOKENS=16000`** (el informe supera 8000 tokens), **`AI_REQUEST_TIMEOUT_MS=180000`**.
+Configuración en `.env`: `AI_PROVIDER` (`deepseek` · `opencode` · `local`/`ollama` · `mock`), `DEEPSEEK_API_KEY`, `OPENCODE_GO_API_KEY`, `LOCAL_AI_URL`, `LOCAL_AI_MODEL`, `LOCAL_AI_API_KEY`, `LOCAL_AI_REQUEST_TIMEOUT_MS`, `AI_MODEL`, `AI_THINKING`, `OPENCODE_GO_MODEL`, **`AI_MAX_TOKENS=16000`** (el informe supera 8000 tokens), **`AI_REQUEST_TIMEOUT_MS=180000`**.
 
 **Garantía clave**: los agentes nunca importan un proveedor concreto; cambiar de API es editar `.env`. En Fase 5, el proveedor se elegirá según el plan del usuario.
 
@@ -266,10 +281,11 @@ texto (pdf-parse) o htmlToText
     ▼
 analysis.service (analyzePdf / analyzeText):
     1. originAgent → NOT_FINANCIAL / NOT_USA / NOT_10Q_10K / { origin:'US', formType }
-    2. sectorAgent → NOT_DEFENSIVE_CONSUMER / { sector:'defensive_consumer' }
+    2. sectorAgent → NOT_DEFENSIVE_CONSUMER / { sector:'defensive_consumer', version }
     3. analystAgent → extracción (chatJson) → informe (chatJson + reglas del sector)
     4. report.service → PDF (uploads/generated/<uuid>.pdf)
-    5. saveAnalysis (si hay userId) → analyses (status done, report, pdf_url, ...)
+    5. saveAnalysis → analyses (status done, report, pdf_url, version, ...)
+    6. analysisLog.service → logs/analisis.log + analysis_logs (usuario, tokens, coste, duración, fecha/hora)
     │
     ▼
 200 { ok, origin, formType, sector, report, pdfUrl, saved } (+ error 422 con code si falla un agente)

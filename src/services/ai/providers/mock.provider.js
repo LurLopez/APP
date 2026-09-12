@@ -77,23 +77,26 @@ export const mockProvider = {
       .join('\n');
 
     if (systemPrompt.includes('analista principal')) {
-      return JSON.stringify({
-        company: 'Empresa de ejemplo',
-        ticker: 'ABC',
-        periodTitle: 'Informe financiero — ABC',
-        horizons: [
-          {
-            label: 'ÚLTIMOS 3 MESES',
-            sales: { rows: [], notes: ['Modo de prueba: sin datos.'], shares: '—', eps: '—' },
-            cashFlow: { scenarios: [], rows: [], notes: [] },
-            capital: { rows: [], verification: '', notes: [] },
-          },
-        ],
-      });
+      return {
+        content: JSON.stringify({
+          company: 'Empresa de ejemplo',
+          ticker: 'ABC',
+          periodTitle: 'Informe financiero — ABC',
+          horizons: [
+            {
+              label: 'ÚLTIMOS 3 MESES',
+              sales: { rows: [], notes: ['Modo de prueba: sin datos.'], shares: '—', eps: '—' },
+              cashFlow: { scenarios: [], rows: [], notes: [] },
+              capital: { rows: [], verification: '', notes: [] },
+            },
+          ],
+        }),
+        model: 'mock',
+      };
     }
     if (systemPrompt.includes('isDefensiveConsumer')) {
-      return classifySector(text);
+      return { content: classifySector(text), model: 'mock' };
     }
-    return classifyOrigin(text);
+    return { content: classifyOrigin(text), model: 'mock' };
   },
 };

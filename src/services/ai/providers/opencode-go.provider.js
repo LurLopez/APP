@@ -69,6 +69,6 @@ export const opencodeGoProvider = {
     if (!cleaned.trim()) {
       throw new Error('OpenCode Go devolvió una respuesta vacía.');
     }
-    return cleaned;
+    return { content: cleaned, model: MODEL, usage: data?.usage ?? null, cost: data?.cost ?? null };
   },
 };

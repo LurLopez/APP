@@ -4,6 +4,10 @@ import { aiContext } from './ai/modelProvider.js';
 import { getAgent } from '../agents/agentRegistry.js';
 import { generateReportPdf } from './report.service.js';
 import { createAnalysis, updateAnalysis } from '../../db/repositories/analysisRepository.js';
+import { createAnalysisLog } from '../../db/repositories/analysisLogRepository.js';
+import { findUserById } from '../../db/repositories/userRepository.js';
+import { appendAnalysisLog } from './analysisLog.service.js';
+import { getSessionUsage } from './ai/usageTracker.js';
 
 const PERIOD_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -33,7 +37,7 @@ export function htmlToText(html) {
     .trim();
 }
 
-async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, accession, modelUsed }) {
+async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, accession, modelUsed, version = null }) {
   const report = result.report ?? {};
   const periodEnd = PERIOD_DATE_PATTERN.test(report.reportingPeriod ?? '') ? report.reportingPeriod : null;
   const parsedAccession = accession || (filename?.match(/[0-9]{10}-[0-9]{2}-[0-9]{6}/)?.[0] ?? null);
@@ -49,6 +53,7 @@ async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, acc
     pdfUrl: result.pdfUrl ?? null,
     sourceUrl: sourceUrl ?? null,
     accession: parsedAccession,
+    version,
   });
 
   return updateAnalysis(created.id, {
@@ -67,56 +72,144 @@ export async function analyzeText(text, options = {}) {
   return aiContext.run({ sessionId }, () => runAnalysis(text, options, sessionId));
 }
 
-async function runAnalysis(text, options, sessionId) {
-  console.log(`[analysis] sesión IA ${sessionId.slice(0, 8)} · ${options.filename ?? 'informe'}`);
-  const originAgent = getAgent('origin');
-  const originResult = await originAgent.run({ text });
+async function resolveActor(options) {
+  if (options.actor) return options.actor;
+  if (options.userId) {
+    try {
+      const user = await findUserById(options.userId);
+      if (user) return user.username || user.email;
+    } catch (error) {
+      console.error('[analysis:actor]', error.message);
+    }
+  }
+  return 'anónimo';
+}
 
-  const effectiveFormType = options.formType || originResult.formType;
-
-  const sectorAgent = getAgent('sector');
-  const sectorResult = await sectorAgent.run({ text });
-
-  const analystAgent = getAgent('analyst');
-  const report = await analystAgent.run({
-    text,
-    presentationText: options.presentationText ?? null,
-    sector: sectorResult.sector,
-    formType: effectiveFormType,
-    ticker: options.ticker ?? null,
-  });
-
-  const { url, docxUrl, odtUrl } = await generateReportPdf(report);
-
-  const result = {
-    text,
-    origin: originResult.origin,
-    formType: effectiveFormType,
-    sector: sectorResult.sector,
-    report,
-    pdfUrl: url,
-    docxUrl,
-    odtUrl,
-    downloadBase: buildDownloadBase(report, effectiveFormType),
+// Cada análisis (termine bien o mal) deja una línea en el log acumulativo y una
+// fila en analysis_logs con los tokens y el coste consumidos, el usuario, el
+// tiempo de ejecución y la fecha/hora.
+async function logAnalysis({ options, result = null, error = null, startedAt }) {
+  const usage = getSessionUsage();
+  const report = result?.report ?? null;
+  const entry = {
+    fechaHora: new Date().toISOString(),
+    usuario: await resolveActor(options),
+    userId: options.userId ?? null,
+    estado: error ? 'error' : 'ok',
+    error: error ? (error.code || error.message) : null,
+    analysisId: result?.analysisId ?? null,
+    ticker: report?.ticker ?? options.ticker ?? null,
+    accession: options.accession ?? null,
+    filename: options.filename ?? null,
+    version: result?.version ?? null,
+    proveedores: usage.proveedores,
+    modelos: usage.modelos,
+    llamadas: usage.llamadas,
+    tokens: {
+      prompt: usage.promptTokens,
+      completion: usage.completionTokens,
+      reasoning: usage.reasoningTokens,
+      cacheHit: usage.cacheHitTokens,
+      cacheMiss: usage.cacheMissTokens,
+      total: usage.totalTokens,
+    },
+    costeUsd: Number(usage.costeUsd.toFixed(6)),
+    costeConocido: usage.costeConocido,
+    duracionSegundos: Number(((Date.now() - startedAt) / 1000).toFixed(1)),
   };
 
-  let saved = null;
-  try {
-    saved = await saveAnalysis({
-      userId: options.userId ?? null,
-      isPublic: options.isPublic === true,
-      filename: options.filename ?? 'informe.pdf',
-      sourceUrl: options.sourceUrl ?? null,
-      accession: options.accession ?? null,
-      modelUsed: options.modelUsed ?? null,
-      result,
-    });
-  } catch (error) {
-    console.error('[analysis:save]', error.message);
-  }
+  await appendAnalysisLog(entry);
 
-  result.analysisId = saved?.id ?? null;
-  return result;
+  try {
+    await createAnalysisLog({
+      analysisId: entry.analysisId,
+      userId: entry.userId,
+      actor: entry.usuario,
+      status: entry.estado,
+      error: entry.error,
+      ticker: entry.ticker,
+      accession: entry.accession,
+      filename: entry.filename,
+      version: entry.version,
+      providers: entry.proveedores,
+      models: entry.modelos,
+      calls: entry.llamadas,
+      promptTokens: entry.tokens.prompt,
+      completionTokens: entry.tokens.completion,
+      reasoningTokens: entry.tokens.reasoning,
+      cacheHitTokens: entry.tokens.cacheHit,
+      cacheMissTokens: entry.tokens.cacheMiss,
+      totalTokens: entry.tokens.total,
+      costUsd: entry.costeUsd,
+      costKnown: entry.costeConocido,
+      durationSeconds: entry.duracionSegundos,
+    });
+  } catch (dbError) {
+    console.error('[analysis-log:db]', dbError.message);
+  }
+}
+
+async function runAnalysis(text, options, sessionId) {
+  const startedAt = Date.now();
+  console.log(`[analysis] sesión IA ${sessionId.slice(0, 8)} · ${options.filename ?? 'informe'}`);
+
+  try {
+    const originAgent = getAgent('origin');
+    const originResult = await originAgent.run({ text });
+
+    const effectiveFormType = options.formType || originResult.formType;
+
+    const sectorAgent = getAgent('sector');
+    const sectorResult = await sectorAgent.run({ text, subsector: options.subsector ?? null });
+
+    const analystAgent = getAgent('analyst');
+    const report = await analystAgent.run({
+      text,
+      presentationText: options.presentationText ?? null,
+      sector: sectorResult.sector,
+      subsector: sectorResult.subsector,
+      formType: effectiveFormType,
+      ticker: options.ticker ?? null,
+    });
+
+    const { url, docxUrl, odtUrl } = await generateReportPdf(report);
+
+    const result = {
+      text,
+      origin: originResult.origin,
+      formType: effectiveFormType,
+      sector: sectorResult.sector,
+      version: sectorResult.version,
+      report,
+      pdfUrl: url,
+      docxUrl,
+      odtUrl,
+      downloadBase: buildDownloadBase(report, effectiveFormType),
+    };
+
+    let saved = null;
+    try {
+      saved = await saveAnalysis({
+        userId: options.userId ?? null,
+        isPublic: options.isPublic === true,
+        filename: options.filename ?? 'informe.pdf',
+        sourceUrl: options.sourceUrl ?? null,
+        accession: options.accession ?? null,
+        modelUsed: options.modelUsed ?? null,
+        version: sectorResult.version,
+        result,
+      });
+    } catch (error) {
+      console.error('[analysis:save]', error.message);
+    }
+
+    result.analysisId = saved?.id ?? null;
+    await logAnalysis({ options, result, startedAt });
+    return result;
+  } catch (error) {
+    await logAnalysis({ options, error, startedAt });
+    throw error;
+  }
 }
 
 export async function analyzePdf(buffer, options = {}) {

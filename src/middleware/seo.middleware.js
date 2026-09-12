@@ -11,6 +11,9 @@ import {
   serve404Page,
   getPublicReportHtml,
   getPublicReportMarkdown,
+  getReportSlugById,
+  getPublicReportHtmlBySlug,
+  getPublicReportMarkdownBySlug,
   isPrivatePath,
   resolveCompanyMeta,
   getSitemapXml,
@@ -34,7 +37,10 @@ const TEXT_FILES = {
 
 const HTML_FILE = 'empresa.html';
 const INDEX_FILE = 'index.html';
-const REPORT_PATH = /^\/informe\/(\d{1,7})$/;
+const REPORT_ID_PATH = /^\/informe\/(\d{1,7})$/;
+const REPORT_ID_MD_PATH = /^\/informe\/(\d{1,7})\.md$/;
+const REPORT_SLUG_PATH = /^\/informe\/([A-Za-z0-9.-]{1,10})\/([A-Za-z0-9.-]{2,15})$/;
+const REPORT_SLUG_MD_PATH = /^\/informe\/([A-Za-z0-9.-]{1,10})\/([A-Za-z0-9.-]{2,15})\.md$/;
 
 function parseUrl(req) {
   try {
@@ -184,16 +190,23 @@ export function seoHtmlMiddleware(req, res, next) {
     return;
   }
 
-  const reportMatch = pathname.match(REPORT_PATH);
-  const reportMdMatch = pathname.match(/^\/informe\/(\d{1,7})\.md$/);
-  if (reportMdMatch || (reportMatch && req.headers.accept?.includes('text/markdown'))) {
-    const reportId = reportMdMatch ? reportMdMatch[1] : reportMatch[1];
-    getPublicReportMarkdown(reportId)
-      .then((md) => {
-        if (md) {
-          res.set('Content-Type', 'text/markdown; charset=utf-8');
-          res.set('Cache-Control', 'public, max-age=1800');
-          res.send(md);
+  if (pathname === '/informe') {
+    res.redirect(301, '/analisis');
+    return;
+  }
+
+  const reportIdMatch = pathname.match(REPORT_ID_PATH);
+  const reportIdMdMatch = pathname.match(REPORT_ID_MD_PATH);
+  const reportSlugMatch = pathname.match(REPORT_SLUG_PATH);
+  const reportSlugMdMatch = pathname.match(REPORT_SLUG_MD_PATH);
+
+  // 1. Redirección 301 de URLs heredadas /informe/:id(.md)? a la URL canónica semántica /informe/:ticker/:slug(.md)?
+  if (reportIdMdMatch || (reportIdMatch && req.headers.accept?.includes('text/markdown'))) {
+    const reportId = reportIdMdMatch ? reportIdMdMatch[1] : reportIdMatch[1];
+    getReportSlugById(reportId)
+      .then((info) => {
+        if (info) {
+          res.redirect(301, `/informe/${encodeURIComponent(info.ticker)}/${info.slug}.md`);
         } else {
           serve404Page(res);
         }
@@ -202,11 +215,53 @@ export function seoHtmlMiddleware(req, res, next) {
     return;
   }
 
-  if (reportMatch) {
-    getPublicReportHtml(reportMatch[1])
-      .then((html) => {
-        if (html) {
-          serveStandalone(res, html);
+  if (reportIdMatch) {
+    getReportSlugById(reportIdMatch[1])
+      .then((info) => {
+        if (info) {
+          res.redirect(301, `/informe/${encodeURIComponent(info.ticker)}/${info.slug}`);
+        } else {
+          serve404Page(res);
+        }
+      })
+      .catch(() => serve404Page(res));
+    return;
+  }
+
+  // 2. Ruta semántica para modelos de IA / LLMs en Markdown: /informe/:ticker/:slug.md
+  if (reportSlugMdMatch || (reportSlugMatch && req.headers.accept?.includes('text/markdown'))) {
+    const rawTicker = reportSlugMdMatch ? reportSlugMdMatch[1] : reportSlugMatch[1];
+    const rawSlug = reportSlugMdMatch ? reportSlugMdMatch[2] : reportSlugMatch[2];
+    getPublicReportMarkdownBySlug(rawTicker, rawSlug)
+      .then((resObj) => {
+        if (resObj) {
+          if (resObj.canonicalSlug && resObj.canonicalSlug !== rawSlug.toUpperCase()) {
+            res.redirect(301, `/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}.md`);
+            return;
+          }
+          res.set('Content-Type', 'text/markdown; charset=utf-8');
+          res.set('Cache-Control', 'public, max-age=1800');
+          res.send(resObj.markdown);
+        } else {
+          serve404Page(res);
+        }
+      })
+      .catch(() => serve404Page(res));
+    return;
+  }
+
+  // 3. Ruta semántica HTML completa con diseño interactivo: /informe/:ticker/:slug
+  if (reportSlugMatch) {
+    const rawTicker = reportSlugMatch[1];
+    const rawSlug = reportSlugMatch[2];
+    getPublicReportHtmlBySlug(rawTicker, rawSlug)
+      .then((resObj) => {
+        if (resObj) {
+          if (resObj.canonicalSlug && resObj.canonicalSlug !== rawSlug.toUpperCase()) {
+            res.redirect(301, `/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}`);
+            return;
+          }
+          serveStandalone(res, resObj.html);
         } else {
           serve404Page(res);
         }

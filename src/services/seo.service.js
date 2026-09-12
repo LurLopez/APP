@@ -437,6 +437,7 @@ async function loadPublicReportsForTicker(ticker) {
     periodEnd: row.period_end,
     pdfUrl: row.pdf_url,
     createdAt: row.created_at,
+    slug: buildReportSlug(row),
   }));
 }
 
@@ -567,9 +568,18 @@ export async function getCompanyBotContent(meta) {
   if (content.publicReports.length) {
     parts.push(`<h2>Análisis con IA de ${escapeHtml(meta.name)}</h2>`);
     parts.push('<ul>');
+    const seenSlugs = new Set();
     for (const report of content.publicReports) {
-      const label = `Informe ${report.formType ?? ''} ${report.periodTitle ? `— ${report.periodTitle}` : ''}`.trim();
-      parts.push(`<li><a href="${site}/informe/${report.id}">${escapeHtml(label)}</a> (<a href="${site}/informe/${report.id}.md">Markdown</a>)</li>`);
+      const slug = report.slug || buildReportSlug(report);
+      if (seenSlugs.has(slug)) continue;
+      seenSlugs.add(slug);
+      let formType = report.formType;
+      if (!formType) {
+        formType = /annual|full year|10-?k/i.test(report.periodTitle || '') ? '10-K' : '10-Q';
+      }
+      const label = `Informe ${formType} ${report.periodTitle ? `— ${report.periodTitle}` : ''}`.trim();
+      const repUrl = `${site}/informe/${encodeURIComponent(report.ticker)}/${slug}`;
+      parts.push(`<li><a href="${repUrl}">${escapeHtml(label)}</a> (<a href="${repUrl}.md">Markdown</a>)</li>`);
     }
     parts.push('</ul>');
   }
@@ -853,7 +863,44 @@ export function serveLegal(res, slug) {
   }
 }
 
-async function loadPublicReportRow(id) {
+export function buildReportSlug(row) {
+  const report = row?.report ?? {};
+  const title = String(report.periodTitle || row?.period_title || row?.periodTitle || '');
+  const formType = String(report.formType || row?.form_type || row?.formType || '');
+  const isAnnual = report.isAnnual === true || formType === '10-K' || /annual|full year|10-?k/i.test(title);
+
+  let year = report.fiscalYear || row?.fiscal_year || row?.fiscalYear;
+  if (!year) {
+    const yearMatch = title.match(/\b(20\d\d)\b/);
+    if (yearMatch) year = yearMatch[1];
+  }
+  if (!year && (row?.period_end || row?.periodEnd)) {
+    year = new Date(row.period_end || row.periodEnd).getUTCFullYear();
+  }
+  if (!year && (row?.created_at || row?.createdAt)) {
+    year = new Date(row.created_at || row.createdAt).getUTCFullYear();
+  }
+  if (!year) year = new Date().getUTCFullYear();
+
+  if (isAnnual) {
+    return `${year}-10K`;
+  }
+
+  let quarter = report.fiscalQuarter || row?.fiscal_quarter || row?.fiscalQuarter;
+  if (!quarter) {
+    const qMatch = title.match(/Q([1-4])/i);
+    if (qMatch) quarter = qMatch[1];
+  }
+  if (!quarter && (row?.period_end || row?.periodEnd)) {
+    const m = new Date(row.period_end || row.periodEnd).getUTCMonth();
+    quarter = Math.floor(m / 3) + 1;
+  }
+  if (!quarter) quarter = '1';
+
+  return `${year}-Q${quarter}`;
+}
+
+export async function loadPublicReportRow(id) {
   const rows = await query(
     `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, report
        FROM analyses
@@ -862,6 +909,51 @@ async function loadPublicReportRow(id) {
     [id],
   );
   return rows.rows[0] ?? null;
+}
+
+export async function loadPublicReportBySlug(ticker, rawSlug) {
+  const cleanTicker = String(ticker || '').trim().toUpperCase();
+  if (!cleanTicker || !/^[A-Z0-9.-]{1,10}$/.test(cleanTicker)) return null;
+
+  let normSlug = String(rawSlug || '').trim().toUpperCase().replace(/10-K/, '10K');
+  const rows = await query(
+    `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, report
+       FROM analyses
+       WHERE is_public = true AND status = 'done' AND UPPER(ticker) = $1
+       ORDER BY created_at DESC, id DESC`,
+    [cleanTicker],
+  );
+  if (!rows.rows.length) return null;
+
+  // 1. Coincidencia exacta de slug generado
+  for (const r of rows.rows) {
+    if (buildReportSlug(r) === normSlug) {
+      return r;
+    }
+  }
+
+  // 2. Coincidencia de atajo sin año (ej. "Q3" o "10K" o "FY")
+  if (/^(Q[1-4]|10K|FY|ANNUAL)$/.test(normSlug)) {
+    const isTargetAnnual = /^(10K|FY|ANNUAL)$/.test(normSlug);
+    const targetQ = normSlug.startsWith('Q') ? normSlug.slice(1) : null;
+    for (const r of rows.rows) {
+      const s = buildReportSlug(r);
+      if (isTargetAnnual && s.endsWith('-10K')) return r;
+      if (targetQ && s.endsWith(`-Q${targetQ}`)) return r;
+    }
+  }
+
+  return null;
+}
+
+export async function getReportSlugById(id) {
+  const cleanId = Number(id);
+  if (!Number.isInteger(cleanId) || cleanId <= 0) return null;
+  const row = await loadPublicReportRow(cleanId);
+  if (!row) return null;
+  const ticker = String(row.ticker ?? row.report?.ticker ?? '').toUpperCase();
+  const slug = buildReportSlug(row);
+  return { ticker, slug, row };
 }
 
 function getHighlightClassSsr(noteNumber) {
@@ -1117,9 +1209,9 @@ function buildReportJsonLd(meta, row) {
 
 async function loadPublicReportsForSitemap() {
   const rows = await query(
-    `SELECT id, created_at FROM analyses
+    `SELECT id, ticker, period_end, created_at, report FROM analyses
       WHERE is_public = true AND status = 'done'
-      ORDER BY created_at DESC`,
+      ORDER BY ticker, created_at DESC, id DESC`,
   );
   return rows.rows;
 }
@@ -1141,7 +1233,8 @@ function buildReportPage(row) {
   const fyLabel = report.periodTitle
     ? report.periodTitle
     : (isAnnual ? `FY ${report.fiscalYear ?? ''}` : `Q${report.fiscalQuarter ?? ''} ${report.fiscalYear ?? ''}`);
-  const url = `${config.siteUrl}/informe/${row.id}`;
+  const slug = buildReportSlug(row);
+  const url = `${config.siteUrl}/informe/${encodeURIComponent(ticker)}/${slug}`;
   const title = `Informe ${formType} de ${name} (${ticker}) — ${fyLabel} | ${SITE_NAME}`;
   const description = `Resultados de ${name} (${ticker}) en su informe ${formType} ${fyLabel.trim()}: ventas, beneficio operativo, flujo de caja libre, dividendos, recompras y deuda, con el análisis financiero de Cifra.`;
   const reportHeadingTitle = `${ticker} — ${fyLabel}`;
@@ -1152,6 +1245,7 @@ function buildReportPage(row) {
     company,
     name,
     formType,
+    slug,
     cik: null,
     url,
     title,
@@ -1188,6 +1282,7 @@ function buildReportPage(row) {
   const initialPayload = {
     id: row.id,
     ticker,
+    slug,
     company_name: company,
     period_end: row.period_end,
     pdf_url: row.pdf_url,
@@ -1215,11 +1310,39 @@ function buildReportPage(row) {
   return out;
 }
 
-export function invalidateReportCache(id) {
-  const cleanId = Number(id);
-  if (Number.isInteger(cleanId)) {
-    reportCache.delete(cleanId);
+export function invalidateReportCache() {
+  reportCache.clear();
+  sitemapCache.xml = null;
+}
+
+export async function getPublicReportHtmlBySlug(ticker, rawSlug) {
+  const cleanTicker = String(ticker || '').trim().toUpperCase();
+  const normSlug = String(rawSlug || '').trim().toUpperCase().replace(/10-K/, '10K');
+  const cacheKey = `${cleanTicker}:${normSlug}`;
+
+  const cached = reportCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < REPORT_TTL) return cached.data;
+
+  let row = null;
+  try {
+    row = await loadPublicReportBySlug(cleanTicker, normSlug);
+  } catch {
+    row = null;
   }
+  if (!row) {
+    reportCache.set(cacheKey, { data: null, at: Date.now() });
+    return null;
+  }
+
+  const canonicalSlug = buildReportSlug(row);
+  const html = buildReportPage(row);
+  const result = { html, canonicalSlug, ticker: String(row.ticker ?? cleanTicker).toUpperCase() };
+
+  reportCache.set(cacheKey, { data: result, at: Date.now() });
+  reportCache.set(`${result.ticker}:${canonicalSlug}`, { data: result, at: Date.now() });
+  if (row.id) reportCache.set(Number(row.id), { data: html, at: Date.now() });
+
+  return result;
 }
 
 export async function getPublicReportHtml(id) {
@@ -1324,8 +1447,17 @@ export async function getCompanyMarkdown(ticker) {
   if (content.publicReports.length) {
     lines.push('## Informes Analizados con IA en Cifra');
     lines.push('');
+    const seenSlugs = new Set();
     for (const r of content.publicReports) {
-      lines.push(`- [Informe ${r.formType} ${r.periodTitle ?? ''}](${site}/informe/${r.id}) ([Markdown](${site}/informe/${r.id}.md))`);
+      const slug = r.slug || buildReportSlug(r);
+      if (seenSlugs.has(slug)) continue;
+      seenSlugs.add(slug);
+      let formType = r.formType;
+      if (!formType) {
+        formType = /annual|full year|10-?k/i.test(r.periodTitle || '') ? '10-K' : '10-Q';
+      }
+      const repUrl = `${site}/informe/${encodeURIComponent(r.ticker)}/${slug}`;
+      lines.push(`- [Informe ${formType} ${r.periodTitle ?? ''}](${repUrl}) ([Markdown](${repUrl}.md))`);
     }
     lines.push('');
   }
@@ -1346,17 +1478,8 @@ export async function getCompanyMarkdown(ticker) {
   return lines.join('\n');
 }
 
-export async function getPublicReportMarkdown(id) {
-  const cleanId = Number(id);
-  if (!Number.isInteger(cleanId) || cleanId <= 0) return null;
-  let row = null;
-  try {
-    row = await loadPublicReportRow(cleanId);
-  } catch {
-    row = null;
-  }
+export function buildReportMarkdown(row) {
   if (!row) return null;
-
   const report = row.report ?? {};
   const ticker = String(row.ticker ?? report.ticker ?? '').toUpperCase();
   const company = report.company ?? row.company_name ?? ticker;
@@ -1374,6 +1497,8 @@ export async function getPublicReportMarkdown(id) {
     ? report.periodTitle
     : (isAnnual ? `FY ${report.fiscalYear ?? ''}` : `Q${report.fiscalQuarter ?? ''} ${report.fiscalYear ?? ''}`);
   const site = config.siteUrl;
+  const slug = buildReportSlug(row);
+  const canonicalUrl = `${site}/informe/${encodeURIComponent(ticker)}/${slug}`;
 
   const lines = [];
   lines.push(`# Informe ${formType} de ${name} (${ticker}) — ${fyLabel}`);
@@ -1383,7 +1508,7 @@ export async function getPublicReportMarkdown(id) {
   lines.push(`> Fecha de publicación: ${new Date(row.created_at).toISOString().slice(0, 10)}`);
   if (row.source_url) lines.push(`> Fuente oficial: [SEC EDGAR Filing](${row.source_url})`);
   if (row.pdf_url) lines.push(`> Descargar PDF: ${site}${row.pdf_url}`);
-  lines.push(`> URL Canónica: ${site}/informe/${row.id}`);
+  lines.push(`> URL Canónica: ${canonicalUrl}`);
   lines.push('');
 
   if (report.rating?.label) {
@@ -1460,6 +1585,36 @@ export async function getPublicReportMarkdown(id) {
   lines.push(`*Análisis generado con IA por Cifra (${site}) a partir de la fuente primaria en SEC EDGAR. Fines informativos, no constituye recomendación de inversión.*`);
 
   return lines.join('\n');
+}
+
+export async function getPublicReportMarkdown(id) {
+  const cleanId = Number(id);
+  if (!Number.isInteger(cleanId) || cleanId <= 0) return null;
+  let row = null;
+  try {
+    row = await loadPublicReportRow(cleanId);
+  } catch {
+    row = null;
+  }
+  if (!row) return null;
+  return buildReportMarkdown(row);
+}
+
+export async function getPublicReportMarkdownBySlug(ticker, rawSlug) {
+  const cleanTicker = String(ticker || '').trim().toUpperCase();
+  const normSlug = String(rawSlug || '').trim().toUpperCase().replace(/10-K/, '10K');
+
+  let row = null;
+  try {
+    row = await loadPublicReportBySlug(cleanTicker, normSlug);
+  } catch {
+    row = null;
+  }
+  if (!row) return null;
+
+  const canonicalSlug = buildReportSlug(row);
+  const markdown = buildReportMarkdown(row);
+  return { markdown, canonicalSlug, ticker: String(row.ticker ?? cleanTicker).toUpperCase() };
 }
 
 export async function getLlmsTxt() {
@@ -1645,10 +1800,18 @@ export async function getSitemapXml() {
     });
   }
 
+  const seenReportSlugs = new Set();
   for (const report of publicReports) {
+    const ticker = String(report.ticker ?? report.report?.ticker ?? '').toUpperCase();
+    if (!ticker) continue;
+    const slug = buildReportSlug(report);
+    const key = `${ticker}/${slug}`;
+    if (seenReportSlugs.has(key)) continue;
+    seenReportSlugs.add(key);
+
     urls.push({
-      loc: `${config.siteUrl}/informe/${report.id}`,
-      priority: '0.6',
+      loc: `${config.siteUrl}/informe/${encodeURIComponent(ticker)}/${slug}`,
+      priority: '0.7',
       changefreq: 'monthly',
       lastmod: report.created_at ? new Date(report.created_at).toISOString() : null,
     });

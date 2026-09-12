@@ -128,6 +128,7 @@ La arquitectura debe estar preparada desde el principio para:
 
 ### 6.5. Almacenamiento de resultados
 - Los análisis realizados se deben poder guardar, listar y consultar por usuario (histórico de análisis).
+- Cada análisis guarda la **versión** del pipeline con la que se generó: la define el agente de sector, y el subsector (si existe) puede sobrescribirla con la suya.
 
 ## 7. Funcionalidades futuras (fuera de la beta)
 
@@ -145,6 +146,7 @@ La arquitectura debe estar preparada desde el principio para:
 - **Histórico de análisis por usuario** con filtros (empresa, fecha de resultados/análisis) y apertura del PDF.
 - **Listas de seguimiento multi-lista** (sustituyen a los favoritos; lista por defecto "Favoritos").
 - **Cartera de inversión**: compras/ventas con FIFO, precio medio, dividendos estimados por fecha real de pago, rentabilidad con y sin dividendos y distribución por empresa/sector.
+- **Registro de consumo**: log acumulativo (`logs/analisis.log`) y tabla `analysis_logs` (duplicado en BD) con una línea por cada análisis, también los rechazados y los del worker: usuario, tokens, coste, duración y fecha/hora.
 
 ## 8. Roadmap
 

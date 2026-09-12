@@ -92,6 +92,7 @@ router.post('/upload', uploadLimiter, requireAuth, upload.fields([
 
     const result = await analyzePdf(mainFile.buffer, {
       userId: req.user.id,
+      actor: req.user.username || req.user.email,
       filename: mainFile.originalname,
       presentationText,
     });
