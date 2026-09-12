@@ -20,6 +20,7 @@ import { cleanupGeneratedReports } from "../../services/report.service.js";
 import { getFilingContentBuffer, getPresentationBuffers } from "../../services/edgar.service.js";
 import { analyzePdf, analyzeText, htmlToText, buildPresentationText } from "../../services/analysis.service.js";
 import { AgentError } from "../../agents/baseAgent.js";
+import { invalidateReportCache } from "../../services/seo.service.js";
 
 const router = express.Router();
 
@@ -200,6 +201,8 @@ router.post("/admin/reports/ai-analysis/:id/regenerate", requireAdmin, async (re
     const result = content.kind === "pdf"
       ? await analyzePdf(content.buffer, options)
       : await analyzeText(htmlToText(content.buffer.toString("utf8")), options);
+
+    invalidateReportCache(id);
 
     res.json({
       ok: true,

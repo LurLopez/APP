@@ -1,5 +1,5 @@
 /**
- * Módulo de Foros por Empresa para Cifra Terminal
+ * Módulo de Foros por Empresa para Cifra
  */
 const Forum = (() => {
   let currentTicker = null;

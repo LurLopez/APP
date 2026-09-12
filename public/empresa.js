@@ -32,6 +32,16 @@ function getInitialCompanyTicker() {
     return tickerFromUrl;
   }
 
+  const initialReportEl = document.querySelector('#cifra-initial-report');
+  if (initialReportEl) {
+    try {
+      const parsed = JSON.parse(initialReportEl.textContent);
+      if (parsed?.ticker && /^[A-Z0-9.-]{1,10}$/.test(parsed.ticker)) {
+        return parsed.ticker.toUpperCase();
+      }
+    } catch {}
+  }
+
   const saved = localStorage.getItem(SAVED_TICKER_KEY);
   if (saved && /^[A-Z0-9.-]{1,10}$/.test(saved.trim().toUpperCase())) {
     return saved.trim().toUpperCase();
@@ -6327,6 +6337,10 @@ function showSection(key) {
   if (companyHeadRow) {
     companyHeadRow.hidden = isGlobalSection;
   }
+  if (isGlobalSection) {
+    if (companyLoading) companyLoading.hidden = true;
+    if (companyBody) companyBody.hidden = false;
+  }
 
   if (key === 'favoritos') {
     if (sections.favoritos) sections.favoritos.hidden = false;
@@ -6601,9 +6615,13 @@ async function loadCompany() {
     filingsPresentationsController.abort();
     filingsPresentationsController = null;
   }
-  companyLoading.hidden = false;
+  const currentActiveSection = resolveInitialSection();
+  const isGlobal = ['favoritos', 'alertas', 'cartera', 'calendario', 'analisis', 'novedades', 'reportes'].includes(currentActiveSection);
+  if (!isGlobal) {
+    companyLoading.hidden = false;
+    companyBody.hidden = true;
+  }
   companyError.hidden = true;
-  companyBody.hidden = true;
 
   try {
     const response = await fetch(`/api/screener/company/${encodeURIComponent(companyTicker)}`);
@@ -6668,7 +6686,7 @@ function resolveInitialSection() {
   if (path.startsWith('/alerta')) {
     return 'alertas';
   }
-  if (path.startsWith('/analisi') || searchParams.get('analizar')) {
+  if (path.startsWith('/analisi') || path.startsWith('/informe') || searchParams.get('analizar')) {
     return 'analisis';
   }
   if (path.startsWith('/novedad')) {

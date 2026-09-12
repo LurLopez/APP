@@ -7,6 +7,7 @@ import {
   serveStandalone,
   serveGuide,
   serveGuideHub,
+  serveLegal,
   serve404Page,
   getPublicReportHtml,
   getPublicReportMarkdown,
@@ -168,6 +169,17 @@ export function seoHtmlMiddleware(req, res, next) {
 
   if (pathname.startsWith('/guias/')) {
     if (serveGuide(res, decodeURIComponent(pathname.slice('/guias/'.length)))) return;
+    serve404Page(res);
+    return;
+  }
+
+  if (pathname === '/legal') {
+    res.redirect(301, '/legal/aviso-legal');
+    return;
+  }
+
+  if (pathname.startsWith('/legal/')) {
+    if (serveLegal(res, decodeURIComponent(pathname.slice('/legal/'.length)))) return;
     serve404Page(res);
     return;
   }

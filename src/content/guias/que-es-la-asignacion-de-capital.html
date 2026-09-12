@@ -27,71 +27,105 @@
   <meta name="twitter:description" content="Dividendos, recompras, deuda y adquisiciones: cómo juzgar el uso que una empresa hace de su caja.">
   <meta name="twitter:image" content="{{SITE_URL}}/og-cifra.png">
 
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
 
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Article",
-        "headline": "¿Qué es la asignación de capital?",
-        "description": "Qué hace una empresa con el dinero que genera y cómo juzgarlo: dividendos, recompras, deuda, adquisiciones e inversión.",
-        "inLanguage": "es",
-        "datePublished": "2026-09-10",
-        "dateModified": "2026-09-10",
-        "keywords": "asignación de capital, dividendos, recompras, deuda, adquisiciones, capital allocation",
-        "articleSection": "Inversión",
-        "author": { "@type": "Organization", "name": "Cifra", "url": "{{SITE_URL}}/" },
-        "publisher": {
-          "@type": "Organization",
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "headline": "¿Qué es la asignación de capital?",
+      "description": "Qué hace una empresa con el dinero que genera y cómo juzgarlo: dividendos, recompras, deuda, adquisiciones e inversión.",
+      "inLanguage": "es",
+      "datePublished": "2026-09-10",
+      "dateModified": "2026-09-10",
+      "keywords": "asignación de capital, dividendos, recompras, deuda, adquisiciones, capital allocation",
+      "articleSection": "Inversión",
+      "author": {
+        "@type": "Organization",
+        "name": "Cifra",
+        "url": "{{SITE_URL}}/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Cifra",
+        "url": "{{SITE_URL}}/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{SITE_URL}}/logo-cifra.png",
+          "width": 512,
+          "height": 512
+        }
+      },
+      "image": "{{SITE_URL}}/og-cifra.png",
+      "mainEntityOfPage": "{{SITE_URL}}/guias/que-es-la-asignacion-de-capital",
+      "isBasedOn": "https://www.sec.gov/edgar",
+      "citation": "https://www.sec.gov/edgar"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
           "name": "Cifra",
-          "url": "{{SITE_URL}}/",
-          "logo": { "@type": "ImageObject", "url": "{{SITE_URL}}/logo-cifra.png", "width": 512, "height": 512 }
+          "item": "{{SITE_URL}}/"
         },
-        "image": "{{SITE_URL}}/og-cifra.png",
-        "mainEntityOfPage": "{{SITE_URL}}/guias/que-es-la-asignacion-de-capital"
-      },
-      {
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Cifra", "item": "{{SITE_URL}}/" },
-          { "@type": "ListItem", "position": 2, "name": "Guías", "item": "{{SITE_URL}}/guias" },
-          { "@type": "ListItem", "position": 3, "name": "¿Qué es la asignación de capital?" }
-        ]
-      },
-      {
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "¿Cuáles son los usos principales del capital de una empresa?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Reinvertir en el negocio (nueva capacidad, marcas, tecnología), pagar dividendos, recomprar acciones, amortizar deuda y realizar adquisiciones. Un buen gestor elige la combinación que maximiza el valor a largo plazo; un mal gestor satisface plazos cortos o compra caro." }
-          },
-          {
-            "@type": "Question",
-            "name": "¿Es mejor recomprar acciones o pagar dividendos?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Depende del precio. Una recompra añade valor si las acciones están baratas respecto a su valor intrínseco (y la empresa las mantiene en tesorería o las amortiza); a precios altos devolviendo el dinero en dividendos suele ser más eficiente para el accionista, porque no depende del precio de mercado. Lo importante es que el uso del dinero tenga un retorno razonable y sea coherente en el tiempo." }
-          },
-          {
-            "@type": "Question",
-            "name": "¿Dónde aparece la asignación de capital en el 10-K?",
-            "acceptedAnswer": { "@type": "Answer", "text": "En el estado de flujo de caja, sección de financiación: dividendos pagados, recompras de acciones, emisión y devolución de deuda. También en las notas del balance (vencimientos y tipos de la deuda) y en el MD&A, donde la dirección explica sus prioridades de inversión." }
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guías",
+          "item": "{{SITE_URL}}/guias"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "¿Qué es la asignación de capital?"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "¿Cuáles son los usos principales del capital de una empresa?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Reinvertir en el negocio (nueva capacidad, marcas, tecnología), pagar dividendos, recomprar acciones, amortizar deuda y realizar adquisiciones. Un buen gestor elige la combinación que maximiza el valor a largo plazo; un mal gestor satisface plazos cortos o compra caro."
           }
-        ]
-      }
-    ]
-  }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Es mejor recomprar acciones o pagar dividendos?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Depende del precio. Una recompra añade valor si las acciones están baratas respecto a su valor intrínseco (y la empresa las mantiene en tesorería o las amortiza); a precios altos devolviendo el dinero en dividendos suele ser más eficiente para el accionista, porque no depende del precio de mercado. Lo importante es que el uso del dinero tenga un retorno razonable y sea coherente en el tiempo."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Dónde aparece la asignación de capital en el 10-K?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "En el estado de flujo de caja, sección de financiación: dividendos pagados, recompras de acciones, emisión y devolución de deuda. También en las notas del balance (vencimientos y tipos de la deuda) y en el MD&A, donde la dirección explica sus prioridades de inversión."
+          }
+        }
+      ]
+    }
+  ]
+}
   </script>
 
-  <link rel="stylesheet" href="/guia.css">
+  <link rel="stylesheet" href="/guia.css?v=2">
 </head>
 <body>
   <div class="guia-wrap">
     <header class="guia-header">
-      <a class="guia-brand" href="{{SITE_URL}}/"><span class="guia-brand-mark" aria-hidden="true">▲</span> Cifra</a>
+      <a class="guia-brand" href="{{SITE_URL}}/"><svg class="guia-brand-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="13" width="5" height="8" rx="2.5"/><rect x="9.5" y="8" width="5" height="13" rx="2.5"/><rect x="16" y="3" width="5" height="18" rx="2.5"/></svg> Cifra</a>
       <nav class="guia-nav"><a href="{{SITE_URL}}/guias">Guías</a><a href="{{SITE_URL}}/empresa">Empresas</a></nav>
     </header>
     <main class="guia-main guia-article">

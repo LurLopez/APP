@@ -1,0 +1,37 @@
+name: Uptime Check
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: uptime-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Comprobar cifraresearch.com
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health endpoint
+        run: |
+          set -e
+          for i in 1 2 3; do
+            status=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 20 https://cifraresearch.com/api/health || true)
+            if [ "$status" = "200" ] && grep -q '"status":"ok"' /tmp/health.json; then
+              echo "Health OK (intento $i)"
+              exit 0
+            fi
+            echo "Intento $i fallido (HTTP $status)"
+            sleep 15
+          done
+          echo "::error::cifraresearch.com no responde correctamente en /api/health"
+          exit 1
+
+      - name: Portada y sitemap
+        run: |
+          set -e
+          curl -fsS --max-time 20 -o /dev/null https://cifraresearch.com/
+          curl -fsS --max-time 20 -o /dev/null https://cifraresearch.com/sitemap.xml
+          echo "Portada y sitemap OK"

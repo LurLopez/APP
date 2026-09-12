@@ -1,9 +1,17 @@
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.middleware.js';
+import { rateLimit } from '../../middleware/rateLimit.middleware.js';
 import * as forumRepository from '../../../db/repositories/forumRepository.js';
 
 const router = Router();
 const TICKER_PATTERN = /^[A-Z0-9.-]{1,10}$/;
+
+const forumPostLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  scope: 'forum:post',
+  message: 'Has publicado demasiados mensajes seguidos. Espera unos minutos antes de volver a escribir.',
+});
 
 router.get('/:ticker', async (req, res, next) => {
   try {
@@ -20,7 +28,7 @@ router.get('/:ticker', async (req, res, next) => {
   }
 });
 
-router.post('/:ticker', requireAuth, async (req, res, next) => {
+router.post('/:ticker', forumPostLimiter, requireAuth, async (req, res, next) => {
   try {
     const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
     if (!TICKER_PATTERN.test(ticker)) {

@@ -243,14 +243,6 @@ const NovedadesModule = {
         </div>
 
         <div class="novedades-list" id="novedades-list"></div>
-
-        <div class="novedades-footer-note">
-          <div class="novedades-note-icon">💡</div>
-          <p>
-            <strong>¿Actualizando la plataforma?</strong> 
-            Para añadir una nueva versión, edita el archivo <code>public/novedades.js</code> e incorpora los cambios en el array <code>NOVEDADES_DATA</code>.
-          </p>
-        </div>
       </div>
     `;
 

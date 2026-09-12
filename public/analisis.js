@@ -1,4 +1,4 @@
-/* ── Módulo de Análisis Fundamental (Cifra Terminal) ─────────────────────── */
+/* ── Módulo de Análisis Fundamental (Cifra) ──────────────────────────────── */
 
 (function () {
   'use strict';
@@ -16,6 +16,8 @@
   let historyDebounceTimer = null;
   let historyAnalyses = [];
   let historySort = { key: 'created_at', dir: 'desc' };
+  let historyPage = 1;
+  const HISTORY_PAGE_SIZE = 10;
   let initialized = false;
   let historyCompanies = [];
   let historySuggest = null;
@@ -1732,6 +1734,9 @@
     currentAnalysisTicker = data.report?.ticker || pendingFiling?.ticker || null;
     currentAnalysisAccession = pendingFiling?.accession || null;
     loadAnalysisFeedback(currentAnalysisId);
+    if (currentAnalysisId) {
+      try { history.replaceState(null, '', `/informe/${currentAnalysisId}`); } catch {}
+    }
 
     const adminRegenBtn = document.querySelector('#admin-regenerate-report');
     if (adminRegenBtn) {
@@ -1995,6 +2000,46 @@
     link.remove();
   }
 
+  function loadReportData(analysis, { updateHistory = false } = {}) {
+    if (!analysis || !analysis.report) return;
+    currentPdfUrl = analysis.pdf_url ?? null;
+    currentDownloadBase = currentPdfUrl ? currentPdfUrl.replace(/\.pdf$/, '') : (analysis.downloadBase ?? null);
+    currentDownloadName = analysis.downloadBase ?? (analysis.ticker ? `${analysis.ticker}-${(analysis.periodTitle || 'informe').replace(/\s+/g, '-')}` : 'analisis-cifra');
+
+    const titleParts = [analysis.company_name || analysis.company || analysis.ticker, analysis.periodTitle || analysis.report?.periodTitle].filter(Boolean);
+    const resultTitle = document.querySelector('#result-title');
+    if (resultTitle) resultTitle.textContent = titleParts.length ? titleParts.join(' — ') : 'Informe guardado';
+
+    renderReport(analysis.report ?? {});
+
+    currentAnalysisId = analysis.id ? Number(analysis.id) : null;
+    currentAnalysisTicker = analysis.ticker || analysis.report?.ticker || null;
+    currentAnalysisAccession = analysis.accession || null;
+
+    loadAnalysisFeedback(currentAnalysisId);
+
+    if (currentAnalysisId && updateHistory) {
+      try { history.replaceState(null, '', `/informe/${currentAnalysisId}`); } catch {}
+    }
+
+    const adminRegenBtn = document.querySelector('#admin-regenerate-report');
+    if (adminRegenBtn) {
+      const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || currentUser?.isAdmin);
+      adminRegenBtn.hidden = !isAdmin;
+    }
+
+    const processingPanel = document.querySelector('#processing-panel');
+    if (processingPanel) processingPanel.hidden = true;
+    const retryButton = document.querySelector('#retry-analysis');
+    if (retryButton) retryButton.hidden = true;
+    const uploadForm = document.querySelector('#upload-form');
+    if (uploadForm) uploadForm.hidden = true;
+    const secAnalysisEntry = document.querySelector('#sec-analysis-entry');
+    if (secAnalysisEntry) secAnalysisEntry.hidden = true;
+    const resultPreview = document.querySelector('#result-preview');
+    if (resultPreview) resultPreview.hidden = false;
+  }
+
   async function viewHistoryAnalysis(row) {
     const id = row?.dataset?.id;
     const url = row?.dataset?.pdfUrl;
@@ -2006,36 +2051,8 @@
         showToast('No se pudo cargar el análisis guardado.');
         return;
       }
-      const analysis = data.analysis;
-      currentPdfUrl = analysis.pdf_url ?? url;
-      currentDownloadBase = currentPdfUrl ? currentPdfUrl.replace(/\.pdf$/, '') : null;
-      currentDownloadName = analysis.downloadBase ?? 'analisis-cifra';
-      const titleParts = [analysis.company_name || analysis.ticker, analysis.periodTitle].filter(Boolean);
-      const resultTitle = document.querySelector('#result-title');
-      if (resultTitle) resultTitle.textContent = titleParts.length ? titleParts.join(' — ') : 'Informe guardado';
-      renderReport(analysis.report ?? {});
-
-      currentAnalysisId = analysis.id ? Number(analysis.id) : (Number(id) || null);
-      currentAnalysisTicker = analysis.ticker || analysis.report?.ticker || null;
-      currentAnalysisAccession = analysis.accession || null;
-      loadAnalysisFeedback(currentAnalysisId);
-
-      const adminRegenBtn = document.querySelector('#admin-regenerate-report');
-      if (adminRegenBtn) {
-        const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || currentUser?.isAdmin);
-        adminRegenBtn.hidden = !isAdmin;
-      }
-
-      const processingPanel = document.querySelector('#processing-panel');
-      if (processingPanel) processingPanel.hidden = true;
-      const retryButton = document.querySelector('#retry-analysis');
-      if (retryButton) retryButton.hidden = true;
-      const uploadForm = document.querySelector('#upload-form');
-      if (uploadForm) uploadForm.hidden = true;
-      const secAnalysisEntry = document.querySelector('#sec-analysis-entry');
-      if (secAnalysisEntry) secAnalysisEntry.hidden = true;
+      loadReportData(data.analysis, { updateHistory: true });
       const resultPreview = document.querySelector('#result-preview');
-      if (resultPreview) resultPreview.hidden = false;
       resultPreview?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch {
       showToast('No se pudo conectar con el servidor.');
@@ -2087,13 +2104,49 @@
     });
   }
 
-  function renderHistory(analyses) {
+  function renderHistoryPagination(totalItems, totalPages) {
+    const pagination = document.querySelector('#history-pagination');
+    if (!pagination) return;
+
+    if (totalPages <= 1) {
+      pagination.hidden = true;
+      pagination.innerHTML = '';
+      return;
+    }
+
+    const pages = [];
+    for (let page = 1; page <= totalPages; page += 1) {
+      if (page === 1 || page === totalPages || Math.abs(page - historyPage) <= 1) {
+        pages.push(page);
+      } else if (pages[pages.length - 1] !== 'ellipsis') {
+        pages.push('ellipsis');
+      }
+    }
+
+    const first = (historyPage - 1) * HISTORY_PAGE_SIZE + 1;
+    const last = Math.min(historyPage * HISTORY_PAGE_SIZE, totalItems);
+    pagination.hidden = false;
+    pagination.innerHTML = `
+      <span class="pagination-summary">Mostrando ${first}–${last} de ${totalItems}</span>
+      <div class="pagination-controls">
+        <button class="pagination-button" type="button" data-page="${historyPage - 1}" ${historyPage === 1 ? 'disabled' : ''} aria-label="Página anterior">← Anterior</button>
+        ${pages.map((page) => page === 'ellipsis'
+          ? '<span class="pagination-ellipsis" aria-hidden="true">…</span>'
+          : `<button class="pagination-page${page === historyPage ? ' active' : ''}" type="button" data-page="${page}" ${page === historyPage ? 'aria-current="page"' : ''}>${page}</button>`).join('')}
+        <button class="pagination-button" type="button" data-page="${historyPage + 1}" ${historyPage === totalPages ? 'disabled' : ''} aria-label="Página siguiente">Siguiente →</button>
+      </div>
+    `;
+  }
+
+  function renderHistory(analyses, options = {}) {
     historyAnalyses = Array.isArray(analyses) ? analyses : [];
+    if (options.resetPage) historyPage = 1;
     const historyBody = document.querySelector('#history-body');
     const historyFilters = document.querySelector('#history-filters');
     const historyEmpty = document.querySelector('#history-empty');
     const historyEmptyText = document.querySelector('#history-empty-text');
     const historyLoginButton = document.querySelector('#history-login');
+    const historyPagination = document.querySelector('#history-pagination');
     const historyCompanyInput = document.querySelector('#history-company');
     const historyFromInput = document.querySelector('#history-from');
     const historyToInput = document.querySelector('#history-to');
@@ -2103,6 +2156,7 @@
     if (!currentUser) {
       if (historyFilters) historyFilters.hidden = true;
       historyBody.innerHTML = '';
+      if (historyPagination) historyPagination.hidden = true;
       if (historyEmpty) historyEmpty.hidden = false;
       if (historyEmptyText) historyEmptyText.textContent = 'Inicia sesión para guardar tus análisis y consultarlos aquí.';
       if (historyLoginButton) historyLoginButton.hidden = false;
@@ -2114,6 +2168,7 @@
 
     if (!historyAnalyses.length) {
       historyBody.innerHTML = '';
+      if (historyPagination) historyPagination.hidden = true;
       if (historyEmpty) historyEmpty.hidden = false;
       if (historyEmptyText) {
         historyEmptyText.textContent = (historyCompanyInput?.value || historyFromInput?.value || historyToInput?.value)
@@ -2125,7 +2180,13 @@
 
     if (historyEmpty) historyEmpty.hidden = true;
     updateHistorySortHeaders();
-    historyBody.innerHTML = sortHistoryList(historyAnalyses).map((analysis) => {
+
+    const sortedHistory = sortHistoryList(historyAnalyses);
+    const totalPages = Math.max(1, Math.ceil(sortedHistory.length / HISTORY_PAGE_SIZE));
+    historyPage = Math.min(Math.max(historyPage, 1), totalPages);
+    const pageItems = sortedHistory.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
+
+    historyBody.innerHTML = pageItems.map((analysis) => {
       const ticker = String(analysis.ticker ?? '').toUpperCase();
       const company = analysis.companyName || ticker || '—';
       const periodTitle = analysis.periodTitle || '—';
@@ -2170,6 +2231,8 @@
         if (event.key === 'Enter' && !event.target.closest('button') && !event.target.closest('a')) viewHistoryAnalysis(row);
       });
     });
+
+    renderHistoryPagination(sortedHistory.length, totalPages);
   }
 
   async function fetchHistoryCompanies() {
@@ -2279,7 +2342,7 @@
     try {
       const response = await fetch(`/api/analyses?${historyQuery().toString()}`);
       const data = await response.json().catch(() => ({}));
-      if (response.ok) renderHistory(data.analyses ?? []);
+      if (response.ok) renderHistory(data.analyses ?? [], { resetPage: true });
     } catch {
       renderHistory([]);
     }
@@ -2394,6 +2457,21 @@
       button.addEventListener('click', () => downloadReport(button.dataset.format));
     });
 
+    const copyReportUrlBtn = document.querySelector('#copy-report-url');
+    copyReportUrlBtn?.addEventListener('click', async () => {
+      if (!currentAnalysisId) {
+        showToast('El informe aún no tiene una URL asignada.');
+        return;
+      }
+      const canonicalUrl = `${window.location.origin}/informe/${currentAnalysisId}`;
+      try {
+        await navigator.clipboard.writeText(canonicalUrl);
+        showToast('Enlace copiado al portapapeles 📋');
+      } catch {
+        prompt('Enlace permanente de este informe:', canonicalUrl);
+      }
+    });
+
     newAnalysis?.addEventListener('click', () => {
       const resultPreview = document.querySelector('#result-preview');
       if (resultPreview) resultPreview.hidden = true;
@@ -2403,6 +2481,7 @@
       currentAnalysisId = null;
       loadAnalysisFeedback(null);
       clearFile();
+      try { history.replaceState(null, '', '/analisis'); } catch {}
       document.querySelector('#nuevo')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
@@ -2415,8 +2494,16 @@
           ? { key, dir: historySort.dir === 'asc' ? 'desc' : 'asc' }
           : { key, dir: key === 'created_at' || key === 'period_end' ? 'desc' : 'asc' };
         updateHistorySortHeaders();
-        renderHistory(historyAnalyses);
+        renderHistory(historyAnalyses, { resetPage: true });
       });
+    });
+
+    document.querySelector('#history-pagination')?.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-page]');
+      if (!button || button.disabled) return;
+      historyPage = Number(button.dataset.page) || 1;
+      renderHistory(historyAnalyses);
+      document.querySelector('#history-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     historyCompanyInput?.addEventListener('input', () => {
@@ -2586,6 +2673,29 @@
         if (modal && !modal.hidden) closeErrorReportModal();
       }
     });
+
+    // Hidratación si se cargó directamente un /informe/:id
+    const initialReportEl = document.querySelector('#cifra-initial-report');
+    if (initialReportEl) {
+      try {
+        const initial = JSON.parse(initialReportEl.textContent);
+        if (initial && initial.report) {
+          loadReportData(initial, { updateHistory: false });
+        }
+      } catch (err) {
+        console.error('Error al hidratar informe inicial:', err);
+      }
+    } else {
+      const reportMatch = window.location.pathname.match(/^\/informe\/(\d{1,7})$/);
+      if (reportMatch) {
+        fetch(`/api/analyses/${reportMatch[1]}`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.analysis?.report) loadReportData(d.analysis, { updateHistory: false });
+          })
+          .catch(() => {});
+      }
+    }
   }
 
   function setAuthenticated(isLogged) {
@@ -2609,5 +2719,6 @@
     runFilingAnalysis,
     fetchAnalyses,
     setAuthenticated,
+    loadReportData,
   };
 })();

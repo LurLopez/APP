@@ -104,7 +104,7 @@ export async function sendCompanyEventAlert({ to, ticker, companyName, eventType
     from: MAIL_FROM,
     to: recipient,
     subject,
-    text: `Aviso para ${companyName} (${ticker}):\n${eventTitle} - ${eventDate}\n\n${details}\n\nPuedes consultar el informe y análisis interactivo en Cifra Terminal.`,
+    text: `Aviso para ${companyName} (${ticker}):\n${eventTitle} - ${eventDate}\n\n${details}\n\nPuedes consultar el informe y análisis interactivo en Cifra.`,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
         <div style="margin-bottom: 16px;">
@@ -142,7 +142,7 @@ export async function sendPriceAlertNotification({ to, ticker, companyName, targ
     subject,
     text: `Alerta de precio para ${companyName} (${ticker}):\n`
       + `La cotización ha alcanzado $${Number(currentPrice).toFixed(2)}, cumpliendo tu condición de precio (${condText} $${Number(targetPrice).toFixed(2)}).\n\n`
-      + `Tu alerta ha sido marcada como cumplida en Cifra Terminal.`,
+      + `Tu alerta ha sido marcada como cumplida en Cifra.`,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
         <div style="margin-bottom: 16px;">

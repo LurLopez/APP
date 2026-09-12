@@ -11,13 +11,13 @@
   "categories": ["finance", "investing"],
   "icons": [
     {
-      "src": "/logo-cifra.png",
+      "src": "/logo-cifra.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/logo-cifra.png",
+      "src": "/logo-cifra.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

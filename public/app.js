@@ -695,12 +695,12 @@ const homeSections = {
 };
 
 const SECTION_TITLES = {
-  seguimiento: 'Cifra Terminal | Seguimiento',
-  alertas: 'Cifra Terminal | Alertas de Precio',
-  cartera: 'Cifra Terminal | Cartera',
-  calendario: 'Cifra Terminal | Calendario',
-  analisis: 'Cifra Terminal | Análisis',
-  novedades: 'Cifra Terminal | Novedades',
+  seguimiento: 'Cifra | Seguimiento',
+  alertas: 'Cifra | Alertas de Precio',
+  cartera: 'Cifra | Cartera',
+  calendario: 'Cifra | Calendario',
+  analisis: 'Cifra | Análisis',
+  novedades: 'Cifra | Novedades',
 };
 
 const SECTION_PATHS = {
@@ -731,7 +731,7 @@ function showHomeOverview({ updateUrl = true, pushHistory = true } = {}) {
   homeMenu.hidden = false;
   Object.values(homeSections).forEach((section) => { if (section) section.hidden = true; });
   document.querySelectorAll('.home-top-link').forEach((button) => button.classList.remove('active'));
-  document.title = 'Cifra Terminal | Inicio';
+  document.title = 'Cifra | Inicio';
 
   if (updateUrl && window.location.pathname !== '/') {
     if (pushHistory) history.pushState(null, '', '/');
@@ -758,7 +758,7 @@ function openHomeSection(name, { updateUrl = true, pushHistory = true, scroll = 
     button.classList.toggle('active', button.dataset.section === sectionKey);
   });
 
-  document.title = SECTION_TITLES[sectionKey] || 'Cifra Terminal';
+  document.title = SECTION_TITLES[sectionKey] || 'Cifra';
 
   const targetPath = SECTION_PATHS[sectionKey] || `/${sectionKey}`;
   if (updateUrl && window.location.pathname !== targetPath) {

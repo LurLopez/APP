@@ -27,71 +27,105 @@
   <meta name="twitter:description" content="Fórmula del FCF y cómo usarlo para analizar dividendos, recompras y deuda.">
   <meta name="twitter:image" content="{{SITE_URL}}/og-cifra.png">
 
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
 
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Article",
-        "headline": "¿Qué es el flujo de caja libre (FCF)?",
-        "description": "Fórmula del flujo de caja libre y por qué importa más que el beneficio neto para analizar una empresa.",
-        "inLanguage": "es",
-        "datePublished": "2026-09-10",
-        "dateModified": "2026-09-10",
-        "keywords": "flujo de caja libre, FCF, free cash flow, CAPEX, análisis financiero",
-        "articleSection": "Inversión",
-        "author": { "@type": "Organization", "name": "Cifra", "url": "{{SITE_URL}}/" },
-        "publisher": {
-          "@type": "Organization",
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "headline": "¿Qué es el flujo de caja libre (FCF)?",
+      "description": "Fórmula del flujo de caja libre y por qué importa más que el beneficio neto para analizar una empresa.",
+      "inLanguage": "es",
+      "datePublished": "2026-09-10",
+      "dateModified": "2026-09-10",
+      "keywords": "flujo de caja libre, FCF, free cash flow, CAPEX, análisis financiero",
+      "articleSection": "Inversión",
+      "author": {
+        "@type": "Organization",
+        "name": "Cifra",
+        "url": "{{SITE_URL}}/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Cifra",
+        "url": "{{SITE_URL}}/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{SITE_URL}}/logo-cifra.png",
+          "width": 512,
+          "height": 512
+        }
+      },
+      "image": "{{SITE_URL}}/og-cifra.png",
+      "mainEntityOfPage": "{{SITE_URL}}/guias/que-es-el-flujo-de-caja-libre",
+      "isBasedOn": "https://www.sec.gov/edgar",
+      "citation": "https://www.sec.gov/edgar"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
           "name": "Cifra",
-          "url": "{{SITE_URL}}/",
-          "logo": { "@type": "ImageObject", "url": "{{SITE_URL}}/logo-cifra.png", "width": 512, "height": 512 }
+          "item": "{{SITE_URL}}/"
         },
-        "image": "{{SITE_URL}}/og-cifra.png",
-        "mainEntityOfPage": "{{SITE_URL}}/guias/que-es-el-flujo-de-caja-libre"
-      },
-      {
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Cifra", "item": "{{SITE_URL}}/" },
-          { "@type": "ListItem", "position": 2, "name": "Guías", "item": "{{SITE_URL}}/guias" },
-          { "@type": "ListItem", "position": 3, "name": "¿Qué es el flujo de caja libre?" }
-        ]
-      },
-      {
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "¿Cómo se calcula el flujo de caja libre?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Se calcula restando a la caja generada por la actividad operativa (cash flow from operations) la inversión en activos fijos del periodo (CAPEX). Es la definición estándar: FCF = caja operativa - CAPEX. Ambas cifras aparecen en el estado de flujo de caja del 10-Q o del 10-K." }
-          },
-          {
-            "@type": "Question",
-            "name": "¿Por qué el FCF importa más que el beneficio neto?",
-            "acceptedAnswer": { "@type": "Answer", "text": "Porque el beneficio se puede maquillar con estimaciones contables (amortizaciones, deterioros, reconocimiento de ingresos) mientras que la caja es más difícil de disimular. Una empresa puede declarar beneficios y, aun así, quemar caja: eso no se descubre mirando la cuenta de resultados, sino el flujo de caja." }
-          },
-          {
-            "@type": "Question",
-            "name": "¿Qué es el FCF por acción?",
-            "acceptedAnswer": { "@type": "Answer", "text": "El flujo de caja libre dividido entre el número de acciones. Indica cuánta caja genera la empresa por cada acción y permite comparar la caja generada con el dividendo que se reparte: si el dividendo por acción supera de forma sostenida el FCF por acción, el reparto no es sostenible sin más deuda." }
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guías",
+          "item": "{{SITE_URL}}/guias"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "¿Qué es el flujo de caja libre?"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "¿Cómo se calcula el flujo de caja libre?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Se calcula restando a la caja generada por la actividad operativa (cash flow from operations) la inversión en activos fijos del periodo (CAPEX). Es la definición estándar: FCF = caja operativa - CAPEX. Ambas cifras aparecen en el estado de flujo de caja del 10-Q o del 10-K."
           }
-        ]
-      }
-    ]
-  }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Por qué el FCF importa más que el beneficio neto?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Porque el beneficio se puede maquillar con estimaciones contables (amortizaciones, deterioros, reconocimiento de ingresos) mientras que la caja es más difícil de disimular. Una empresa puede declarar beneficios y, aun así, quemar caja: eso no se descubre mirando la cuenta de resultados, sino el flujo de caja."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Qué es el FCF por acción?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "El flujo de caja libre dividido entre el número de acciones. Indica cuánta caja genera la empresa por cada acción y permite comparar la caja generada con el dividendo que se reparte: si el dividendo por acción supera de forma sostenida el FCF por acción, el reparto no es sostenible sin más deuda."
+          }
+        }
+      ]
+    }
+  ]
+}
   </script>
 
-  <link rel="stylesheet" href="/guia.css">
+  <link rel="stylesheet" href="/guia.css?v=2">
 </head>
 <body>
   <div class="guia-wrap">
     <header class="guia-header">
-      <a class="guia-brand" href="{{SITE_URL}}/"><span class="guia-brand-mark" aria-hidden="true">▲</span> Cifra</a>
+      <a class="guia-brand" href="{{SITE_URL}}/"><svg class="guia-brand-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="13" width="5" height="8" rx="2.5"/><rect x="9.5" y="8" width="5" height="13" rx="2.5"/><rect x="16" y="3" width="5" height="18" rx="2.5"/></svg> Cifra</a>
       <nav class="guia-nav"><a href="{{SITE_URL}}/guias">Guías</a><a href="{{SITE_URL}}/empresa">Empresas</a></nav>
     </header>
     <main class="guia-main guia-article">

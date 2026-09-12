@@ -8,26 +8,51 @@ import { getCompanySeoProfile, getCompanyResults, filingPeriodLabel } from './ed
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
 const GUIDES_DIR = path.join(__dirname, '..', 'content', 'guias');
+const LEGAL_DIR = path.join(__dirname, '..', 'content', 'legal');
 
 const SITE_NAME = 'Cifra';
 const GA_MEASUREMENT_ID = 'G-7PSC9M3B1H';
 
 function withAnalytics(html) {
   if (config.siteUrl !== 'https://cifraresearch.com') return html;
-  const snippet = `  <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
+  const snippet = `  <!-- Google tag (gtag.js) con Consent Mode v2 -->
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
+    gtag('consent', 'default', {
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+      analytics_storage: 'denied',
+      wait_for_update: 500
+    });
+    try {
+      if (window.localStorage.getItem('cifra_cookie_consent_v1') === 'granted') {
+        gtag('consent', 'update', { analytics_storage: 'granted' });
+      }
+    } catch (error) { /* almacenamiento no disponible */ }
+  </script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
+  <script>
     gtag('js', new Date());
     gtag('config', '${GA_MEASUREMENT_ID}');
   </script>
 `;
   return html.replace('</head>', `${snippet}</head>`);
 }
+
+function withCompliance(html) {
+  let out = html;
+  if (!out.includes('/cookies.js')) {
+    out = out.replace('</body>', '  <script src="/cookies.js?v=1" defer></script>\n</body>');
+  }
+  return withAnalytics(out);
+}
 const DEFAULT_OG_IMAGE = `${config.siteUrl}/og-cifra.png`;
 
 const templatesCache = new Map();
 const guidesCache = new Map();
+const legalCache = new Map();
 const companyMetaCache = new Map();
 const companyContentCache = new Map();
 const reportCache = new Map();
@@ -86,6 +111,13 @@ export const GUIDES = [
     title: 'Cómo analizar una empresa de consumo defensivo',
     description: 'Guía para analizar empresas de consumo defensivo (alimentos, bebidas, tabaco, hogar): ingresos, márgenes, flujo de caja, dividendos y deuda.',
   },
+];
+
+export const LEGAL_PAGES = [
+  { slug: 'aviso-legal', title: 'Aviso legal', description: 'Identificación del titular, condiciones de uso y responsabilidad del sitio web de Cifra.' },
+  { slug: 'privacidad', title: 'Política de privacidad', description: 'Qué datos personales recoge Cifra, con qué finalidad, durante cuánto tiempo y cómo ejercer tus derechos.' },
+  { slug: 'cookies', title: 'Política de cookies', description: 'Qué cookies y almacenamiento local usa Cifra, para qué sirven y cómo aceptarlas o rechazarlas.' },
+  { slug: 'terminos', title: 'Términos de uso', description: 'Condiciones de uso del servicio Cifra: cuenta, límites de uso, propiedad intelectual y responsabilidad.' },
 ];
 
 export const BENCHMARK_CONSUMER_DEFENSIVE = [
@@ -191,6 +223,14 @@ function readGuide(fileName) {
   return html;
 }
 
+function readLegal(fileName) {
+  const cached = legalCache.get(fileName);
+  if (cached) return cached;
+  const html = fs.readFileSync(path.join(LEGAL_DIR, fileName), 'utf8');
+  legalCache.set(fileName, html);
+  return html;
+}
+
 function replaceTokens(html) {
   return html.replaceAll('{{SITE_URL}}', config.siteUrl);
 }
@@ -213,6 +253,10 @@ function buildCompanyJsonLd(meta, profile) {
   const corporationId = `${meta.url}/#corporation`;
   const breadcrumbId = `${meta.url}/#breadcrumb`;
   const faqId = `${meta.url}/#faq`;
+  const secEdgarUrl = profile.cik
+    ? `https://www.sec.gov/edgar/browse/?CIK=${profile.cik}`
+    : 'https://www.sec.gov/edgar';
+
   const corporation = {
     '@type': 'Corporation',
     '@id': corporationId,
@@ -227,6 +271,8 @@ function buildCompanyJsonLd(meta, profile) {
       name: 'Ticker',
       value: meta.ticker,
     },
+    isBasedOn: secEdgarUrl,
+    citation: secEdgarUrl,
     knowsAbout: [
       'Análisis fundamental',
       'Informes 10-Q y 10-K',
@@ -265,6 +311,18 @@ function buildCompanyJsonLd(meta, profile) {
         isPartOf: { '@id': `${config.siteUrl}/#website` },
         mainEntity: { '@id': corporationId },
         breadcrumb: { '@id': breadcrumbId },
+        isBasedOn: {
+          '@type': 'DataFeed',
+          name: 'SEC EDGAR (Electronic Data Gathering, Analysis, and Retrieval system)',
+          url: secEdgarUrl,
+          provider: {
+            '@type': 'GovernmentOrganization',
+            name: 'U.S. Securities and Exchange Commission',
+            alternateName: 'SEC',
+            url: 'https://www.sec.gov',
+          },
+        },
+        citation: secEdgarUrl,
       },
       {
         '@type': 'BreadcrumbList',
@@ -731,7 +789,7 @@ export function serveHtml(res, fileName, { pathname = null, noIndex = false, com
   if (noIndex) html = applyNoIndex(html);
   if (companyMeta) html = injectCompanyMeta(html, companyMeta);
   if (headExtras) html = html.replace('</head>', `${headExtras}\n</head>`);
-  html = withAnalytics(html);
+  html = withCompliance(html);
   if (botContent) {
     html = html.replace(/<body([^>]*)>/, `<body$1>\n${botContent}`);
   }
@@ -761,7 +819,7 @@ export function serveStandalone(res, html, { cacheControl = 'public, max-age=180
   }
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', cacheControl);
-  res.send(withAnalytics(out));
+  res.send(withCompliance(out));
 }
 
 export function serveGuide(res, slug) {
@@ -784,6 +842,17 @@ export function serveGuideHub(res) {
   }
 }
 
+export function serveLegal(res, slug) {
+  const page = LEGAL_PAGES.find((entry) => entry.slug === slug);
+  if (!page) return false;
+  try {
+    serveStandalone(res, readLegal(`${slug}.html`));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function loadPublicReportRow(id) {
   const rows = await query(
     `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, report
@@ -795,89 +864,203 @@ async function loadPublicReportRow(id) {
   return rows.rows[0] ?? null;
 }
 
-function reportSalesRow(row) {
-  const actual = row.isAdjusted ? (row.adjusted ?? row.normal) : row.normal;
-  const previous = row.isAdjusted ? (row.prevAdjusted ?? row.prevNormal) : row.prevNormal;
-  const variation = row.isAdjusted ? (row.pctAdjusted ?? row.pctNormal) : (row.pctNormal ?? null);
-  return `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(actual ?? '—')}${row.isAdjusted && row.adjustedNote ? ` ${escapeHtml(row.adjustedNote)}` : ''}</td><td>${escapeHtml(previous ?? '—')}</td><td>${escapeHtml(variation ?? '—')}</td></tr>`;
+function getHighlightClassSsr(noteNumber) {
+  const num = parseInt(noteNumber, 10);
+  if (isNaN(num)) return 'highlight-c1';
+  const palette = ['highlight-c1', 'highlight-c2', 'highlight-c3', 'highlight-c4', 'highlight-c5', 'highlight-c6'];
+  return palette[(num - 1) % palette.length];
 }
 
-function horizonsHtml(report) {
-  const sections = [];
-  for (const horizon of report.horizons ?? []) {
-    const blocks = [];
-    blocks.push(`<h2>${escapeHtml(horizon.label ?? 'Análisis')}</h2>`);
-
-    if (horizon.sales?.rows?.length) {
-      blocks.push(`<h3>Ventas y cuenta de resultados</h3>`);
-      if (horizon.sales.eps) blocks.push(`<p><strong>Beneficio por acción (EPS):</strong> ${escapeHtml(horizon.sales.eps)}</p>`);
-      blocks.push('<table><thead><tr><th scope="col">Concepto</th><th scope="col">Actual</th><th scope="col">Anterior</th><th scope="col">Variación</th></tr></thead><tbody>');
-      blocks.push(horizon.sales.rows.map(reportSalesRow).join('\n'));
-      blocks.push('</tbody></table>');
-      if (horizon.sales.shares) blocks.push(`<p><strong>Acciones:</strong> ${escapeHtml(horizon.sales.shares)}</p>`);
-      if (horizon.sales.notes?.length) {
-        blocks.push(`<ul class="seo-notes">${horizon.sales.notes.map((note) => `<li>${escapeHtml(note)}</li>`).join('')}</ul>`);
-      }
+function renderNotesSsr(notes) {
+  const list = (Array.isArray(notes) ? notes : []).filter(Boolean);
+  if (!list.length) return '';
+  return `<ul class="report-notes">${list.map((note) => {
+    const raw = String(note ?? '');
+    const match = raw.match(/^\*(\d+):?\s*([\s\S]*)$/);
+    if (match) {
+      const num = match[1];
+      const cls = getHighlightClassSsr(num);
+      return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${escapeHtml(match[2]).replaceAll('\n', '<br>')}</li>`;
     }
+    return `<li>${escapeHtml(raw)}</li>`;
+  }).join('')}</ul>`;
+}
 
-    if (horizon.cashFlow?.rows?.length) {
-      blocks.push('<h3>Flujo de caja</h3>');
-      blocks.push('<table><thead><tr><th scope="col">Concepto</th><th scope="col">Normal</th><th scope="col">Ajustado</th></tr></thead><tbody>');
-      blocks.push(horizon.cashFlow.rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.values?.[0] ?? '—')}</td><td>${escapeHtml(row.values?.[1] ?? '—')}</td></tr>`).join('\n'));
-      blocks.push('</tbody></table>');
-      if (horizon.cashFlow.scenarios?.length) {
-        blocks.push(`<p><strong>Escenarios:</strong> ${escapeHtml(horizon.cashFlow.scenarios.join(' · '))}</p>`);
-      }
-      if (horizon.cashFlow.notes?.length) {
-        blocks.push(`<ul class="seo-notes">${horizon.cashFlow.notes.map((note) => `<li>${escapeHtml(note)}</li>`).join('')}</ul>`);
-      }
+function renderTableSsr(headers, rows, metaRows = [], options = {}) {
+  const thead = headers.map((header) => {
+    const isBoldCol = header === 'Ajustado' || header === 'Normal' || header.startsWith('Ajustado') || header.startsWith('Normal');
+    let content = escapeHtml(header);
+    const noteMatch = String(header).match(/\*(\d+)/);
+    if (noteMatch) {
+      const noteNum = parseInt(noteMatch[1], 10);
+      const colorCls = getHighlightClassSsr(noteNum);
+      content = `<mark class="highlight-adjust ${colorCls}">${content}</mark>`;
     }
+    const cls = isBoldCol ? ' class="cell-bold"' : '';
+    return `<th${cls}>${content}</th>`;
+  }).join('');
 
-    if (horizon.capital?.rows?.length) {
-      blocks.push('<h3>Asignación de capital</h3>');
-      blocks.push('<table><thead><tr><th scope="col">Concepto</th><th scope="col">Importe</th></tr></thead><tbody>');
-      blocks.push(horizon.capital.rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.value ?? '—')}</td></tr>`).join('\n'));
-      blocks.push('</tbody></table>');
-      if (horizon.capital.verification) blocks.push(`<p><strong>Verificación:</strong> ${escapeHtml(horizon.capital.verification)}</p>`);
-      if (horizon.capital.notes?.length) {
-        blocks.push(`<ul class="seo-notes">${horizon.capital.notes.map((note) => `<li>${escapeHtml(note)}</li>`).join('')}</ul>`);
-      }
-    }
-    sections.push(blocks.join('\n'));
+  const isSalesTable = headers.length === 7 && headers[1] === 'Ajustado' && headers[4] === 'Normal';
+  const isCashFlowTable = headers.length === 3 && headers[0] === 'Métrica';
+  const isCapitalTable = options.isCapital || (headers.length === 2 && headers[0] === 'Métrica' && headers[1] === 'Valor');
+
+  const tbody = rows
+    .map((row, rowIdx) => {
+      const meta = metaRows[rowIdx] || {};
+      const isRowAdjusted = isSalesTable && meta.isAdjusted === true;
+      let noteNum = 1;
+      const noteMatch = String(meta.adjustedNote || '').match(/\*?(\d+)/);
+      if (noteMatch) noteNum = parseInt(noteMatch[1], 10);
+      const colorCls = getHighlightClassSsr(noteNum);
+
+      const cells = row.map((cell, colIdx) => {
+        const header = headers[colIdx];
+        const isBoldCol = header === 'Ajustado' || header === 'Normal' || header.startsWith('Ajustado') || header.startsWith('Normal');
+        const isPctCol = header === '% Aj.' || header === '% N.' || header === '%';
+        const isAdjustedCell = isSalesTable && colIdx === 1 && isRowAdjusted;
+        const isTaxAdjustedCell = isCashFlowTable && colIdx === 2 && meta.cashFlowAdjustedNote;
+        const isCapitalValCell = isCapitalTable && colIdx === 1;
+
+        let classes = [];
+        if (isBoldCol) classes.push('cell-bold');
+        if (isPctCol && cell) {
+          const str = String(cell).trim();
+          if (str.startsWith('-')) classes.push('pct-negative');
+          else if (str.startsWith('+') || /^[0-9]/.test(str)) classes.push('pct-positive');
+        } else if (isCapitalValCell && cell) {
+          const str = String(cell).trim();
+          if (str.startsWith('-')) classes.push('pct-negative', 'cell-bold');
+          else if (str.startsWith('+') || (/^[0-9]/.test(str) && str !== '0' && str !== '0,0' && str !== '0.0' && str !== '—')) {
+            classes.push('pct-positive', 'cell-bold');
+          }
+        }
+
+        let content = escapeHtml(cell ?? '—');
+        if (isAdjustedCell) {
+          content = `<mark class="highlight-adjust ${colorCls}">${content}</mark>`;
+        } else if (isTaxAdjustedCell) {
+          const taxNoteNum = String(meta.cashFlowAdjustedNote).replace(/\D/g, '') || '2';
+          content = `<mark class="highlight-adjust ${getHighlightClassSsr(taxNoteNum)}">${content}</mark>`;
+        } else if (colIdx === 0 && cell) {
+          const cellNoteMatch = String(cell).match(/\*(\d+)/);
+          if (cellNoteMatch) {
+            const cellNoteNum = parseInt(cellNoteMatch[1], 10);
+            content = `<mark class="highlight-adjust ${getHighlightClassSsr(cellNoteNum)}">${content}</mark>`;
+          }
+        }
+
+        const clsAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
+        return `<td${clsAttr}>${content}</td>`;
+      }).join('');
+
+      return `<tr>${cells}</tr>`;
+    })
+    .join('');
+  return `<div class="table-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
+}
+
+function renderHorizonSsr(horizon) {
+  const label = escapeHtml(horizon.label ?? 'Periodo');
+  let html = `<div class="report-block"><h5>${label}</h5>`;
+
+  const sales = horizon.sales ?? {};
+  if (Array.isArray(sales.rows) && sales.rows.length) {
+    html += `<p class="report-extras">1. VENTAS</p>`;
+    html += renderTableSsr(
+      ['Métrica', 'Ajustado', 'Anterior Aj.', '% Aj.', 'Normal', 'Anterior N.', '% N.'],
+      sales.rows.map((row) => [row.name, row.adjusted, row.prevAdjusted, row.pctAdjusted, row.normal, row.prevNormal, row.pctNormal]),
+      sales.rows
+    );
+    const extras = [];
+    if (sales.shares) extras.push(`ACCIONES: ${escapeHtml(sales.shares)}`);
+    if (sales.eps) extras.push(`BPA: ${escapeHtml(sales.eps)}`);
+    if (extras.length) html += `<p class="report-extras">${extras.join(' · ')}</p>`;
+    html += renderNotesSsr(sales.notes);
   }
-  return sections.join('\n');
+
+  const cashFlow = horizon.cashFlow ?? {};
+  if (Array.isArray(cashFlow.rows) && cashFlow.rows.length) {
+    html += `<p class="report-extras">2. CASH FLOW</p>`;
+    let scenarios = Array.isArray(cashFlow.scenarios) && cashFlow.scenarios.length ? [...cashFlow.scenarios] : ['Normal', 'Ajustado'];
+    if (scenarios.length === 1) scenarios = [scenarios[0], 'Ajustado'];
+    html += renderTableSsr(
+      ['Métrica', ...scenarios],
+      cashFlow.rows.map((row) => {
+        let vals = Array.isArray(row.values) && row.values.length ? [...row.values] : [row.value];
+        if (vals.length === 1 && scenarios.length === 2) vals.push(vals[0]);
+        return [row.name, ...vals];
+      }),
+      cashFlow.rows
+    );
+    const cfNotes = (Array.isArray(cashFlow.notes) ? cashFlow.notes : []).filter((n) => {
+      const lower = String(n || '').toLowerCase();
+      return !lower.includes('deducido del acumulado') && !lower.includes('flujo trimestral deducido');
+    });
+    html += renderNotesSsr(cfNotes);
+  }
+
+  const capital = horizon.capital ?? {};
+  if (Array.isArray(capital.rows) && capital.rows.length) {
+    html += `<p class="report-extras">3. ASIGNACIÓN DE CAPITAL</p>`;
+    html += renderTableSsr(
+      ['Métrica', 'Valor'],
+      capital.rows.map((row) => [row.name, row.value]),
+      [],
+      { isCapital: true }
+    );
+    if (capital.verification) html += `<p class="report-extras">${escapeHtml(capital.verification)}</p>`;
+    html += renderNotesSsr(capital.notes);
+  }
+
+  html += '</div>';
+  return html;
 }
 
-function conclusionHtml(report) {
-  const conclusion = report.conclusion;
+function renderConclusionSsr(conclusion) {
   if (!conclusion || typeof conclusion !== 'object') return '';
-  const blocks = [];
-  blocks.push('<h2>Conclusiones</h2>');
+  let html = `<div class="report-block"><h5>CONCLUSIONES Y OUTLOOK</h5>`;
   const sectionTitles = {
-    debt: 'Deuda',
-    outlook: 'Perspectivas de la dirección',
+    debt: 'Deuda y vencimientos',
+    outlook: 'Perspectivas (Outlook)',
     repurchases: 'Recompras de acciones',
-    acquisitions: 'Adquisiciones',
+    acquisitions: 'Adquisiciones y desinversiones',
   };
   for (const [key, title] of Object.entries(sectionTitles)) {
     const item = conclusion[key];
     if (item?.text) {
-      blocks.push(`<h3>${escapeHtml(title)}</h3><p>${escapeHtml(item.text)}</p>`);
+      html += `<p class="report-extras">${escapeHtml(title)}</p><p style="font-size:12px;line-height:1.5;color:var(--ink-secondary);">${escapeHtml(item.text)}</p>`;
     }
   }
   if (conclusion.watchlist?.items?.length) {
-    blocks.push('<h3>Lista de seguimiento</h3><ul>');
+    html += `<p class="report-extras">Puntos clave en seguimiento</p><ul class="report-notes">`;
     for (const item of conclusion.watchlist.items) {
-      blocks.push(`<li>${escapeHtml(String(item).replace(/^\d+:\s*/, ''))}</li>`);
+      html += `<li>${escapeHtml(String(item).replace(/^\d+:\s*/, ''))}</li>`;
     }
-    blocks.push('</ul>');
+    html += `</ul>`;
   }
-  return blocks.join('\n');
+  html += '</div>';
+  return html;
+}
+
+function renderReportSsrHtml(report) {
+  const horizons = Array.isArray(report.horizons) ? report.horizons : [];
+  let html = horizons.map(renderHorizonSsr).join('');
+  if (report.conclusion) {
+    html += renderConclusionSsr(report.conclusion);
+  }
+  if (report.rating?.label) {
+    html += `<div class="report-block"><h5>VALORACIÓN GENERAL</h5><p><strong>${escapeHtml(report.rating.label)}</strong>${report.rating.rationale ? ` — ${escapeHtml(report.rating.rationale)}` : ''}</p></div>`;
+  }
+  const hintText = report.conclusion
+    ? 'El informe anual 10-K incluye resumen de cuentas a 12 meses, indagación a fondo con extractos SEC, watchlist y nota de resultados.'
+    : 'El informe descargable incluye los bloques completos en los dos horizontes.';
+  html += `<p class="report-hint">${hintText} Disponible en PDF, Word (.docx), ODT (.odt) y web (.html).</p>`;
+  return html;
 }
 
 function buildReportJsonLd(meta, row) {
   const publishedAt = new Date(row.created_at).toISOString();
-  const sourceUrl = safeHttpUrl(row.source_url);
+  const sourceUrl = safeHttpUrl(row.source_url) || 'https://www.sec.gov/edgar';
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -899,20 +1082,24 @@ function buildReportJsonLd(meta, row) {
         },
         image: `${config.siteUrl}/og-cifra.png`,
         mainEntityOfPage: meta.url,
-        ...(sourceUrl ? {
-          isBasedOn: {
-            '@type': 'DigitalDocument',
-            name: `Informe ${meta.formType} de ${meta.name}`,
-            url: sourceUrl,
-            publisher: { '@type': 'Organization', name: 'SEC' },
+        isBasedOn: {
+          '@type': 'DigitalDocument',
+          name: `Informe oficial ${meta.formType} de ${meta.name} presentado ante la SEC`,
+          url: sourceUrl,
+          provider: {
+            '@type': 'GovernmentOrganization',
+            name: 'U.S. Securities and Exchange Commission',
+            alternateName: 'SEC',
+            url: 'https://www.sec.gov',
           },
-          citation: sourceUrl,
-        } : {}),
+        },
+        citation: sourceUrl,
         about: {
           '@type': 'Corporation',
           name: meta.company,
           tickerSymbol: meta.ticker,
           url: `${config.siteUrl}/empresa/${encodeURIComponent(meta.ticker)}`,
+          sameAs: `https://www.sec.gov/edgar/browse/?CIK=${encodeURIComponent(meta.ticker)}`,
         },
       },
       {
@@ -942,12 +1129,22 @@ function buildReportPage(row) {
   const ticker = String(row.ticker ?? report.ticker ?? '').toUpperCase();
   const company = report.company ?? row.company_name ?? ticker;
   const name = titleCaseName(company);
-  const formType = report.formType ?? '';
+  let formType = report.formType ?? '';
+  if (!formType) {
+    if (report.periodTitle?.includes('10-K') || report.isAnnual === true) {
+      formType = '10-K';
+    } else {
+      formType = '10-Q';
+    }
+  }
   const isAnnual = report.isAnnual === true || formType === '10-K';
-  const fyLabel = isAnnual ? `FY ${report.fiscalYear ?? ''}` : `Q${report.fiscalQuarter ?? ''} ${report.fiscalYear ?? ''}`;
+  const fyLabel = report.periodTitle
+    ? report.periodTitle
+    : (isAnnual ? `FY ${report.fiscalYear ?? ''}` : `Q${report.fiscalQuarter ?? ''} ${report.fiscalYear ?? ''}`);
   const url = `${config.siteUrl}/informe/${row.id}`;
   const title = `Informe ${formType} de ${name} (${ticker}) — ${fyLabel} | ${SITE_NAME}`;
   const description = `Resultados de ${name} (${ticker}) en su informe ${formType} ${fyLabel.trim()}: ventas, beneficio operativo, flujo de caja libre, dividendos, recompras y deuda, con el análisis financiero de Cifra.`;
+  const reportHeadingTitle = `${ticker} — ${fyLabel}`;
 
   const meta = {
     id: row.id,
@@ -964,79 +1161,65 @@ function buildReportPage(row) {
   };
   const jsonLd = buildReportJsonLd(meta, row);
 
-  const blocks = [];
-  blocks.push(`<p class="guia-meta">Informe ${escapeHtml(formType)} · ${escapeHtml(fyLabel.trim())} · ${escapeHtml(company)} (${escapeHtml(ticker)}) · publicado el ${escapeHtml(meta.publishedAt.slice(0, 10))}</p>`);
-  blocks.push(`<h1>Resultados ${escapeHtml(formType)} de ${escapeHtml(name)} (${escapeHtml(ticker)})</h1>`);
-  blocks.push(`<p>${escapeHtml(description)}</p>`);
-  blocks.push(meta.sourceUrl
-    ? `<p class="guia-source">Fuente primaria: <a href="${escapeHtml(meta.sourceUrl)}" rel="noopener">filing oficial en SEC EDGAR</a>. El análisis de Cifra organiza los datos y no sustituye la revisión del documento original.</p>`
-    : '<p class="guia-source">Fuente primaria: SEC EDGAR. Revisa siempre el filing oficial antes de tomar una decisión.</p>');
+  let out = replaceTokens(readTemplate('index.html'));
 
-  if (report.rating?.label) {
-    blocks.push(`<p class="guia-rating"><strong>${escapeHtml(report.rating.label)}</strong>${report.rating.rationale ? ` — ${escapeHtml(report.rating.rationale)}` : ''}</p>`);
+  out = setMetaTag(out, /<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`);
+  out = setMetaTag(out, /<meta name="description" content="[\s\S]*?">/, `<meta name="description" content="${escapeHtml(description)}">`);
+  out = setMetaTag(out, /<link rel="canonical" href="[\s\S]*?">/, `<link rel="canonical" href="${escapeHtml(url)}">`);
+  out = setMetaTag(out, /<meta property="og:title" content="[\s\S]*?">/, `<meta property="og:title" content="${escapeHtml(title)}">`);
+  out = setMetaTag(out, /<meta property="og:description" content="[\s\S]*?">/, `<meta property="og:description" content="${escapeHtml(description)}">`);
+  out = setMetaTag(out, /<meta property="og:url" content="[\s\S]*?">/, `<meta property="og:url" content="${escapeHtml(url)}">`);
+  out = setMetaTag(out, /<meta property="og:type" content="[\s\S]*?">/, `<meta property="og:type" content="article">`);
+  out = setMetaTag(out, /<meta name="twitter:title" content="[\s\S]*?">/, `<meta name="twitter:title" content="${escapeHtml(title)}">`);
+  out = setMetaTag(out, /<meta name="twitter:description" content="[\s\S]*?">/, `<meta name="twitter:description" content="${escapeHtml(description)}">`);
+
+  const hreflangs = [
+    `<link rel="alternate" hreflang="es" href="${escapeHtml(url)}">`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}">`,
+    `<link rel="alternate" type="text/markdown" href="${escapeHtml(url)}.md" title="Versión Markdown para IA">`,
+  ].join('\n  ');
+  out = out.replace(/<link rel="alternate" hreflang="es"[^>]*>/, hreflangs);
+
+  const jsonLdScript = `<script type="application/ld+json">\n${JSON.stringify(jsonLd, null, 2)}\n</script>`;
+  if (/<script type="application\/ld\+json">[\s\S]*?<\/script>/.test(out)) {
+    out = out.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/, jsonLdScript);
   }
 
-  const horizons = horizonsHtml(report);
-  if (horizons) blocks.push(horizons);
-  const conclusion = conclusionHtml(report);
-  if (conclusion) blocks.push(conclusion);
+  const initialPayload = {
+    id: row.id,
+    ticker,
+    company_name: company,
+    period_end: row.period_end,
+    pdf_url: row.pdf_url,
+    source_url: row.source_url,
+    accession: row.accession,
+    periodTitle: fyLabel,
+    formType,
+    downloadBase: row.pdf_url ? row.pdf_url.replace(/\.pdf$/, '') : null,
+    report,
+  };
+  const initialScript = `<script id="cifra-initial-report" type="application/json">${JSON.stringify(initialPayload).replaceAll('<', '\\u003c')}</script>`;
+  out = out.replace('</head>', `  ${initialScript}\n</head>`);
 
-  if (row.pdf_url) {
-    blocks.push(`<p><a class="guia-cta" href="${escapeHtml(config.siteUrl + row.pdf_url)}">Descargar el informe completo en PDF</a> <a class="guia-cta" style="background:#334155;margin-left:8px;" href="${escapeHtml(url)}.md">Versión Markdown (GEO)</a></p>`);
-  } else {
-    blocks.push(`<p><a class="guia-cta" style="background:#334155;" href="${escapeHtml(url)}.md">Consultar informe en formato Markdown (GEO)</a></p>`);
+  out = out.replace('<div class="company-loading" id="company-loading">Consultando EDGAR…</div>', '<div class="company-loading" id="company-loading" hidden>Consultando EDGAR…</div>');
+  out = out.replace('<div id="company-body" hidden>', '<div id="company-body">');
+  out = out.replace('<section class="company-head-row">', '<section class="company-head-row" hidden>');
+  out = out.replace('<a class="nav-link active" href="#" data-section="perfil">', '<a class="nav-link" href="#" data-section="perfil">');
+  out = out.replace('<a class="nav-link" href="#" data-section="analisis">', '<a class="nav-link active" href="#" data-section="analisis">');
+  out = out.replace('<section class="company-section home-analisis-section" id="section-analisis" hidden', '<section class="company-section home-analisis-section" id="section-analisis"');
+  out = out.replace('<div class="sec-analysis-entry" id="sec-analysis-entry">', '<div class="sec-analysis-entry" id="sec-analysis-entry" hidden>');
+  out = out.replace('<div class="result-preview" id="result-preview" hidden>', '<div class="result-preview" id="result-preview">');
+  out = out.replace('<h3 id="result-title">Informe generado</h3>', `<h3 id="result-title">${escapeHtml(reportHeadingTitle)}</h3>`);
+  out = out.replace('<div class="result-report" id="report-body"></div>', `<div class="result-report" id="report-body">${renderReportSsrHtml(report)}</div>`);
+
+  return out;
+}
+
+export function invalidateReportCache(id) {
+  const cleanId = Number(id);
+  if (Number.isInteger(cleanId)) {
+    reportCache.delete(cleanId);
   }
-
-  blocks.push('<h2>Seguir leyendo</h2>');
-  blocks.push(`<ul><li><a href="${config.siteUrl}/empresa/${encodeURIComponent(ticker)}">Ficha de ${escapeHtml(name)} (${escapeHtml(ticker)})</a></li><li><a href="${config.siteUrl}/guias/que-es-un-informe-${formType === '10-K' ? '10-k' : '10-q'}">¿Qué es un informe ${formType}?</a></li><li><a href="${config.siteUrl}/guias/que-es-el-flujo-de-caja-libre">¿Qué es el flujo de caja libre?</a></li><li><a href="${config.siteUrl}/guias">Todas las guías</a></li></ul>`);
-
-  blocks.push('<p class="guia-disclaimer">Análisis generado con IA a partir del informe oficial presentado ante la SEC. Con fines informativos: no constituye asesoramiento financiero ni recomendación de inversión. Verifica siempre los datos en las fuentes oficiales.</p>');
-
-  return `<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#1e293b">
-  <title>${escapeHtml(title)}</title>
-  <meta name="description" content="${escapeHtml(description)}">
-  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
-  <link rel="canonical" href="${escapeHtml(url)}">
-  <link rel="alternate" type="text/markdown" href="${escapeHtml(url)}.md" title="Versión Markdown para IA">
-  <link rel="alternate" type="text/plain" href="{{SITE_URL}}/llms.txt" title="Resumen para modelos de lenguaje (LLMs)">
-  <meta property="og:type" content="article">
-  <meta property="og:site_name" content="${SITE_NAME}">
-  <meta property="og:locale" content="es_ES">
-  <meta property="og:title" content="${escapeHtml(title)}">
-  <meta property="og:description" content="${escapeHtml(description)}">
-  <meta property="og:url" content="${escapeHtml(url)}">
-  <meta property="og:image" content="${escapeHtml(DEFAULT_OG_IMAGE)}">
-  <meta property="og:image:alt" content="Cifra — análisis de resultados financieros con IA">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${escapeHtml(title)}">
-  <meta name="twitter:description" content="${escapeHtml(description)}">
-  <meta name="twitter:image" content="${escapeHtml(DEFAULT_OG_IMAGE)}">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <script type="application/ld+json">
-${JSON.stringify(jsonLd, null, 2)}
-  </script>
-  <link rel="stylesheet" href="/guia.css">
-</head>
-<body>
-  <div class="guia-wrap">
-    <header class="guia-header">
-      <a class="guia-brand" href="{{SITE_URL}}/"><span class="guia-brand-mark" aria-hidden="true">▲</span> Cifra</a>
-      <nav class="guia-nav"><a href="{{SITE_URL}}/guias">Guías</a><a href="{{SITE_URL}}/empresa">Empresas</a></nav>
-    </header>
-    <main class="guia-main guia-article">
-${blocks.join('\n')}
-    </main>
-    <footer class="guia-footer"><a href="{{SITE_URL}}/">Cifra — análisis de informes 10-Q y 10-K con IA</a></footer>
-  </div>
-</body>
-</html>`;
 }
 
 export async function getPublicReportHtml(id) {
@@ -1063,7 +1246,7 @@ export async function getPublicReportHtml(id) {
 }
 
 export function serve404Page(res) {
-  const html = `<!doctype html><html lang="es"><head><meta charset="UTF-8"><title>Página no encontrada | Cifra</title><meta name="robots" content="noindex, follow"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif}a{color:#34d399}</style></head><body><div><h1>Página no encontrada</h1><p>El contenido que buscas no existe o ya no está disponible.</p><p><a href="/">Volver al inicio</a></p></div></body></html>`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="UTF-8"><title>Página no encontrada | Cifra</title><meta name="robots" content="noindex, follow"><link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif}a{color:#34d399}</style></head><body><div><h1>Página no encontrada</h1><p>El contenido que buscas no existe o ya no está disponible.</p><p><a href="/">Volver al inicio</a></p></div></body></html>`;
   res.status(404);
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('X-Robots-Tag', 'noindex, follow');
@@ -1073,6 +1256,15 @@ export function serve404Page(res) {
 function getGuideLastmod(slug) {
   try {
     const stats = fs.statSync(path.join(GUIDES_DIR, `${slug}.html`));
+    return stats.mtime.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+function getLegalLastmod(slug) {
+  try {
+    const stats = fs.statSync(path.join(LEGAL_DIR, `${slug}.html`));
     return stats.mtime.toISOString();
   } catch {
     return null;
@@ -1169,9 +1361,18 @@ export async function getPublicReportMarkdown(id) {
   const ticker = String(row.ticker ?? report.ticker ?? '').toUpperCase();
   const company = report.company ?? row.company_name ?? ticker;
   const name = titleCaseName(company);
-  const formType = report.formType ?? '';
+  let formType = report.formType ?? '';
+  if (!formType) {
+    if (report.periodTitle?.includes('10-K') || report.isAnnual === true) {
+      formType = '10-K';
+    } else {
+      formType = '10-Q';
+    }
+  }
   const isAnnual = report.isAnnual === true || formType === '10-K';
-  const fyLabel = isAnnual ? `FY ${report.fiscalYear ?? ''}` : `Q${report.fiscalQuarter ?? ''} ${report.fiscalYear ?? ''}`;
+  const fyLabel = report.periodTitle
+    ? report.periodTitle
+    : (isAnnual ? `FY ${report.fiscalYear ?? ''}` : `Q${report.fiscalQuarter ?? ''} ${report.fiscalYear ?? ''}`);
   const site = config.siteUrl;
 
   const lines = [];
@@ -1407,6 +1608,15 @@ export async function getSitemapXml() {
       priority: '0.7',
       changefreq: 'monthly',
       lastmod: getGuideLastmod(guide.slug) || nowIso,
+    });
+  }
+
+  for (const page of LEGAL_PAGES) {
+    urls.push({
+      loc: `${config.siteUrl}/legal/${page.slug}`,
+      priority: '0.3',
+      changefreq: 'yearly',
+      lastmod: getLegalLastmod(page.slug) || nowIso,
     });
   }
 

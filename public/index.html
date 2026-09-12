@@ -42,9 +42,9 @@
   <meta name="twitter:description" content="Análisis instantáneo de informes financieros 10-Q y 10-K de empresas estadounidenses.">
   <meta name="twitter:image" content="{{SITE_URL}}/og-cifra.png">
 
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
   <link rel="manifest" href="/manifest.webmanifest">
 
   <script type="application/ld+json">
@@ -158,15 +158,15 @@
   }
   </script>
 
-  <link rel="stylesheet" href="/styles.css?v=103">
+  <link rel="stylesheet" href="/styles.css?v=105">
 </head>
 <body class="company-page">
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-area">
-        <a class="brand-lockup" href="/" aria-label="Cifra Terminal">
-          <span class="brand-mark" aria-hidden="true">▲</span>
-          <strong>Terminal Cifra</strong>
+        <a class="brand-lockup" href="/" aria-label="Cifra">
+          <svg class="brand-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="13" width="5" height="8" rx="2.5"/><rect x="9.5" y="8" width="5" height="13" rx="2.5"/><rect x="16" y="3" width="5" height="18" rx="2.5"/></svg>
+          <strong>Cifra</strong>
         </a>
         <button class="collapse-button" id="menu-toggle" type="button" aria-label="Contraer menú" aria-expanded="true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h12v14H6zM10 5v14"/></svg>
@@ -280,6 +280,12 @@
             <small id="account-plan">Beta privada</small>
           </div>
           <button class="account-action" id="account-action" type="button">Entrar</button>
+        </div>
+        <div class="sidebar-legal-links">
+          <a href="/legal/aviso-legal">Aviso legal</a>
+          <a href="/legal/privacidad">Privacidad</a>
+          <a href="/legal/cookies">Cookies</a>
+          <a href="/legal/terminos">Términos</a>
         </div>
       </div>
     </aside>
@@ -534,14 +540,14 @@
                     <p class="demo-disclaimer" id="processing-note">El documento se verifica automáticamente antes de continuar.</p>
                   </div>
 
-                  <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3 id="result-title">Informe generado</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-report" id="report-body"></div><div class="analysis-feedback-bar" id="analysis-feedback-bar"><div class="analysis-rating-wrap"><span class="feedback-label">Valorar este análisis:</span><div class="rating-stars" id="rating-stars" role="radiogroup" aria-label="Valorar análisis"><button type="button" class="star-btn" data-value="1" title="1 estrella">★</button><button type="button" class="star-btn" data-value="2" title="2 estrellas">★</button><button type="button" class="star-btn" data-value="3" title="3 estrellas">★</button><button type="button" class="star-btn" data-value="4" title="4 estrellas">★</button><button type="button" class="star-btn" data-value="5" title="5 estrellas">★</button></div><span class="rating-summary-text" id="rating-summary-text"></span></div><button type="button" class="report-error-trigger" id="report-error-trigger"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Reportar error</button></div><div class="result-actions"><button class="primary-button download-button" id="report-download" data-format="pdf" type="button">PDF <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v9M8 10l4 4 4-4M6 18h12"/></svg></button><button class="secondary-button download-button" data-format="docx" type="button">Word (.docx)</button><button class="secondary-button download-button" data-format="odt" type="button">ODT (.odt)</button><button class="secondary-button download-button" data-format="html" type="button">Web (.html)</button><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button><button class="secondary-button admin-only admin-regen-report-btn" id="admin-regenerate-report" type="button" hidden title="Volver a generar este informe de nuevo con IA (elimina el informe actual)">🔄 Volver a generar informe (Admin)</button></div></div>
+                  <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3 id="result-title">Informe generado</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-report" id="report-body"></div><div class="analysis-feedback-bar" id="analysis-feedback-bar"><div class="analysis-rating-wrap"><span class="feedback-label">Valorar este análisis:</span><div class="rating-stars" id="rating-stars" role="radiogroup" aria-label="Valorar análisis"><button type="button" class="star-btn" data-value="1" title="1 estrella">★</button><button type="button" class="star-btn" data-value="2" title="2 estrellas">★</button><button type="button" class="star-btn" data-value="3" title="3 estrellas">★</button><button type="button" class="star-btn" data-value="4" title="4 estrellas">★</button><button type="button" class="star-btn" data-value="5" title="5 estrellas">★</button></div><span class="rating-summary-text" id="rating-summary-text"></span></div><button type="button" class="report-error-trigger" id="report-error-trigger"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Reportar error</button></div><div class="result-actions"><button class="primary-button download-button" id="report-download" data-format="pdf" type="button">PDF <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v9M8 10l4 4 4-4M6 18h12"/></svg></button><button class="secondary-button download-button" data-format="docx" type="button">Word (.docx)</button><button class="secondary-button download-button" data-format="odt" type="button">ODT (.odt)</button><button class="secondary-button download-button" data-format="html" type="button">Web (.html)</button><button class="secondary-button" id="copy-report-url" type="button" title="Copiar enlace permanente de este informe">🔗 Copiar enlace</button><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button><button class="secondary-button admin-only admin-regen-report-btn" id="admin-regenerate-report" type="button" hidden title="Volver a generar este informe de nuevo con IA (elimina el informe actual)">🔄 Volver a generar informe (Admin)</button></div></div>
                 </div>
 
                 <aside class="panel coverage-panel" id="metodologia" hidden><div class="panel-heading compact"><div><span class="section-index">02 / PROCESO</span><h3>Qué ocurre después</h3></div><span class="method-icon">✦</span></div><p class="method-intro">Tres agentes revisan el documento en orden. Si no cumple el alcance, el análisis se detiene con una explicación clara.</p><div class="mini-pipeline"><div class="mini-step"><span class="mini-step-number">01</span><div><strong>Origen</strong><span>Estados Unidos</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step"><span class="mini-step-number">02</span><div><strong>Sector</strong><span>Consumo defensivo</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step final"><span class="mini-step-number">03</span><div><strong>Análisis</strong><span>Informe estructurado</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div></div><div class="method-note"><span>i</span><p>La IA ordena la información. La decisión final siempre es tuya.</p></div></aside>
               </div>
             </section>
 
-            <section class="history-panel" id="historial"><div class="section-title-row"><div><span class="eyebrow">ACTIVIDAD</span><h2>Mis análisis</h2><p class="section-subtitle">Los análisis completados se guardan en tu cuenta y quedan aquí listos para consultar.</p></div><button class="text-button" id="history-refresh" type="button">Actualizar <span>↻</span></button></div><div class="history-filters" id="history-filters" hidden><label class="history-filter history-company"><span>Empresa</span><input id="history-company" type="text" placeholder="Ticker o nombre, ej. KO" autocomplete="off"></label><fieldset class="history-filter history-date-type"><legend>Fecha</legend><label class="history-date-option"><input type="radio" name="history-date-type" value="period" checked><span>De los resultados</span></label><label class="history-date-option"><input type="radio" name="history-date-type" value="created"><span>Del análisis</span></label></fieldset><label class="history-filter history-date"><span>Desde</span><input id="history-from" type="date"></label><label class="history-filter history-date"><span>Hasta</span><input id="history-to" type="date"></label><button class="secondary-button history-clear" id="history-clear" type="button">Limpiar</button></div><div class="table-wrap"><table id="history-table"><thead><tr><th data-sort="document">Documento</th><th data-sort="company">Empresa</th><th data-sort="period">Periodo</th><th data-sort="period_end">Fecha resultados</th><th data-sort="created_at">Fecha análisis</th><th>Estado</th><th></th></tr></thead><tbody id="history-body"></tbody></table></div><div class="history-empty" id="history-empty" hidden><p id="history-empty-text"></p><button class="primary-button" id="history-login" type="button" hidden>Iniciar sesión</button></div></section>
+            <section class="history-panel" id="historial"><div class="section-title-row"><div><span class="eyebrow">ACTIVIDAD</span><h2>Mis análisis</h2><p class="section-subtitle">Los análisis completados se guardan en tu cuenta y quedan aquí listos para consultar.</p></div><button class="text-button" id="history-refresh" type="button">Actualizar <span>↻</span></button></div><div class="history-filters" id="history-filters" hidden><label class="history-filter history-company"><span>Empresa</span><input id="history-company" type="text" placeholder="Ticker o nombre, ej. KO" autocomplete="off"></label><fieldset class="history-filter history-date-type"><legend>Fecha</legend><label class="history-date-option"><input type="radio" name="history-date-type" value="period" checked><span>De los resultados</span></label><label class="history-date-option"><input type="radio" name="history-date-type" value="created"><span>Del análisis</span></label></fieldset><label class="history-filter history-date"><span>Desde</span><input id="history-from" type="date"></label><label class="history-filter history-date"><span>Hasta</span><input id="history-to" type="date"></label><button class="secondary-button history-clear" id="history-clear" type="button">Limpiar</button></div><div class="table-wrap"><table id="history-table"><thead><tr><th data-sort="document">Documento</th><th data-sort="company">Empresa</th><th data-sort="period">Periodo</th><th data-sort="period_end">Fecha resultados</th><th data-sort="created_at">Fecha análisis</th><th>Estado</th><th></th></tr></thead><tbody id="history-body"></tbody></table></div><div class="history-pagination" id="history-pagination" hidden></div><div class="history-empty" id="history-empty" hidden><p id="history-empty-text"></p><button class="primary-button" id="history-login" type="button" hidden>Iniciar sesión</button></div></section>
           </section>
 
           <section class="company-section home-grid-section novedades-page-section" id="section-novedades" hidden aria-label="Novedades y notas de versión">
@@ -1038,7 +1044,7 @@
   <div class="modal-backdrop" id="modal-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <button class="modal-close" id="modal-close" type="button" aria-label="Cerrar">×</button>
-      <div class="modal-brand"><span class="cifra-symbol">▲</span> Terminal Cifra</div>
+      <div class="modal-brand"><svg class="cifra-symbol" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="13" width="5" height="8" rx="2.5"/><rect x="9.5" y="8" width="5" height="13" rx="2.5"/><rect x="16" y="3" width="5" height="18" rx="2.5"/></svg> Cifra</div>
       <h2 id="modal-title">Iniciar sesión</h2>
       <p class="modal-subtitle" id="modal-subtitle">Accede para guardar tus análisis.</p>
       <div class="modal-tabs" role="tablist">
@@ -1536,9 +1542,9 @@
   <script src="/priceAlerts.js?v=5"></script>
   <script src="/forum.js?v=3"></script>
   <script src="/reports.js?v=3"></script>
-  <script src="/analisis.js?v=25"></script>
-  <script src="/novedades.js?v=5"></script>
+  <script src="/analisis.js?v=28"></script>
+  <script src="/novedades.js?v=6"></script>
   <script src="/donations.js?v=3"></script>
-  <script src="/empresa.js?v=64"></script>
+  <script src="/empresa.js?v=65"></script>
 </body>
 </html>

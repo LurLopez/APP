@@ -1,5 +1,5 @@
 /**
- * Módulo de Alertas de Precio para Cifra Terminal
+ * Módulo de Alertas de Precio para Cifra
  */
 const PriceAlerts = (() => {
   let alerts = [];

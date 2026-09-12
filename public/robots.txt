@@ -6,6 +6,8 @@ Allow: /empresa
 Allow: /empresa/
 Allow: /guias
 Allow: /guias/
+Allow: /legal
+Allow: /legal/
 Allow: /informe/
 Allow: /llms.txt
 Allow: /llms-full.txt
@@ -44,6 +46,8 @@ Allow: /empresa
 Allow: /empresa/
 Allow: /guias
 Allow: /guias/
+Allow: /legal
+Allow: /legal/
 Allow: /informe/
 Allow: /llms.txt
 Allow: /llms-full.txt

@@ -1,0 +1,63 @@
+name: Backup Offsite
+
+on:
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: backup-offsite
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Copia externa de las bases de datos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comprobar secretos de despliegue
+        id: secrets
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Secretos sin configurar: se omite la copia."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Preparar clave SSH
+        if: steps.secrets.outputs.configured == 'true'
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Generar y descargar las copias más recientes
+        if: steps.secrets.outputs.configured == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -e
+          SSH_OPTS="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+          ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" 'bash /home/deploy/backup-db.sh'
+          PROD_LATEST=$(ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" 'ls -t /home/deploy/backups/cifra_prod_*.sql.gz | head -1')
+          DEV_LATEST=$(ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" 'ls -t /home/deploy/backups/cifra_dev_*.sql.gz | head -1')
+          mkdir -p backup
+          scp $SSH_OPTS "$VPS_USER@$VPS_HOST:$PROD_LATEST" backup/
+          scp $SSH_OPTS "$VPS_USER@$VPS_HOST:$DEV_LATEST" backup/
+          ls -lh backup/
+          for f in backup/*.sql.gz; do gzip -t "$f"; done
+          echo "Copias verificadas: $(ls backup | wc -l)"
+
+      - name: Publicar como artefacto (retención 90 días)
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cifra-db-backup
+          path: backup/*.sql.gz
+          retention-days: 90
+          if-no-files-found: error

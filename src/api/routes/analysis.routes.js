@@ -17,6 +17,7 @@ import {
 } from '../../../db/repositories/analysisRepository.js';
 import { getCompanyFilings } from '../../services/edgar.service.js';
 import { requireAuth, resolveUser } from '../../middleware/auth.middleware.js';
+import { rateLimit } from '../../middleware/rateLimit.middleware.js';
 import {
   getAiQuota,
   assertAiQuotaAvailable,
@@ -47,7 +48,14 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 },
 });
 
-router.post('/upload', requireAuth, upload.fields([
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  scope: 'analysis:upload',
+  message: 'Has subido demasiados informes en la última hora. Espera un poco antes de volver a intentarlo.',
+});
+
+router.post('/upload', uploadLimiter, requireAuth, upload.fields([
   { name: 'file', maxCount: 1 },
   { name: 'presentation', maxCount: 1 },
 ]), async (req, res, next) => {

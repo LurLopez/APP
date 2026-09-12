@@ -40,8 +40,10 @@ body {
 }
 
 .guia-brand-mark {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
   color: #34d399;
-  font-size: 1.1rem;
 }
 
 .guia-nav {
@@ -252,6 +254,21 @@ body {
   margin-top: 28px;
   color: #94a3b8;
   font-size: .88rem;
+}
+
+.guia-cookie-settings {
+  border: 0;
+  border-radius: 8px;
+  background: #10b981;
+  color: #052e22;
+  padding: 10px 18px;
+  font-size: .92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.guia-cookie-settings:hover {
+  background: #34d399;
 }
 
 @media (max-width: 640px) {

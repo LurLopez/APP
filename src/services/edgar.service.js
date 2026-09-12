@@ -3,7 +3,7 @@ import { getMarketProfile, getHistoricalPrices } from './market.service.js';
 const COMPANY_TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
 const FACTS_URL_TEMPLATE = 'https://data.sec.gov/api/xbrl/companyfacts/CIK{CIK}.json';
 const SUBMISSIONS_URL_TEMPLATE = 'https://data.sec.gov/submissions/CIK{CIK}.json';
-const USER_AGENT = 'CifraApp dev@cifra-terminal.com';
+const USER_AGENT = 'CifraResearch/1.0 (contacto@cifraresearch.com)';
 
 const TICKER_MAP_TTL = 24 * 60 * 60 * 1000;
 const FACTS_TTL = 6 * 60 * 60 * 1000;

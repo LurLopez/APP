@@ -28,6 +28,7 @@ import {
 import { AgentError } from '../../agents/baseAgent.js';
 import { getChartSeries, getCompanyHolders } from '../../services/market.service.js';
 import { resolveUser } from '../../middleware/auth.middleware.js';
+import { rateLimit } from '../../middleware/rateLimit.middleware.js';
 import {
   getAiQuota,
   assertAiQuotaAvailable,
@@ -38,6 +39,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const router = express.Router();
+
+const analyzeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  scope: 'screener:analyze',
+  message: 'Demasiadas solicitudes de análisis desde tu conexión. Espera unos minutos antes de volver a intentarlo.',
+});
 
 const TICKER_PATTERN = /^[A-Z0-9.-]{1,10}$/;
 const ACCESSION_PATTERN = /^\d{10}-?\d{2}-?\d{6}$/;
@@ -270,7 +278,7 @@ router.get('/company/:ticker/filings/:accession/document', async (req, res, next
   }
 });
 
-router.post('/company/:ticker/filings/:accession/analyze', async (req, res, next) => {
+router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, async (req, res, next) => {
   try {
     const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
     const accession = normalizeAccession(req.params.accession);
