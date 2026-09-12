@@ -113,6 +113,8 @@ La arquitectura debe estar preparada desde el principio para:
 - Una vez registrado, existirá la opción de **suscribirse a la web** con ventajas como:
   - Análisis con **modelos de IA mejores**.
   - **Sin límite de análisis** (el plan gratuito tendrá límites).
+- **Estado actual (beta)**: ya está activo un **límite diario de 3 análisis nuevos con IA por usuario** (`DAILY_AI_ANALYSES_LIMIT` en `.env`, día natural en horario de Madrid). Leer análisis ya existentes (propios o públicos cacheados) no consume cupo. El administrador no tiene límite. Las suscripciones y la selección de modelo por plan siguen pendientes (Fase 5).
+- **Cuenta de administración**: solo la cuenta definida en `.env` (`ADMIN_USERNAME` / `ADMIN_PASSWORD`, credenciales aleatorias secretas) tiene rol `admin`. El registro normal y el login con Google nunca conceden admin; al arrancar, cualquier otro usuario con rol admin es degradado a `user`.
 - Esta funcionalidad **no se implementa en la beta**, pero la arquitectura debe soportarla: gestión de usuarios, roles/planes, límites de uso y selección de modelo por plan.
 
 ### 6.3. Capa de abstracción de modelos IA
@@ -153,7 +155,7 @@ La arquitectura debe estar preparada desde el principio para:
 | **2** | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | ✅ Buscador, cribador sin huecos, perfil y gráfico, filings con vista previa/descarga y botón "Analizar" |
 | **3** | Registro / inicio de sesión | ✅ Implementado (verificación por correo + recuperación de contraseña); asociación de análisis por usuario ✅ |
 | **4** | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
-| **5** | Suscripciones y planes (modelos según plan, límites) | ⏳ Pendiente |
+| **5** | Suscripciones y planes (modelos según plan, límites) | ⏳ Pendiente (límite diario de 3 análisis IA por usuario ya activo; campo `plan` ya existe) |
 | **6** | Nuevos países y sectores (más agentes) | ⏳ Pendiente |
 
 > El detalle de todo lo implementado hasta la fecha está en `documentacion/IMPLEMENTACION.md`.

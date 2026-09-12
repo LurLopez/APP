@@ -27,10 +27,10 @@ Web que analiza con IA informes financieros de EE. UU. (10-Q trimestral, 10-K an
 | 2 | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | ✅ Buscador, cribador (sin huecos), perfil, gráfico, filings con vista previa/descarga y botón "Analizar" implementados |
 | 3 | Registro / inicio de sesión | ✅ Implementado con verificación por correo y recuperación de contraseña; planes pendientes (Fase 5) |
 | 4 | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
-| 5 | Suscripciones y planes (modelos según plan, límites) | ⏳ Pendiente (campo `plan` ya existe) |
+| 5 | Suscripciones y planes (modelos según plan, límites) | ⏳ Pendiente (campo `plan` ya existe); límite diario de 3 análisis IA por usuario ya activo (`DAILY_AI_ANALYSES_LIMIT`) |
 | 6 | Nuevos países y sectores | ⏳ Pendiente |
 
-**Extras ya implementados:** histórico de análisis por usuario con filtros · listas de seguimiento multi-lista (sustituyen a los favoritos) · cartera de inversión con FIFO, dividendos estimados y gráficos de distribución.
+**Extras ya implementados:** histórico de análisis por usuario con filtros · listas de seguimiento multi-lista (sustituyen a los favoritos) · cartera de inversión con FIFO, dividendos estimados y gráficos de distribución · registro obligatorio para generar análisis nuevos con IA y cupo diario de 3 (leer los ya existentes es gratis).
 
 ## Arquitectura (en marcha)
 
@@ -45,7 +45,9 @@ Web que analiza con IA informes financieros de EE. UU. (10-Q trimestral, 10-K an
 - ✅ **Stack**: Node.js + Express + PostgreSQL + frontend puro (ver `ARQUITECTURA.md`).
 - ✅ **Modelo IA en uso**: **DeepSeek directo** (`AI_PROVIDER=deepseek`, 22–23 s por análisis y fiable; OpenCode Go probado pero intermitente). Decisión a medio plazo por confirmar.
 - ✅ **Formato del informe**: 2 horizontes + bloques Ventas / Cash Flow / Asignación de Capital según `src/agents/prompts/consumo-defensivo.md` (derivado del informe de referencia del usuario); pendiente refinar con más referencias.
-- 🔴 **Despliegue**: decidir cuando toque publicar (VPS vs PaaS).
+- ✅ **Administrador único y secreto**: solo la cuenta definida con `ADMIN_USERNAME`/`ADMIN_PASSWORD` en el `.env` (local y servidor) tiene rol `admin`; el registro y el login con Google nunca conceden admin.
+- ✅ **Límite de IA**: generar un análisis nuevo exige sesión y consume cupo (3/día por usuario; admin ilimitado); leer análisis existentes (propios o cacheados públicos) no consume.
+- 🔴 **Despliegue**: ya publicado en producción (cifraresearch.com, VPS Contabo, pipelines `development` → dev y `production` → prod).
 
 ## Interacción con el usuario (importante)
 
