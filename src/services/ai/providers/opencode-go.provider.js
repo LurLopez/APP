@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 const API_URL = 'https://opencode.ai/zen/go/v1/chat/completions';
-const MODEL = process.env.OPENCODE_GO_MODEL || 'deepseek-v4-flash';
+const MODEL = process.env.OPENCODE_GO_MODEL || 'deepseek-v4.1-flash';
 const REQUEST_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS || 180000);
 const CLIENT_USER_AGENT = process.env.AI_CLIENT_USER_AGENT || 'Cifra-FinancialAnalyzer/0.1';
 

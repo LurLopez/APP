@@ -19,6 +19,7 @@
  *   --max-quarters=2        Máximo número de trimestres recientes por empresa (por defecto: 3).
  *   --all-quarters          Analiza todos los 10-Q disponibles.
  *   --provider=opencode     Proveedor IA a usar (por defecto: opencode).
+ *   --concurrency=3         Análisis simultáneos, en empresas distintas (por defecto: 1).
  *   --delay=3000            Retardo en ms entre filings (por defecto: 3000 ms).
  *   --loop-delay=15         Minutos de espera entre rondas completas en modo continuo (por defecto: 15).
  */
@@ -45,6 +46,7 @@ const FROM_YEAR = Number(getArg('from-year', 2020));
 const MAX_QUARTERS = getArg('max-quarters') ? Number(getArg('max-quarters')) : Infinity;
 const DELAY_MS = Number(getArg('delay', 3000));
 const LOOP_DELAY_MINUTES = Number(getArg('loop-delay', 15));
+const CONCURRENCY = Math.max(1, Number(getArg('concurrency', process.env.WORKER_CONCURRENCY || 1)) || 1);
 const TARGET_PROVIDER = getArg('provider', process.env.WORKER_AI_PROVIDER || 'opencode');
 
 // Configurar el proveedor para este proceso
@@ -130,6 +132,18 @@ let shouldStop = false;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Ejecuta las tareas con un máximo de `limit` en paralelo.
+async function runWithConcurrency(items, limit, task) {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, queue.length) || 1 }, async () => {
+    while (queue.length && !shouldStop) {
+      const item = queue.shift();
+      await task(item);
+    }
+  });
+  await Promise.all(workers);
 }
 
 function timestamp() {
@@ -282,6 +296,7 @@ async function runWorker() {
   console.log(` • Modo de ejecución:     ${RUN_ONCE ? 'Una sola pasada (--once)' : 'Continuo sin parar'}`);
   console.log(` • Alcance temporal:      Todos los 10-Q desde ${FROM_YEAR} hasta la fecha`);
   console.log(` • Orden de trimestres:   Descendente (más recientes primero hasta Q1 ${FROM_YEAR})`);
+  console.log(` • Análisis simultáneos:  ${CONCURRENCY}`);
   console.log(` • Pausa entre filings:   ${DELAY_MS} ms`);
   console.log('='.repeat(70));
 
@@ -309,12 +324,13 @@ async function runWorker() {
 
     const stats = { analyzed: 0, skipped: 0, failed: 0 };
 
-    for (let i = 0; i < targetTickers.length; i += 1) {
-      if (shouldStop) break;
-      const ticker = targetTickers[i];
-      console.log(`[${timestamp()}] [${i + 1}/${targetTickers.length}] Revisando ${ticker}...`);
+    let reviewed = 0;
+    await runWithConcurrency(targetTickers, CONCURRENCY, async (ticker) => {
+      if (shouldStop) return;
+      reviewed += 1;
+      console.log(`[${timestamp()}] [${reviewed}/${targetTickers.length}] Revisando ${ticker}...`);
       await processCompany(ticker, stats);
-    }
+    });
 
     const roundDuration = ((Date.now() - roundStart) / 1000 / 60).toFixed(1);
     console.log(`\n[${timestamp()}] ── RESUMEN RONDA #${round} ──`);
