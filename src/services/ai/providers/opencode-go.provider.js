@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 const API_URL = 'https://opencode.ai/zen/go/v1/chat/completions';
 const MODEL = process.env.OPENCODE_GO_MODEL || 'deepseek-v4.1-flash';
+const THINKING = (process.env.AI_THINKING || 'disabled').trim().toLowerCase() === 'enabled' ? 'enabled' : 'disabled';
 const REQUEST_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS || 180000);
 const CLIENT_USER_AGENT = process.env.AI_CLIENT_USER_AGENT || 'Cifra-FinancialAnalyzer/0.1';
 
@@ -45,6 +46,7 @@ export const opencodeGoProvider = {
           messages,
           max_tokens: Number(process.env.AI_MAX_TOKENS || 16000),
           temperature: 0,
+          thinking: { type: THINKING },
         }),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });

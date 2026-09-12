@@ -260,7 +260,7 @@ export async function chatJson(messages, attempts = 2) { /* reintenta ante vací
 | Proveedor | Cuándo | Notas |
 |---|---|---|
 | `deepseek.provider.js` | **Activo** (`AI_PROVIDER=deepseek` o por defecto) | `api.deepseek.com/chat/completions`, modelo `deepseek-flash` (= **DeepSeek-V4.1-Flash**) o `AI_MODEL`, razonamiento con `AI_THINKING` (`disabled` por defecto), `temperature: 0`, limpieza de ```json```. 22–23 s por análisis, fiable |
-| `opencode-go.provider.js` | `AI_PROVIDER=opencode`/`opencode-go` | `opencode.ai/zen/go/v1/chat/completions`, `deepseek-v4.1-flash`; probado pero intermitente (145–247 s, fallos de JSON) |
+| `opencode-go.provider.js` | `AI_PROVIDER=opencode`/`opencode-go` | `opencode.ai/zen/go/v1/chat/completions`, `deepseek-v4.1-flash`, razonamiento con `AI_THINKING` (`disabled` por defecto); probado pero intermitente (145–247 s, fallos de JSON) |
 | `local.provider.js` | `AI_PROVIDER=local`/`ollama` | Endpoint local (Ollama en `http://localhost:11434/v1/chat/completions` u otro compatible OpenAI); configurable vía `LOCAL_AI_URL` y `LOCAL_AI_MODEL` |
 | `mock.provider.js` | Solo `AI_PROVIDER=mock` | Heurística local sin coste; respuesta mínima para el analista |
 
