@@ -1819,7 +1819,7 @@ Instrucciones prioritarias:
 - BLOQUE 3 — ASIGNACIÓN DE CAPITAL (REGLAS DE BALANCE Y SIGNOS CRÍTICOS):
   * Ecuación fundamental: Fuentes de capital (+) y Usos de capital (-).
   * FILAS Y CONVENCIÓN DE SIGNOS:
-    1. "Libre": Primera fila obligatoria. Remanente de Cash Flow (FCF - Dividendos) del mismo horizonte. Signo POSITIVO (+). Debe coincidir exactamente con el valor de "Libre" de la tabla de Cash Flow.
+     1. "Libre": Primera fila obligatoria. Remanente de Cash Flow (FCF - Dividendos) del mismo horizonte. Debe conservar EXACTAMENTE el valor y el signo de "Libre" de la tabla de Cash Flow (puede ser negativo: p. ej. -223 si los dividendos superan al FCF).
     2. "Inversiones a corto plazo": Se calcula OBLIGATORIAMENTE con el flujo NETO de valores negociables del estado de flujos de caja (o, si no consta, con la variación de saldo del BALANCE):
        - FLUJO NETO = ventas/cobros de valores negociables ("proceedsFromSaleOfMarketableSecurities...") - compras ("purchasesOfMarketableSecurities...").
        - En "ÚLTIMOS 3 MESES": flujo neto del trimestre; si no consta, -(Inversiones fin - Inversiones previas).
@@ -1913,7 +1913,7 @@ Instrucciones prioritarias:
 
   * BLOQUE 3 — ASIGNACIÓN DE CAPITAL (12 meses):
     - Variación acumulada de todo el año comparando el balance a cierre del ejercicio contra el balance de inicio del año (BeginningOfYear).
-    - Partidas: Libre (+), Inversiones a corto plazo (neto ventas-compras; -/+), Desinversiones (+), Adquisiciones (-), Recompras (-), Caja (-/+), Deuda (+/-), En total.
+    - Partidas: Libre (+/-), Inversiones a corto plazo (neto ventas-compras; -/+), Desinversiones (+), Adquisiciones (-), Recompras (-), Caja (-/+), Deuda (+/-), En total.
     - Nota obligatoria de Deuda Balance y Deuda Neta con formato exacto:
       "Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M)."
     - Verificación: "Más o menos cuadra..." si |En total| <= 50, o "No cuadra..." si supera 50.
@@ -3232,10 +3232,10 @@ export class AnalystAgent extends BaseAgent {
 
         let capLibreRow = horizon.capital.rows.find((r) => String(r.name).replace(/\*\d+/g, '').trim().toLowerCase() === 'libre');
         if (!capLibreRow) {
-          capLibreRow = { name: 'Libre', value: libreVal ? String(libreVal).replace('-', '') : '0' };
+          capLibreRow = { name: 'Libre', value: libreVal ? String(libreVal) : '0' };
           horizon.capital.rows.unshift(capLibreRow);
         } else if (libreVal) {
-          capLibreRow.value = String(libreVal).replace('-', '');
+          capLibreRow.value = String(libreVal);
         }
 
         // 3.2 Inversiones a corto plazo: si != 0 incluir/asegurar fila con signo estricto; si es 0, omitir
