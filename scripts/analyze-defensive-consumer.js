@@ -4,8 +4,8 @@
  * Worker continuo para análisis de empresas de Consumo Defensivo (EE. UU.)
  *
  * Utiliza la suscripción de OpenCode Go para pregenerar los análisis de informes
- * trimestrales (10-Q) de forma continua y guardarlos en la base de datos.
- * Cuando un usuario hace clic en "Analizar con IA" en la web, el análisis
+ * trimestrales (10-Q) y anuales (10-K) de forma continua y guardarlos en la base
+ * de datos. Cuando un usuario hace clic en "Analizar con IA" en la web, el análisis
  * se sirve al instante sin consumir la API de DeepSeek ni hacer esperar al usuario.
  *
  * Uso:
@@ -16,8 +16,8 @@
  *   --once                  Ejecuta una sola pasada por la lista y termina.
  *   --ticker=KO             Analiza un ticker específico.
  *   --tickers=KO,PEP,PG     Analiza una lista separada por comas de tickers.
- *   --max-quarters=2        Máximo número de trimestres recientes por empresa (por defecto: 3).
- *   --all-quarters          Analiza todos los 10-Q disponibles.
+ *   --max-quarters=2        Máximo número de informes recientes por empresa (por defecto: todos).
+ *   --all-quarters          Analiza todos los 10-Q/10-K disponibles.
  *   --provider=opencode     Proveedor IA a usar (por defecto: opencode).
  *   --concurrency=3         Análisis simultáneos, en empresas distintas (por defecto: 1).
  *   --delay=3000            Retardo en ms entre filings (por defecto: 3000 ms).
@@ -224,9 +224,9 @@ async function processCompany(ticker, stats) {
     const filingsData = await getCompanyFilings(ticker, { limit: 120 });
     const allFilings = filingsData?.filings ?? [];
 
-    // Solo informes 10-Q a partir de FROM_YEAR (2020 por defecto)
-    let quarterFilings = allFilings
-      .filter((f) => f.formType === '10-Q')
+    // Informes 10-Q (trimestrales) y 10-K (anuales) a partir de FROM_YEAR (2020 por defecto)
+    let reportFilings = allFilings
+      .filter((f) => ['10-Q', '10-K'].includes(f.formType))
       .filter((f) => {
         const year = getFilingYear(f);
         return year !== null && year >= FROM_YEAR;
@@ -234,23 +234,23 @@ async function processCompany(ticker, stats) {
       .sort((a, b) => {
         const dateA = a.period || a.filedAt || '';
         const dateB = b.period || b.filedAt || '';
-        return dateB.localeCompare(dateA); // Más recientes primero: Q2 2026, Q1 2026, Q3 2025... hasta Q1 2020
+        return dateB.localeCompare(dateA); // Más recientes primero: Q2 2026, Q1 2026, 10-K 2025, Q3 2025... hasta 2020
       });
 
     if (MAX_QUARTERS !== Infinity) {
-      quarterFilings = quarterFilings.slice(0, MAX_QUARTERS);
+      reportFilings = reportFilings.slice(0, MAX_QUARTERS);
     }
 
-    if (!quarterFilings.length) {
-      console.log(`[${timestamp()}] [INFO] ${ticker}: sin informes 10-Q desde ${FROM_YEAR} para procesar.`);
+    if (!reportFilings.length) {
+      console.log(`[${timestamp()}] [INFO] ${ticker}: sin informes 10-Q/10-K desde ${FROM_YEAR} para procesar.`);
       return;
     }
 
-    const firstLabel = quarterFilings[0]?.periodLabel || quarterFilings[0]?.period;
-    const lastLabel = quarterFilings[quarterFilings.length - 1]?.periodLabel || quarterFilings[quarterFilings.length - 1]?.period;
-    console.log(`[${timestamp()}] [INFO] ${ticker}: ${quarterFilings.length} trimestres 10-Q desde ${FROM_YEAR} (${firstLabel} → ${lastLabel}).`);
+    const firstLabel = reportFilings[0]?.periodLabel || reportFilings[0]?.period;
+    const lastLabel = reportFilings[reportFilings.length - 1]?.periodLabel || reportFilings[reportFilings.length - 1]?.period;
+    console.log(`[${timestamp()}] [INFO] ${ticker}: ${reportFilings.length} informes 10-Q/10-K desde ${FROM_YEAR} (${firstLabel} → ${lastLabel}).`);
 
-    for (const filing of quarterFilings) {
+    for (const filing of reportFilings) {
       if (shouldStop) break;
 
       // 1. Comprobar si ya está analizado en la base de datos
@@ -294,8 +294,8 @@ async function runWorker() {
   console.log(` • Proveedor IA activo:   ${TARGET_PROVIDER}`);
   console.log(` • Clave OpenCode Go:     ${process.env.OPENCODE_GO_API_KEY ? 'Configurada (OK)' : 'NO ENCONTRADA EN .ENV'}`);
   console.log(` • Modo de ejecución:     ${RUN_ONCE ? 'Una sola pasada (--once)' : 'Continuo sin parar'}`);
-  console.log(` • Alcance temporal:      Todos los 10-Q desde ${FROM_YEAR} hasta la fecha`);
-  console.log(` • Orden de trimestres:   Descendente (más recientes primero hasta Q1 ${FROM_YEAR})`);
+  console.log(` • Alcance temporal:      Todos los 10-Q/10-K desde ${FROM_YEAR} hasta la fecha`);
+  console.log(` • Orden:                 Descendente (más recientes primero hasta ${FROM_YEAR})`);
   console.log(` • Análisis simultáneos:  ${CONCURRENCY}`);
   console.log(` • Pausa entre filings:   ${DELAY_MS} ms`);
   console.log('='.repeat(70));
