@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Script de Commit Seguro para Development | Cifra</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --line: #dde1e6;
+    --ink: #1c2733;
+    --muted: #5b6b7b;
+    --accent: #ff9900;
+    --accent-dark: #c96e00;
+    --code-bg: #111820;
+    --code-fg: #dbe6f2;
+    --green: #1e7a3a;
+    --green-bg: #e9f7ee;
+    --red: #b3261e;
+    --red-bg: #fdf2f2;
+    --yellow: #b45309;
+    --yellow-bg: #fffbeb;
+    --cyan: #0891b2;
+    --cyan-bg: #ecfeff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, Arial, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+  header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 3px solid var(--accent);
+  }
+  .crumb {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  h1 {
+    margin: 0 0 10px;
+    font-size: 30px;
+    letter-spacing: -0.5px;
+  }
+  .sub {
+    color: var(--muted);
+    margin: 0;
+    font-size: 15px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: var(--green-bg);
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  h2 {
+    margin: 40px 0 16px;
+    font-size: 22px;
+    letter-spacing: -0.3px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 8px;
+  }
+  h3 {
+    margin: 24px 0 10px;
+    font-size: 17px;
+  }
+  p { margin: 10px 0; }
+  .grid-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card-title {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-icon {
+    font-size: 18px;
+  }
+  .card p {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+  }
+  .flow-step {
+    display: flex;
+    gap: 16px;
+    margin: 16px 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .step-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-content { flex: 1; }
+  .step-content h4 { margin: 0 0 6px; font-size: 15px; }
+  .step-content p { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+  
+  table {
+    width: 100%;
+    margin: 16px 0;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: var(--panel);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  th, td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: middle;
+  }
+  th {
+    background: #f8fafc;
+    font-weight: 700;
+  }
+  tr:last-child td { border-bottom: none; }
+  
+  .tag {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .tag-new { background: var(--green-bg); color: var(--green); }
+  .tag-mod { background: var(--yellow-bg); color: var(--yellow); }
+  .tag-add { background: var(--cyan-bg); color: var(--cyan); }
+  .tag-del { background: var(--red-bg); color: var(--red); }
+  
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  code {
+    background: #e2e8f0;
+    color: #0f172a;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+  }
+  pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+  }
+  .alert-box {
+    margin: 20px 0;
+    padding: 16px;
+    border-radius: 8px;
+    background: var(--red-bg);
+    border-left: 4px solid var(--red);
+    color: #7f1d1d;
+  }
+  .alert-box strong { font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="crumb">documentacion / herramientas / commit-development</div>
+    <h1>Commit Seguro e Interactivo para Rama Development</h1>
+    <p class="sub">Guía de funcionamiento del programa <code>commit-development.sh</code>, arquitectura de bloqueo contra producción y verificación estricta de token secreto.</p>
+    <div class="badge">✓ Implementado y Operativo · 2026-09-14</div>
+  </header>
+
+  <h2>Resumen Ejecutivo</h2>
+  <p>El sistema proporciona un mecanismo integral para confirmar y subir cambios al repositorio garantizando el aislamiento absoluto de la rama de producción. Resuelve los riesgos de commits desatendidos por inteligencias artificiales y fallos humanos al subir código experimental.</p>
+
+  <div class="grid-cards">
+    <div class="card">
+      <div class="card-title"><span class="card-icon">🛡️</span> Blindaje de Producción</div>
+      <p>Bloquea e intercepta automáticamente cualquier intento de commit si la rama activa es <code>production</code>, <code>main</code> o <code>master</code>, conmutando de inmediato a <code>development</code>.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="card-icon">👁️</span> Auditoría Visual</div>
+      <p>Clasifica y colorea los archivos afectados antes de pedir el mensaje, mostrando el número total de archivos y su estado exacto.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="card-icon">🔑</span> Token Secreto Anti-IA</div>
+      <p>El hook <code>pre-commit</code> exige terminal interactiva humana (<code>/dev/tty</code>). Los agentes y procesos no interactivos tienen bloqueado el commit por diseño.</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="card-icon">🚀</span> Push Exclusivo</div>
+      <p>Sube única y exclusivamente a <code>origin/development</code>. Si el commit no se realiza o el token falla, nunca se ejecuta el comando de push.</p>
+    </div>
+  </div>
+
+  <h2>Flujo de Ejecución Paso a Paso</h2>
+
+  <div class="flow-step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <h4>Verificación y Redirección de Rama</h4>
+      <p>Comprueba la rama activa con <code>git branch --show-current</code>. Si te encuentras en <code>production</code>, <code>main</code> o <code>master</code>, emite una advertencia de seguridad y ejecuta <code>git switch development</code> automáticamente. Si la rama no es <code>development</code>, te sitúa en ella.</p>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <h4>Listado Visual Categorizado</h4>
+      <p>Consulta <code>git status --porcelain=v1</code>. Si no hay cambios, finaliza amigablemente. Si hay cambios, los desglosa con código de colores según su estado:</p>
+      <table>
+        <tr><th>Categoría</th><th>Código Git</th><th>Significado</th></tr>
+        <tr><td><span class="tag tag-new">[NUEVO]</span></td><td><code>??</code></td><td>Archivo no rastreado previamente (untracked).</td></tr>
+        <tr><td><span class="tag tag-mod">[MODIFICADO]</span></td><td><code>M </code> / <code> M</code> / <code>MM</code></td><td>Archivo existente con modificaciones de contenido.</td></tr>
+        <tr><td><span class="tag tag-add">[AÑADIDO]</span></td><td><code>A </code> / <code> A</code></td><td>Archivo preparado para seguimiento en el índice.</td></tr>
+        <tr><td><span class="tag tag-del">[ELIMINADO]</span></td><td><code>D </code> / <code> D</code></td><td>Archivo borrado del árbol de trabajo.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <h4>Solicitud Interactiva del Mensaje de Commit</h4>
+      <p>Lee desde <code>/dev/tty</code> garantizando compatibilidad con terminales interactivas. No admite mensajes vacíos ni formados exclusivamente por espacios en blanco.</p>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <h4>Validación del Hook Pre-commit y Token</h4>
+      <p>Comprueba que el hash del token esté inicializado en <code>~/.config/cifra-commit-lock/token.sha256</code>. Si falta, lanza el setup. Al ejecutar <code>git commit</code>, el hook solicita el token con caracteres ocultos y verifica el hash con sal (máximo 3 intentos con 300 s de timeout).</p>
+      <div class="alert-box">
+        <strong>Bloqueo de Agentes:</strong> Si un agente de IA intenta commitear de fondo, la llamada falla inmediatamente porque no existe una terminal TTY humana disponible.
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="step-num">5</div>
+    <div class="step-content">
+      <h4>Subida Exclusiva a origin/development</h4>
+      <p>Verifica por tercera vez que la rama activa sea estrictamente <code>development</code> y ejecuta <code>git push --set-upstream origin development</code>. Soporta tanto SSH nativo como HTTPS interactivo mediante <code>GIT_ASKPASS</code> efímero.</p>
+    </div>
+  </div>
+
+  <h2>Cómo Utilizarlo</h2>
+  <p>Puedes ejecutar el flujo en cualquier momento desde la terminal mediante el script raíz o el script configurado en <code>package.json</code>:</p>
+
+  <pre><code># Opción 1: Mediante script npm (recomendado)
+npm run commit
+
+# Opción 2: Alias de desarrollo
+npm run commit:dev
+
+# Opción 3: Ejecución directa del script en la raíz
+./commit-development.sh</code></pre>
+
+  <h2>Configuración Inicial del Token de Seguridad</h2>
+  <p>Si aún no has configurado tu token personal, puedes inicializarlo manualmente en cualquier momento ejecutando:</p>
+  <pre><code>./scripts/commit-token-setup.sh</code></pre>
+  <p>Este instalador te pedirá que introduzcas y repitas tu token secreto (mínimo 8 caracteres, recomendado 16+), generará una sal aleatoria criptográfica y asegurará el hook con permisos restrictivos.</p>
+</div>
+</body>
+</html>

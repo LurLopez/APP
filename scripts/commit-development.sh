@@ -31,7 +31,7 @@ readonly TARGET_REMOTE="origin"
 readonly FORBIDDEN_BRANCHES=("production" "main" "master")
 
 # Directorio raíz del proyecto
-PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd -- "$PROJECT_DIR"
 
 die() {

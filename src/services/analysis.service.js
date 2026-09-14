@@ -168,7 +168,12 @@ async function runAnalysis(text, options, sessionId) {
 
   try {
     const originAgent = getAgent('origin');
-    const originResult = await originAgent.run({ text });
+    const originResult = await originAgent.run({
+      text,
+      formType: options.formType ?? null,
+      ticker: options.ticker ?? null,
+      accession: options.accession ?? null,
+    });
 
     const effectiveFormType = options.formType || originResult.formType;
 

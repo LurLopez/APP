@@ -1465,16 +1465,16 @@ function buildAnalysisText(text, presentationText) {
     }
   }
 
-  const head = text.slice(0, 30000);
+  const head = text.slice(0, 8000);
   const financialWindow = financialIndex !== -1
-    ? text.slice(Math.max(0, financialIndex - 15000), Math.min(text.length, financialIndex + 50000))
+    ? text.slice(Math.max(0, financialIndex - 4000), Math.min(text.length, financialIndex + 45000))
     : '';
 
   let mainContent;
   if (financialWindow) {
     mainContent = `[COMIENZO DEL INFORME]\n${head}\n[SECCIÓN DE ESTADOS FINANCIEROS Y NOTAS]\n${financialWindow}`;
   } else {
-    mainContent = text;
+    mainContent = text.slice(0, 60000);
   }
 
   // Se añaden secciones clave rescatadas de puntos del informe que quedan fuera de la
@@ -1482,14 +1482,14 @@ function buildAnalysisText(text, presentationText) {
   const keySections = extractKeyFilingSections(text);
   const keyBlock = keySections ? `\n\n[SECCIONES CLAVE ADICIONALES DEL INFORME]\n${keySections}` : '';
   const baseBudget = keyBlock
-    ? Math.max(42000, MAX_CHARS - keyBlock.length)
-    : MAX_CHARS;
+    ? Math.max(35000, 60000 - keyBlock.length)
+    : 60000;
   const main = `${mainContent.slice(0, baseBudget)}${keyBlock}`;
 
   const presentation = String(presentationText ?? '').trim();
   if (!presentation) return main;
 
-  const presentationBudget = 55000;
+  const presentationBudget = 25000;
   return `${main}\n\n[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]\n${presentation.slice(0, presentationBudget)}`;
 }
 
@@ -3158,11 +3158,15 @@ export class AnalystAgent extends BaseAgent {
       .replace('{REGLAS}', rules.trim())
       .replace('{SCHEMA}', schema.trim());
 
+    // Evitar serializar _rawText (el informe completo) en el prompt de la Fase 2:
+    // el modelo solo necesita estructurar y redactar a partir del JSON extraído.
+    const { _rawText, ...extractedForModel } = extracted;
+
     let result;
     try {
       result = await chatJson([
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: JSON.stringify(extracted, null, 2) },
+        { role: 'user', content: JSON.stringify(extractedForModel, null, 2) },
       ]);
     } catch (error) {
       if (error instanceof AiProviderError) throw error;
