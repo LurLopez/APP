@@ -1,13 +1,30 @@
+/**
+ * @fileoverview Middleware de limitación de tasa (Rate Limiting) en memoria con soporte de ventanas deslizantes y scopes.
+ * Protege contra abusos en subidas, valoraciones y consultas automáticas de bots.
+ * @module middleware/rateLimit
+ */
+
 const buckets = new Map();
 const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
 let lastCleanup = Date.now();
 
+/**
+ * Obtiene el identificador del cliente a partir de cabeceras de proxy (Cloudflare, etc.) o socket.
+ * @private
+ * @param {import('express').Request} req - Petición HTTP.
+ * @returns {string} Identificador único del cliente.
+ */
 function clientKey(req) {
   const cfIp = req.headers['cf-connecting-ip'];
   if (typeof cfIp === 'string' && cfIp.trim()) return cfIp.trim();
   return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
+/**
+ * Limpia cubetas de peticiones expiradas periódicamente para evitar fugas de memoria.
+ * @private
+ * @param {number} now - Timestamp actual.
+ */
 function cleanup(now) {
   if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
   lastCleanup = now;
@@ -16,6 +33,15 @@ function cleanup(now) {
   }
 }
 
+/**
+ * Genera un middleware de Express para limitar la frecuencia de peticiones por IP y ámbito.
+ * @param {Object} [options] - Opciones de configuración.
+ * @param {number} [options.windowMs=900000] - Ventana temporal en milisegundos (por defecto 15 min).
+ * @param {number} [options.max=10] - Número máximo de peticiones permitidas por ventana.
+ * @param {string} [options.message='Demasiadas solicitudes. Inténtalo de nuevo más tarde.'] - Mensaje de error 429.
+ * @param {string} [options.scope='global'] - Identificador del ámbito de limitación.
+ * @returns {import('express').RequestHandler} Middleware configurado.
+ */
 export function rateLimit({
   windowMs = 15 * 60 * 1000,
   max = 10,
