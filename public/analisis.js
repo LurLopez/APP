@@ -26,6 +26,14 @@
   let currentAnalysisTicker = null;
   let currentAnalysisAccession = null;
   let currentAnalysisSlug = null;
+  let currentAnalysisVersion = null;
+  let currentAnalysisSubsector = null;
+  let currentAnalysisCurrentVersion = null;
+  let currentAnalysisVersionOutdated = false;
+  let currentAnalysisIsReviewed = false;
+  let currentAnalysisVersions = [];
+  let pendingVersionsMenuOpen = false;
+  const analysisVersionsCache = new Map();
   let currentUserRating = 0;
   let pendingAuthRetry = null;
 
@@ -1724,6 +1732,7 @@
     if (uploadForm) uploadForm.hidden = true;
     if (secAnalysisEntry) secAnalysisEntry.hidden = true;
     currentAnalysisId = null;
+    resetAnalysisVersionState();
     loadAnalysisFeedback(null);
     resetAgentStates();
     if (analysisError) analysisError.hidden = true;
@@ -1784,6 +1793,24 @@
     currentAnalysisTicker = data.report?.ticker || pendingFiling?.ticker || null;
     currentAnalysisAccession = pendingFiling?.accession || null;
     currentAnalysisSlug = data.slug || getAnalysisSlug(data);
+
+    setAnalysisVersionState({
+      version: data.version ?? null,
+      subsector: data.subsector ?? null,
+      currentVersion: data.currentVersion ?? data.version ?? null,
+      versionOutdated: data.versionOutdated === true,
+    });
+
+    if (currentAnalysisTicker && currentAnalysisAccession) {
+      window.dispatchEvent(new CustomEvent('analysis:finished', {
+        detail: {
+          ticker: currentAnalysisTicker,
+          accession: currentAnalysisAccession,
+          version: data.version ?? null,
+        },
+      }));
+    }
+
     loadAnalysisFeedback(currentAnalysisId);
     if (currentAnalysisId) {
       try { history.replaceState(null, '', getAnalysisPath({ ...data, id: currentAnalysisId, ticker: currentAnalysisTicker, slug: currentAnalysisSlug })); } catch {}
@@ -2001,6 +2028,8 @@
 
   async function runFilingAnalysis(ticker, accession, options = {}) {
     const isForce = Boolean(options.force);
+    const isUpgrade = Boolean(options.upgrade);
+    const openVersions = Boolean(options.openVersions);
     if (!isForce && !isAuthenticated()) {
       requireAuthForAnalysis(() => runFilingAnalysis(ticker, accession, options));
       return;
@@ -2008,12 +2037,18 @@
     pendingFiling = { ticker, accession };
     currentAnalysisTicker = ticker;
     currentAnalysisAccession = accession;
-    startAnalysisUi(isForce ? `Regenerando informe de ${ticker} con IA…` : `Analizando el informe de ${ticker}…`);
+    startAnalysisUi(isForce
+      ? `Regenerando informe de ${ticker} con IA…`
+      : isUpgrade
+        ? `Actualizando el informe de ${ticker} a la nueva versión…`
+        : `Analizando el informe de ${ticker}…`);
     const processingNote = document.querySelector('#processing-note');
     if (processingNote) {
       processingNote.textContent = isForce
-        ? 'Eliminando el informe anterior y volviendo a analizar desde SEC EDGAR con IA.'
-        : 'Informe de SEC EDGAR. Verificación y extracción de señales financieras con IA.';
+        ? 'Volviendo a analizar desde SEC EDGAR con IA. Las versiones anteriores se conservan.'
+        : isUpgrade
+          ? 'Regenerando el informe con la versión más reciente del análisis. Las versiones anteriores se conservan.'
+          : 'Informe de SEC EDGAR. Verificación y extracción de señales financieras con IA.';
     }
     startProcessingHints();
 
@@ -2022,7 +2057,10 @@
         ? `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/regenerate`
         : `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/analyze`;
 
-      const response = await fetch(endpoint, { method: 'POST' });
+      const requestOptions = isUpgrade
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ upgrade: true }) }
+        : { method: 'POST' };
+      const response = await fetch(endpoint, requestOptions);
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -2032,8 +2070,11 @@
       }
 
       finishAnalysis(data);
+      if (openVersions) openAnalysisVersionsMenu();
       if (isForce) {
-        showToast('Informe regenerado con éxito. Se ha eliminado el informe anterior.');
+        showToast('Informe regenerado con éxito. Las versiones anteriores se conservan.');
+      } else if (isUpgrade) {
+        showToast(`Análisis actualizado${data.version ? ` a la versión ${data.version}` : ''}. Las versiones anteriores siguen disponibles.`);
       }
     } catch {
       showAnalysisError('No se pudo conectar con el servidor. Comprueba que esté en marcha.');
@@ -2049,6 +2090,197 @@
     document.body.appendChild(link);
     link.click();
     link.remove();
+  }
+
+  /* ── Versiones del análisis (histórico por filing) ────────────── */
+
+  function renderAnalysisVersionsMenu() {
+    const menu = document.querySelector('#analysis-versions-menu');
+    if (!menu) return;
+    if (!currentAnalysisVersions.length) {
+      menu.innerHTML = '<div class="analysis-versions-empty">Todavía no hay versiones guardadas.</div>';
+      return;
+    }
+    menu.innerHTML = currentAnalysisVersions.map((entry) => {
+      const isActive = String(entry.id) === String(currentAnalysisId);
+      const isReviewed = Boolean(entry.isReviewed ?? entry.is_reviewed);
+      const reviewedBadge = isReviewed
+        ? `<span class="analysis-reviewed-mini-badge" title="Este análisis ha sido revisado por un humano" aria-label="Este análisis ha sido revisado por un humano"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg> Revisado</span>`
+        : '';
+      const versionLabel = entry.version ? `v${escapeHtml(entry.version)}` : 'Sin versión';
+      const dateLabel = entry.createdAt ? new Date(entry.createdAt).toLocaleDateString('es-ES') : '';
+      const base = entry.downloadBase ? String(entry.downloadBase) : '';
+      return `<div class="analysis-version-item${isActive ? ' active' : ''}" data-version-id="${escapeHtml(entry.id)}">
+        <div class="analysis-version-item-data">
+          <strong>${versionLabel}${isActive ? ' · actual' : ''} ${reviewedBadge}</strong>
+          <span>${escapeHtml(dateLabel)}${entry.modelUsed ? ` · ${escapeHtml(entry.modelUsed)}` : ''}</span>
+        </div>
+        <div class="analysis-version-item-actions">
+          <button type="button" class="row-action" data-version-action="view" title="Ver esta versión"${isActive ? ' disabled' : ''}>Ver</button>
+          ${base ? `<button type="button" class="row-action" data-version-action="pdf" title="Descargar PDF">PDF</button><button type="button" class="row-action" data-version-action="docx" title="Descargar Word">DOCX</button><button type="button" class="row-action" data-version-action="odt" title="Descargar ODT">ODT</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderAnalysisVersionControl() {
+    const box = document.querySelector('#analysis-version-box');
+    if (!box) return;
+    const hasAnyVersion = Boolean(currentAnalysisVersion || currentAnalysisVersions.length);
+    box.hidden = !hasAnyVersion;
+    if (!hasAnyVersion) return;
+
+    const badge = document.querySelector('#analysis-version-badge');
+    if (badge) {
+      badge.textContent = currentAnalysisVersion ? `v${currentAnalysisVersion}` : 'Sin versión';
+      badge.title = currentAnalysisVersion
+        ? `Versión del análisis guardado: ${currentAnalysisVersion}`
+        : 'Análisis generado antes del versionado';
+    }
+
+    const reviewedBadge = document.querySelector('#analysis-reviewed-badge');
+    if (reviewedBadge) {
+      reviewedBadge.hidden = !currentAnalysisIsReviewed;
+    }
+
+    const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || currentUser?.isAdmin);
+    const reviewedToggle = document.querySelector('#analysis-reviewed-toggle');
+    const reviewedCheckbox = document.querySelector('#analysis-reviewed-checkbox');
+    if (reviewedToggle && reviewedCheckbox) {
+      reviewedToggle.hidden = !isAdmin || !currentAnalysisId;
+      reviewedCheckbox.checked = Boolean(currentAnalysisIsReviewed);
+    }
+
+    const toggle = document.querySelector('#analysis-versions-toggle');
+    if (toggle) {
+      const canList = Boolean(currentAnalysisAccession && currentAnalysisVersions.length);
+      toggle.hidden = !canList;
+      const countEl = document.querySelector('#analysis-versions-count');
+      if (countEl) countEl.textContent = canList ? `(${currentAnalysisVersions.length})` : '';
+      if (!toggle.hidden && pendingVersionsMenuOpen) openAnalysisVersionsMenu();
+    }
+
+    const upgrade = document.querySelector('#analysis-version-upgrade');
+    if (upgrade) {
+      const canUpgrade = currentAnalysisVersionOutdated && currentAnalysisTicker && currentAnalysisAccession && (!currentAnalysisIsReviewed || isAdmin);
+      upgrade.hidden = !canUpgrade;
+      if (canUpgrade) {
+        const targetDiffers = currentAnalysisCurrentVersion
+          && String(currentAnalysisCurrentVersion) !== String(currentAnalysisVersion);
+        upgrade.textContent = targetDiffers
+          ? `Actualizar a v${currentAnalysisCurrentVersion} ✨`
+          : 'Actualizar con la nueva versión ✨';
+        upgrade.title = 'Regenerar el análisis con las reglas vigentes (consume cupo diario). Se conservan las versiones anteriores.';
+      }
+    }
+
+    renderAnalysisVersionsMenu();
+  }
+
+  function applyAnalysisVersionsCache() {
+    const ticker = String(currentAnalysisTicker ?? '').toUpperCase();
+    const accession = currentAnalysisAccession ? String(currentAnalysisAccession) : '';
+    const key = ticker && accession ? `${ticker}|${accession}` : null;
+    const cached = key ? analysisVersionsCache.get(key) : null;
+    currentAnalysisVersions = cached?.versions ?? [];
+    if (cached?.currentVersion) currentAnalysisCurrentVersion = cached.currentVersion;
+    if (cached && typeof cached.versionOutdated === 'boolean') {
+      currentAnalysisVersionOutdated = cached.versionOutdated;
+    }
+    if (!currentAnalysisVersion && currentAnalysisVersions.length) {
+      const latest = currentAnalysisVersions[0];
+      const viewingLatest = !currentAnalysisId || String(latest.id) === String(currentAnalysisId);
+      if (viewingLatest && latest.version) currentAnalysisVersion = latest.version;
+    }
+    if (currentAnalysisId && currentAnalysisVersions.length) {
+      const matching = currentAnalysisVersions.find((v) => String(v.id) === String(currentAnalysisId));
+      if (matching) {
+        currentAnalysisIsReviewed = Boolean(matching.isReviewed ?? matching.is_reviewed);
+      }
+    }
+    renderAnalysisVersionControl();
+  }
+
+  async function refreshAnalysisVersions() {
+    const ticker = String(currentAnalysisTicker ?? '').toUpperCase();
+    const accession = currentAnalysisAccession ? String(currentAnalysisAccession) : '';
+    const key = ticker && accession ? `${ticker}|${accession}` : null;
+    if (!key) {
+      currentAnalysisVersions = [];
+      renderAnalysisVersionControl();
+      return;
+    }
+    if (analysisVersionsCache.has(key)) {
+      applyAnalysisVersionsCache();
+      return;
+    }
+    try {
+      const response = await fetch(`/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/versions`);
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.ok) {
+        analysisVersionsCache.set(key, {
+          versions: Array.isArray(data.versions) ? data.versions : [],
+          currentVersion: data.currentVersion ?? null,
+          versionOutdated: Boolean(data.versionOutdated),
+          isReviewed: Boolean(data.isReviewed),
+        });
+      } else {
+        analysisVersionsCache.set(key, { versions: [], currentVersion: null, versionOutdated: false });
+      }
+    } catch {
+      analysisVersionsCache.set(key, { versions: [], currentVersion: null, versionOutdated: false });
+    }
+    applyAnalysisVersionsCache();
+  }
+
+  function setAnalysisVersionState(source = {}) {
+    currentAnalysisVersion = source.version ?? null;
+    currentAnalysisSubsector = source.subsector ?? null;
+    if (typeof source.isReviewed === 'boolean') currentAnalysisIsReviewed = source.isReviewed;
+    else if (typeof source.is_reviewed === 'boolean') currentAnalysisIsReviewed = source.is_reviewed;
+    if (source.currentVersion) currentAnalysisCurrentVersion = source.currentVersion;
+    currentAnalysisVersionOutdated = source.versionOutdated === true;
+    renderAnalysisVersionControl();
+    refreshAnalysisVersions();
+  }
+
+  function resetAnalysisVersionState() {
+    currentAnalysisVersion = null;
+    currentAnalysisSubsector = null;
+    currentAnalysisCurrentVersion = null;
+    currentAnalysisVersionOutdated = false;
+    currentAnalysisIsReviewed = false;
+    currentAnalysisVersions = [];
+    pendingVersionsMenuOpen = false;
+    const box = document.querySelector('#analysis-version-box');
+    if (box) box.hidden = true;
+    const menu = document.querySelector('#analysis-versions-menu');
+    if (menu) menu.hidden = true;
+    const reviewedBadge = document.querySelector('#analysis-reviewed-badge');
+    if (reviewedBadge) reviewedBadge.hidden = true;
+    const reviewedToggle = document.querySelector('#analysis-reviewed-toggle');
+    if (reviewedToggle) reviewedToggle.hidden = true;
+  }
+
+  function openAnalysisVersionsMenu() {
+    const toggle = document.querySelector('#analysis-versions-toggle');
+    const menu = document.querySelector('#analysis-versions-menu');
+    if (!toggle || !menu) return;
+    if (toggle.hidden) {
+      pendingVersionsMenuOpen = true;
+      return;
+    }
+    pendingVersionsMenuOpen = false;
+    menu.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+    renderAnalysisVersionsMenu();
+  }
+
+  function closeAnalysisVersionsMenu() {
+    pendingVersionsMenuOpen = false;
+    const menu = document.querySelector('#analysis-versions-menu');
+    if (menu && !menu.hidden) menu.hidden = true;
+    document.querySelector('#analysis-versions-toggle')?.setAttribute('aria-expanded', 'false');
   }
 
   function loadReportData(analysis, { updateHistory = false } = {}) {
@@ -2067,6 +2299,14 @@
     currentAnalysisTicker = analysis.ticker || analysis.report?.ticker || null;
     currentAnalysisAccession = analysis.accession || null;
     currentAnalysisSlug = analysis.slug || getAnalysisSlug(analysis);
+
+    setAnalysisVersionState({
+      version: analysis.version ?? null,
+      subsector: analysis.subsector ?? null,
+      isReviewed: Boolean(analysis.isReviewed ?? analysis.is_reviewed),
+      currentVersion: analysis.currentVersion ?? null,
+      versionOutdated: analysis.versionOutdated === true,
+    });
 
     loadAnalysisFeedback(currentAnalysisId);
 
@@ -2111,16 +2351,28 @@
     }
   }
 
+  function isAnalysisAnnual(analysis) {
+    if (typeof analysis?.isAnnual === 'boolean') return analysis.isAnnual;
+    const formType = String(analysis?.formType || '').toUpperCase();
+    if (formType === '10-K') return true;
+    if (formType === '10-Q') return false;
+    const title = String(analysis?.periodTitle || '').toLowerCase();
+    const filename = String(analysis?.filename || '').toLowerCase();
+    return /annual|full year|10-?k/i.test(title) || /10-?k/i.test(filename);
+  }
+
   function historyQuery() {
     const historyCompanyInput = document.querySelector('#history-company');
     const historyFromInput = document.querySelector('#history-from');
     const historyToInput = document.querySelector('#history-to');
     const dateType = document.querySelector('input[name="history-date-type"]:checked')?.value ?? 'period';
+    const reportType = document.querySelector('input[name="history-report-type"]:checked')?.value ?? 'all';
     const params = new URLSearchParams();
     const ticker = historyCompanyInput?.value?.trim();
     if (ticker) params.set('ticker', ticker);
     if (historyFromInput?.value) params.set(dateType === 'period' ? 'periodFrom' : 'createdFrom', historyFromInput.value);
     if (historyToInput?.value) params.set(dateType === 'period' ? 'periodTo' : 'createdTo', historyToInput.value);
+    if (reportType && reportType !== 'all') params.set('reportType', reportType);
     return params;
   }
 
@@ -2202,6 +2454,7 @@
     const historyCompanyInput = document.querySelector('#history-company');
     const historyFromInput = document.querySelector('#history-from');
     const historyToInput = document.querySelector('#history-to');
+    const reportType = document.querySelector('input[name="history-report-type"]:checked')?.value ?? 'all';
 
     if (!historyBody) return;
 
@@ -2218,12 +2471,19 @@
     if (historyLoginButton) historyLoginButton.hidden = true;
     if (historyFilters) historyFilters.hidden = false;
 
-    if (!historyAnalyses.length) {
+    let filteredAnalyses = historyAnalyses;
+    if (reportType === 'annual') {
+      filteredAnalyses = historyAnalyses.filter((item) => isAnalysisAnnual(item));
+    } else if (reportType === 'quarterly') {
+      filteredAnalyses = historyAnalyses.filter((item) => !isAnalysisAnnual(item));
+    }
+
+    if (!filteredAnalyses.length) {
       historyBody.innerHTML = '';
       if (historyPagination) historyPagination.hidden = true;
       if (historyEmpty) historyEmpty.hidden = false;
       if (historyEmptyText) {
-        historyEmptyText.textContent = (historyCompanyInput?.value || historyFromInput?.value || historyToInput?.value)
+        historyEmptyText.textContent = (historyCompanyInput?.value || historyFromInput?.value || historyToInput?.value || reportType !== 'all')
           ? 'No hay análisis que coincidan con los filtros.'
           : 'Aún no tienes análisis guardados. Sube un 10-Q o 10-K y aparecerá aquí.';
       }
@@ -2233,7 +2493,7 @@
     if (historyEmpty) historyEmpty.hidden = true;
     updateHistorySortHeaders();
 
-    const sortedHistory = sortHistoryList(historyAnalyses);
+    const sortedHistory = sortHistoryList(filteredAnalyses);
     const totalPages = Math.max(1, Math.ceil(sortedHistory.length / HISTORY_PAGE_SIZE));
     historyPage = Math.min(Math.max(historyPage, 1), totalPages);
     const pageItems = sortedHistory.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
@@ -2242,7 +2502,16 @@
       const ticker = String(analysis.ticker ?? '').toUpperCase();
       const company = analysis.companyName || ticker || '—';
       const periodTitle = analysis.periodTitle || '—';
+      const isAnnual = isAnalysisAnnual(analysis);
+      const typeBadge = `<span class="analysis-type-pill ${isAnnual ? 'annual' : 'quarterly'}">${isAnnual ? '10-K' : '10-Q'}</span>`;
+      const isReviewed = Boolean(analysis.is_reviewed ?? analysis.isReviewed);
+      const reviewedPill = isReviewed
+        ? `<span class="analysis-reviewed-mini-badge" title="Este análisis ha sido revisado por un humano" aria-label="Este análisis ha sido revisado por un humano"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg> Revisado</span>`
+        : '';
       const docName = analysis.downloadBase ? `${analysis.downloadBase}.pdf` : (analysis.filename ?? 'informe.pdf');
+      const versionTag = analysis.version
+        ? ` <span class="analysis-version-tag" title="Versión del análisis">v${escapeHtml(analysis.version)}</span>`
+        : '';
       const tickerInitial = (ticker || company || '?').slice(0, 1).toUpperCase();
       const status = analysis.status === 'done'
         ? '<span class="table-status done"><i></i> Completado</span>'
@@ -2251,9 +2520,9 @@
       const downloadName = analysis.downloadBase || 'analisis-cifra';
       return `
         <tr data-id="${escapeHtml(analysis.id)}" data-pdf-url="${escapeHtml(analysis.pdf_url ?? '')}" data-download-base="${escapeHtml(fileBaseUrl)}" data-download-name="${escapeHtml(downloadName)}" tabindex="0" title="${escapeHtml(analysis.filename ?? '')}">
-          <td><span class="table-file" data-letter="${escapeHtml(tickerInitial)}">${ticker ? `<img class="table-file-logo" src="https://companiesmarketcap.com/img/company-logos/64/${escapeHtml(ticker)}.webp" alt="" loading="lazy">` : ''}</span><strong>${escapeHtml(docName)}</strong></td>
+          <td><span class="table-file" data-letter="${escapeHtml(tickerInitial)}">${ticker ? `<img class="table-file-logo" src="https://companiesmarketcap.com/img/company-logos/64/${escapeHtml(ticker)}.webp" alt="" loading="lazy">` : ''}</span><strong>${escapeHtml(docName)}</strong>${versionTag}</td>
           <td><strong>${escapeHtml(company)}</strong> ${ticker ? `<span class="td-ticker">${escapeHtml(ticker)}</span>` : ''}</td>
-          <td>${escapeHtml(periodTitle)}</td>
+          <td>${escapeHtml(periodTitle)} ${typeBadge} ${reviewedPill}</td>
           <td>${formatHistoryDate(analysis.period_end)}</td>
           <td>${formatHistoryDate(analysis.created_at)}</td>
           <td>${status}</td>
@@ -2525,6 +2794,65 @@
       }
     });
 
+    const versionsToggle = document.querySelector('#analysis-versions-toggle');
+    versionsToggle?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const menu = document.querySelector('#analysis-versions-menu');
+      if (!menu) return;
+      const willOpen = menu.hidden;
+      menu.hidden = !willOpen;
+      versionsToggle.setAttribute('aria-expanded', String(willOpen));
+      if (willOpen) renderAnalysisVersionsMenu();
+    });
+
+    document.addEventListener('click', async (event) => {
+      const versionAction = event.target.closest('#analysis-versions-menu [data-version-action]');
+      if (versionAction) {
+        const item = versionAction.closest('.analysis-version-item');
+        const entry = currentAnalysisVersions.find((version) => String(version.id) === String(item?.dataset.versionId));
+        if (!entry) return;
+        const action = versionAction.dataset.versionAction;
+        if (action === 'view') {
+          try {
+            const response = await fetch(`/api/analyses/${entry.id}`);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.analysis?.report) {
+              showToast('No se pudo cargar esa versión del análisis.');
+              return;
+            }
+            loadReportData(data.analysis, { updateHistory: false });
+            document.querySelector('#result-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } catch {
+            showToast('No se pudo conectar con el servidor.');
+          }
+        } else {
+          downloadReport(action, entry.downloadBase, entry.downloadBase || 'analisis-cifra');
+        }
+        return;
+      }
+      if (!event.target.closest('#analysis-version-box')) closeAnalysisVersionsMenu();
+    });
+
+    const versionUpgradeBtn = document.querySelector('#analysis-version-upgrade');
+    versionUpgradeBtn?.addEventListener('click', () => {
+      const ticker = currentAnalysisTicker;
+      const accession = currentAnalysisAccession;
+      if (!ticker || !accession) {
+        showToast('Este análisis no se puede regenerar automáticamente.');
+        return;
+      }
+      const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || currentUser?.isAdmin);
+      if (currentAnalysisIsReviewed && !isAdmin) {
+        showToast('Este análisis ha sido revisado por un humano. Solo un administrador puede regenerarlo.');
+        return;
+      }
+      const target = currentAnalysisCurrentVersion ? `la versión ${currentAnalysisCurrentVersion}` : 'la versión más reciente';
+      if (!confirm(`¿Regenerar el análisis de ${ticker} con ${target}?\n\nSe genera un análisis nuevo (consume cupo diario) y la versión actual se conserva en el historial de versiones.`)) {
+        return;
+      }
+      runFilingAnalysis(ticker, accession, { upgrade: true });
+    });
+
     newAnalysis?.addEventListener('click', () => {
       const resultPreview = document.querySelector('#result-preview');
       if (resultPreview) resultPreview.hidden = true;
@@ -2532,6 +2860,7 @@
       if (secAnalysisEntry) secAnalysisEntry.hidden = false;
       pendingFiling = null;
       currentAnalysisId = null;
+      resetAnalysisVersionState();
       loadAnalysisFeedback(null);
       clearFile();
       try { history.replaceState(null, '', '/analisis'); } catch {}
@@ -2602,12 +2931,18 @@
       radio.addEventListener('change', fetchAnalyses);
     });
 
+    document.querySelectorAll('input[name="history-report-type"]').forEach((radio) => {
+      radio.addEventListener('change', fetchAnalyses);
+    });
+
     historyClear?.addEventListener('click', () => {
       if (historyCompanyInput) historyCompanyInput.value = '';
       if (historyFromInput) historyFromInput.value = '';
       if (historyToInput) historyToInput.value = '';
       const radio = document.querySelector('input[name="history-date-type"][value="period"]');
       if (radio) radio.checked = true;
+      const reportTypeRadio = document.querySelector('input[name="history-report-type"][value="all"]');
+      if (reportTypeRadio) reportTypeRadio.checked = true;
       closeHistorySuggestions();
       fetchAnalyses();
     });
@@ -2653,7 +2988,7 @@
       const accession = currentAnalysisAccession || pendingFiling?.accession;
       if (!ticker || !accession) {
         if (currentAnalysisId) {
-          if (!confirm('¿Deseas volver a generar este informe con IA?\n\n⚠️ Se eliminará el informe actual y se volverá a analizar desde SEC EDGAR.')) {
+          if (!confirm('¿Deseas volver a generar este informe con IA?\n\nSe creará una versión nueva y se conservarán las anteriores.')) {
             return;
           }
           startAnalysisUi('Regenerando informe con IA…');
@@ -2675,10 +3010,41 @@
         return;
       }
 
-      if (!confirm(`¿Deseas volver a generar el informe de ${ticker} (${accession}) con IA?\n\n⚠️ Se eliminará el informe anterior y se generará uno nuevo desde SEC EDGAR.`)) {
+      if (!confirm(`¿Deseas volver a generar el informe de ${ticker} (${accession}) con IA?\n\nSe creará una versión nueva desde SEC EDGAR y se conservarán las anteriores.`)) {
         return;
       }
       runFilingAnalysis(ticker, accession, { force: true });
+    });
+
+    // Checkbox de estado de análisis revisado (solo administradores)
+    const reviewedCheckbox = document.querySelector('#analysis-reviewed-checkbox');
+    reviewedCheckbox?.addEventListener('change', async () => {
+      if (!currentAnalysisId) return;
+      const willBeReviewed = reviewedCheckbox.checked;
+      try {
+        const response = await fetch(`/api/analyses/${currentAnalysisId}/review`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isReviewed: willBeReviewed }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+          reviewedCheckbox.checked = !willBeReviewed;
+          showToast(data.error || 'No se pudo actualizar el estado de revisión.');
+          return;
+        }
+        currentAnalysisIsReviewed = Boolean(data.isReviewed);
+        analysisVersionsCache.clear();
+        renderAnalysisVersionControl();
+        showToast(data.isReviewed
+          ? 'Análisis marcado como revisado por humano 🛡️'
+          : 'Revisión por humano desmarcada'
+        );
+        refreshAnalysisVersions();
+      } catch {
+        reviewedCheckbox.checked = !willBeReviewed;
+        showToast('Error de conexión con el servidor.');
+      }
     });
 
     // Configuración de reporte de incidencias

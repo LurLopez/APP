@@ -1,6 +1,7 @@
 # Reglas Generales de Análisis Financiero (Cifra)
 
 > Nivel 1 — Marco Universal aplicable a todas las empresas, sectores y subsectores.
+> Versión: 0
 
 ---
 
@@ -110,9 +111,11 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
        Esta formulación expresa directamente el impacto de caja: una inversión necesaria de circulante aparece con signo negativo. Es equivalente a $-(\text{Inventario} + \text{Cuentas por cobrar} - \text{Cuentas por pagar}) \times (\text{inflación} + \text{volumen})$.
        Si no existe dato de volumen, se fija en 0 %. Si no existe inflación propia de la empresa, se utiliza la hipótesis sectorial definida para el sector y se etiqueta como estimación.
      3. **Ajuste del Flujo**: Se descuenta la diferencia entre el circulante base y el teórico ($\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - (\text{WC}_{\text{base}} - \text{WC}_{\text{teórico}})$), recalculando FCF, FCF/Acción y Libre.
-      4. **Normalización fiscal del Cash Flow**: Si están disponibles el gasto fiscal y una línea de impuestos diferidos / impuestos a pagar, se estiman los impuestos corrientes como `Gasto fiscal - Ajuste fiscal del cash flow`. El Cash Flow Ajustado incorpora la diferencia frente al 23 % del EBT Ajustado, independientemente de que el tipo efectivo de resultados sea normal o anómalo.
-     - Además, el desfase entre el efectivo fiscal estimado y el impuesto normalizado debe estar dentro de un rango de `-20 %` a `+20 %` sobre el impuesto normalizado. Si supera ese intervalo, no se corrige automáticamente y se conserva el dato reportado, porque puede incluir liquidaciones de ejercicios anteriores u otros movimientos no identificados.
-     - **Ejemplo**: EBT 100M, beneficio neto 90M, gasto fiscal 10M, ajuste fiscal del cash flow -20M: impuestos pagados estimados = 30M. Con impuestos normalizados del 23% = 23M, el Cash Flow Ajustado recibe un ajuste de +7M.
+       4. **Normalización fiscal del Cash Flow**: El trabajo analítico consiste en calcular cuántos impuestos debería pagar la empresa en realidad (23 % sobre el EBT ajustado) y cuánto consta que ha pagado en los cash flows (bien directamente por la línea de efectivo pagado como "Income tax (paid) received" / "Income taxes paid", o bien mediante la conciliación "Gasto fiscal - Ajuste fiscal del cash flow / impuestos diferidos"). Si existe una discrepancia entre los impuestos pagados y los normalizados, se ajusta el Cash Flow en la columna Ajustado:
+          $$\text{Ajuste fiscal} = \text{Impuestos pagados en efectivo} - (0,23 \times \text{EBT Ajustado})$$
+          $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{ajustado por WC}} + \text{Ajuste fiscal}$$
+          Si la empresa pagó menos impuestos de lo normalizado, el Cash Flow disminuye (ajuste negativo); si pagó más, aumenta (ajuste positivo). Este ajuste se aplica ante cualquier discrepancia material para corregir la distorsión del flujo operativo, añadiéndose la Nota `*2: Impuestos: ...` con el desglose exacto de lo que debería haber pagado frente a lo pagado realmente.
+      - **Ejemplo**: EBT ajustado 1.385,4M, impuestos normalizados al 23 % = 318,6M. Si en el estado de flujos consta que pagó 131,4M, ha pagado 187,2M de menos: el Cash Flow Ajustado resta -187,2M y se añade la Nota `*2`. Si el EBT ajustado fuese 100M (23M normalizados) y pagó 30M, el Cash Flow Ajustado recibe +7M.
   - Queda estrictamente prohibido renderizar una sola columna en este bloque o duplicar los mismos valores en ambas columnas. Cada fila debe contener dos valores comparativos distintos cuando exista impacto de circulante. Queda prohibido dejar puntos suspensivos `(WC=...)` en las cabeceras; deben figurar los importes numéricos concretos.
 
 - **Deducción Trimestral Sistemática para Q2, Q3 y Q4**:
@@ -172,12 +175,21 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
     * **Convención de signos**:
       - Si la caja ha aumentado: Signo **NEGATIVO (-)** (se ha asignado o gastado capital en incrementar la caja).
       - Si la caja ha disminuido: Signo **POSITIVO (+)** (la reducción de tesorería actúa como fuente de liquidez para financiar otros usos).
+    * **Referencia obligatoria**: la fila `Caja` se calcula SIEMPRE con los saldos del balance general; nunca con el cambio neto de efectivo del estado de flujos de caja. Su cifra y la nota al pie deben coincidir con la variación del saldo de caja del balance.
+  - **Efectivo restringido / escrow**:
+    * Variación del efectivo restringido o en escrow (línea "Restricted cash" del balance o de la conciliación del estado de flujos), que no forma parte de la fila `Caja` (efectivo y equivalentes no restringido): si **disminuye** (se libera para pagos), Signo **POSITIVO (+)** (fuente de fondos); si **aumenta** (se consigna), Signo **NEGATIVO (-)** (uso). Fila `Efectivo restringido` si la variación es $\ge 50\text{M}$.
   - **Desinversiones (venta de marcas / negocios / activos)**:
     * Si la empresa ha obtenido ingresos por la venta de marcas, negocios, filiales o activos (incluye `proceeds from sales of property, plant, equipment and other assets` y desinversiones de negocios materiales $\ge 50\text{M}$ en conjunto): Signo **POSITIVO (+)** (fuente de fondos). Si en el horizonte analizado no hubo venta o su importe fue marginal (< 50M) o 0, **la fila no debe aparecer en la tabla**.
   - **Adquisiciones (compra de negocios)**:
-    * Si la empresa ha pagado por la compra de negocios o empresas (`Acquisition of business, net of cash acquired`, `Payments to acquire businesses`) un importe material $\ge 50\text{M}$: Signo **NEGATIVO (-)** (uso de capital). **La fila `Adquisiciones` es OBLIGATORIA siempre que exista una adquisición material en el horizonte: prohibido omitirla**. Si no hubo adquisiciones o fueron marginales (< 50M), la fila no aparece.
+    * Si la empresa ha pagado por la compra de negocios o empresas (`Acquisitions of businesses, net of cash acquired`, `Acquisition of business, net of cash acquired`, `Payments to acquire businesses`) un importe material $\ge 50\text{M}$: Signo **NEGATIVO (-)** (uso de capital). **La fila `Adquisiciones` es OBLIGATORIA siempre que exista una adquisición material en el horizonte: prohibido omitirla**. Si no hubo adquisiciones o fueron marginales (< 50M), la fila no aparece.
   - **Recompras**:
     * Salida de capital destinada a compra de acciones propias: Signo **NEGATIVO (-)** (uso de capital). Si en el periodo analizado es 0, **la fila no debe aparecer en la tabla**.
+  - **Financiación de capital (preferentes y participaciones no controladoras)**:
+    * Entradas de caja por emisión de acciones preferentes ("Net proceeds from issuance of convertible preferred stock") o por venta de participaciones no controladoras manteniendo el control de la filial ("Net proceeds from sale of non-controlling interest"): Signo **POSITIVO (+)** (fuente de capital). Fila(s) `Emisión de preferentes` y/o `Venta de participaciones` si cada una es $\ge 50\text{M}$. No son deuda ni desinversión (la filial sigue consolidando).
+  - **Deuda asumida (no-cash)**:
+    * Si hubo una adquisición material y el aumento de deuda del balance supera el flujo neto de deuda emitida menos amortizada del estado de flujos de financiación, la diferencia es deuda asumida en la compra (no supone entrada de caja): Signo **NEGATIVO (-)** en la fila `Deuda asumida (no-cash)`, con importe `Δdeuda balance − flujo neto de deuda`, si es $\ge 50\text{M}$. Corrige la fila `Deuda` para que el cuadre refleje solo la deuda que aportó caja.
+    * **Nota obligatoria**: la nota de esta fila debe desglosar el aumento de deuda del balance en sus dos componentes: `X M de deuda emitida/amortizada con caja` y `Y M de deuda ya existente en la empresa adquirida que se asume con la compra (no-cash, no supone entrada de caja)`, explicando que esa parte se resta en el cuadre.
+    * **Nota trimestral con financiación previa**: si en `ÚLTIMOS 3 MESES` hay una adquisición material financiada con recursos levantados en trimestres anteriores (preferentes, participaciones o efectivo restringido/escrow) y el 10-Q solo publica el estado de flujos acumulado, se añade una nota explicando que la suma trimestral no puede cerrar exactamente y por qué.
   - **Filtro de significatividad**: Si una partida no se ha producido en el periodo o su importe es marginal (< 50M), **la fila no debe aparecer en la tabla**. Solo se muestran las partidas materiales que explican el destino o procedencia del capital.
 
 - **Convención Cromática en Cifras Numéricas**:
@@ -188,18 +200,16 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
   - Al pie de la tabla se calcula la suma algebraica con signo:
     $$\text{En total} = \text{Libre} + \sum \text{Usos/Fuentes de Capital}$$
   - A continuación se emite el veredicto textual con estricto criterio analítico:
-    1. **Cuadre razonable (diferencia residual cercana a 0 o menor al 20% del Libre)**:
-       - Si el valor absoluto de la suma es $\le 200$ (o diferencia menor respecto a la magnitud de los flujos):
+    1. **Cuadre razonable (umbral relativo)**: el residuo es aceptable si $|\text{En total}| \le \max(50\text{M},\ 20\,\%\ \text{del Libre},\ 10\,\%\ \text{de la suma bruta de movimientos})$.
        > `"Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle."` (o `"El resultado cuadra."` si la discrepancia es nula).
-    2. **Descuadre significativo (alerta de análisis a fondo)**:
-       - Si la suma final difiere significativamente de 0:
+    2. **Descuadre significativo (alerta de análisis a fondo)**: si supera ese umbral:
        > `"No cuadra. Hay una discrepancia significativa entre el capital libre y los usos detectados; se deberá analizar más a fondo."`
 
 - **Notas Obligatorias al Pie de Asignación de Capital**:
-  1. **Nota Comparativa de Deuda Bruta y Deuda Neta (Siempre obligatoria)**:
-     - Se debe incluir siempre y de forma explícita el desglose comparativo tanto de la deuda de balance como de la deuda neta ($\text{Deuda neta} = \text{Deuda balance} - (\text{Caja} + \text{Inversiones corto plazo})$):
-       $$\text{Formato: } \text{Deuda balance: } <\text{anterior}>\text{M} \rightarrow <\text{actual}>\text{M } (<\Delta \text{deuda}>\text{M}). \text{ Deuda neta: } <\text{anterior neta}>\text{M} \rightarrow <\text{actual neta}>\text{M } (<\Delta \text{deuda neta}>\text{M}).$$
-       *(Ejemplo exacto: `*2: Deuda balance: 8064M -> 7332M (-732M). Deuda neta: 7996M -> 6257M (-1739M).` — donde 7996 = 8064 − (68 de caja + 0 de inversiones) y 6257 = 7332 − (55 + 1020), siguiendo la fórmula Deuda Neta = Deuda Balance − (Caja + Inversiones a corto plazo)).*
+  1. **Nota Comparativa de Deuda Bruta, Deuda Neta y Caja Balance (Siempre obligatoria)**:
+     - Se debe incluir siempre y de forma explícita el desglose comparativo de la deuda de balance, la deuda neta ($\text{Deuda neta} = \text{Deuda balance} - (\text{Caja} + \text{Inversiones corto plazo})$) y la caja del balance:
+       $$\text{Formato: } \text{Deuda balance: } <\text{anterior}>\text{M} \rightarrow <\text{actual}>\text{M } (<\Delta \text{deuda}>\text{M}). \text{ Deuda neta: } <\text{anterior neta}>\text{M} \rightarrow <\text{actual neta}>\text{M } (<\Delta \text{deuda neta}>\text{M}). \text{ Caja balance: } <\text{anterior}>\text{M} \rightarrow <\text{actual}>\text{M } (<\Delta \text{caja}>\text{M})\text{; la caja aumentó: uso de capital (-) / la caja disminuyó: fuente de liquidez (+); fila Caja = }<\text{valor}>\text{M}.$$
+       *(La fila `Caja` se calcula SIEMPRE por la variación de saldos del balance, con el signo invertido, y su cifra debe coincidir con la nota. Si el estado de flujos presenta un cambio neto de efectivo distinto, se explica la diferencia en la nota (efectivo restringido, efecto divisa u otras partidas no monetarias). Ejemplo: `*2: Deuda balance: 8064M -> 7332M (-732M). Deuda neta: 7996M -> 6257M (-1739M). Caja balance: 68M -> 55M (-13M); la caja disminuyó: fuente de liquidez (+); fila Caja = 13.`)*
   2. **Nota de Adquisiciones / Desinversiones (Venta o Compra de Marcas, Negocios o Activos)**:
      - Si la tabla recoge movimientos materiales por adquisiciones (compra de negocios) o desinversiones (venta de marcas, negocios o activos):
        - Se debe explicar siempre con un **breve texto qué marca, división, negocio o activo concreto se ha comprado o vendido**, identificándolo a partir del informe 10-Q/10-K (campos `acquisitionDescription` / `divestitureDescription` del JSON si están presentes).
@@ -230,6 +240,7 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
   - **Ajuste / Nota 5**: Celeste pastel (`#bae6fd`, texto `#0369a1`)
   - **Ajuste / Nota 6**: Rosa pastel (`#fbcfe8`, texto `#be185d`)
 - **Moneda y Millones**: Todas las cifras monetarias en **millones de dólares estadounidenses** con sufijo **`M`** (ej. `2788M`). Símbolo **`$`** para precios y ratios por acción (ej. `0,83 $`).
+- **Decimales**: todas las cifras (flujos, asignación de capital, etc.) llevan **como máximo 2 decimales** tras la coma y nunca muestran artefactos de coma flotante (ej. prohibido `1827,1000000000004`; correcto `1827,1`).
 - **Porcentajes**: Con **coma decimal**, dos decimales y signo explícito.
 - **Datos no disponibles**: Utilizar un guion largo **`—`**. **Bajo ninguna circunstancia se inventarán o estimarán cifras sin evidencia documental.**
 - **Idioma y Tono**: Redacción íntegra en **español profesional**. Tono de analista financiero senior: riguroso, crítico, independiente y con criterio propio en las notas explicativas.

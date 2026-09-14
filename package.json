@@ -11,9 +11,12 @@
     "db:seed": "node --env-file=.env db/seed.js",
     "test:email": "node --env-file=.env scripts/test-email.js",
     "analyze:consumer": "node --env-file=.env scripts/analyze-defensive-consumer.js",
-    "worker:opencode": "node --env-file=.env scripts/analyze-defensive-consumer.js"
+    "worker:opencode": "node --env-file=.env scripts/analyze-defensive-consumer.js",
+    "commit": "./commit-development.sh",
+    "commit:dev": "./commit-development.sh"
   },
   "dependencies": {
+    "@google-analytics/data": "^7.1.0",
     "@resvg/resvg-js": "^2.6.2",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",

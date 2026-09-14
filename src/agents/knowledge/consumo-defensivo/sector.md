@@ -1,6 +1,7 @@
 # Sector: Consumo Defensivo (Consumer Staples)
 
 > Nivel 2 — Reglas transversales aplicables a todas las empresas de bienes de consumo defensivo / básico.
+> Versión: 1
 
 ---
 
@@ -60,20 +61,25 @@
      * Excluye estrictamente las cuentas a pagar a proveedores (*Accounts Payable*), que forman parte del Working Capital del Cash Flow.
    - **Fórmula de Deuda Neta**:
      $$\text{Deuda Neta} = \text{Deuda Balance} - (\text{Efectivo y equivalentes} + \text{Inversiones a corto plazo})$$
-   - **Deuda, Caja e Inversiones desde el Balance**: Se calculan comparando saldos de balance (trimestre actual vs trimestre anterior en 3M; trimestre actual vs principio de año fiscal en acumulado). La variación de deuda de la fila de la tabla y la reportada en la nota al pie deben ser estrictamente idénticas.
+   - **Deuda, Caja e Inversiones desde el Balance**: Se calculan comparando saldos de balance (trimestre actual vs trimestre anterior en 3M; trimestre actual vs principio de año fiscal en acumulado). La caja y la deuda se miden SIEMPRE por la variación de saldos del balance; queda prohibido tomar el cambio neto de efectivo del estado de flujos de caja como valor de las filas `Caja` o `Deuda`. La variación de deuda de la fila de la tabla y la reportada en la nota al pie deben ser estrictamente idénticas; lo mismo para la caja.
    - **Unicidad Estricta de Filas**: Cada métrica (Libre, Inversiones, Desinversiones, Adquisiciones, Recompras, Caja, Deuda, En total) figura **exactamente una única vez en la tabla**. Queda terminantemente prohibido duplicar la fila de Caja o cualquier otra.
-   - **Nota Obligatoria de Deuda Balance y Deuda Neta**:
+   - **Nota Obligatoria de Deuda Balance, Deuda Neta y Caja Balance**:
      Toda tabla de asignación de capital debe incluir la nota con el desglose exacto:
-     > `*N: Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M).`
+     > `*N: Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M). Caja balance: <anterior>M -> <actual>M (<variación>M); la caja aumentó: uso de capital (-) / la caja disminuyó: fuente de liquidez (+); fila Caja = <valor de la fila>M.`
+     La fila `Caja` debe coincidir exactamente con la variación del saldo de caja del balance (con el signo invertido) y con la cifra de la nota. Si el estado de flujos de caja presenta un cambio neto de efectivo distinto al del balance (efectivo restringido, efecto divisa u otras partidas no monetarias), se explica la diferencia en la propia nota, citando la partida o nota del informe 10-Q/10-K que la origina. La referencia de la fila y de la nota es SIEMPRE el balance.
    - **Vinculación y Resaltado Cromático de Métricas**:
      Las filas de la tabla correspondientes a notas al pie llevan la llamada en el nombre de la métrica y se resaltan con el color de dicha nota:
       * `Venta de marcas*1`: Resaltado con el color de la nota de desinversión (ej. amarillo `#fef08a`).
       * `Adquisiciones*1`: Resaltado con el color de la nota de adquisición (ej. amarillo `#fef08a`).
-     * `Caja*2`, `Deuda*2` (y, si existe, `Inversiones a corto plazo*2`): Hacen referencia conjunta a la nota de deuda balance/neta y se resaltan obligatoriamente con el color de esa nota (ej. naranja `#fed7aa`).
+      * `Caja*2`, `Deuda*2` (y, si existe, `Inversiones a corto plazo*2`): Hacen referencia conjunta a la nota de deuda balance/neta y caja balance, y se resaltan obligatoriamente con el color de esa nota (ej. naranja `#fed7aa`).
    - **Signos obligatorios**:
      * Inversiones a corto plazo: flujo **neto** de valores negociables = ventas/cobros − compras (ej. compras de 1.724 y ventas de 686 => -1038). Negativo (-) si el neto es comprador (uso de capital), positivo (+) si el neto es vendedor (fuente). Si no consta el detalle de flujos, usar la variación del saldo de balance. Omitir si el neto es marginal (< 50M) o 0.
      * Deuda: Positivo (+) si aumenta (fuente), negativo (-) si disminuye (amortización/uso).
      * Caja: Negativo (-) si aumenta (uso para dotar tesorería), positivo (+) si disminuye (fuente de liquidez).
+     * Efectivo restringido/escrow (fila `Efectivo restringido`, si la variación es >= 50M): negativo (-) si aumenta (consignación), positivo (+) si disminuye (liberación). Es distinto de la fila `Caja`, que usa solo el efectivo y equivalentes no restringidos del balance.
     - **Desinversiones (venta de marcas / negocios / activos)**: Entradas netas por desinversiones materiales (>= 50M, incluye venta de activos) figuran con signo positivo (+). Si en el horizonte es < 50M o 0, se omite la fila.
-    - **Adquisiciones (compra de negocios)**: Salidas netas por compra de negocios (`Acquisition of business, net of cash acquired`, >= 50M) figuran con signo negativo (-). **Fila OBLIGATORIA si existe una adquisición material en el horizonte: prohibido omitirla.** Si no hubo o fue marginal (< 50M), se omite.
+    - **Adquisiciones (compra de negocios)**: Salidas netas por compra de negocios (`Acquisitions of businesses, net of cash acquired`, `Acquisition of business, net of cash acquired`, >= 50M) figuran con signo negativo (-). **Fila OBLIGATORIA si existe una adquisición material en el horizonte: prohibido omitirla.** Si no hubo o fue marginal (< 50M), se omite.
     - **Recompras**: Salida de capital con signo negativo (-). Si en el horizonte es 0, se omite.
+    - **Financiación de capital**: entradas por emisión de preferentes (`Emisión de preferentes`, +) y por venta de participaciones no controladoras manteniendo el control (`Venta de participaciones`, +). No son deuda ni desinversión; cada fila se incluye si es >= 50M.
+    - **Deuda asumida (no-cash)**: si hubo adquisición material y el flujo de caja neto de deuda del estado de flujos no cubre el aumento de deuda del balance, la diferencia es deuda asumida en la compra (no-cash) y se muestra con signo negativo (-) en `Deuda asumida (no-cash)` (>= 50M), corrigiendo la fila `Deuda` para que el cuadre refleje solo la deuda con entrada de caja. La nota debe desglosar el aumento de deuda entre `deuda emitida/amortizada con caja` y `deuda asumida con la compra (no-cash)`, aclarando que esta última no supone entrada de caja y se resta en el cuadre.
+    - **Nota trimestral con financiación previa**: si en `ÚLTIMOS 3 MESES` hay una adquisición material financiada con recursos levantados en trimestres anteriores (preferentes, participaciones o efectivo restringido/escrow) y el 10-Q solo publica el estado de flujos acumulado, se añade una nota explicando que la suma trimestral no puede cerrar exactamente y por qué.

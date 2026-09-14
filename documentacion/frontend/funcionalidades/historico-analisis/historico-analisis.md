@@ -40,8 +40,8 @@ Clic en una fila (o botón ↗) → abre pdfUrl en pestaña nueva
 | Elemento | Detalle |
 |---|---|
 | Título | "Mis análisis" (eyebrow ACTIVIDAD) + botón "Actualizar ↻" |
-| Filtros (`#history-filters`, ocultos sin sesión) | Input Empresa (ticker o nombre), radio fecha resultados/análisis, Desde/Hasta (date), botón Limpiar |
-| Tabla (`#history-table`) | Documento, Empresa, Periodo, Fecha resultados, Fecha análisis, Estado, columna de acción (↗) |
+| Filtros (`#history-filters`, ocultos sin sesión) | Input Empresa (ticker o nombre), selector Tipo de informe (Ambos, Trimestrales 10-Q, Anuales 10-K), radio fecha resultados/análisis, Desde/Hasta (date), botón Limpiar |
+| Tabla (`#history-table`) | Documento, Empresa, Periodo (con badge de tipo 10-K/10-Q y badge de Revisado si aplica), Fecha resultados, Fecha análisis, Estado, columna de acción (↗) |
 | Vacío (`#history-empty`) | Texto según el caso + botón "Iniciar sesión" (sin sesión) |
 
 ## 5. Estados

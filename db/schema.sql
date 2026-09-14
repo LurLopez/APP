@@ -56,6 +56,17 @@ ALTER TABLE analyses ADD COLUMN IF NOT EXISTS source_url TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS accession TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS version TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS subsector TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS sector_version TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS is_reviewed BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS reviewed_by INT REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_analyses_reviewed ON analyses (is_reviewed);
+-- Análisis creados antes del versionado jerárquico (sin sector_version): su versión
+-- antigua no es comparable con la compuesta general.sector[.subsector][.empresa],
+-- así que se marca como desconocida para ofrecer su regeneración con la vigente.
+-- Idempotente: al quedar version y sector_version a NULL ya no vuelve a aplicarse.
+UPDATE analyses SET version = NULL WHERE version IS NOT NULL AND sector_version IS NULL;
 CREATE INDEX IF NOT EXISTS idx_analyses_ticker_accession ON analyses (ticker, accession);
 CREATE INDEX IF NOT EXISTS idx_analyses_public_created ON analyses (is_public, created_at DESC);
 UPDATE analyses

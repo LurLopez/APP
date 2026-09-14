@@ -5882,6 +5882,200 @@ function formatFilingDate(dateString) {
   return date.toLocaleDateString('es-ES');
 }
 
+/* ── Menú de versiones por informe (hamburguesa) ─────────────── */
+
+const filingsVersionsCache = new Map();
+let filingsVersionPopover = null;
+let filingsVersionRequestId = 0;
+
+function getFilingsVersionPopover() {
+  if (!filingsVersionPopover) {
+    filingsVersionPopover = document.createElement('div');
+    filingsVersionPopover.className = 'filing-version-popover';
+    filingsVersionPopover.hidden = true;
+    document.body.appendChild(filingsVersionPopover);
+    document.addEventListener('click', (event) => {
+      if (filingsVersionPopover.hidden) return;
+      const actionEl = event.target.closest('[data-popup-action]');
+      if (actionEl && filingsVersionPopover.contains(actionEl)) {
+        event.preventDefault();
+        if (actionEl.dataset.popupAction === 'upgrade') {
+          startFilingUpgradeFromPopover();
+        } else if (actionEl.dataset.popupAction === 'view') {
+          viewFilingAnalysisVersion(actionEl.dataset.analysisId);
+        }
+        return;
+      }
+      if (!event.target.closest('.filing-analyze-group') && !filingsVersionPopover.contains(event.target)) {
+        closeFilingsVersionMenu();
+      }
+    });
+    window.addEventListener('scroll', () => closeFilingsVersionMenu(), true);
+    window.addEventListener('resize', () => closeFilingsVersionMenu());
+  }
+  return filingsVersionPopover;
+}
+
+function closeFilingsVersionMenu() {
+  if (!filingsVersionPopover) return;
+  filingsVersionRequestId += 1;
+  filingsVersionPopover.hidden = true;
+  document.querySelectorAll('button[data-action="versions-menu"][aria-expanded="true"]').forEach((button) => {
+    button.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function positionFilingsVersionPopover(button) {
+  const popover = getFilingsVersionPopover();
+  const rect = button.getBoundingClientRect();
+  const width = popover.offsetWidth || 330;
+  const height = popover.offsetHeight || 220;
+  const left = Math.min(Math.max(8, rect.right - width), Math.max(8, window.innerWidth - width - 8));
+  const top = (window.innerHeight - rect.bottom < height + 12 && rect.top > height + 24)
+    ? rect.top - height - 6
+    : rect.bottom + 6;
+  popover.style.left = `${left}px`;
+  popover.style.top = `${Math.min(Math.max(8, top), Math.max(8, window.innerHeight - height - 8))}px`;
+}
+
+function renderFilingVersionRow(entry) {
+  const versionLabel = entry.version ? `v${escapeHtml(entry.version)}` : 'Sin versión';
+  const dateLabel = entry.createdAt ? new Date(entry.createdAt).toLocaleDateString('es-ES') : '';
+  const base = entry.downloadBase ? String(entry.downloadBase) : '';
+  const isReviewed = Boolean(entry.isReviewed ?? entry.is_reviewed);
+  const reviewedBadge = isReviewed
+    ? `<span class="analysis-reviewed-mini-badge" title="Este análisis ha sido revisado por un humano" aria-label="Este análisis ha sido revisado por un humano"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg> Revisado</span>`
+    : '';
+  return `<div class="filing-version-row">
+    <div class="filing-version-row-info">
+      <strong>${versionLabel} ${reviewedBadge}</strong>
+      <span>${escapeHtml(dateLabel)}${entry.modelUsed ? ` · ${escapeHtml(entry.modelUsed)}` : ''}</span>
+    </div>
+    <div class="filing-version-row-actions">
+      <button type="button" class="row-action" data-popup-action="view" data-analysis-id="${escapeHtml(entry.id)}" title="Ver esta versión">Ver</button>
+      ${base ? `<a class="row-action" href="${escapeHtml(base)}.pdf?download=1" download title="Descargar PDF">PDF</a><a class="row-action" href="${escapeHtml(base)}.docx?download=1" download title="Descargar Word">DOCX</a><a class="row-action" href="${escapeHtml(base)}.odt?download=1" download title="Descargar ODT">ODT</a>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderFilingsVersionPopover(data) {
+  const popover = getFilingsVersionPopover();
+  const versions = Array.isArray(data?.versions) ? data.versions : [];
+  const current = versions[0] ?? null;
+  const previous = versions.slice(1);
+  const currentLabel = current?.version ? `v${escapeHtml(current.version)}` : 'Sin versión';
+  const isReviewed = Boolean(current?.isReviewed ?? current?.is_reviewed ?? data?.isReviewed);
+  const reviewedBadge = isReviewed
+    ? `<span class="analysis-reviewed-mini-badge" title="Este análisis ha sido revisado por un humano" aria-label="Este análisis ha sido revisado por un humano"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg> Revisado</span>`
+    : '';
+  const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || window.currentUser?.isAdmin);
+
+  let html = `<div class="filing-version-popover-head"><span>Versión actual</span><strong>${currentLabel} ${reviewedBadge}</strong></div>`;
+  if (data?.versionOutdated) {
+    if (!isReviewed || isAdmin) {
+      const target = data.currentVersion ? `v${escapeHtml(data.currentVersion)}` : 'la versión vigente';
+      html += `<button type="button" class="filing-version-upgrade" data-popup-action="upgrade">Actualizar a ${target} ✨<small>Regenera con las reglas vigentes y conserva las versiones anteriores</small></button>`;
+    } else {
+      html += '<div class="filing-version-reviewed-notice">🛡️ Este análisis ha sido revisado por un humano. Solo un administrador puede regenerarlo.</div>';
+    }
+  } else {
+    html += '<div class="filing-version-uptodate">✓ Análisis en la versión vigente</div>';
+  }
+  if (previous.length) {
+    html += `<div class="filing-version-popover-sub">Versiones anteriores (${previous.length})</div><div class="filing-version-list">${previous.map(renderFilingVersionRow).join('')}</div>`;
+  } else {
+    html += '<div class="filing-version-popover-sub">Versiones anteriores</div><div class="filing-version-empty">Todavía no hay versiones anteriores.</div>';
+  }
+  popover.innerHTML = html;
+}
+
+async function openFilingsVersionMenu(button) {
+  const ticker = button.dataset.ticker;
+  const accession = button.dataset.accession;
+  const fallbackVersion = button.dataset.currentVersion || '';
+  const fallbackOutdated = button.dataset.outdated === '1';
+  const fallbackReviewed = button.dataset.reviewed === '1';
+  const popover = getFilingsVersionPopover();
+  closeFilingsVersionMenu();
+  const requestId = filingsVersionRequestId;
+  popover.dataset.ticker = ticker;
+  popover.dataset.accession = accession;
+  popover.dataset.currentVersion = fallbackVersion;
+  popover.dataset.reviewed = fallbackReviewed ? '1' : '0';
+  button.setAttribute('aria-expanded', 'true');
+  popover.innerHTML = '<div class="filing-version-loading"><span class="loading-spinner-sm"></span> Cargando versiones…</div>';
+  popover.hidden = false;
+  positionFilingsVersionPopover(button);
+
+  const key = `${ticker}|${accession}`;
+  let data = filingsVersionsCache.get(key);
+  if (!data) {
+    try {
+      const response = await fetch(`/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/versions`);
+      const payload = await response.json().catch(() => ({}));
+      data = response.ok && payload.ok
+        ? payload
+        : { ok: false, versions: [], currentVersion: fallbackVersion, versionOutdated: fallbackOutdated, isReviewed: fallbackReviewed };
+    } catch {
+      data = { ok: false, versions: [], currentVersion: fallbackVersion, versionOutdated: fallbackOutdated, isReviewed: fallbackReviewed };
+    }
+    if (data.ok !== false) filingsVersionsCache.set(key, data);
+  }
+  if (requestId !== filingsVersionRequestId || popover.hidden) return;
+  if (data.ok === false) {
+    popover.innerHTML = '<div class="filing-version-empty">No se pudieron cargar las versiones. Inténtalo de nuevo.</div>';
+    return;
+  }
+  const isReviewed = Boolean(data.versions?.[0]?.isReviewed ?? data.versions?.[0]?.is_reviewed ?? data.isReviewed ?? fallbackReviewed);
+  popover.dataset.reviewed = isReviewed ? '1' : '0';
+  renderFilingsVersionPopover(data);
+  positionFilingsVersionPopover(button);
+}
+
+function startFilingUpgradeFromPopover() {
+  const popover = getFilingsVersionPopover();
+  const ticker = popover.dataset.ticker;
+  const accession = popover.dataset.accession;
+  const currentVersion = popover.dataset.currentVersion || '';
+  const isReviewed = popover.dataset.reviewed === '1';
+  const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || window.currentUser?.isAdmin);
+  closeFilingsVersionMenu();
+  if (!ticker || !accession) return;
+  if (isReviewed && !isAdmin) {
+    showToast('Este análisis ha sido revisado por un humano. Solo un administrador puede regenerarlo.');
+    return;
+  }
+  if (!confirm(`¿Regenerar el análisis de ${ticker} con la versión más reciente${currentVersion ? ` (v${currentVersion})` : ''} con IA?\n\nConsume cupo diario y la versión anterior se conserva en el historial de versiones.`)) {
+    return;
+  }
+  document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'analisis'));
+  showSection('analisis');
+  history.pushState(null, '', '/analisis');
+  if (window.AnalysisModule) {
+    window.AnalysisModule.runFilingAnalysis(ticker, accession, { upgrade: true });
+  }
+}
+
+async function viewFilingAnalysisVersion(analysisId) {
+  if (!analysisId) return;
+  closeFilingsVersionMenu();
+  document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'analisis'));
+  showSection('analisis');
+  history.pushState(null, '', '/analisis');
+  try {
+    const response = await fetch(`/api/analyses/${encodeURIComponent(analysisId)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.analysis?.report || !window.AnalysisModule?.loadReportData) {
+      showToast('No se pudo cargar esa versión del análisis.');
+      return;
+    }
+    window.AnalysisModule.loadReportData(data.analysis, { updateHistory: true });
+    document.querySelector('#result-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch {
+    showToast('No se pudo conectar con el servidor.');
+  }
+}
+
 function renderFilingsTable() {
   const table = document.querySelector('#filings-table');
   const filings = screenerFilings?.filings ?? [];
@@ -5892,9 +6086,21 @@ function renderFilingsTable() {
   table.querySelector('tbody').innerHTML = filings.map((filing) => {
     const is10K = filing.formType === '10-K';
     const hasAnalysis = Boolean(filing.hasAnalysis);
+    const isReviewed = Boolean(filing.isReviewed);
+    const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || window.currentUser?.isAdmin);
+    const canUpgrade = filing.versionOutdated && (!isReviewed || isAdmin);
     const badgeClass = is10K ? 'filing-badge-10k' : 'filing-badge-10q';
     const documentUrl = `/api/screener/company/${encodeURIComponent(companyTicker)}/filings/${encodeURIComponent(filing.accession)}/document`;
     const analyzeButtonLabel = hasAnalysis ? 'Ver análisis con IA ✨' : 'Analizar con IA';
+    const reviewedInlineIcon = (hasAnalysis && isReviewed)
+      ? `<span class="analysis-reviewed-icon-inline" title="Este análisis ha sido revisado por un humano" aria-label="Este análisis ha sido revisado por un humano"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>`
+      : '';
+    const analyzeControl = hasAnalysis
+      ? `<div class="filing-analyze-group${canUpgrade ? ' has-update' : ''}">
+          <button type="button" class="filing-action filing-action-analyze filing-action-ready" data-action="analyze" data-form-type="${escapeHtml(filing.formType)}" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}">${analyzeButtonLabel}</button>
+          <button type="button" class="filing-analyze-menu" data-action="versions-menu" data-form-type="${escapeHtml(filing.formType)}" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}" data-current-version="${escapeHtml(filing.currentVersion ?? '')}" data-outdated="${filing.versionOutdated ? '1' : '0'}" data-reviewed="${isReviewed ? '1' : '0'}" aria-haspopup="true" aria-expanded="false" title="Versión actual, actualización y versiones anteriores">☰</button>
+        </div>`
+      : `<button type="button" class="filing-action filing-action-analyze" data-action="analyze" data-form-type="${escapeHtml(filing.formType)}" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}">${analyzeButtonLabel}</button>`;
 
     let ratingBadge = '';
     if (hasAnalysis) {
@@ -5909,9 +6115,8 @@ function renderFilingsTable() {
       }
     }
 
-    const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || window.currentUser?.isAdmin);
     const adminRegenBtn = (hasAnalysis && isAdmin)
-      ? `<button type="button" class="filing-action filing-action-regenerate admin-only" data-action="regenerate" data-form-type="${escapeHtml(filing.formType)}" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}" title="Volver a generar este informe de nuevo con IA (elimina el informe actual)">🔄 Regenerar</button>`
+      ? `<button type="button" class="filing-action filing-action-regenerate admin-only" data-action="regenerate" data-form-type="${escapeHtml(filing.formType)}" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}" title="Volver a generar este informe con IA (crea una versión nueva y conserva las anteriores)">🔄 Regenerar</button>`
       : '';
 
     const presentations = Array.isArray(filing.presentations) ? filing.presentations : [];
@@ -5938,7 +6143,8 @@ function renderFilingsTable() {
       <td class="filing-actions">
         <button type="button" class="filing-action" data-action="preview" data-doc="${escapeHtml(documentUrl)}" data-name="${escapeHtml(filing.documentName)}">Vista previa</button>
         <a class="filing-action filing-action-download" href="${escapeHtml(documentUrl)}?download=1" download>Descargar</a>
-        <button type="button" class="filing-action filing-action-analyze${hasAnalysis ? ' filing-action-ready' : ''}" data-action="analyze" data-form-type="${escapeHtml(filing.formType)}" data-ticker="${escapeHtml(companyTicker)}" data-accession="${escapeHtml(filing.accession)}">${analyzeButtonLabel}</button>
+        ${analyzeControl}
+        ${reviewedInlineIcon}
         ${presentationBtn}
         ${releaseBtn}
         ${loadingPresBtn}
@@ -5962,12 +6168,22 @@ function renderFilingsTable() {
       }
     });
   });
+  table.querySelectorAll('button[data-action="versions-menu"]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (button.getAttribute('aria-expanded') === 'true') {
+        closeFilingsVersionMenu();
+        return;
+      }
+      openFilingsVersionMenu(button);
+    });
+  });
   table.querySelectorAll('button[data-action="regenerate"]').forEach((button) => {
     button.addEventListener('click', () => {
       const ticker = button.dataset.ticker;
       const accession = button.dataset.accession;
       const formType = button.dataset.formType || '10-Q';
-      if (!confirm(`¿Deseas volver a generar el informe de ${ticker} (${formType}) con IA?\n\n⚠️ Se eliminará el informe actual y se volverá a analizar desde SEC EDGAR.`)) {
+      if (!confirm(`¿Deseas volver a generar el informe de ${ticker} (${formType}) con IA?\n\nSe creará una versión nueva y se conservarán las anteriores.`)) {
         return;
       }
       document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'analisis'));
@@ -5981,6 +6197,19 @@ function renderFilingsTable() {
 }
 
 let filingsPresentationsController = null;
+
+// Tras generar o actualizar un análisis desde la vista de análisis, se recargan
+// los informes para reflejar la nueva versión y las versiones disponibles.
+window.addEventListener('analysis:finished', (event) => {
+  const detail = event.detail || {};
+  if (!screenerFilings || !detail.ticker || !companyTicker
+    || String(detail.ticker).toUpperCase() !== String(companyTicker).toUpperCase()) {
+    return;
+  }
+  filingsVersionsCache.clear();
+  screenerFilings = null;
+  loadFilings();
+});
 
 function updatePresentationsStatus(isLoading) {
   const statusEl = document.querySelector('#filings-presentations-status');
@@ -6027,6 +6256,7 @@ async function loadFilingsPresentations(ticker) {
 async function loadFilings() {
   if (screenerFilingsLoading || !companyTicker) return;
   screenerFilingsLoading = true;
+  closeFilingsVersionMenu();
 
   const countEl = document.querySelector('#filings-count');
   const table = document.querySelector('#filings-table');
@@ -6047,6 +6277,7 @@ async function loadFilings() {
       return;
     }
     screenerFilings = data;
+    filingsVersionsCache.clear();
     const pendingPresentations = Boolean(data.presentationsPending);
     if (pendingPresentations && Array.isArray(screenerFilings.filings)) {
       screenerFilings.filings.forEach((filing, idx) => {
@@ -6324,6 +6555,7 @@ function showSection(key) {
     calendario: document.querySelector('#section-calendario'),
     analisis: document.querySelector('#section-analisis'),
     novedades: document.querySelector('#section-novedades'),
+    guias: document.querySelector('#section-guias'),
     reportes: document.querySelector('#section-reportes'),
     informes: document.querySelector('#section-informes'),
     datos: document.querySelector('#section-datos'),
@@ -6335,7 +6567,7 @@ function showSection(key) {
 
   Object.values(sections).forEach((section) => { if (section) section.hidden = true; });
 
-  const isGlobalSection = ['favoritos', 'alertas', 'cartera', 'calendario', 'analisis', 'novedades', 'reportes'].includes(key);
+  const isGlobalSection = ['favoritos', 'alertas', 'cartera', 'calendario', 'analisis', 'novedades', 'guias', 'reportes'].includes(key);
   if (companyHeadRow) {
     companyHeadRow.hidden = isGlobalSection;
   }
@@ -6408,6 +6640,13 @@ function showSection(key) {
     return;
   }
 
+  if (key === 'guias') {
+    if (sections.guias) sections.guias.hidden = false;
+    document.title = 'Cifra | Guías';
+    window.GuiasModule?.init();
+    return;
+  }
+
   if (key === 'reportes') {
     if (sections.reportes) sections.reportes.hidden = false;
     window.ReportsModule?.render();
@@ -6475,6 +6714,8 @@ document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
       history.pushState(null, '', '/analisis');
     } else if (sectionKey === 'novedades') {
       history.pushState(null, '', '/novedades');
+    } else if (sectionKey === 'guias') {
+      history.pushState(null, '', '/guias');
     } else if (sectionKey === 'reportes') {
       history.pushState(null, '', '/reportes');
     } else {
@@ -6618,7 +6859,7 @@ async function loadCompany() {
     filingsPresentationsController = null;
   }
   const currentActiveSection = resolveInitialSection();
-  const isGlobal = ['favoritos', 'alertas', 'cartera', 'calendario', 'analisis', 'novedades', 'reportes'].includes(currentActiveSection);
+  const isGlobal = ['favoritos', 'alertas', 'cartera', 'calendario', 'analisis', 'novedades', 'guias', 'reportes'].includes(currentActiveSection);
   if (!isGlobal) {
     companyLoading.hidden = false;
     companyBody.hidden = true;
@@ -6694,11 +6935,14 @@ function resolveInitialSection() {
   if (path.startsWith('/novedad')) {
     return 'novedades';
   }
+  if (path.startsWith('/guia')) {
+    return 'guias';
+  }
   if (path.startsWith('/reporte') || path.startsWith('/admin')) {
     return 'reportes';
   }
   const urlSec = searchParams.get('seccion') || searchParams.get('section') || window.location.hash.replace('#', '');
-  if (urlSec && ['perfil', 'favoritos', 'alertas', 'cartera', 'calendario', 'analisis', 'novedades', 'reportes', 'informes', 'datos', 'accionariado', 'foros'].includes(urlSec)) {
+  if (urlSec && ['perfil', 'favoritos', 'alertas', 'cartera', 'calendario', 'analisis', 'novedades', 'guias', 'reportes', 'informes', 'datos', 'accionariado', 'foros'].includes(urlSec)) {
     return urlSec;
   }
   return 'perfil';

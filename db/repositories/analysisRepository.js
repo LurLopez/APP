@@ -2,7 +2,8 @@ import { query } from '../pool.js';
 
 const ANALYSIS_COLUMNS = `
     id, user_id, is_public, filename, status, error, origin, sector, report,
-    model_used, version, ticker, company_name, period_end, pdf_url, source_url, accession, created_at
+    model_used, version, subsector, sector_version, is_reviewed, reviewed_at, reviewed_by,
+    ticker, company_name, period_end, pdf_url, source_url, accession, created_at
 `;
 
 export async function createAnalysis({
@@ -17,12 +18,14 @@ export async function createAnalysis({
   sourceUrl = null,
   accession = null,
   version = null,
+  subsector = null,
+  sectorVersion = null,
 } = {}) {
   const { rows } = await query(
-    `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession, version)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession, version, subsector, sector_version)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      RETURNING ${ANALYSIS_COLUMNS}`,
-    [userId, Boolean(isPublic), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession, version],
+    [userId, Boolean(isPublic), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession, version, subsector, sectorVersion],
   );
   return rows[0];
 }
@@ -43,6 +46,7 @@ export async function listAnalyses({
   periodTo = null,
   createdFrom = null,
   createdTo = null,
+  reportType = null,
 } = {}) {
   const conditions = [];
   const params = [];
@@ -77,6 +81,28 @@ export async function listAnalyses({
   if (createdTo) {
     params.push(createdTo);
     conditions.push(`(created_at AT TIME ZONE 'UTC')::date <= $${params.length}`);
+  }
+
+  if (reportType === 'annual') {
+    conditions.push(`(
+      (report->>'isAnnual' = 'true')
+      OR (report->>'formType' = '10-K')
+      OR (LOWER(COALESCE(report->>'periodTitle', '')) LIKE '%annual%')
+      OR (LOWER(COALESCE(report->>'periodTitle', '')) LIKE '%full year%')
+      OR (LOWER(COALESCE(filename, '')) LIKE '%10-k%')
+      OR (LOWER(COALESCE(filename, '')) LIKE '%10k%')
+    )`);
+  } else if (reportType === 'quarterly') {
+    conditions.push(`(
+      NOT (
+        (report->>'isAnnual' = 'true')
+        OR (report->>'formType' = '10-K')
+        OR (LOWER(COALESCE(report->>'periodTitle', '')) LIKE '%annual%')
+        OR (LOWER(COALESCE(report->>'periodTitle', '')) LIKE '%full year%')
+        OR (LOWER(COALESCE(filename, '')) LIKE '%10-k%')
+        OR (LOWER(COALESCE(filename, '')) LIKE '%10k%')
+      )
+    )`);
   }
 
   params.push(limit);
@@ -130,7 +156,7 @@ export async function listAnalysisCompanies({ userId = null, search = null } = {
 
 export async function updateAnalysis(id, fields) {
   const allowed = [
-    'status', 'error', 'origin', 'sector', 'report', 'model_used', 'version', 'is_public',
+    'status', 'error', 'origin', 'sector', 'report', 'model_used', 'version', 'subsector', 'sector_version', 'is_public',
     'ticker', 'company_name', 'period_end', 'pdf_url', 'source_url', 'accession',
   ];
   const entries = Object.entries(fields).filter(([key]) => allowed.includes(key));
@@ -162,11 +188,33 @@ export async function findLatestDoneAnalysis({ ticker, accession, userId = null 
         AND status = 'done'
         AND report IS NOT NULL
         AND (is_public = true OR ($4::int IS NOT NULL AND user_id = $4))
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC, id DESC
       LIMIT 1`,
     [ticker, accession, filename, userId],
   );
   return rows[0] ?? null;
+}
+
+// Todas las versiones guardadas de un mismo informe (públicas o del propio
+// usuario), de la más reciente a la más antigua. Nunca se eliminan al regenerar.
+export async function getAnalysisVersions({ ticker, accession, userId = null } = {}) {
+  if (!ticker || !accession) return [];
+  const filename = `${ticker}-${accession}.pdf`;
+  const { rows } = await query(
+    `SELECT
+       id, version, subsector, sector_version, model_used, is_public, pdf_url, created_at,
+       is_reviewed, reviewed_at, reviewed_by,
+       report->>'formType' AS form_type
+     FROM analyses
+     WHERE UPPER(ticker) = UPPER($1)
+        AND (accession = $2 OR filename = $3)
+        AND status = 'done'
+        AND report IS NOT NULL
+        AND (is_public = true OR ($4::int IS NOT NULL AND user_id = $4))
+     ORDER BY created_at DESC, id DESC`,
+    [ticker, accession, filename, userId],
+  );
+  return rows;
 }
 
 export async function getAnalyzedAccessionsWithRatings(ticker, accessions = [], userId = null) {
@@ -176,6 +224,12 @@ export async function getAnalyzedAccessionsWithRatings(ticker, accessions = [], 
     `SELECT
        COALESCE(a.accession, substring(a.filename from '([0-9]{10}-[0-9]{2}-[0-9]{6})')) AS acc,
        MAX(a.id) AS analysis_id,
+       (array_agg(a.id ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_analysis_id,
+       (array_agg(a.version ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_version,
+       (array_agg(a.subsector ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_subsector,
+       (array_agg(a.sector_version ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_sector_version,
+       (array_agg(COALESCE(a.is_reviewed, false) ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_is_reviewed,
+       COUNT(DISTINCT a.id)::int AS versions_count,
        COALESCE(ROUND(AVG(r.rating)::numeric, 1), 0)::float AS rating_average,
        COUNT(r.id)::int AS rating_count
      FROM analyses a
@@ -189,13 +243,19 @@ export async function getAnalyzedAccessionsWithRatings(ticker, accessions = [], 
          OR a.filename = ANY($3::text[])
        )
      GROUP BY COALESCE(a.accession, substring(a.filename from '([0-9]{10}-[0-9]{2}-[0-9]{6})'))`,
-     [ticker, accessions, filenames, userId],
+    [ticker, accessions, filenames, userId],
   );
   const map = new Map();
   for (const r of rows) {
     if (r.acc) {
       map.set(r.acc, {
         analysisId: r.analysis_id,
+        latestAnalysisId: r.latest_analysis_id,
+        latestVersion: r.latest_version,
+        latestSubsector: r.latest_subsector,
+        latestSectorVersion: r.latest_sector_version,
+        latestIsReviewed: Boolean(r.latest_is_reviewed),
+        versionsCount: r.versions_count,
         ratingAverage: r.rating_count > 0 ? r.rating_average : null,
         ratingCount: r.rating_count,
       });
@@ -219,7 +279,7 @@ export async function findUserAnalysis({ userId, ticker, accession }) {
        AND UPPER(ticker) = UPPER($2)
        AND (accession = $3 OR filename = $4)
        AND status = 'done'
-     ORDER BY created_at DESC
+     ORDER BY created_at DESC, id DESC
      LIMIT 1`,
     [userId, ticker, accession, filename],
   );
@@ -409,3 +469,17 @@ export async function deleteAnalysisErrorReport(id) {
   );
   return rows[0] ?? null;
 }
+
+export async function setAnalysisReviewed(id, { isReviewed = true, userId = null } = {}) {
+  const { rows } = await query(
+    `UPDATE analyses
+     SET is_reviewed = $1,
+         reviewed_at = CASE WHEN $1 THEN now() ELSE NULL END,
+         reviewed_by = CASE WHEN $1 THEN $2 ELSE NULL END
+     WHERE id = $3
+     RETURNING ${ANALYSIS_COLUMNS}`,
+    [Boolean(isReviewed), userId, id],
+  );
+  return rows[0] ?? null;
+}
+

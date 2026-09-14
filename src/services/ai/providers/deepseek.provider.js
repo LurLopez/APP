@@ -1,3 +1,5 @@
+import { AiProviderError } from '../modelProvider.js';
+
 const API_URL = 'https://api.deepseek.com/chat/completions';
 const MODEL = process.env.AI_MODEL || 'deepseek-flash';
 const THINKING = (process.env.AI_THINKING || 'disabled').trim().toLowerCase() === 'enabled' ? 'enabled' : 'disabled';
@@ -15,7 +17,10 @@ export const deepseekProvider = {
   async chat(messages) {
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
-      throw new Error('Falta DEEPSEEK_API_KEY en el archivo .env');
+      throw new AiProviderError(
+        'El servicio de análisis no está configurado correctamente (falta la clave del proveedor de IA). Contacta con el administrador.',
+        { code: 'AI_CONFIG_ERROR', status: 500 },
+      );
     }
 
     let response;
@@ -37,24 +42,58 @@ export const deepseekProvider = {
       });
     } catch (error) {
       if (error.name === 'TimeoutError' || error.name === 'AbortError') {
-        throw new Error(`La API de IA tardó más de ${REQUEST_TIMEOUT_MS / 1000} s en responder.`);
+        throw new AiProviderError(
+          'El modelo de IA está tardando demasiado en responder. Inténtalo de nuevo en unos minutos.',
+          { code: 'AI_TIMEOUT', status: 504 },
+        );
       }
-      throw error;
+      throw new AiProviderError(
+        'El servicio de IA no está disponible ahora mismo. Inténtalo de nuevo en unos minutos.',
+        { code: 'AI_UNAVAILABLE', status: 503, detail: error.message },
+      );
     }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(`DeepSeek API error ${response.status}: ${detail.slice(0, 300)}`);
+      const detailSnippet = detail.slice(0, 300);
+      if (response.status === 429) {
+        throw new AiProviderError(
+          'El servicio de IA está saturado en este momento. Inténtalo de nuevo en unos minutos.',
+          { code: 'AI_RATE_LIMIT', status: 503, detail: detailSnippet },
+        );
+      }
+      if (response.status === 401 || response.status === 403) {
+        throw new AiProviderError(
+          'El servicio de análisis no está configurado correctamente (clave del proveedor de IA rechazada). Contacta con el administrador.',
+          { code: 'AI_CONFIG_ERROR', status: 500, detail: detailSnippet },
+        );
+      }
+      throw new AiProviderError(
+        'El servicio de IA no está disponible ahora mismo. Inténtalo de nuevo en unos minutos.',
+        { code: 'AI_UNAVAILABLE', status: 503, detail: `DeepSeek API error ${response.status}: ${detailSnippet}` },
+      );
     }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!data) {
+      throw new AiProviderError(
+        'El servicio de IA devolvió una respuesta no válida. Inténtalo de nuevo.',
+        { code: 'AI_BAD_RESPONSE', status: 502 },
+      );
+    }
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content !== 'string') {
-      throw new Error('DeepSeek no devolvió contenido válido.');
+      throw new AiProviderError(
+        'El servicio de IA devolvió una respuesta no válida. Inténtalo de nuevo.',
+        { code: 'AI_BAD_RESPONSE', status: 502 },
+      );
     }
     const cleaned = cleanResponse(content);
     if (!cleaned.trim()) {
-      throw new Error('DeepSeek devolvió una respuesta vacía.');
+      throw new AiProviderError(
+        'El servicio de IA devolvió una respuesta vacía. Inténtalo de nuevo.',
+        { code: 'AI_EMPTY_RESPONSE', status: 502 },
+      );
     }
     return { content: cleaned, model: MODEL, usage: data?.usage ?? null };
   },

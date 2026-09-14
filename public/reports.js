@@ -548,6 +548,7 @@ const ReportsModule = (() => {
                   <span class="result-item-accession" title="Accession SEC">${escapeHtml(res.accession || "—")}</span>
                   <span class="result-item-date" title="Fecha en que se analizó con IA">📅 Generado: ${formatShortDate(res.created_at)}</span>
                   ${res.model_used ? `<span class="result-item-model">🤖 ${escapeHtml(res.model_used)}</span>` : ""}
+                  ${res.version ? `<span class="result-item-version" title="Versión del análisis">Versión ${escapeHtml(res.version)}</span>` : ""}
                 </div>
 
                 <div class="result-item-feedback-pill">
@@ -565,7 +566,7 @@ const ReportsModule = (() => {
                   <button type="button" class="btn-view-analysis secondary-button btn-sm" data-analysis-id="${res.id}" data-ticker="${escapeHtml(res.ticker)}" data-accession="${escapeHtml(res.accession)}">
                     👁️ Ver análisis
                   </button>
-                  <button type="button" class="btn-regenerate-analysis primary-button btn-sm btn-regen" data-analysis-id="${res.id}" data-ticker="${escapeHtml(res.ticker)}" data-accession="${escapeHtml(res.accession)}" title="Volver a generar el informe de nuevo con IA (elimina el anterior)">
+                  <button type="button" class="btn-regenerate-analysis primary-button btn-sm btn-regen" data-analysis-id="${res.id}" data-ticker="${escapeHtml(res.ticker)}" data-accession="${escapeHtml(res.accession)}" title="Generar una versión nueva con IA (se conservan las anteriores)">
                     🔄 Regenerar con IA
                   </button>
                   <button type="button" class="btn-delete-analysis danger-button btn-sm" data-analysis-id="${res.id}" data-ticker="${escapeHtml(res.ticker)}" data-period="${escapeHtml(periodLabel)}" title="Eliminar informe">
@@ -815,7 +816,7 @@ const ReportsModule = (() => {
         const accession = btn.dataset.accession;
         const analysisId = btn.dataset.analysisId;
 
-        const confirmMsg = "Estás a punto de volver a generar el informe de " + ticker + " (" + accession + ").\n\n⚠️ Se eliminará el informe actual de la base de datos y se generará uno nuevo desde cero con la IA.\n\n¿Deseas continuar?";
+        const confirmMsg = "Estás a punto de volver a generar el informe de " + ticker + " (" + accession + ").\n\n⚠️ Se creará una versión nueva desde cero con la IA y se conservarán las versiones anteriores.\n\n¿Deseas continuar?";
         if (!confirm(confirmMsg)) return;
 
         // Navegar a la sección de análisis y disparar regeneración forzada

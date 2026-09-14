@@ -2,6 +2,7 @@
 nombre: Cerveceras y Bebidas Malteadas
 slug: cerveceras
 sector: consumo-defensivo
+version: 0
 aliases:
   - cerveza
   - cervezas

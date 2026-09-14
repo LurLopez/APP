@@ -1,5 +1,5 @@
 import { BaseAgent, AgentError } from './baseAgent.js';
-import { chatJson } from '../services/ai/modelProvider.js';
+import { chatJson, AiProviderError } from '../services/ai/modelProvider.js';
 
 const PROMPT = `Eres el verificador de origen de un analizador financiero. Analiza el documento siguiente y determina:
 
@@ -28,7 +28,10 @@ export class OriginAgent extends BaseAgent {
     let result;
     try {
       result = await chatJson([{ role: 'system', content: PROMPT }, { role: 'user', content: input.text.slice(0, MAX_CHARS) }]);
-    } catch {
+    } catch (error) {
+      // Los fallos del proveedor de IA (timeout, saturación, configuración) se
+      // propagan con su mensaje claro; el resto se enmascara como respuesta inválida.
+      if (error instanceof AiProviderError) throw error;
       throw new AgentError('El modelo no devolvió una respuesta válida al verificar el documento.', 'INVALID_MODEL_RESPONSE');
     }
 

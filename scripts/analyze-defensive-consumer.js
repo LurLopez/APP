@@ -16,17 +16,28 @@
  *   --once                  Ejecuta una sola pasada por la lista y termina.
  *   --ticker=KO             Analiza un ticker específico.
  *   --tickers=KO,PEP,PG     Analiza una lista separada por comas de tickers.
+ *   --universe=large        curated | large (EE. UU. >1.000M $) | all (todas las de EE. UU.).
+ *   --years=5               Últimos N años de informes (3, 5, 10...); all = todo el histórico.
+ *   --list                  Solo muestra el universo seleccionado y termina.
  *   --max-quarters=2        Máximo número de informes recientes por empresa (por defecto: todos).
  *   --all-quarters          Analiza todos los 10-Q/10-K disponibles.
+ *   --per-form=1            Máximo de informes por tipo (10-Q y 10-K) por empresa; 1 = último de cada tipo.
+ *   --force                 Reanaliza aunque ya exista un análisis previo (crea una versión nueva).
  *   --provider=opencode     Proveedor IA a usar (por defecto: opencode).
  *   --concurrency=3         Análisis simultáneos, en empresas distintas (por defecto: 1).
  *   --delay=3000            Retardo en ms entre filings (por defecto: 3000 ms).
  *   --loop-delay=15         Minutos de espera entre rondas completas en modo continuo (por defecto: 15).
+ *
+ * Variables de entorno equivalentes:
+ *   WORKER_UNIVERSE=curated|large|all · WORKER_YEARS=3|5|10|all
+ *   WORKER_AI_PROVIDER=opencode · WORKER_CONCURRENCY=3
  */
 
 import { getCompanyFilings, getFilingContentBuffer, getPresentationBuffers } from '../src/services/edgar.service.js';
 import { analyzePdf, analyzeText, htmlToText, buildPresentationText } from '../src/services/analysis.service.js';
 import { findLatestDoneAnalysis } from '../db/repositories/analysisRepository.js';
+import { isAnalysisOutdated } from '../src/agents/sectorAgent.js';
+import { CONSUMER_STAPLES_UNIVERSE } from './data/consumer-staples.js';
 import { pool } from '../db/pool.js';
 
 // Parsear argumentos de línea de comandos
@@ -41,16 +52,60 @@ function getArg(name, defaultValue = null) {
 }
 
 const RUN_ONCE = Boolean(getArg('once', false));
+const LIST_ONLY = Boolean(getArg('list', false));
 const SPECIFIC_TICKERS_RAW = getArg('tickers') || getArg('ticker');
-const FROM_YEAR = Number(getArg('from-year', 2020));
 const MAX_QUARTERS = getArg('max-quarters') ? Number(getArg('max-quarters')) : Infinity;
+const PER_FORM = getArg('per-form') ? Math.max(1, Number(getArg('per-form'))) : Infinity;
+const FORCE = Boolean(getArg('force', false));
 const DELAY_MS = Number(getArg('delay', 3000));
 const LOOP_DELAY_MINUTES = Number(getArg('loop-delay', 15));
 const CONCURRENCY = Math.max(1, Number(getArg('concurrency', process.env.WORKER_CONCURRENCY || 1)) || 1);
 const TARGET_PROVIDER = getArg('provider', process.env.WORKER_AI_PROVIDER || 'opencode');
+const UNIVERSE_MODE = String(getArg('universe', process.env.WORKER_UNIVERSE || 'curated')).trim().toLowerCase();
+const YEARS_OPTION = getArg('years', process.env.WORKER_YEARS || null);
+const FROM_YEAR_ARG = getArg('from-year', null);
 
 // Configurar el proveedor para este proceso
 process.env.AI_PROVIDER = TARGET_PROVIDER;
+
+// Universo de empresas: lista curada (por defecto), grandes (>1.000M $) o todas
+// las de EE. UU. sin ADR ni duplicados.
+function resolveUniverse(mode) {
+  if (['large', 'big', '1000', '1000m'].includes(mode)) {
+    return {
+      label: 'grandes de EE. UU. (>1.000M $)',
+      tickers: CONSUMER_STAPLES_UNIVERSE.filter((u) => u.domestic && u.staples && u.capM >= 1000).map((u) => u.ticker),
+    };
+  }
+  if (['all', 'todas', 'todo', 'todos'].includes(mode)) {
+    return {
+      label: 'todas las de EE. UU. (sin ADR ni duplicados)',
+      tickers: CONSUMER_STAPLES_UNIVERSE.filter((u) => u.domestic && u.staples).map((u) => u.ticker),
+    };
+  }
+  return { label: 'lista curada', tickers: CURATED_DEFENSIVE_CONSUMER_TICKERS };
+}
+
+// Antigüedad de los informes: últimos N años o todo el histórico disponible.
+// Sin configurar mantiene el comportamiento original (desde 2020).
+function resolveYears() {
+  if (FROM_YEAR_ARG) {
+    const year = Number(FROM_YEAR_ARG);
+    return { fromYear: year, label: `desde ${year}` };
+  }
+  if (!YEARS_OPTION) return { fromYear: 2020, label: 'desde 2020' };
+
+  const value = String(YEARS_OPTION).trim().toLowerCase();
+  if (['all', 'todo', 'todas', 'todos'].includes(value)) {
+    return { fromYear: null, label: 'todo el histórico disponible' };
+  }
+  const years = Number(value);
+  if (!Number.isFinite(years) || years <= 0) return { fromYear: 2020, label: 'desde 2020' };
+  const fromYear = new Date().getFullYear() - years + 1;
+  return { fromYear, label: `últimos ${years} años (desde ${fromYear})` };
+}
+
+const { fromYear: FROM_YEAR, label: YEARS_LABEL } = resolveYears();
 
 // Lista curada y exhaustiva de empresas estadounidenses de consumo defensivo
 const CURATED_DEFENSIVE_CONSUMER_TICKERS = [
@@ -224,10 +279,11 @@ async function processCompany(ticker, stats) {
     const filingsData = await getCompanyFilings(ticker, { limit: 120 });
     const allFilings = filingsData?.filings ?? [];
 
-    // Informes 10-Q (trimestrales) y 10-K (anuales) a partir de FROM_YEAR (2020 por defecto)
+    // Informes 10-Q (trimestrales) y 10-K (anuales) según el rango de años elegido
     let reportFilings = allFilings
       .filter((f) => ['10-Q', '10-K'].includes(f.formType))
       .filter((f) => {
+        if (FROM_YEAR === null) return true;
         const year = getFilingYear(f);
         return year !== null && year >= FROM_YEAR;
       })
@@ -241,14 +297,25 @@ async function processCompany(ticker, stats) {
       reportFilings = reportFilings.slice(0, MAX_QUARTERS);
     }
 
+    // Limitar a los N informes más recientes de cada tipo (10-Q y 10-K) por empresa.
+    if (PER_FORM !== Infinity) {
+      const perTypeCount = new Map();
+      reportFilings = reportFilings.filter((f) => {
+        const count = perTypeCount.get(f.formType) || 0;
+        if (count >= PER_FORM) return false;
+        perTypeCount.set(f.formType, count + 1);
+        return true;
+      });
+    }
+
     if (!reportFilings.length) {
-      console.log(`[${timestamp()}] [INFO] ${ticker}: sin informes 10-Q/10-K desde ${FROM_YEAR} para procesar.`);
+      console.log(`[${timestamp()}] [INFO] ${ticker}: sin informes 10-Q/10-K (${YEARS_LABEL}) para procesar.`);
       return;
     }
 
     const firstLabel = reportFilings[0]?.periodLabel || reportFilings[0]?.period;
     const lastLabel = reportFilings[reportFilings.length - 1]?.periodLabel || reportFilings[reportFilings.length - 1]?.period;
-    console.log(`[${timestamp()}] [INFO] ${ticker}: ${reportFilings.length} informes 10-Q/10-K desde ${FROM_YEAR} (${firstLabel} → ${lastLabel}).`);
+    console.log(`[${timestamp()}] [INFO] ${ticker}: ${reportFilings.length} informes 10-Q/10-K (${YEARS_LABEL}: ${firstLabel} → ${lastLabel}).`);
 
     for (const filing of reportFilings) {
       if (shouldStop) break;
@@ -256,9 +323,29 @@ async function processCompany(ticker, stats) {
       // 1. Comprobar si ya está analizado en la base de datos
       const existing = await findLatestDoneAnalysis({ ticker, accession: filing.accession });
       if (existing && existing.status === 'done' && existing.report) {
-        console.log(`[${timestamp()}] [SKIP] ⏭️  ${ticker} | ${filing.periodLabel || filing.period} ya analizado previamente.`);
-        stats.skipped += 1;
-        continue;
+        if (existing.is_reviewed) {
+          console.log(`[${timestamp()}] [SKIP] 🛡️  ${ticker} | ${filing.periodLabel || filing.period} está revisado por un humano. No se regenera automáticamente.`);
+          stats.skipped += 1;
+          continue;
+        }
+        if (!FORCE) {
+          const versionOptions = {
+            sector: existing.sector ?? 'defensive_consumer',
+            subsector: existing.subsector ?? null,
+            ticker,
+            formType: filing.formType,
+          };
+          const outdated = await isAnalysisOutdated({
+            version: existing.version,
+            ...versionOptions,
+          });
+          if (!outdated) {
+            console.log(`[${timestamp()}] [SKIP] ⏭️  ${ticker} | ${filing.periodLabel || filing.period} ya analizado previamente en la versión vigente.`);
+            stats.skipped += 1;
+            continue;
+          }
+          console.log(`[${timestamp()}] [UPGRADE] 🔄 ${ticker} | ${filing.periodLabel || filing.period} tiene nueva versión (v${existing.version ?? 'desconocida'}). Regenerando...`);
+        }
       }
 
       // 2. Ejecutar análisis
@@ -294,8 +381,8 @@ async function runWorker() {
   console.log(` • Proveedor IA activo:   ${TARGET_PROVIDER}`);
   console.log(` • Clave OpenCode Go:     ${process.env.OPENCODE_GO_API_KEY ? 'Configurada (OK)' : 'NO ENCONTRADA EN .ENV'}`);
   console.log(` • Modo de ejecución:     ${RUN_ONCE ? 'Una sola pasada (--once)' : 'Continuo sin parar'}`);
-  console.log(` • Alcance temporal:      Todos los 10-Q/10-K desde ${FROM_YEAR} hasta la fecha`);
-  console.log(` • Orden:                 Descendente (más recientes primero hasta ${FROM_YEAR})`);
+  console.log(` • Alcance temporal:      ${YEARS_LABEL}`);
+  console.log(` • Orden:                 Descendente (más recientes primero)`);
   console.log(` • Análisis simultáneos:  ${CONCURRENCY}`);
   console.log(` • Pausa entre filings:   ${DELAY_MS} ms`);
   console.log('='.repeat(70));
@@ -307,13 +394,20 @@ async function runWorker() {
     process.exit(1);
   }
 
-  // Determinar lista de tickers
-  let targetTickers = CURATED_DEFENSIVE_CONSUMER_TICKERS;
+  // Determinar lista de tickers: manual (--tickers) o el universo elegido
+  const universe = resolveUniverse(UNIVERSE_MODE);
+  let targetTickers = universe.tickers;
   if (SPECIFIC_TICKERS_RAW) {
     targetTickers = SPECIFIC_TICKERS_RAW.split(',').map((t) => t.trim().toUpperCase()).filter(Boolean);
     console.log(` • Empresas especificadas (${targetTickers.length}): ${targetTickers.join(', ')}`);
   } else {
-    console.log(` • Total empresas en catálogo curado: ${targetTickers.length}`);
+    console.log(` • Universo:              ${universe.label} (${targetTickers.length} empresas)`);
+  }
+
+  if (LIST_ONLY) {
+    console.log(targetTickers.join(', '));
+    await pool.end();
+    return;
   }
 
   let round = 1;

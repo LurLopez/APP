@@ -683,7 +683,6 @@ document.querySelector('#history-refresh').addEventListener('click', fetchAnalys
 historyLoginButton.addEventListener('click', () => window.openModal?.('login'));
 
 /* ── Navegación por secciones y URLs ─────────────────────────── */
-
 const homeMenu = document.querySelector('#home-menu');
 const homeSections = {
   seguimiento: document.querySelector('#favoritos'),
@@ -692,6 +691,7 @@ const homeSections = {
   calendario: document.querySelector('#section-calendario'),
   analisis: document.querySelector('#analisis'),
   novedades: document.querySelector('#section-novedades'),
+  guias: document.querySelector('#section-guias'),
 };
 
 const SECTION_TITLES = {
@@ -701,6 +701,7 @@ const SECTION_TITLES = {
   calendario: 'Cifra | Calendario',
   analisis: 'Cifra | Análisis',
   novedades: 'Cifra | Novedades',
+  guias: 'Cifra | Guías',
 };
 
 const SECTION_PATHS = {
@@ -710,6 +711,7 @@ const SECTION_PATHS = {
   calendario: '/calendario',
   analisis: '/analisis',
   novedades: '/novedades',
+  guias: '/guias',
 };
 
 function normalizeSection(nameOrPath) {
@@ -724,6 +726,7 @@ function normalizeSection(nameOrPath) {
   if (clean === 'calendario' || clean === 'calendar') return 'calendario';
   if (clean === 'analisis' || clean === 'análisis') return 'analisis';
   if (clean === 'novedades' || clean === 'novedad') return 'novedades';
+  if (clean === 'guias' || clean === 'guías' || clean === 'guia' || clean === 'guía') return 'guias';
   return null;
 }
 
@@ -757,6 +760,12 @@ function openHomeSection(name, { updateUrl = true, pushHistory = true, scroll = 
   document.querySelectorAll('.home-top-link').forEach((button) => {
     button.classList.toggle('active', button.dataset.section === sectionKey);
   });
+
+  if (sectionKey === 'novedades') {
+    window.NovedadesModule?.render();
+  } else if (sectionKey === 'guias') {
+    window.GuiasModule?.init();
+  }
 
   document.title = SECTION_TITLES[sectionKey] || 'Cifra';
 

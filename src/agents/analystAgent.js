@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { BaseAgent, AgentError } from './baseAgent.js';
-import { chatJson } from '../services/ai/modelProvider.js';
+import { chatJson, AiProviderError } from '../services/ai/modelProvider.js';
 import { getPreviousQuarterCashFlow, getCompanyResults, getHistoricalUnderlyingEps } from '../services/edgar.service.js';
 
 const MAX_CHARS = 80000;
@@ -8,20 +8,35 @@ const KNOWLEDGE_DIR = new URL('./knowledge/', import.meta.url);
 const PROMPTS_DIR = new URL('./prompts/', import.meta.url);
 const SECTOR_FILES = { defensive_consumer: 'consumo-defensivo' };
 
+// Interpreta cifras del informe con separador de miles de la SEC ("(16,615)" -> -16615)
+// o con coma decimal ("1784,4" -> 1784,4). La lógica fina vive en parseLooseReportNumber.
 function parseFinancialValue(val) {
   if (val == null || val === '—') return NaN;
   const raw = String(val).trim();
   const isParenthesized = /^\(.*\)$/.test(raw);
-  const clean = raw.replace(/^\(|\)$/g, '').replace('M', '').replace('$', '').trim().replace(',', '.');
-  const num = parseFloat(clean.replace(/[^\d.-]/g, ''));
-  return Number.isFinite(num) ? (isParenthesized ? -num : num) : NaN;
+  const num = parseLooseReportNumber(raw);
+  if (!Number.isFinite(num)) return NaN;
+  return isParenthesized ? -num : num;
 }
 
 function extractTaxCashFlowAdjustment(text) {
-  const match = String(text).match(/(?:Deferred income taxes and income taxes payable,?\s+net|Deferred income tax provision\s*\/\s*\(benefit\)|Deferred income tax provision\s*\(benefit\))\s+([()\d.,-]+)(?:\s+([()\d.,-]+))?/i);
+  const source = String(text ?? '');
+  const match = source.match(/(?:Deferred income taxes and income taxes payable,?\s+net|Deferred income tax(?:es)?\s+provision\s*\/\s*\(benefit\)|Deferred income tax(?:es)?\s+provision\s*\(benefit\)|Deferred income tax(?:es)?\s+expense\s*\(benefit\)|Deferred income tax(?:es)?\s*\(benefit\)\s*expense|Deferred income tax(?:es)?|Deferred taxes)\s+([()\d.,-]+)(?:\s+([()\d.,-]+))?/i);
   if (!match) return null;
   const current = parseFinancialValue(match[1]);
   return Number.isFinite(current) ? current : null;
+}
+
+function extractIncomeTaxesPaid(text) {
+  const source = String(text ?? '');
+  const directMatch = source.match(/(?:Income tax(?:es)?\s*(?:\(paid\)\s*received|\(paid\)|\(net of refunds\)|paid))\s+([()\d.,-]+)(?:\s+([()\d.,-]+))?/i)
+    || source.match(/(?:Total net cash income taxes paid|Net cash paid for income taxes)\s+\$?\s*([()\d.,-]+)/i)
+    || source.match(/Cash paid[^\n]{0,60}for income taxes[^\d()]*([()\d.,-]+)/i);
+  if (directMatch) {
+    const val = parseFinancialValue(directMatch[1]);
+    if (Number.isFinite(val)) return Math.abs(val);
+  }
+  return null;
 }
 
 function parseDollarAmount(str) {
@@ -185,21 +200,90 @@ function extractCapitalCashFlowFacts(text) {
     shareBuybacks: readFirstValue(/Repurchases of common stock\s+([()\d.,-]+)/i),
     purchasesOfMarketableSecurities: readFirstValue(/Purchases of marketable securities\s+([()\d.,-]+)/i),
     proceedsFromSaleOfMarketableSecurities: readFirstValue(/Proceeds from sale(?:s)? (?:of|and maturity of) marketable securities\s+([()\d.,-]+)/i),
-    acquisitionsOfBusiness: readFirstValue(/Acquisition of business,? net of cash acquired\s+([()\d.,-]+)/i),
+    acquisitionsOfBusiness: readFirstValue(/Acquisitions? of businesses,? net of cash acquired\s+([()\d.,-]+)/i)
+      ?? readFirstValue(/Acquisition of business,? net of cash acquired\s+([()\d.,-]+)/i)
+      ?? readFirstValue(/Payments? to acquire businesses[^()\d-]{0,40}([()\d.,-]+)/i),
     proceedsFromAssetSales: readFirstValue(/Proceeds from sales of property, plant, equipment and other assets\s+([()\d.,-]+)/i),
   };
+}
+
+// Entradas de caja por financiación de capital (no deuda): emisión de preferentes y
+// venta de participaciones no controladoras manteniendo el control de la filial.
+function extractEquityIssuance(text) {
+  const source = String(text ?? '');
+  const read = (pattern) => {
+    const match = source.match(pattern);
+    if (!match) return null;
+    const value = parseFinancialValue(match[1]);
+    return Number.isFinite(value) ? Math.abs(value) : null;
+  };
+  return {
+    preferred: read(/(?:Net )?proceeds from (?:the )?issuance of (?:convertible )?preferred stock[^()\d-]{0,80}([()\d.,-]+)/i),
+    nonControlling: read(/(?:Net )?proceeds from (?:the )?sale of (?:non-?controlling interest|minority interest)[^()\d-]{0,80}([()\d.,-]+)/i),
+  };
+}
+
+// Flujo de caja neto de deuda (emisiones menos amortizaciones) leído de la sección de
+// financiación del estado de flujos. Permite aislar la deuda asumida en adquisiciones:
+// Δdeuda del balance - flujo de caja de deuda = deuda no-cash (asumida, FX...).
+function extractDebtCashFlow(text) {
+  const source = String(text ?? '');
+  const netIdx = source.search(/Net cash (?:provided by|used in)[^\n]{0,80}financing/i);
+  const start = netIdx > 0
+    ? source.lastIndexOf('Financing activities', netIdx)
+    : source.search(/Financing activities/i);
+  if (start < 0) return null;
+  const tail = source.slice(start);
+  const endMatch = tail.search(/Net cash (?:provided by|used in)[^\n]{0,80}financing/i);
+  const section = tail.slice(0, endMatch > 0 ? endMatch : Math.min(tail.length, 25000));
+  let net = 0;
+  let found = false;
+  const amountCellRe = /^\(?\s*\$?\s*[\d.,]+\s*\$?\)?$/;
+  section.split('\n').forEach((line) => {
+    const label = line.slice(0, 100).toLowerCase();
+    if (!/debt|note|borrow|loan|commercial paper|term loan|finance lease|capital lease|line of credit|credit facility|bond/i.test(label)) return;
+    if (/stock|share|equity|dividend|repurchase|treasury|preferred|non-?controlling|minority|structured payab/i.test(label)) return;
+    // Se separan las columnas por tabuladores/espacios dobles y se toma la columna del
+    // periodo actual; si es "—" no hay importe y no se debe usar el comparativo del año anterior.
+    const cells = line.split(/\t|\s{2,}/).map((cell) => cell.trim()).filter(Boolean);
+    let amountCell = cells.length > 1
+      ? cells.slice(1).find((cell) => amountCellRe.test(cell) || cell === '—')
+      : null;
+    if (amountCell == null) {
+      const match = line.match(/\(?\s*\$?\s*[\d.,]+\s*\$?\)?/);
+      amountCell = match ? match[0].trim() : null;
+    }
+    if (!amountCell || /—/.test(amountCell)) return;
+    const value = parseFinancialValue(amountCell);
+    if (!Number.isFinite(value) || value === 0) return;
+    const isRepayment = /repay|payment|redemption|maturit/i.test(label);
+    net += isRepayment ? -Math.abs(value) : Math.abs(value);
+    found = true;
+  });
+  return found ? Math.round(net * 10) / 10 : null;
 }
 
 function formatFinancialValue(value) {
   return Number.isFinite(value) ? String(Math.round(value * 10) / 10).replace('.', ',') : null;
 }
 
+// Formatea una cifra en millones con como máximo 2 decimales (coma decimal), evitando
+// cadenas con decimales largos que luego se malinterpretan al sumar (ej. 330,356).
+function formatCellNumber(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  const rounded = Math.round(num * 100) / 100;
+  return String(rounded).replace('.', ',');
+}
+
 // Interpreta cifras que pueden venir del modelo con separador de miles: "1,724" -> 1724,
 // "239,5" -> 239,5 y "1.234,5"/"1,234.5" -> 1234,5. Evita sumar -1,724 como -1,724.
 function parseLooseReportNumber(value) {
   if (value == null || value === '—') return NaN;
-  let s = String(value).trim().replace(/[^0-9.,-]/g, '');
-  if (!s) return NaN;
+  const raw = String(value).trim().replace(/[^0-9.,-]/g, '');
+  if (!raw) return NaN;
+  let s = raw;
+  let joinedThousands = false;
   const hasDot = s.includes('.');
   const hasComma = s.includes(',');
   if (hasDot && hasComma) {
@@ -208,13 +292,100 @@ function parseLooseReportNumber(value) {
       : s.replace(/,/g, '');
   } else if (hasComma) {
     const parts = s.split(',');
-    s = parts.length > 1 && parts.slice(1).every((part) => part.length === 3) ? parts.join('') : s.replace(',', '.');
+    if (parts.length > 1 && parts[0] !== '0' && parts.slice(1).every((part) => part.length === 3)) {
+      s = parts.join('');
+      joinedThousands = true;
+    } else {
+      s = s.replace(',', '.');
+    }
   } else if (hasDot) {
     const parts = s.split('.');
-    if (parts.length > 1 && parts.slice(1).every((part) => part.length === 3)) s = parts.join('');
+    if (parts.length > 1 && parts[0] !== '0' && parts.slice(1).every((part) => part.length === 3)) {
+      s = parts.join('');
+      joinedThousands = true;
+    }
   }
-  const num = parseFloat(s);
-  return Number.isFinite(num) ? num : NaN;
+  let num = parseFloat(s);
+  if (!Number.isFinite(num)) return NaN;
+  // "330,356" o "1114,201" son importes con decimales (la lectura como miles daría una
+  // cifra desorbitada); solo se aplica si el separador aparece una única vez.
+  const separatorCount = (raw.match(/[.,]/g) || []).length;
+  if (joinedThousands && num > 100000 && separatorCount === 1) {
+    const decimalAttempt = parseFloat(raw.replace(',', '.'));
+    if (Number.isFinite(decimalAttempt) && decimalAttempt < num) num = decimalAttempt;
+  }
+  return num;
+}
+
+// Normaliza una celda numérica a un máximo de 2 decimales (coma decimal) y elimina
+// artefactos de coma flotante (ej. 1827.1000000000004 -> "1827,1"). Respeta textos,
+// importes con símbolos ("0,95 $"), porcentajes y celdas vacías ("—").
+function normalizeNumericCell(value) {
+  if (value == null || value === '—') return value;
+  const str = String(value).trim();
+  if (!/^[+-]?\d+(?:[.,]\d+)?$/.test(str)) return value;
+  const num = parseLooseReportNumber(str);
+  if (!Number.isFinite(num)) return value;
+  const rounded = Math.round(num * 100) / 100;
+  return String(rounded).replace('.', ',');
+}
+
+// Los modelos a veces extraen importes en miles de dólares de tablas "(In thousands)".
+// Se detectan valores desproporcionados para el tamaño de la compañía (referencia: la mayor
+// cifra conocida de la cuenta de resultados) y se convierten a millones dividiendo entre 1000.
+const EXTRACTED_FACT_MONEY_KEYS = [
+  'shareBuybacks',
+  'purchasesOfMarketableSecuritiesQuarter', 'purchasesOfMarketableSecuritiesYtd',
+  'proceedsFromSaleOfMarketableSecuritiesQuarter', 'proceedsFromSaleOfMarketableSecuritiesYtd',
+  'acquisitionsQuarter', 'acquisitionsYtd', 'assetSalesQuarter', 'assetSalesYtd', 'brandDivestitures',
+  'impairmentsQuarter', 'impairmentsPrevQuarter', 'impairmentsYtd', 'impairmentsPrevYtd',
+  'intangiblesAmortization', 'incomeTaxExpenseQuarter', 'incomeTaxExpenseYtd',
+  'taxCashFlowAdjustmentQuarter', 'taxCashFlowAdjustmentYtd', 'netChangeInCash', 'totalDebt',
+  'preferredIssuanceQuarter', 'preferredIssuanceYtd', 'nonControllingSaleQuarter', 'nonControllingSaleYtd',
+  'debtCashFlowYtd',
+];
+const EXTRACTED_BALANCE_MONEY_KEYS = [
+  'inventories', 'accountsPayable', 'accountsReceivable', 'cash', 'cashBeginningOfYear', 'cashPreviousQuarter',
+  'restrictedCash', 'restrictedCashBeginningOfYear', 'restrictedCashPreviousQuarter',
+  'shortTermInvestments', 'shortTermInvestmentsBeginningOfYear', 'shortTermInvestmentsPreviousQuarter',
+  'totalDebt', 'totalDebtBeginningOfYear', 'totalDebtPreviousQuarter',
+];
+const EXTRACTED_CASHFLOW_MONEY_KEYS = ['operating', 'capex', 'dividends', 'prevOperating'];
+const EXTRACTED_WORKING_CAPITAL_MONEY_KEYS = ['reportedChangeQuarter', 'reportedChangeYtd'];
+
+function normalizeExtractedUnits(extracted) {
+  if (!extracted || typeof extracted !== 'object') return;
+  const scaleValues = [
+    extracted.ytd?.sales, extracted.quarter?.sales,
+    extracted.ytd?.grossProfit, extracted.quarter?.grossProfit,
+    extracted.ytd?.ebt, extracted.quarter?.ebt,
+    extracted.ytd?.netIncome, extracted.quarter?.netIncome,
+  ].map(Number).filter((value) => Number.isFinite(value) && value > 0);
+  const scale = scaleValues.length ? Math.max(...scaleValues) : null;
+  const fix = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num === 0) return value;
+    const magnitude = Math.abs(num);
+    if (Number.isFinite(scale)) {
+      if (magnitude < scale * 20) return value;
+    } else if (magnitude < 100000) {
+      return value;
+    }
+    return Math.sign(num) * (Math.round((magnitude / 1000) * 10) / 10);
+  };
+  const targets = [
+    [extracted.facts, EXTRACTED_FACT_MONEY_KEYS],
+    [extracted.balance, EXTRACTED_BALANCE_MONEY_KEYS],
+    [extracted.cashFlow, EXTRACTED_CASHFLOW_MONEY_KEYS],
+    [extracted.workingCapital, EXTRACTED_WORKING_CAPITAL_MONEY_KEYS],
+  ];
+  targets.forEach(([target, keys]) => {
+    if (!target || typeof target !== 'object') return;
+    keys.forEach((key) => {
+      if (target[key] == null) return;
+      target[key] = fix(target[key]);
+    });
+  });
 }
 
 const MONTH_NAMES_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -335,11 +506,14 @@ function buildDividendHistoryFromEdgar(annualSeries, maxYear) {
       const dps = Number(values.dividendPerShare);
       const rawTotal = Math.abs(Number(values.dividendsCommon ?? values.dividends));
       const eps = Number(values.epsDiluted);
-      if (!Number.isFinite(year) || (!Number.isFinite(dps) && !Number.isFinite(rawTotal))) return null;
+      if (!Number.isFinite(year)) return null;
+      const hasDps = Number.isFinite(dps) && dps > 0;
+      const hasTotal = Number.isFinite(rawTotal) && rawTotal > 0;
+      if (!hasDps && !hasTotal) return null;
       return {
         year,
-        dps: Number.isFinite(dps) ? Math.round(dps * 100) / 100 : null,
-        total: Number.isFinite(rawTotal) && rawTotal > 0 ? Math.round((rawTotal > 1e6 ? rawTotal / 1e6 : rawTotal) * 10) / 10 : null,
+        dps: hasDps ? Math.round(dps * 100) / 100 : null,
+        total: hasTotal ? Math.round((rawTotal > 1e6 ? rawTotal / 1e6 : rawTotal) * 10) / 10 : null,
         eps: Number.isFinite(eps) ? Math.round(eps * 100) / 100 : null,
       };
     })
@@ -555,43 +729,71 @@ function getTaxNormalizationData({ extracted, horizon, isTrimestral }) {
   const ebtRow = horizon.sales?.rows?.find((row) => String(row.name).toLowerCase().includes('ebt'));
   const netRow = horizon.sales?.rows?.find((row) => String(row.name).toLowerCase().includes('neto'));
   const ebtReported = parseFinancialValue(ebtRow?.normal);
-  const ebtAdjusted = parseFinancialValue(ebtRow?.adjusted);
+  let ebtAdjusted = parseFinancialValue(ebtRow?.adjusted);
   const netReported = parseFinancialValue(netRow?.normal);
-  const taxExpense = Number(facts[isTrimestral ? 'incomeTaxExpenseQuarter' : 'incomeTaxExpenseYtd']);
-  const rawTaxCfoAdjustment = facts[isTrimestral ? 'taxCashFlowAdjustmentQuarter' : 'taxCashFlowAdjustmentYtd'];
-  const taxCfoAdjustment = Number(rawTaxCfoAdjustment);
-  const effectiveTaxRate = Number(facts.effectiveTaxRate);
-  const reportedTax = Number.isFinite(taxExpense)
-    ? taxExpense
-    : (Number.isFinite(ebtReported) && Number.isFinite(netReported) ? ebtReported - netReported : NaN);
-  const reportedRate = Number.isFinite(effectiveTaxRate)
-    ? effectiveTaxRate / 100
-    : (Number.isFinite(ebtReported) && ebtReported !== 0 && Number.isFinite(reportedTax) ? reportedTax / ebtReported : NaN);
+
+  if (!Number.isFinite(ebtAdjusted) && Number.isFinite(ebtReported)) {
+    const impairments = Number(facts[isTrimestral ? 'impairmentsQuarter' : 'impairmentsYtd']) || 0;
+    ebtAdjusted = ebtReported + impairments;
+  }
+
   const normalizedRate = 0.23;
-  if (!Number.isFinite(ebtAdjusted) || !Number.isFinite(reportedTax)
-    || rawTaxCfoAdjustment == null || rawTaxCfoAdjustment === 0
-    || !Number.isFinite(taxCfoAdjustment) || !Number.isFinite(normalizedRate)) {
+  if (!Number.isFinite(ebtAdjusted) || ebtAdjusted <= 0) {
     return null;
   }
 
-  const cashTaxesPaid = reportedTax - taxCfoAdjustment;
-  const normalizedCashTaxes = ebtAdjusted * normalizedRate;
-  if (!Number.isFinite(normalizedCashTaxes) || normalizedCashTaxes === 0) return null;
+  const normalizedCashTaxes = Math.round(ebtAdjusted * normalizedRate * 10) / 10;
+
+  // 1. Pago directo de impuestos en efectivo (declarado en cash flow o notas)
+  let cashTaxesPaid = Number(facts[isTrimestral ? 'incomeTaxesPaidQuarter' : 'incomeTaxesPaidYtd']);
+  if (!Number.isFinite(cashTaxesPaid) || cashTaxesPaid <= 0) {
+    const rawText = extracted._rawText || extracted.text || '';
+    if (rawText) {
+      const extractedPaid = extractIncomeTaxesPaid(rawText);
+      if (Number.isFinite(extractedPaid) && extractedPaid > 0) {
+        cashTaxesPaid = extractedPaid;
+      }
+    }
+  }
+
+  // 2. Método indirecto: gasto fiscal en PyG menos ajuste fiscal del cash flow (impuestos diferidos)
+  const rawTaxCfoAdjustment = facts[isTrimestral ? 'taxCashFlowAdjustmentQuarter' : 'taxCashFlowAdjustmentYtd'];
+  const taxCfoAdjustment = Number(rawTaxCfoAdjustment);
+  const taxExpense = Number(facts[isTrimestral ? 'incomeTaxExpenseQuarter' : 'incomeTaxExpenseYtd']);
+  const reportedTax = Number.isFinite(taxExpense)
+    ? taxExpense
+    : (Number.isFinite(ebtReported) && Number.isFinite(netReported) ? ebtReported - netReported : NaN);
+
+  if (!Number.isFinite(cashTaxesPaid) || cashTaxesPaid <= 0) {
+    if (Number.isFinite(reportedTax) && Number.isFinite(taxCfoAdjustment) && rawTaxCfoAdjustment != null && rawTaxCfoAdjustment !== 0) {
+      cashTaxesPaid = Math.abs(reportedTax - taxCfoAdjustment);
+    }
+  }
+
+  if (!Number.isFinite(cashTaxesPaid) || cashTaxesPaid <= 0) {
+    return null;
+  }
+
+  // Ajuste al Cash Flow:
+  // Si debería haber pagado 318,6M (319M) y en efectivo solo ha pagado 131,4M,
+  // la empresa ha pagado 187,2M de menos, inflando temporalmente el cash flow operativo reportado.
+  // En el Cash Flow Ajustado se resta esa diferencia:
+  // adjustment = cashTaxesPaid - normalizedCashTaxes = 131,4 - 318,6 = -187,2M.
   const adjustment = Math.round((cashTaxesPaid - normalizedCashTaxes) * 10) / 10;
-  const relativeDeviation = (cashTaxesPaid - normalizedCashTaxes) / Math.abs(normalizedCashTaxes);
-  // Solo se corrigen desfases fiscales moderados; diferencias mayores pueden corresponder
-  // a liquidaciones de ejercicios anteriores u otros movimientos no identificados.
-  if (Math.abs(relativeDeviation) > 0.20) return null;
-  if (Math.abs(adjustment) < 0.1) return null;
+  if (Math.abs(adjustment) < 0.5) return null;
+
+  const normTaxText = `${formatFinancialValue(normalizedCashTaxes)}M`;
+  const paidTaxText = `${formatFinancialValue(cashTaxesPaid)}M`;
+  const adjText = `${adjustment >= 0 ? '+' : ''}${formatFinancialValue(adjustment)}M`;
 
   return {
     reportedTax,
-    taxCfoAdjustment,
+    taxCfoAdjustment: Number.isFinite(taxCfoAdjustment) ? taxCfoAdjustment : null,
     cashTaxesPaid,
     normalizedRate,
     normalizedCashTaxes,
     adjustment,
-    explanation: `Impuestos: gasto reportado ${formatFinancialValue(reportedTax)}M ${taxCfoAdjustment >= 0 ? '-' : '+'} ajuste fiscal del cash flow ${formatFinancialValue(Math.abs(taxCfoAdjustment))}M = ${formatFinancialValue(cashTaxesPaid)}M pagados estimados; frente a ${formatFinancialValue(normalizedCashTaxes)}M normalizados (${Math.round(normalizedRate * 100)}% sobre EBT ajustado). Ajuste al Cash Flow Ajustado: ${adjustment >= 0 ? '+' : ''}${formatFinancialValue(adjustment)}M.`,
+    explanation: `Impuestos: La empresa debería haber pagado ${normTaxText} en impuestos (23 % sobre el EBT ajustado de ${formatFinancialValue(ebtAdjusted)}M) y solamente ha pagado ${paidTaxText} en efectivo según el estado de flujos. Ajuste de ${adjText} al Cash Flow Ajustado por la discrepancia fiscal.`,
   };
 }
 
@@ -959,6 +1161,35 @@ function buildCapitalAllocationFromBalance(extracted) {
   const assetSalesYtd = Number(extracted.facts?.assetSalesYtd) || 0;
   const acquisitionDescription = extracted.facts?.acquisitionDescription ?? null;
   const divestitureDescription = extracted.facts?.divestitureDescription ?? null;
+  const preferredYtdRaw = Number(extracted.facts?.preferredIssuanceYtd) || 0;
+  const nonControllingYtdRaw = Number(extracted.facts?.nonControllingSaleYtd) || 0;
+  const debtCashYtdRaw = Number(extracted.facts?.debtCashFlowYtd);
+  const fiscalQuarterNumber = Number(extracted.fiscalQuarter);
+  const debtDeltaYtd = (bal.totalDebt != null && bal.totalDebtBeginningOfYear != null)
+    ? Number(bal.totalDebt) - Number(bal.totalDebtBeginningOfYear)
+    : null;
+  const assumedDebtYtd = (debtDeltaYtd != null && Number.isFinite(debtCashYtdRaw) && acquisitionsYtd >= 50)
+    ? Math.round((debtDeltaYtd - debtCashYtdRaw) * 10) / 10
+    : 0;
+  // Efectivo restringido/escrow: mismo signo que Caja (si baja, libera caja: +).
+  const restrictedCurr = Number(extracted.balance?.restrictedCash);
+  const restrictedPrevious = Number(extracted.balance?.restrictedCashPreviousQuarter);
+  const restrictedStart = Number(extracted.balance?.restrictedCashBeginningOfYear);
+  const restrictedDiff3M = (Number.isFinite(restrictedCurr) && Number.isFinite(restrictedPrevious))
+    ? restrictedCurr - restrictedPrevious
+    : null;
+  const restrictedDiffYtd = (Number.isFinite(restrictedCurr) && Number.isFinite(restrictedStart))
+    ? restrictedCurr - restrictedStart
+    : null;
+  // Si la adquisición del trimestre es la misma que la del acumulado (se cerró en este
+  // trimestre), la deuda asumida no-cash se imputa también al horizonte de 3 meses.
+  const acquisitions3MAbs = acquisitionsQuarter >= 50
+    ? acquisitionsQuarter
+    : (fiscalQuarterNumber === 1 ? acquisitionsYtd : 0);
+  const assumedDebt3M = (acquisitions3MAbs >= 50 && acquisitionsYtd >= 50
+    && Math.abs(acquisitions3MAbs - acquisitionsYtd) < 1 && assumedDebtYtd >= 50)
+    ? assumedDebtYtd
+    : 0;
   const cashDiff3M = (bal.cash != null && bal.cashPreviousQuarter != null)
     ? Math.round(-(Number(bal.cash) - Number(bal.cashPreviousQuarter)) * 10) / 10
     : null;
@@ -982,6 +1213,12 @@ function buildCapitalAllocationFromBalance(extracted) {
         return raw >= 50 ? -Math.abs(raw) : 0;
       })(),
       assetSales: Number(extracted.fiscalQuarter) === 1 ? (assetSalesQuarter || assetSalesYtd) : assetSalesQuarter,
+      preferredIssuance: fiscalQuarterNumber === 1 && preferredYtdRaw >= 50 ? preferredYtdRaw : 0,
+      nonControllingSale: fiscalQuarterNumber === 1 && nonControllingYtdRaw >= 50 ? nonControllingYtdRaw : 0,
+      assumedDebt: assumedDebt3M >= 50 ? assumedDebt3M : 0,
+      restrictedCashMovement: (restrictedDiff3M != null && Math.abs(restrictedDiff3M) >= 50)
+        ? Math.round(-restrictedDiff3M * 10) / 10
+        : 0,
       acquisitionDescription,
       divestitureDescription,
       debtDetails: buildDebtDetails({
@@ -997,6 +1234,7 @@ function buildCapitalAllocationFromBalance(extracted) {
         curr: bal.cash != null ? Number(bal.cash) : null,
         caja: cashDiff3M,
         periodYear: Number(extracted.fiscalYear) || (extracted.reportingPeriod ? Number(String(extracted.reportingPeriod).slice(0, 4)) : null),
+        statementChange: Number(extracted.fiscalQuarter) === 1 ? extracted.facts?.netChangeInCash : undefined,
       }),
     },
     ytd: {
@@ -1012,6 +1250,12 @@ function buildCapitalAllocationFromBalance(extracted) {
       buybacks: buybacksYtd ? -Math.abs(buybacksYtd) : 0,
       acquisitions: acquisitionsYtd >= 50 ? -Math.abs(acquisitionsYtd) : 0,
       assetSales: assetSalesYtd,
+      preferredIssuance: preferredYtdRaw >= 50 ? preferredYtdRaw : 0,
+      nonControllingSale: nonControllingYtdRaw >= 50 ? nonControllingYtdRaw : 0,
+      assumedDebt: assumedDebtYtd >= 50 ? assumedDebtYtd : 0,
+      restrictedCashMovement: (restrictedDiffYtd != null && Math.abs(restrictedDiffYtd) >= 50)
+        ? Math.round(-restrictedDiffYtd * 10) / 10
+        : 0,
       acquisitionDescription,
       divestitureDescription,
       debtDetails: buildDebtDetails({
@@ -1075,7 +1319,7 @@ function buildWorkingCapitalDataFallback(extracted) {
   const fcf = Math.round((cfo - capex) * 10) / 10;
   const fcfAdj = Math.round((cfoAdjYtd - capex) * 10) / 10;
   const shares = Number(extracted.shares);
-  const format = (value) => Number.isFinite(value) ? String(value).replace('.', ',') : null;
+  const format = (value) => Number.isFinite(value) ? String(Math.round(value * 100) / 100).replace('.', ',') : null;
   const ytdValues = {
     cfo: [format(cfo), format(cfoAdjYtd)],
     capex: [format(capex), format(capex)],
@@ -1102,7 +1346,7 @@ function buildWorkingCapitalDataFallback(extracted) {
   return result;
 }
 
-async function loadKnowledgeRules(sector, subsector, formType = '10-Q') {
+async function loadKnowledgeRules(sector, subsector, formType = '10-Q', ticker = null) {
   const isAnnual = String(formType || '').toUpperCase().includes('10-K') || String(formType || '').toLowerCase().includes('anual');
 
   let generalRules = '';
@@ -1148,11 +1392,25 @@ async function loadKnowledgeRules(sector, subsector, formType = '10-Q') {
     }
   }
 
+  // Reglas propias de la empresa (agente de empresa) cuando exista su .md.
+  let empresaRules = '';
+  const tickerSlug = String(ticker ?? '').trim().toLowerCase();
+  if (tickerSlug) {
+    try {
+      empresaRules = await readFile(new URL(`${sectorSlug}/empresas/${tickerSlug}/empresa.md`, KNOWLEDGE_DIR), 'utf8');
+    } catch {
+      try {
+        empresaRules = await readFile(new URL(`${sectorSlug}/empresas/${tickerSlug}.md`, KNOWLEDGE_DIR), 'utf8');
+      } catch {}
+    }
+  }
+
   const parts = [];
   const generalTitle = isAnnual ? 'REGLAS GENERALES Y FORMATO ANUAL (10-K)' : 'REGLAS GENERALES Y FORMATO';
   if (generalRules) parts.push(`### ${generalTitle}:\n${generalRules}`);
   if (sectorRules) parts.push(`### REGLAS DEL SECTOR (${sectorSlug}):\n${sectorRules}`);
   if (subsectorRules) parts.push(`### REGLAS DEL SUBSECTOR (${subsector}):\n${subsectorRules}`);
+  if (empresaRules) parts.push(`### REGLAS DE LA EMPRESA (${String(ticker).toUpperCase()}):\n${empresaRules}`);
 
   return parts.join('\n\n---\n\n') || sectorRules;
 }
@@ -1273,6 +1531,9 @@ const EXTRACTION_SCHEMA = `{
     "cash": 55,
     "cashBeginningOfYear": 68,
     "cashPreviousQuarter": 47,
+    "restrictedCash": 0,
+    "restrictedCashBeginningOfYear": 0,
+    "restrictedCashPreviousQuarter": 0,
     "shortTermInvestments": 1020,
     "shortTermInvestmentsBeginningOfYear": 0,
     "shortTermInvestmentsPreviousQuarter": 997,
@@ -1298,6 +1559,8 @@ const EXTRACTION_SCHEMA = `{
     "incomeTaxExpenseYtd": 163,
     "taxCashFlowAdjustmentQuarter": -20,
     "taxCashFlowAdjustmentYtd": 30.9,
+    "incomeTaxesPaidQuarter": 131.4,
+    "incomeTaxesPaidYtd": 131.4,
     "shareBuybacks": 435,
     "purchasesOfMarketableSecuritiesQuarter": 0,
     "purchasesOfMarketableSecuritiesYtd": 1020,
@@ -1308,6 +1571,10 @@ const EXTRACTION_SCHEMA = `{
     "acquisitionsYtd": 271,
     "assetSalesQuarter": 0,
     "assetSalesYtd": 4.4,
+    "preferredIssuanceQuarter": 0,
+    "preferredIssuanceYtd": 0,
+    "nonControllingSaleQuarter": 0,
+    "nonControllingSaleYtd": 0,
     "acquisitionDescription": "Nombre del negocio o empresa adquirida en el periodo, o null si no hubo",
     "divestitureDescription": "Nombre de la marca, negocio o activo vendido en el periodo, o null si no hubo",
     "totalDebt": 7332
@@ -1437,10 +1704,11 @@ Instrucciones:
 - "quarter" = datos del trimestre más reciente (por ejemplo "three months ended") y "quarter.prev" = las mismas líneas del mismo trimestre del año anterior (columnas comparativas del informe); "ytd" = acumulado del año fiscal en curso ("six/nine months ended") y "ytd.prev" = acumulado del mismo periodo del año anterior. Si el informe no trae comparativos, usa null.
 - En informes anuales (Form 10-K), "ytd" representa el año fiscal completo (12 meses) y "quarter" puede omitirse o igualarse a ytd.
 - Todas las cifras en MILLONES de dólares estadounidenses, como números (ej. 6262). Si una cifra no aparece usa null (no la omitas).
+- UNIDADES OBLIGATORIAS: si una tabla del informe indica "(In thousands)" o "en miles", DIVIDE la cifra entre 1000 para pasarla a millones; si indica "(In millions)", úsala tal cual. Nunca devuelvas importes en miles (ej. 1.000.000 donde corresponde 1000) ni en dólares completos.
 - EXACTITUD OBLIGATORIA: copia las cifras EXACTAS tal como figuran en el informe, sin redondear ni estimar (ej. si el estado de flujos dice "4,462" escribe 4462, no 4500; si dice "801" escribe 801, no 800; si dice "1,898" escribe 1898, no 1900). Nunca sustituyas una cifra reportada por una aproximación ni completes un dato que no aparece con un valor redondeado.
 - Si el informe no desglosa el trimestre en algún estado (p. ej. flujos de caja solo acumulados), deja esos campos con null.
 - "cashFlow" son las cifras del acumulado (net cash provided by operating activities, capital expenditures, cash dividends paid). Si solo aparecen del trimestre, úsalas igualmente.
-- "balance": inventarios (inventories), cuentas por pagar (accounts payable / payables), cuentas por cobrar (accounts receivable / receivables), efectivo (cash), efectivo a principio de año fiscal (cashBeginningOfYear / cierre de ejercicio anterior), efectivo al cierre del trimestre previo (cashPreviousQuarter), inversiones a corto plazo o valores negociables (shortTermInvestments / Marketable Securities), a principio de año fiscal (shortTermInvestmentsBeginningOfYear) y al cierre del trimestre previo (shortTermInvestmentsPreviousQuarter), deuda total o senior notes (totalDebt), deuda total a principio de año fiscal (totalDebtBeginningOfYear) y deuda total al cierre del trimestre previo (totalDebtPreviousQuarter) en millones (o null si no aparecen).
+- "balance": inventarios (inventories), cuentas por pagar (accounts payable / payables), cuentas por cobrar (accounts receivable / receivables), efectivo (cash), efectivo a principio de año fiscal (cashBeginningOfYear / cierre de ejercicio anterior), efectivo al cierre del trimestre previo (cashPreviousQuarter), efectivo restringido o en escrow (restrictedCash), a principio de año fiscal (restrictedCashBeginningOfYear) y al cierre del trimestre previo (restrictedCashPreviousQuarter), inversiones a corto plazo o valores negociables (shortTermInvestments / Marketable Securities), a principio de año fiscal (shortTermInvestmentsBeginningOfYear) y al cierre del trimestre previo (shortTermInvestmentsPreviousQuarter), deuda total o senior notes (totalDebt), deuda total a principio de año fiscal (totalDebtBeginningOfYear) y deuda total al cierre del trimestre previo (totalDebtPreviousQuarter) en millones (o null si no aparecen). El efectivo restringido incluye las líneas "Restricted cash" del balance o de la conciliación del estado de flujos ("Cash, cash equivalents, restricted cash and restricted cash equivalents") menos el efectivo y equivalentes no restringido.
 - "totalDebt" = deuda financiera total del balance = deuda a largo plazo (long-term debt) + porción corriente de la deuda a largo plazo (current portion of long-term debt / current maturities) + préstamos a corto plazo (short-term borrowings). Excluye las cuentas comerciales a pagar a proveedores (accounts payable). En el balance general de US-GAAP la porción corriente de la deuda a largo plazo se clasifica dentro de pasivos corrientes (Current Liabilities) separada de la deuda a largo plazo no corriente, por lo que DEBE sumarse para obtener la deuda total financiera del balance.
 - "workingCapital": variación del capital circulante / operating assets and liabilities en el estado de flujos de caja (reportedChangeQuarter para 3 meses o reportedChangeYtd para acumulado), inflación anual del sector ("inflationRate") y crecimiento real de volumen ("volumeGrowth") en %. Si el informe no proporciona volumen, "volumeGrowth" es obligatoriamente 0. Si no proporciona inflación propia, usa aproximadamente 3% para consumo defensivo y deja constancia de que es una hipótesis sectorial. "inflationAndVolume" debe ser la suma de ambos.
 - "facts":
@@ -1452,13 +1720,16 @@ Instrucciones:
   * effectiveTaxRate: tipo impositivo efectivo en %.
   * incomeTaxExpenseQuarter / incomeTaxExpenseYtd: gasto por impuestos reconocido en la cuenta de resultados del periodo.
   * taxCashFlowAdjustmentQuarter / taxCashFlowAdjustmentYtd: línea "Deferred income taxes and income taxes payable, net" o "Deferred income tax provision/(benefit)" del cash flow, con su signo tal como aparece. Es un ajuste no monetario, no impuestos pagados. Si existe cualquiera de esas líneas, estos campos son obligatorios.
+  * incomeTaxesPaidQuarter / incomeTaxesPaidYtd: importe pagado en efectivo por impuestos sobre las ganancias en el periodo ("Income taxes paid", "Income tax (paid) received", "Total net cash income taxes paid", "Cash paid for income taxes"). Número positivo en $M (ej. 131.4). Si la empresa desglosa los impuestos pagados en efectivo en el estado de flujos o en la nota de impuestos, este campo es prioritario.
   * shareBuybacks: recompras de acciones en $M. Buscar también "repurchases of common stock", "purchases of treasury stock" y "share repurchases".
   * purchasesOfMarketableSecuritiesQuarter / purchasesOfMarketableSecuritiesYtd: compras de inversiones a corto plazo, valores negociables o marketable securities en el cash flow. Buscar expresamente "purchases of marketable securities". Se pasan al bloque de Asignación de Capital restadas de las ventas (ver el campo siguiente).
   * proceedsFromSaleOfMarketableSecuritiesQuarter / proceedsFromSaleOfMarketableSecuritiesYtd: cobros por venta o vencimiento de valores negociables en el cash flow ("Proceeds from sales of marketable securities", "Proceeds from sale and maturity of marketable securities"). En Asignación de Capital, la fila "Inversiones a corto plazo" es el flujo NETO: ventas (+) - compras (-). Ej.: compras de 1.724 y ventas de 686 => -1038.
   * IMPORTANTE (separador de miles): en las tablas de la SEC la coma suele ser separador de MILLARES ("(1,724)" = 1.724 millones; "1,024" = 1.024 millones). Interpreta siempre esas comas como miles, nunca como decimales.
   * brandDivestitures: ingresos netos por venta de marcas, activos o desinversiones materiales en $M (>= 50M).
-  * acquisitionsQuarter / acquisitionsYtd: pagos netos por compra de negocios en el cash flow ("Acquisition of business, net of cash acquired", "Payments to acquire businesses") en $M, como número positivo. Buscar expresamente estas líneas; si existen, los campos son obligatorios.
+  * acquisitionsQuarter / acquisitionsYtd: pagos netos por compra de negocios en el cash flow ("Acquisitions of businesses, net of cash acquired", "Acquisition of business, net of cash acquired", "Payments to acquire businesses") en $M, como número positivo, tomando la columna del periodo analizado. Buscar expresamente estas líneas (singular o plural); si existen, los campos son obligatorios. Ojo: aunque el nombre diga "net of cash acquired", el importe es el pagado por la adquisición y debe figurar como fila "Adquisiciones" en la asignación de capital.
   * assetSalesQuarter / assetSalesYtd: ingresos por venta de property, plant, equipment and other assets en el cash flow ("Proceeds from sales of property, plant, equipment and other assets") en $M, como número positivo. Si existen, los campos son obligatorios.
+  * preferredIssuanceQuarter / preferredIssuanceYtd: entradas de caja por emisión de acciones preferentes en la sección de financiación ("Net proceeds from issuance of convertible preferred stock", "Proceeds from issuance of preferred stock"), en $M como número positivo. Si existen, son obligatorios.
+  * nonControllingSaleQuarter / nonControllingSaleYtd: entradas de caja por venta de participaciones no controladoras/minoritarias manteniendo el control ("Net proceeds from sale of non-controlling interest", "Proceeds from sale of noncontrolling interest", "Proceeds from minority shareholders"), en $M como número positivo. Si existen, son obligatorios. NO es una desinversión.
   * REGLA DEL PERIODO (CRÍTICA): todas las partidas del estado de flujos (recompras, compras/ventas de valores negociables, adquisiciones, desinversiones y ventas de activos) se toman SIEMPRE de la columna del EJERCICIO analizado. Las columnas comparativas del año anterior NO cuentan: si la línea solo aparece con la cifra del comparativo (o a 0 en el periodo actual), escribe 0. Nunca atribuyas al ejercicio analizado una adquisición o desinversión del ejercicio anterior.
   * acquisitionDescription: breve descripción de QUÉ negocio/empresa se ha comprado en el periodo (según las notas del 10-Q/10-K), o null si no hubo adquisiciones.
   * divestitureDescription: breve descripción de QUÉ marca, negocio o activo se ha vendido en el periodo (según las notas del 10-Q/10-K), o null si no hubo ventas.
@@ -1525,12 +1796,12 @@ const OUTPUT_SCHEMA = `{
       "capital": {
         "rows": [
           { "name": "Libre", "value": "302" },
-          { "name": "Caja*1", "value": "-9" },
+          { "name": "Caja*1", "value": "-8" },
           { "name": "Deuda*1", "value": "-292" },
-          { "name": "En total", "value": "1" }
+          { "name": "En total", "value": "2" }
         ],
         "verification": "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle.",
-        "notes": ["*1: Deuda balance: 7624M -> 7332M (-292M). Deuda neta: 6580M -> 6257M (-323M)."]
+        "notes": ["*1: Deuda balance: 7624M -> 7332M (-292M). Deuda neta: 6580M -> 6257M (-323M). Caja balance: 47M (2025) -> 55M (2026) (+8M); la caja aumentó: uso de capital (-); fila Caja = -8."]
       }
     },
     {
@@ -1575,7 +1846,7 @@ const OUTPUT_SCHEMA = `{
         "notes": [
           "*1: Adquisiciones: Se destinaron 271M a la compra de [negocio o empresa adquirida] (uso de fondos).",
           "*2: Desinversiones: Se ingresaron 649M por la desinversión de [marca o negocio vendido] (fuente de fondos).",
-          "*3: Deuda balance: 8064M -> 7332M (-732M). Deuda neta: 7996M -> 6257M (-1739M)."
+          "*3: Deuda balance: 8064M -> 7332M (-732M). Deuda neta: 7996M -> 6257M (-1739M). Caja balance: 68M (2025) -> 55M (2026) (-13M); la caja disminuyó: fuente de liquidez (+); fila Caja = 13."
         ]
       }
     }
@@ -1631,7 +1902,7 @@ const ANNUAL_OUTPUT_SCHEMA = `{
         ],
         "verification": "No cuadra del todo, pero más o menos ha gastado todo lo que estaba libre en recompras.",
         "notes": [
-          "*1: Deuda balance: 6126M -> 6260M (+134M). Deuda neta: 5740M -> 5840M (+100M)."
+          "*1: Deuda balance: 6126M -> 6260M (+134M). Deuda neta: 5740M -> 5840M (+100M). Caja balance: 560M (2024) -> 490M (2025) (-70M); la caja disminuyó: fuente de liquidez (+); fila Caja = 70."
         ]
       }
     }
@@ -1789,19 +2060,19 @@ Instrucciones prioritarias:
       * Impuestos normalizados = 0,23 × EBT Ajustado.
       * Beneficio Neto Ajustado = EBT Ajustado × 0,77.
     - Ejemplo: EBT reportado 100M y beneficio neto 80M (tipo efectivo 20 %). Si el EBT ajustado es 300M, mantener solo 20M de impuestos es INCORRECTO: impuestos normalizados = 23 % × 300M = 69M → Beneficio Neto Ajustado = 231M.
-    - La nota de impuestos debe desglosar el EBT ajustado, el tipo aplicado y el impuesto resultante.
-  * Regla de herencia en "Anterior Ajustado" (prevAdjusted): ÚNICAMENTE si en el ejercicio anterior comparable NO hubo ningún ajuste contable documentado ni impairments, hereda obligatoriamente el valor de "Anterior Normal" (prevNormal), y calcula SIEMPRE el "% Ajustado" (pctAdjusted). Prohibido poner "—" si prevNormal tiene cifra.
-  * COMPARATIVO DEL PERIODO ANTERIOR: las columnas "Anterior" son SIEMPRE las cifras comparativas del mismo periodo del ejercicio anterior. Queda TERMINANTEMENTE PROHIBIDO copiar las cifras del periodo actual en las columnas "Anterior" (variaciones falsas de "+0,00 %"): si el comparativo no aparece, deja "—".
-  * Principio de Resaltado Exclusivo en la Casilla de Origen (Sin Propagación en Cascada): El color y la llamada de nota ("isAdjusted": true, "adjustedNote": "*1") se asignan ÚNICA Y EXCLUSIVAMENTE a la casilla de la métrica donde se origina directamente el ajuste contable:
-    - Intangibles / amortización / deterioros (impairments): marcar "isAdjusted": true ÚNICAMENTE en "Beneficio Operativo". Aunque EBT y Beneficio Neto varíen matemáticamente en la columna Ajustado por arrastre aritmético, NO llevan resalte ("isAdjusted": false) ni asterisco a menos que contengan un ajuste directo propio.
-    - Normalización de impuestos / créditos fiscales: marcar "isAdjusted": true ÚNICAMENTE en "Beneficio Neto" (con su propia nota de impuestos, ej. "*2"). EBT no se colorea por impuestos.
-    - Queda terminantemente prohibido marcar en cascada EBT y Beneficio Neto ("isAdjusted": true) si el ajuste se originó en intangibles u operaciones.
-  * Las notas explicativas deben detallar el motivo, la cifra teórica vs reportada y la diferencia neta.
+     - La nota de impuestos debe desglosar el EBT ajustado, el tipo aplicado y el impuesto resultante. Se genera SIEMPRE UNA ÚNICA NOTA bien desarrollada para la normalización fiscal (*2), sin duplicar notas bajo ningún concepto.
+   * Regla de herencia en "Anterior Ajustado" (prevAdjusted): ÚNICAMENTE si en el ejercicio anterior comparable NO hubo ningún ajuste contable documentado ni impairments, hereda obligatoriamente el valor de "Anterior Normal" (prevNormal), y calcula SIEMPRE el "% Ajustado" (pctAdjusted). Prohibido poner "—" si prevNormal tiene cifra.
+   * COMPARATIVO DEL PERIODO ANTERIOR: las columnas "Anterior" son SIEMPRE las cifras comparativas del mismo periodo del ejercicio anterior. Queda TERMINANTEMENTE PROHIBIDO copiar las cifras del periodo actual en las columnas "Anterior" (variaciones falsas de "+0,00 %"): si el comparativo no aparece, deja "—".
+   * Principio de Resaltado Exclusivo en la Casilla de Origen (Sin Propagación en Cascada): El color y la llamada de nota ("isAdjusted": true, "adjustedNote": "*1") se asignan ÚNICA Y EXCLUSIVAMENTE a la casilla de la métrica donde se origina directamente el ajuste contable:
+     - Intangibles / amortización / deterioros (impairments): marcar "isAdjusted": true ÚNICAMENTE en "Beneficio Operativo". Aunque EBT y Beneficio Neto varíen matemáticamente en la columna Ajustado por arrastre aritmético, NO llevan resalte ("isAdjusted": false) ni asterisco a menos que contengan un ajuste directo propio.
+     - Normalización de impuestos / créditos fiscales: marcar "isAdjusted": true ÚNICAMENTE en "Beneficio Neto" (con su propia nota de impuestos, ej. "*2"). EBT no se colorea por impuestos.
+     - Queda terminantemente prohibido marcar en cascada EBT y Beneficio Neto ("isAdjusted": true) si el ajuste se originó en intangibles u operaciones.
+   * Las notas explicativas deben detallar el motivo, la cifra teórica vs reportada y la diferencia neta.
 
  - BLOQUE 2 — CASH FLOW:
-   * NORMALIZACIÓN FISCAL DEL CASH FLOW: Si el JSON de extracción contiene "incomeTaxExpense..." y "taxCashFlowAdjustment...", calcula los impuestos corrientes estimados como gasto fiscal reportado menos la línea "Deferred income tax provision/(benefit)", "Deferred income taxes and income taxes payable, net" o "income taxes payable". Compara esa cifra con el 23 % del EBT ajustado y aplica la diferencia solo si está entre -20 % y +20 %. No confundas la línea del cash flow con impuestos pagados directamente.
-   * Ejemplo: gasto fiscal 10M, ajuste fiscal del cash flow -20M, EBT ajustado 100M y tipo normalizado 23%: impuestos pagados estimados 30M, impuestos normalizados 23M, ajuste al Cash Flow Ajustado +7M.
-  * NUMERACIÓN INDEPENDIENTE DE NOTAS POR BLOQUE: Cada bloque (1. Ventas, 2. Cash Flow, 3. Asignación de Capital) reinicia obligatoriamente su numeración de notas en *1.
+   * NORMALIZACIÓN FISCAL DEL CASH FLOW: El trabajo analítico es calcular cuántos impuestos debería pagar la empresa en realidad (23 % sobre el EBT ajustado) y cuánto consta que ha pagado en los cash flows (bien directamente por la línea de "Income tax (paid) received" / "Income taxes paid", o bien por la conciliación de impuestos devengados menos diferidos). Si hay una discrepancia entre lo que debería haber pagado y lo pagado en efectivo, SE AJUSTA el Cash Flow restando o sumando la diferencia en la columna Ajustado. Si pagó menos de lo normalizado, el Cash Flow Ajustado resta esa diferencia; si pagó más, la suma. Y se añade obligatoriamente la Nota *2 explicando cuántos impuestos debería haber pagado y cuánto ha pagado realmente en efectivo.
+   * Ejemplo: EBT ajustado 1385,4M, impuestos teóricos normalizados al 23% = 318,6M (~319M). Si en los cash flows consta que solo pagó 131,4M en impuestos, pagó 187,2M de menos: el Cash Flow Ajustado resta -187,2M y se añade la Nota *2 detallándolo.
+   * NUMERACIÓN INDEPENDIENTE DE NOTAS POR BLOQUE: Cada bloque (1. Ventas, 2. Cash Flow, 3. Asignación de Capital) reinicia obligatoriamente su numeración de notas en *1.
   * La sección cashFlow DEBE incluir SIEMPRE DOS columnas en "scenarios": ["Normal (WC=valorBase)", "Ajustado*1 (WC=valorAjustado)"], indicando obligatoriamente los valores numéricos concretos de WC aplicados (NUNCA dejes puntos suspensivos "WC=...").
   * Si en el JSON de entrada dispones de "workingCapitalData", usa obligatoriamente sus "quarterScenarios" / "ytdScenarios" y sus "quarterValues" / "ytdValues" para rellenar con exactitud matemática las columnas Normal y Ajustado.
   * Cada fila de cashFlow.rows DEBE tener el array "values" con EXACTAMENTE DOS valores: [valorNormal, valorAjustado].
@@ -1829,7 +2100,7 @@ Instrucciones prioritarias:
          * Si venden más de lo que compran: POSITIVO (+) porque la venta neta de valores libera liquidez.
          * Si el importe neto es marginal (< 50M) o 0 en el periodo, la fila se omite.
     3. "Desinversiones" (venta de marcas / negocios / activos): Ingresos netos obtenidos por la venta de marcas, negocios, filiales o activos (incluye "proceeds from sales of property, plant, equipment and other assets" y las desinversiones de negocios, campos "brandDivestitures", "assetSales..." y "divestitures", >= 50M en conjunto). Signo POSITIVO (+) porque entra dinero a la compañía. Si en el horizonte analizado no hubo venta o su importe fue marginal (< 50M) o 0, NO incluir esta fila.
-    4. "Adquisiciones": Pagos netos por compra de negocios o empresas ("Acquisition of business, net of cash acquired", "Payments to acquire businesses", campos "acquisitions..." del JSON, >= 50M). Fila OBLIGATORIA si existe una adquisición material: signo NEGATIVO (-) porque es un uso de capital. Si no hubo adquisiciones o fueron marginales (< 50M), NO incluir esta fila.
+    4. "Adquisiciones": Pagos netos por compra de negocios o empresas ("Acquisitions of businesses, net of cash acquired", "Acquisition of business, net of cash acquired", "Payments to acquire businesses", campos "acquisitions..." del JSON, >= 50M). Fila OBLIGATORIA si existe una adquisición material: signo NEGATIVO (-) porque es un uso de capital. Si no hubo adquisiciones o fueron marginales (< 50M), NO incluir esta fila.
     5. "Deuda": Se calcula OBLIGATORIAMENTE comparando la Deuda Total (Deuda a largo plazo + Deuda a corto plazo, excluyendo cuentas a pagar a proveedores que forman parte del Working Capital) directamente en el BALANCE:
        - Deuda Balance = Deuda a largo plazo (Long-Term Debt) + Deuda a corto plazo (Current debt / Short-Term debt).
        - Deuda Neta = Deuda Balance - (Efectivo y equivalentes + Inversiones a corto plazo).
@@ -1842,22 +2113,24 @@ Instrucciones prioritarias:
     6. "Caja": Se calcula OBLIGATORIAMENTE comparando el Efectivo directamente en el BALANCE:
        - En "ÚLTIMOS 3 MESES": -(Caja este trimestre - Caja trimestre anterior).
        - En "EN TODO EL AÑO": -(Caja este trimestre - Caja a principio de año fiscal).
-       - SIGNO:
-         * Si la caja aumentó: NEGATIVO (-) porque se ha asignado o gastado capital en incrementar la caja (uso de dinero).
-         * Si la caja disminuyó: POSITIVO (+) porque la reducción de caja actúa como fuente de liquidez liberada para pagar otros usos.
-    7. "Recompras": Salida de capital destinada a comprar acciones propias. Signo NEGATIVO (-). Si en el horizonte es 0, NO incluir esta fila.
+        - SIGNO:
+          * Si la caja aumentó: NEGATIVO (-) porque se ha asignado o gastado capital en incrementar la caja (uso de dinero).
+          * Si la caja disminuyó: POSITIVO (+) porque la reducción de caja actúa como fuente de liquidez liberada para pagar otros usos.
+        - REFERENCIA OBLIGATORIA: la fila "Caja" se mide SIEMPRE por la variación de saldos del BALANCE; nunca por el cambio neto de efectivo del estado de flujos de caja. Su cifra debe coincidir con la nota al pie.
+     7. "Recompras": Salida de capital destinada a comprar acciones propias. Signo NEGATIVO (-). Si en el horizonte es 0, NO incluir esta fila.
     8. "En total": Última fila obligatoria. Suma algebraica con signo de todas las partidas de la tabla: Libre + Inversiones a corto plazo + Desinversiones + Adquisiciones + Deuda + Caja + Recompras.
   * Verificación de cuadre ("verification"):
-    - Si el valor absoluto de "En total" es <= 50 (o diferencia residual): "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle." (o "El resultado cuadra." si es 0).
-    - Si presenta una discrepancia superior a 50 respecto a 0: "No cuadra. Hay una discrepancia significativa entre el capital libre y los usos detectados; se deberá analizar más a fondo."
+    - Umbral razonable relativo: el descuadre es aceptable si |En total| <= máximo(50M, 20 % del capital Libre, 10 % de la suma bruta de movimientos de capital). En ese caso: "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle." (o "El resultado cuadra." si es 0).
+    - Si el descuadre supera ese umbral: "No cuadra. Hay una discrepancia significativa entre el capital libre y los usos detectados; se deberá analizar más a fondo."
    * Si en el JSON recibido dispones de "capitalAllocationData", usa obligatoriamente sus partidas y valores calculados para asegurar exactitud matemática perfecta.
-   * EXTRACCIÓN OBLIGATORIA DE PARTIDAS: Busca expresamente "repurchases of common stock", "purchases of treasury stock", "share repurchases", "purchases of marketable securities", "proceeds from sale of marketable securities", "Acquisition of business, net of cash acquired" y "Proceeds from sales of property, plant, equipment and other assets". Las recompras deben aparecer como fila "Recompras" con signo negativo; las compras de marketable securities como "Inversiones a corto plazo" con el NETO (ventas - compras) y signo negativo si el neto es comprador; las compras de negocios como fila "Adquisiciones" con signo negativo (fila OBLIGATORIA si la adquisición es >= 50M, NUNCA la omitas); las ventas de activos/negocios como "Desinversiones" con signo positivo. No omitas una partida porque el modelo no la haya mencionado en su primer borrador si aparece en el JSON de extracción.
-  * NOTAS OBLIGATORIAS AL PIE DE ASIGNACIÓN DE CAPITAL:
-    1. NOTA DE DEUDA BALANCE Y DEUDA NETA (OBLIGATORIA SIEMPRE):
-       - Debe incluir SIEMPRE y con este formato exacto la comparación tanto de deuda bruta como de deuda neta:
-         "Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M)."
-         (Usa el valor provisto en capitalAllocationData.debtDetails si está presente).
-       - PROHIBIDO copiar los valores del ejemplo del esquema: son de otra empresa. Si capitalAllocationData.debtDetails está presente, úsalo VERBATIM. Si no está presente, calcula tú mismo la nota con los campos "balance" del JSON recibido: Deuda Balance = totalDebt; Deuda Neta = totalDebt - (cash + shortTermInvestments); comparando contra totalDebtPreviousQuarter / cashPreviousQuarter / shortTermInvestmentsPreviousQuarter (en 3M) o contra totalDebtBeginningOfYear / cashBeginningOfYear / shortTermInvestmentsBeginningOfYear (en acumulado).
+   * EXTRACCIÓN OBLIGATORIA DE PARTIDAS: Busca expresamente "repurchases of common stock", "purchases of treasury stock", "share repurchases", "purchases of marketable securities", "proceeds from sale of marketable securities", "Acquisitions of businesses, net of cash acquired" (singular o plural), "Payments to acquire businesses" y "Proceeds from sales of property, plant, equipment and other assets". Las recompras deben aparecer como fila "Recompras" con signo negativo; las compras de marketable securities como "Inversiones a corto plazo" con el NETO (ventas - compras) y signo negativo si el neto es comprador; las compras de negocios como fila "Adquisiciones" con signo negativo (fila OBLIGATORIA si la adquisición es >= 50M, NUNCA la omitas); las ventas de activos/negocios como "Desinversiones" con signo positivo. No omitas una partida porque el modelo no la haya mencionado en su primer borrador si aparece en el JSON de extracción.
+   * NOTAS OBLIGATORIAS AL PIE DE ASIGNACIÓN DE CAPITAL:
+     1. NOTA DE DEUDA BALANCE, DEUDA NETA Y CAJA BALANCE (OBLIGATORIA SIEMPRE):
+        - Debe incluir SIEMPRE y con este formato exacto la comparación de deuda bruta, deuda neta y caja:
+          "Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M). Caja balance: <anterior>M -> <actual>M (<variación>M); la caja aumentó: uso de capital (-) / la caja disminuyó: fuente de liquidez (+); fila Caja = <valor>M."
+          (Usa los valores provistos en capitalAllocationData.debtDetails y capitalAllocationData.cashDetails si están presentes).
+        - La fila "Caja" toma SIEMPRE la variación de saldos del BALANCE (nunca el cambio neto de efectivo del estado de flujos) y su cifra debe coincidir con la nota. Si el estado de flujos presenta un cambio neto distinto, se explica la diferencia citando las notas del 10-Q/10-K (efectivo restringido, efecto divisa u otras partidas no monetarias).
+        - PROHIBIDO copiar los valores del ejemplo del esquema: son de otra empresa. Si capitalAllocationData.debtDetails está presente, úsalo VERBATIM. Si no está presente, calcula tú mismo la nota con los campos "balance" del JSON recibido: Deuda Balance = totalDebt; Deuda Neta = totalDebt - (cash + shortTermInvestments); comparando contra totalDebtPreviousQuarter / cashPreviousQuarter / shortTermInvestmentsPreviousQuarter (en 3M) o contra totalDebtBeginningOfYear / cashBeginningOfYear / shortTermInvestmentsBeginningOfYear (en acumulado).
      2. NOTA DE ADQUISICIONES / DESINVERSIONES (VENTA O COMPRA DE MARCAS, NEGOCIOS O ACTIVOS):
         - Si en la tabla figuran adquisiciones o desinversiones (venta de marcas, negocios o activos):
           EXPLICAR SIEMPRE CON UN BREVE TEXTO QUÉ NEGOCIO, MARCA O ACTIVO SE HA COMPRADO O VENDIDO, extrayendo la información del 10-Q/10-K recibido y usando los campos "acquisitionDescription" / "divestitureDescription" si están presentes (ej. "*1: Adquisiciones: Se destinaron 271M a la compra de [negocio adquirido]. *2: Desinversiones: Se ingresaron 649M por la venta de [marca o negocio vendido]"). Queda prohibido emitir notas genéricas sin detallar qué se vendió o compró, y prohibido omitir la nota cuando la fila de Adquisiciones o Desinversiones figure en la tabla.
@@ -1866,7 +2139,7 @@ Instrucciones prioritarias:
     4. VINCULACIÓN Y LLAMADA A NOTAS EN LAS FILAS DE LA TABLA:
        - Cada fila de la tabla explicada por una nota al pie debe llevar la llamada a su nota correspondiente en el campo "name":
           * La fila de adquisiciones o de venta/desinversión de marcas lleva la llamada a su nota: ej. "Adquisiciones*1", "Desinversiones*2".
-         * Las filas de "Caja", "Deuda" y (si existe) "Inversiones a corto plazo" hacen referencia conjunta a la nota de deuda en balance y deuda neta, por lo que DEBEN llevar la llamada a dicha nota: ej. "Caja*2", "Deuda*2", "Inversiones a corto plazo*2" (o "*1" si no hubo venta de marcas).
+          * Las filas de "Caja", "Deuda" y (si existe) "Inversiones a corto plazo" hacen referencia conjunta a la nota de deuda balance/neta y caja balance, por lo que DEBEN llevar la llamada a dicha nota: ej. "Caja*2", "Deuda*2", "Inversiones a corto plazo*2" (o "*1" si no hubo venta de marcas).
 
 - Porcentajes en español con coma decimal y signo (ej. "+16,67 %", "-2,29 %"). Cifras en millones con sufijo M en ventas (ej. "6237M") y valores numéricos en flujos y asignación de capital.`;
 
@@ -1914,9 +2187,10 @@ Instrucciones prioritarias:
   * BLOQUE 3 — ASIGNACIÓN DE CAPITAL (12 meses):
     - Variación acumulada de todo el año comparando el balance a cierre del ejercicio contra el balance de inicio del año (BeginningOfYear).
     - Partidas: Libre (+/-), Inversiones a corto plazo (neto ventas-compras; -/+), Desinversiones (+), Adquisiciones (-), Recompras (-), Caja (-/+), Deuda (+/-), En total.
-    - Nota obligatoria de Deuda Balance y Deuda Neta con formato exacto:
-      "Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M)."
-    - Verificación: "Más o menos cuadra..." si |En total| <= 50, o "No cuadra..." si supera 50.
+    - Nota obligatoria de Deuda Balance, Deuda Neta y Caja Balance con formato exacto:
+      "Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M). Caja balance: <anterior>M -> <actual>M (<variación>M); la caja aumentó: uso de capital (-) / la caja disminuyó: fuente de liquidez (+); fila Caja = <valor>M."
+    - La fila Caja y la Deuda se miden SIEMPRE por la variación de saldos del balance (nunca por el cambio neto de efectivo del estado de flujos). Si el estado de flujos presenta un neto de caja distinto, se explica la diferencia citando las notas del 10-K (efectivo restringido, efecto divisa u otras partidas no monetarias).
+    - Verificación (umbral relativo): "Más o menos cuadra..." si |En total| <= máximo(50M, 20 % del capital Libre, 10 % de la suma bruta de movimientos de capital); "No cuadra..." si supera ese umbral.
 
 - PARTE II: INDAGACIÓN A FONDO / CONCLUSIÓN (OBLIGATORIA EN 10-K):
   1. "repurchases":
@@ -1993,7 +2267,7 @@ export class AnalystAgent extends BaseAgent {
     const isAnnual = String(formType || '').toUpperCase().includes('10-K') || String(formType || '').toLowerCase().includes('anual');
     let rules;
     try {
-      rules = await loadKnowledgeRules(sector, subsector, formType);
+      rules = await loadKnowledgeRules(sector, subsector, formType, input.ticker ?? null);
     } catch {
       throw new AgentError(`No hay reglas de análisis definidas para el sector ${sector}.`, 'NO_SECTOR_RULES');
     }
@@ -2007,11 +2281,14 @@ export class AnalystAgent extends BaseAgent {
       ]);
     } catch (error) {
       console.error('[analyst:extraction]', error.message);
+      if (error instanceof AiProviderError) throw error;
       throw new AgentError('No se pudieron extraer los datos del informe.', 'INVALID_MODEL_RESPONSE');
     }
 
     const ticker = input.ticker || extracted.ticker;
     const extractedTaxAdjustment = extractTaxCashFlowAdjustment(input.text);
+    const extractedIncomeTaxesPaid = extractIncomeTaxesPaid(input.text);
+    extracted._rawText = input.text;
     if (isAnnual) {
       extracted.annualDetails = extracted.annualDetails || {};
       const annualRep = extracted.annualDetails.repurchases || (extracted.annualDetails.repurchases = {});
@@ -2037,8 +2314,13 @@ export class AnalystAgent extends BaseAgent {
       }
     }
     const extractedCapitalFacts = extractCapitalCashFlowFacts(input.text);
-    if (extractedTaxAdjustment != null && extracted.facts) {
-      extracted.facts.taxCashFlowAdjustmentYtd ??= extractedTaxAdjustment;
+    if (extracted.facts) {
+      if (extractedTaxAdjustment != null) {
+        extracted.facts.taxCashFlowAdjustmentYtd ??= extractedTaxAdjustment;
+      }
+      if (extractedIncomeTaxesPaid != null) {
+        extracted.facts.incomeTaxesPaidYtd ??= extractedIncomeTaxesPaid;
+      }
     }
     const reportingPeriod = extracted.reportingPeriod || null;
     const fiscalQuarter = isAnnual ? 4 : (extracted.fiscalQuarter || (extracted.ytd?.months ? Math.round(extracted.ytd.months / 3) : null));
@@ -2055,19 +2337,38 @@ export class AnalystAgent extends BaseAgent {
       }
       if (extractedCapitalFacts.acquisitionsOfBusiness != null) {
         const acqValue = Math.abs(extractedCapitalFacts.acquisitionsOfBusiness);
-        extracted.facts.acquisitionsYtd ??= acqValue;
-        if (fiscalQuarter === 1) extracted.facts.acquisitionsQuarter ??= acqValue;
+        if (acqValue >= 50) {
+          extracted.facts.acquisitionsYtd = acqValue;
+          if (fiscalQuarter === 1) extracted.facts.acquisitionsQuarter = acqValue;
+        }
       }
       if (extractedCapitalFacts.proceedsFromAssetSales != null) {
         const assetSalesValue = Math.abs(extractedCapitalFacts.proceedsFromAssetSales);
         extracted.facts.assetSalesYtd ??= assetSalesValue;
         if (fiscalQuarter === 1) extracted.facts.assetSalesQuarter ??= assetSalesValue;
       }
+      const extractedEquity = extractEquityIssuance(input.text);
+      if (extractedEquity.preferred != null && extractedEquity.preferred >= 50) {
+        extracted.facts.preferredIssuanceYtd = extractedEquity.preferred;
+        if (fiscalQuarter === 1) extracted.facts.preferredIssuanceQuarter = extractedEquity.preferred;
+      }
+      if (extractedEquity.nonControlling != null && extractedEquity.nonControlling >= 50) {
+        extracted.facts.nonControllingSaleYtd = extractedEquity.nonControlling;
+        if (fiscalQuarter === 1) extracted.facts.nonControllingSaleQuarter = extractedEquity.nonControlling;
+      }
+      const extractedDebtCash = extractDebtCashFlow(input.text);
+      if (extractedDebtCash != null) extracted.facts.debtCashFlowYtd = extractedDebtCash;
     }
+    normalizeExtractedUnits(extracted);
     // Recalcular con las partidas directas del estado de flujos (recompras y marketable securities).
     extracted.capitalAllocationData = buildCapitalAllocationFromBalance(extracted);
-    if (extractedTaxAdjustment != null && fiscalQuarter === 1 && extracted.facts) {
-      extracted.facts.taxCashFlowAdjustmentQuarter ??= extractedTaxAdjustment;
+    if (fiscalQuarter === 1 && extracted.facts) {
+      if (extractedTaxAdjustment != null) {
+        extracted.facts.taxCashFlowAdjustmentQuarter ??= extractedTaxAdjustment;
+      }
+      if (extractedIncomeTaxesPaid != null) {
+        extracted.facts.incomeTaxesPaidQuarter ??= extractedIncomeTaxesPaid;
+      }
     }
 
     // Asignación de capital calculada desde el balance extraído (siempre disponible;
@@ -2272,17 +2573,25 @@ export class AnalystAgent extends BaseAgent {
             : (capFromEdgar?.threeMonths?.buybacks ?? 0);
 
           const edgarAcq3M = capFromEdgar?.threeMonths?.acquisitions;
-          let acquisitions3M;
-          if (edgarAcq3M != null) {
+          const rawQuarterAcq = extracted.facts?.acquisitionsQuarter != null
+            ? Math.abs(Number(extracted.facts.acquisitionsQuarter))
+            : NaN;
+          const rawYtdAcq = extracted.facts?.acquisitionsYtd != null
+            ? Math.abs(Number(extracted.facts.acquisitionsYtd))
+            : NaN;
+          let acquisitions3M = 0;
+          if (Number.isFinite(rawQuarterAcq) && rawQuarterAcq >= 50) {
+            acquisitions3M = -rawQuarterAcq;
+          } else if (Number.isFinite(rawYtdAcq) && rawYtdAcq >= 50) {
+            // Trimestre = YTD Qn - YTD Qn-1 (si el trimestre anterior no tiene dato, se toma 0).
+            const prevYtdAcq = Number.isFinite(Number(prevQ.acquisitionsYtd))
+              ? Math.abs(Number(prevQ.acquisitionsYtd))
+              : 0;
+            const derivedAcq3M = Math.round((rawYtdAcq - prevYtdAcq) * 10) / 10;
+            if (derivedAcq3M >= 50) acquisitions3M = -derivedAcq3M;
+          }
+          if (acquisitions3M === 0 && edgarAcq3M != null) {
             acquisitions3M = edgarAcq3M;
-          } else if (extracted.facts?.acquisitionsQuarter != null) {
-            const rawAcq3M = Math.abs(Number(extracted.facts.acquisitionsQuarter)) || 0;
-            acquisitions3M = rawAcq3M ? -rawAcq3M : 0;
-          } else if (extracted.facts?.acquisitionsYtd != null && fiscalQuarter === 1) {
-            const rawAcq3M = Math.abs(Number(extracted.facts.acquisitionsYtd)) || 0;
-            acquisitions3M = rawAcq3M ? -rawAcq3M : 0;
-          } else {
-            acquisitions3M = 0;
           }
 
           const edgarAssetSales3M = capFromEdgar?.threeMonths?.assetSales;
@@ -2345,11 +2654,13 @@ export class AnalystAgent extends BaseAgent {
 
           const edgarAcqYtd = capFromEdgar?.ytd?.acquisitions;
           let acquisitionsYtd_allocated;
-          if (edgarAcqYtd != null) {
+          if (edgarAcqYtd != null && edgarAcqYtd !== 0) {
             acquisitionsYtd_allocated = edgarAcqYtd;
           } else if (extracted.facts?.acquisitionsYtd != null) {
             const rawAcqYtd = Math.abs(Number(extracted.facts.acquisitionsYtd)) || 0;
             acquisitionsYtd_allocated = rawAcqYtd >= 50 ? -rawAcqYtd : 0;
+          } else if (edgarAcqYtd != null) {
+            acquisitionsYtd_allocated = edgarAcqYtd;
           } else {
             acquisitionsYtd_allocated = 0;
           }
@@ -2358,6 +2669,32 @@ export class AnalystAgent extends BaseAgent {
           const assetSalesYtd_allocated = edgarAssetSalesYtd != null
             ? Math.abs(edgarAssetSalesYtd)
             : (extracted.facts?.assetSalesYtd != null ? (Math.abs(Number(extracted.facts.assetSalesYtd)) || 0) : 0);
+
+          const preferredYtdAllocated = Number(extracted.facts?.preferredIssuanceYtd) || 0;
+          const nonControllingYtdAllocated = Number(extracted.facts?.nonControllingSaleYtd) || 0;
+          const debtCashYtdAllocated = Number(extracted.facts?.debtCashFlowYtd);
+          const assumedDebtYtdAllocated = (debtYtd != null && Number.isFinite(debtCashYtdAllocated) && Math.abs(acquisitionsYtd_allocated) >= 50)
+            ? Math.round((debtYtd - debtCashYtdAllocated) * 10) / 10
+            : 0;
+          const assumedDebt3MAllocated = (Math.abs(acquisitions3M) >= 50 && Math.abs(acquisitionsYtd_allocated) >= 50
+            && Math.abs(Math.abs(acquisitions3M) - Math.abs(acquisitionsYtd_allocated)) < 1 && assumedDebtYtdAllocated >= 50)
+            ? assumedDebtYtdAllocated
+            : 0;
+          const restrictedCurrAllocated = extracted.balance?.restrictedCash != null && Number.isFinite(Number(extracted.balance.restrictedCash))
+            ? Number(extracted.balance.restrictedCash)
+            : (prevQ.currentQuarterData?.restrictedCash ?? prevQ.restrictedCash ?? null);
+          const restrictedPrev3MAllocated = extracted.balance?.restrictedCashPreviousQuarter != null && Number.isFinite(Number(extracted.balance.restrictedCashPreviousQuarter))
+            ? Number(extracted.balance.restrictedCashPreviousQuarter)
+            : (prevQ.currentQuarterData?.previousRestrictedCash ?? prevQ.previousRestrictedCash ?? null);
+          const restrictedStartYtdAllocated = extracted.balance?.restrictedCashBeginningOfYear != null && Number.isFinite(Number(extracted.balance.restrictedCashBeginningOfYear))
+            ? Number(extracted.balance.restrictedCashBeginningOfYear)
+            : (prevQ.fyStartRestrictedCash ?? null);
+          const restrictedDiff3MAllocated = (Number.isFinite(restrictedCurrAllocated) && Number.isFinite(restrictedPrev3MAllocated))
+            ? restrictedCurrAllocated - restrictedPrev3MAllocated
+            : null;
+          const restrictedDiffYtdAllocated = (Number.isFinite(restrictedCurrAllocated) && Number.isFinite(restrictedStartYtdAllocated))
+            ? restrictedCurrAllocated - restrictedStartYtdAllocated
+            : null;
 
           extracted.capitalAllocationData = {
             threeMonths: {
@@ -2369,10 +2706,23 @@ export class AnalystAgent extends BaseAgent {
               buybacks: buybacks3M_allocated,
               acquisitions: acquisitions3M,
               assetSales: assetSales3M,
+              preferredIssuance: fiscalQuarter === 1 && preferredYtdAllocated >= 50 ? preferredYtdAllocated : 0,
+              nonControllingSale: fiscalQuarter === 1 && nonControllingYtdAllocated >= 50 ? nonControllingYtdAllocated : 0,
+              assumedDebt: assumedDebt3MAllocated >= 50 ? assumedDebt3MAllocated : 0,
+              restrictedCashMovement: (restrictedDiff3MAllocated != null && Math.abs(restrictedDiff3MAllocated) >= 50)
+                ? Math.round(-restrictedDiff3MAllocated * 10) / 10
+                : 0,
               acquisitionDescription: extracted.facts?.acquisitionDescription ?? null,
               divestitureDescription: extracted.facts?.divestitureDescription ?? null,
               debtDetails: debtDetails3M,
-              cashDetails: capFromEdgar?.threeMonths?.cashDetails,
+              cashDetails: (prevCash3M != null && currCash3M != null)
+                ? buildCashMovementDetails({
+                    prev: Number(prevCash3M),
+                    curr: Number(currCash3M),
+                    caja: caja3M,
+                    periodYear: Number(extracted.fiscalYear) || (reportingPeriod ? Number(String(reportingPeriod).slice(0, 4)) : null),
+                  })
+                : (capFromEdgar?.threeMonths?.cashDetails ?? null),
             },
             ytd: {
               libre: (cfoYtd != null && capexYtd != null && divYtd != null) ? Math.round((cfoYtd - capexYtd - divYtd) * 10) / 10 : null,
@@ -2383,10 +2733,24 @@ export class AnalystAgent extends BaseAgent {
               buybacks: buybacksYtd_allocated,
               acquisitions: acquisitionsYtd_allocated,
               assetSales: assetSalesYtd_allocated,
+              preferredIssuance: preferredYtdAllocated >= 50 ? preferredYtdAllocated : 0,
+              nonControllingSale: nonControllingYtdAllocated >= 50 ? nonControllingYtdAllocated : 0,
+              assumedDebt: assumedDebtYtdAllocated >= 50 ? assumedDebtYtdAllocated : 0,
+              restrictedCashMovement: (restrictedDiffYtdAllocated != null && Math.abs(restrictedDiffYtdAllocated) >= 50)
+                ? Math.round(-restrictedDiffYtdAllocated * 10) / 10
+                : 0,
               acquisitionDescription: extracted.facts?.acquisitionDescription ?? null,
               divestitureDescription: extracted.facts?.divestitureDescription ?? null,
               debtDetails: debtDetailsYtd,
-              cashDetails: capFromEdgar?.ytd?.cashDetails,
+              cashDetails: (extracted.balance?.cashBeginningOfYear != null && extracted.balance?.cash != null)
+                ? buildCashMovementDetails({
+                    prev: Number(extracted.balance.cashBeginningOfYear),
+                    curr: Number(extracted.balance.cash),
+                    caja: cajaYtd,
+                    periodYear: Number(extracted.fiscalYear) || (reportingPeriod ? Number(String(reportingPeriod).slice(0, 4)) : null),
+                    statementChange: extracted.facts?.netChangeInCash,
+                  })
+                : (capFromEdgar?.ytd?.cashDetails ?? null),
             },
           };
         }
@@ -2424,6 +2788,7 @@ export class AnalystAgent extends BaseAgent {
               };
             })
             .filter((p) => Number.isFinite(p.year) && Number.isFinite(p.totalDebt))
+            .filter((p) => !Number.isFinite(reportYear) || p.year <= reportYear)
             .sort((a, b) => a.year - b.year)
             .slice(-10);
         }
@@ -2799,7 +3164,8 @@ export class AnalystAgent extends BaseAgent {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: JSON.stringify(extracted, null, 2) },
       ]);
-    } catch {
+    } catch (error) {
+      if (error instanceof AiProviderError) throw error;
       throw new AgentError('El modelo no devolvió un análisis válido.', 'INVALID_MODEL_RESPONSE');
     }
 
@@ -2992,6 +3358,23 @@ export class AnalystAgent extends BaseAgent {
           horizon.sales.notes.push(`*${nextNoteIdx}: Ha habido una depreciación de intangibles de ${Math.round(currImpairment)}M.`);
         }
 
+        // Deduplicar notas fiscales en Ventas: si existen varias (*2 y *3), conservar solo la más completa
+        const isTaxNoteText = (n) => {
+          const s = String(n).toLowerCase();
+          return s.includes('impuesto') || s.includes('fiscal') || s.includes('beneficio fiscal') || s.includes('gasto fiscal') || s.includes('23%') || s.includes('23 %') || s.includes('tasa') || s.includes('crédito');
+        };
+
+        const taxIndices = [];
+        horizon.sales.notes.forEach((n, idx) => {
+          if (isTaxNoteText(n)) taxIndices.push(idx);
+        });
+        if (taxIndices.length > 1) {
+          const bestIdx = taxIndices.reduce((best, curr) => {
+            return horizon.sales.notes[curr].length > horizon.sales.notes[best].length ? curr : best;
+          }, taxIndices[0]);
+          horizon.sales.notes = horizon.sales.notes.filter((_, idx) => !taxIndices.includes(idx) || idx === bestIdx);
+        }
+
         // Normalización fiscal por desviación relativa: se aplica si el impuesto reportado
         // se desvía más de +/-20% del 23% calculado sobre el EBT ajustado.
         const ebtTaxRow = horizon.sales.rows.find((r) => String(r.name).toLowerCase().includes('ebt'));
@@ -3008,7 +3391,7 @@ export class AnalystAgent extends BaseAgent {
           : NaN;
         const shouldNormalizeReportedTax = Number.isFinite(taxDeviation) && Math.abs(taxDeviation) > 0.20;
 
-        if (shouldNormalizeReportedTax) {
+        if (shouldNormalizeReportedTax || horizon.sales.notes.some(isTaxNoteText)) {
           const netoRow = horizon.sales.rows.find((r) => String(r.name).toLowerCase().includes('neto'));
           const ebtRow = horizon.sales.rows.find((r) => String(r.name).toLowerCase().includes('ebt'));
           let ebtAdj = ebtRow ? parseFinancialValue(ebtRow.adjusted) : NaN;
@@ -3019,15 +3402,17 @@ export class AnalystAgent extends BaseAgent {
           if (netoRow && Number.isFinite(ebtAdj)) {
             const ebtAdjR = Math.round(ebtAdj);
             const tax = Math.round(ebtAdjR * 0.23);
-            const taxNoteIdxExisting = horizon.sales.notes.findIndex((n) => {
-              const s = String(n).toLowerCase();
-              return s.includes('impuesto') && (s.includes('23') || s.includes('ebt ajustado') || s.includes('normaliz'));
-            });
+            const taxNoteIdxExisting = horizon.sales.notes.findIndex(isTaxNoteText);
             const taxNoteIdx = taxNoteIdxExisting >= 0 ? taxNoteIdxExisting + 1 : horizon.sales.notes.length + 1;
-            const deviationText = `${taxDeviation >= 0 ? '+' : ''}${(taxDeviation * 100).toFixed(1).replace('.', ',')} %`;
-            const taxNote = `*${taxNoteIdx}: Impuestos normalizados: 23 % sobre el EBT ajustado de ${ebtAdjR}M = ${tax}M de impuestos; impuesto reportado ${Math.round(reportedTaxAmount)}M (desviación ${deviationText}).`;
-            if (taxNoteIdxExisting >= 0) horizon.sales.notes[taxNoteIdxExisting] = taxNote;
-            else horizon.sales.notes.push(taxNote);
+
+            if (taxNoteIdxExisting >= 0) {
+              const existingNote = horizon.sales.notes[taxNoteIdxExisting];
+              horizon.sales.notes[taxNoteIdxExisting] = `*${taxNoteIdx}: ${existingNote.replace(/^\*\d+:?\s*/, '')}`;
+            } else {
+              const deviationText = Number.isFinite(taxDeviation) ? `${taxDeviation >= 0 ? '+' : ''}${(taxDeviation * 100).toFixed(1).replace('.', ',')} %` : '';
+              const taxNote = `*${taxNoteIdx}: Impuestos normalizados: 23 % sobre el EBT ajustado de ${ebtAdjR}M = ${tax}M de impuestos${Number.isFinite(reportedTaxAmount) ? `; impuesto reportado ${Math.round(reportedTaxAmount)}M (desviación ${deviationText})` : ''}.`;
+              horizon.sales.notes.push(taxNote);
+            }
             netoRow.isAdjusted = true;
             netoRow.adjustedNote = `*${taxNoteIdx}`;
             netoRow.adjusted = `${Math.round(ebtAdjR - tax)}M`;
@@ -3084,9 +3469,8 @@ export class AnalystAgent extends BaseAgent {
                 targetVals.fcfPerShare[1] = `${(adjustedFcf / shares).toFixed(2).replace('.', ',')} $`;
               }
               const adjustedDividends = parseFinancialValue(targetVals.dividends?.[1]);
-              if (Number.isFinite(adjustedDividends)) {
-                targetVals.libre[1] = formatFinancialValue(adjustedFcf - adjustedDividends);
-              }
+              // Sin dividendo reportado (—) la empresa no reparte dividendo: Libre = FCF.
+              targetVals.libre[1] = formatFinancialValue(adjustedFcf - (Number.isFinite(adjustedDividends) ? adjustedDividends : 0));
             }
           }
         }
@@ -3145,8 +3529,66 @@ export class AnalystAgent extends BaseAgent {
           if (vals.length === 0) {
             vals = ['—', '—'];
           }
-          row.values = vals;
+          row.values = vals.map(normalizeNumericCell);
         });
+
+        // Cuadre aritmético obligatorio de las filas derivadas: FCF = Cash Flow - CAPEX
+        // y Libre = FCF - Dividendo, en cada escenario.
+        const cashFlowRowByName = (needle) => horizon.cashFlow.rows.find((r) => String(r.name).toLowerCase().includes(needle));
+        const cfoRow = cashFlowRowByName('cash flow') || cashFlowRowByName('flujo de caja');
+        const capexRow = cashFlowRowByName('capex');
+        const fcfRow = horizon.cashFlow.rows.find((r) => {
+          const n = String(r.name).trim().toLowerCase();
+          return n === 'fcf' || n.startsWith('fcf ') || n.startsWith('free cash flow');
+        });
+        const dividendRow = cashFlowRowByName('dividendo');
+        const libreRow = cashFlowRowByName('libre');
+        const readScenarioValue = (row, idx) => parseLooseReportNumber(Array.isArray(row?.values) ? row.values[idx] : row?.value);
+        const writeScenarioValue = (row, idx, value) => {
+          if (!row || !Number.isFinite(value)) return;
+          const values = Array.isArray(row.values) ? [...row.values] : [row.value];
+          values[idx] = formatCellNumber(value);
+          row.values = values.map(normalizeNumericCell);
+        };
+        // Fallback: si no había targetVals.cfo, aplicar el ajuste de taxNormalization directamente a cfoRow
+        if (taxNormalization && targetVals?.cfo?.[1] == null) {
+          const cfoR = cashFlowRowByName('cash flow') || cashFlowRowByName('flujo de caja');
+          const currentAdjCfo = parseFinancialValue(cfoR?.values?.[1]);
+          if (Number.isFinite(currentAdjCfo)) {
+            writeScenarioValue(cfoR, 1, currentAdjCfo + taxNormalization.adjustment);
+          }
+        }
+
+        const scenarioSlots = scenarios.length >= 2 ? 2 : 1;
+        for (let i = 0; i < scenarioSlots; i += 1) {
+          const cfoValue = readScenarioValue(cfoRow, i);
+          const capexValue = readScenarioValue(capexRow, i);
+          if (Number.isFinite(cfoValue) && Number.isFinite(capexValue)) {
+            writeScenarioValue(fcfRow, i, cfoValue - capexValue);
+          }
+        }
+        const fcfPerShareRow = cashFlowRowByName('fcf/acción') || cashFlowRowByName('fcf / acción') || cashFlowRowByName('fcf/accion');
+        const sharesCount = Number(extracted.shares) || parseFinancialValue(horizon.sales?.shares);
+        if (fcfPerShareRow && fcfRow && Number.isFinite(sharesCount) && sharesCount > 0) {
+          for (let i = 0; i < scenarioSlots; i += 1) {
+            const fcfVal = readScenarioValue(fcfRow, i);
+            if (Number.isFinite(fcfVal)) {
+              writeScenarioValue(fcfPerShareRow, i, `${(fcfVal / sharesCount).toFixed(2).replace('.', ',')} $`);
+            }
+          }
+        }
+        for (let i = 0; i < scenarioSlots; i += 1) {
+          const fcfValue = readScenarioValue(fcfRow, i);
+          const dividendRaw = Array.isArray(dividendRow?.values) ? dividendRow.values[i] : dividendRow?.value;
+          const dividendValue = readScenarioValue(dividendRow, i);
+          if (!Number.isFinite(fcfValue)) continue;
+          if (Number.isFinite(dividendValue)) {
+            writeScenarioValue(libreRow, i, fcfValue - dividendValue);
+          } else if (String(dividendRaw ?? '').trim() === '—') {
+            // Sin dividendo reportado (—): Libre = FCF (no se resta nada).
+            writeScenarioValue(libreRow, i, fcfValue);
+          }
+        }
 
         // 2.3 Numeración independiente por bloque: Cash Flow siempre reinicia notas en *1
         const wcNoteTag = '*1';
@@ -3181,7 +3623,7 @@ export class AnalystAgent extends BaseAgent {
 
         if (taxNormalization) {
           const taxNote = `*2: ${taxNormalization.explanation.replace(/^\*\d+:?\s*/, '')}`;
-          const taxNoteIdx = horizon.cashFlow.notes.findIndex((n) => /^impuestos:/i.test(String(n).replace(/^\*\d+:?\s*/, '').trim()));
+          const taxNoteIdx = horizon.cashFlow.notes.findIndex((n) => /^impuestos:/i.test(String(n).replace(/^\*\d+:?\s*/, '').trim()) || String(n).toLowerCase().includes('impuestos'));
           if (taxNoteIdx !== -1) {
             horizon.cashFlow.notes[taxNoteIdx] = taxNote;
           } else {
@@ -3201,6 +3643,7 @@ export class AnalystAgent extends BaseAgent {
       }
 
       // 3. Normalización de Asignación de Capital: balance general, venta de marcas y signos estrictos
+      let emptyCapital = false;
       if (horizon.capital?.rows) {
         const isTrimestral = String(horizon.label).toUpperCase().includes('ÚLTIMOS') || String(horizon.label).toUpperCase().includes('3 MESES');
         const capData = isTrimestral ? extracted.capitalAllocationData?.threeMonths : extracted.capitalAllocationData?.ytd;
@@ -3215,6 +3658,10 @@ export class AnalystAgent extends BaseAgent {
           else if (concept.includes('marca') || concept.includes('desinvers') || concept.includes('negocio')) concept = 'marcas';
           else if (concept.includes('corto plazo') || concept.includes('inversiones')) concept = 'inversiones';
           else if (concept.includes('recompra')) concept = 'recompras';
+          else if (concept.includes('preferent')) concept = 'preferentes';
+          else if (concept.includes('participacion')) concept = 'participaciones';
+          else if (concept.includes('asumida')) concept = 'deuda-asumida';
+          else if (concept.includes('restringid')) concept = 'efectivo-restringido';
           else if (concept === 'caja' || concept.includes('caja')) concept = 'caja';
           else if (concept.includes('deuda')) concept = 'deuda';
           else if (concept.includes('total')) concept = 'total';
@@ -3228,7 +3675,7 @@ export class AnalystAgent extends BaseAgent {
         const cfLibreRow = horizon.cashFlow?.rows?.find((r) => String(r.name).toLowerCase().includes('libre'));
         let libreVal = cfLibreRow
           ? (Array.isArray(cfLibreRow.values) && cfLibreRow.values.length ? cfLibreRow.values[0] : cfLibreRow.value)
-          : (capData?.libre != null ? String(capData.libre).replace('.', ',') : null);
+          : (capData?.libre != null ? formatCellNumber(capData.libre) : null);
 
         let capLibreRow = horizon.capital.rows.find((r) => String(r.name).replace(/\*\d+/g, '').trim().toLowerCase() === 'libre');
         if (!capLibreRow) {
@@ -3245,7 +3692,7 @@ export class AnalystAgent extends BaseAgent {
           return n.includes('corto plazo') || n.includes('inversiones') || n.includes('marketable');
         });
         if (stVal !== 0) {
-          const formattedSt = String(stVal).replace('.', ',');
+          const formattedSt = formatCellNumber(stVal);
           if (stRowIdx !== -1) {
             horizon.capital.rows[stRowIdx].name = 'Inversiones a corto plazo';
             horizon.capital.rows[stRowIdx].value = formattedSt;
@@ -3264,7 +3711,7 @@ export class AnalystAgent extends BaseAgent {
           return n.includes('marca') || n.includes('negocio') || n.includes('desinvers') || n.includes('divest');
         });
         if (divVal >= 50) {
-          const formattedDiv = String(divVal).replace('.', ',');
+          const formattedDiv = formatCellNumber(divVal);
           if (brandRowIdx !== -1) {
             horizon.capital.rows[brandRowIdx].value = formattedDiv;
           } else {
@@ -3285,7 +3732,7 @@ export class AnalystAgent extends BaseAgent {
           return n.includes('adquisic') || n.includes('acquisic');
         });
         if (Math.abs(acqVal) >= 50) {
-          const formattedAcq = String(-Math.abs(acqVal)).replace('.', ',');
+          const formattedAcq = formatCellNumber(-Math.abs(acqVal));
           if (acqRowIdx !== -1) {
             horizon.capital.rows[acqRowIdx].name = 'Adquisiciones';
             horizon.capital.rows[acqRowIdx].value = formattedAcq;
@@ -3310,7 +3757,7 @@ export class AnalystAgent extends BaseAgent {
         const buyVal = capData?.buybacks ?? 0;
         const buyRowIdx = horizon.capital.rows.findIndex((r) => String(r.name).replace(/\*\d+/g, '').trim().toLowerCase().includes('recompra'));
         if (Math.abs(buyVal) >= 50) {
-          const formattedBuy = String(-Math.abs(buyVal)).replace('.', ',');
+          const formattedBuy = formatCellNumber(-Math.abs(buyVal));
           if (buyRowIdx !== -1) {
             horizon.capital.rows[buyRowIdx].value = formattedBuy;
           } else {
@@ -3321,6 +3768,31 @@ export class AnalystAgent extends BaseAgent {
           horizon.capital.rows.splice(buyRowIdx, 1);
         }
 
+        // 3.4b Financiación de capital: emisión de preferentes y venta de participaciones
+        // no controladoras. Son fuentes de caja (+) que no son deuda ni desinversión.
+        const equityRowSpecs = [
+          { re: /preferent/i, name: 'Emisión de preferentes', value: Number(capData?.preferredIssuance ?? 0) },
+          { re: /participacion/i, name: 'Venta de participaciones', value: Number(capData?.nonControllingSale ?? 0) },
+        ];
+        equityRowSpecs.forEach((spec) => {
+          const rowIdx = horizon.capital.rows.findIndex((r) => spec.re.test(String(r.name).replace(/\*\d+/g, '').trim()));
+          if (Math.abs(spec.value) >= 50) {
+            const formattedEquity = formatCellNumber(Math.abs(spec.value));
+            if (rowIdx !== -1) {
+              horizon.capital.rows[rowIdx].name = spec.name;
+              horizon.capital.rows[rowIdx].value = formattedEquity;
+            } else {
+              const anchor = horizon.capital.rows.findIndex((r) => {
+                const n = String(r.name).replace(/\*\d+/g, '').trim().toLowerCase();
+                return n === 'caja' || n.includes('caja') || n.includes('deuda') || n.includes('total');
+              });
+              horizon.capital.rows.splice(anchor !== -1 ? anchor : horizon.capital.rows.length, 0, { name: spec.name, value: formattedEquity });
+            }
+          } else if (rowIdx !== -1) {
+            horizon.capital.rows.splice(rowIdx, 1);
+          }
+        });
+
         // 3.5 Caja: asegurar signo según la regla del balance del usuario:
         // si la caja aumentó, signo negativo (-); si disminuyó, signo positivo (+)
         const cajaRow = horizon.capital.rows.find((r) => {
@@ -3328,14 +3800,36 @@ export class AnalystAgent extends BaseAgent {
           return n === 'caja' || n.includes('caja');
         });
         if (capData?.caja != null) {
-          const formattedCaja = String(capData.caja).replace('.', ',');
+          const formattedCaja = formatCellNumber(capData.caja);
           if (cajaRow) {
             cajaRow.name = 'Caja';
             cajaRow.value = formattedCaja;
           } else {
-            const insIdx = horizon.capital.rows.findIndex((r) => String(r.name).replace(/\*\d+/g, '').trim().toLowerCase().includes('total'));
+            const insIdx = horizon.capital.rows.findIndex((r) => {
+              const n = String(r.name).replace(/\*\d+/g, '').trim().toLowerCase();
+              return n.includes('deuda') || n.includes('total');
+            });
             horizon.capital.rows.splice(insIdx !== -1 ? insIdx : horizon.capital.rows.length, 0, { name: 'Caja', value: formattedCaja });
           }
+        }
+
+        // 3.5b Efectivo restringido/escrow: mismo signo que Caja (si baja, libera caja: +).
+        const restrictedVal = Number(capData?.restrictedCashMovement ?? 0);
+        const restrictedRowIdx = horizon.capital.rows.findIndex((r) => /restringid/i.test(String(r.name).replace(/\*\d+/g, '').trim()));
+        if (Math.abs(restrictedVal) >= 50) {
+          const formattedRestricted = formatCellNumber(restrictedVal);
+          if (restrictedRowIdx !== -1) {
+            horizon.capital.rows[restrictedRowIdx].name = 'Efectivo restringido';
+            horizon.capital.rows[restrictedRowIdx].value = formattedRestricted;
+          } else {
+            const insIdx = horizon.capital.rows.findIndex((r) => {
+              const n = String(r.name).replace(/\*\d+/g, '').trim().toLowerCase();
+              return n.includes('deuda') || n.includes('total');
+            });
+            horizon.capital.rows.splice(insIdx !== -1 ? insIdx : horizon.capital.rows.length, 0, { name: 'Efectivo restringido', value: formattedRestricted });
+          }
+        } else if (restrictedRowIdx !== -1) {
+          horizon.capital.rows.splice(restrictedRowIdx, 1);
         }
 
         // 3.6 Deuda: asegurar signo según la regla del balance del usuario:
@@ -3345,7 +3839,7 @@ export class AnalystAgent extends BaseAgent {
           return n.includes('deuda');
         });
         if (capData?.deuda != null) {
-          const formattedDeuda = String(capData.deuda).replace('.', ',');
+          const formattedDeuda = formatCellNumber(capData.deuda);
           if (!deudaRow) {
             const insIdx = horizon.capital.rows.findIndex((r) => String(r.name).replace(/\*\d+/g, '').trim().toLowerCase().includes('total'));
             horizon.capital.rows.splice(insIdx !== -1 ? insIdx : horizon.capital.rows.length, 0, { name: 'Deuda', value: formattedDeuda });
@@ -3355,8 +3849,27 @@ export class AnalystAgent extends BaseAgent {
             const isAcceptable = isTrimestral
               ? (Number.isFinite(existingVal) && Math.abs(existingVal - capData.deuda) <= 150)
               : (Number.isFinite(existingVal) && Math.sign(existingVal) === Math.sign(capData.deuda) && Math.abs(existingVal) < 2000);
-            deudaRow.value = isAcceptable ? String(existingVal).replace('.', ',') : formattedDeuda;
+            deudaRow.value = isAcceptable ? formatCellNumber(existingVal) : formattedDeuda;
           }
+        }
+
+        // 3.6b Deuda asumida (no-cash): parte del aumento de deuda del balance procedente de
+        // una adquisición que no supone entrada de caja; se resta para que el cuadre cierre.
+        const assumedDebtValue = Number(capData?.assumedDebt ?? 0);
+        const assumedRowIdx = horizon.capital.rows.findIndex((r) => /asumida/i.test(String(r.name).replace(/\*\d+/g, '').trim()));
+        if (assumedDebtValue >= 50) {
+          const formattedAssumed = formatCellNumber(-assumedDebtValue);
+          if (assumedRowIdx !== -1) {
+            horizon.capital.rows[assumedRowIdx].name = 'Deuda asumida (no-cash)';
+            horizon.capital.rows[assumedRowIdx].value = formattedAssumed;
+          } else {
+            const deudaIdx = horizon.capital.rows.findIndex((r) => String(r.name).replace(/\*\d+/g, '').trim().toLowerCase().includes('deuda'));
+            const totalIdx = horizon.capital.rows.findIndex((r) => String(r.name).replace(/\*\d+/g, '').trim().toLowerCase().includes('total'));
+            const insertAt = deudaIdx !== -1 ? deudaIdx + 1 : (totalIdx !== -1 ? totalIdx : horizon.capital.rows.length);
+            horizon.capital.rows.splice(insertAt, 0, { name: 'Deuda asumida (no-cash)', value: formattedAssumed });
+          }
+        } else if (assumedRowIdx !== -1) {
+          horizon.capital.rows.splice(assumedRowIdx, 1);
         }
 
         // 3.6.1 Filtro de seguridad: eliminar cualquier duplicado residual antes de sumar total
@@ -3369,6 +3882,10 @@ export class AnalystAgent extends BaseAgent {
           else if (key.includes('marca') || key.includes('desinvers') || key.includes('negocio')) key = 'marcas';
           else if (key.includes('corto plazo') || key.includes('inversiones')) key = 'inversiones';
           else if (key.includes('recompra')) key = 'recompras';
+          else if (key.includes('preferent')) key = 'preferentes';
+          else if (key.includes('participacion')) key = 'participaciones';
+          else if (key.includes('asumida')) key = 'deuda-asumida';
+          else if (key.includes('restringid')) key = 'efectivo-restringido';
           else if (key === 'caja' || key.includes('caja')) key = 'caja';
           else if (key.includes('deuda')) key = 'deuda';
           else if (key.includes('total')) key = 'total';
@@ -3385,24 +3902,41 @@ export class AnalystAgent extends BaseAgent {
           horizon.capital.rows.push(totalRow);
         }
 
+        horizon.capital.rows.forEach((r) => {
+          r.value = normalizeNumericCell(r.value);
+        });
+
         let sum = 0;
+        let gross = 0;
         let hasValidRows = false;
         horizon.capital.rows.forEach((r) => {
           if (String(r.name).toLowerCase().includes('total')) return;
           const num = parseLooseReportNumber(r.value);
           if (Number.isFinite(num)) {
             sum += num;
+            gross += Math.abs(num);
             hasValidRows = true;
           }
         });
 
         if (hasValidRows) {
-          totalRow.value = String(Math.round(sum * 10) / 10).replace('.', ',');
-          if (Math.abs(sum) <= 50) {
+          totalRow.value = formatCellNumber(sum);
+          // Umbral relativo: el descuadre es razonable si es pequeño en términos absolutos o
+          // si es menor al 20 % del capital libre / 10 % del volumen bruto de movimientos.
+          const libreMagnitude = Math.abs(parseLooseReportNumber(capLibreRow?.value));
+          const threshold = Math.max(
+            50,
+            Number.isFinite(libreMagnitude) ? libreMagnitude * 0.2 : 0,
+            gross * 0.1,
+          );
+          if (Math.abs(sum) <= threshold) {
             horizon.capital.verification = 'Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle.';
           } else {
             horizon.capital.verification = 'No cuadra. Hay una discrepancia significativa entre el capital libre y los usos detectados; se deberá analizar más a fondo.';
           }
+        } else {
+          // Sin ninguna cifra válida no se publica un bloque de asignación de capital vacío.
+          emptyCapital = true;
         }
 
         // 3.7 Notas explicativas al pie
@@ -3412,6 +3946,10 @@ export class AnalystAgent extends BaseAgent {
         const cleanNotes = [];
         let brandNoteNum = null;
         let debtNoteNum = null;
+        let equityNoteNum = null;
+        let assumedNoteNum = null;
+        let restrictedNoteNum = null;
+        const noActionNoteRe = /no hubo|no se realiz|sin desinversiones|sin adquisiciones|no se completaron|no divestitures|no acquisitions/i;
 
         // Buscar nota descriptiva de venta o compra de marcas / desinversiones.
         // Solo se incluye si la tabla tiene una fila de marcas/adquisiciones que la referencie.
@@ -3438,31 +3976,62 @@ export class AnalystAgent extends BaseAgent {
             cleaned = cleaned.split(/(?:\.|\;)?\s*(?:Y\s+)?Adquisiciones:?/i)[0].trim();
             if (cleaned && !cleaned.endsWith('.')) cleaned += '.';
           }
-          if (cleaned) {
+          // Sin desinversiones materiales (>= 50M) no debe quedar mención a ventas de activos.
+          const divestitureTotal = Math.abs(Number(capData?.divestitures ?? 0)) + Math.abs(Number(capData?.assetSales ?? 0));
+          if (divestitureTotal < 50 && /desinversi/i.test(cleaned)) {
+            const divIndex = cleaned.search(/(?:\.|\;)?\s*(?:Y\s+)?Desinversiones:?/i);
+            if (divIndex > 0) {
+              cleaned = cleaned.slice(0, divIndex).trim();
+              if (cleaned && !cleaned.endsWith('.')) cleaned += '.';
+            } else if (divIndex === 0) {
+              cleaned = '';
+            }
+          }
+          if (cleaned && !noActionNoteRe.test(cleaned)) {
             cleanNotes.push(cleaned);
             brandNoteNum = cleanNotes.length;
           }
         }
 
         // Notas garantizadas: si hay fila de Adquisiciones o Desinversiones y ninguna nota las explica,
-        // se construyen con las descripciones extraídas del informe (siempre con breve texto explicativo).
+        // se construyen con las descripciones extraídas del informe o, en su defecto, con el importe de la fila.
+        const rowValueByConcept = (test) => {
+          const row = horizon.capital.rows.find((r) => test(String(r.name).replace(/\*\d+/g, '').trim().toLowerCase()));
+          const value = parseLooseReportNumber(row?.value);
+          return Number.isFinite(value) ? Math.abs(value) : null;
+        };
         const hasAcqRow = horizon.capital.rows.some((r) => {
           const n = String(r.name).replace(/\*\d+/g, '').trim().toLowerCase();
           return n.includes('adquisic') || n.includes('acquisic');
         });
-        if (hasAcqRow && capData?.acquisitionDescription && !cleanNotes.some((n) => n.toLowerCase().includes('adquisici'))) {
-          const acqAmount = Math.abs(parseFloat(String(capData.acquisitions ?? 0).replace(',', '.')) || 0);
-          cleanNotes.push(`Adquisiciones: Se destinaron ${String(acqAmount).replace('.', ',')}M a la compra de ${cleanAssetDescription(capData.acquisitionDescription)} (uso de fondos).`);
+        if (hasAcqRow && !cleanNotes.some((n) => n.toLowerCase().includes('adquisi'))) {
+          const acqAmount = rowValueByConcept((n) => n.includes('adquisic') || n.includes('acquisic')) ?? Math.abs(Number(capData?.acquisitions ?? 0));
+          cleanNotes.push(capData?.acquisitionDescription
+            ? `Adquisiciones: Se destinaron ${formatCellNumber(acqAmount)}M a la compra de ${cleanAssetDescription(capData.acquisitionDescription)} (uso de fondos).`
+            : `Adquisiciones: Se destinaron ${formatCellNumber(acqAmount)}M a la compra de negocios (uso de fondos).`);
           brandNoteNum = cleanNotes.length;
         }
         const hasDivRow = horizon.capital.rows.some((r) => {
           const n = String(r.name).replace(/\*\d+/g, '').trim().toLowerCase();
           return n.includes('marca') || n.includes('desinvers') || n.includes('negocio') || n.includes('divest');
         });
-        if (hasDivRow && capData?.divestitureDescription && !cleanNotes.some((n) => n.toLowerCase().includes('desinversi') || n.toLowerCase().includes('venta de marcas'))) {
-          const divAmount = parseFloat(String(capData.divestitures ?? 0).replace(',', '.')) || 0;
-          cleanNotes.push(`Desinversiones: Se ingresaron ${String(divAmount).replace('.', ',')}M por la venta de ${cleanAssetDescription(capData.divestitureDescription)} (fuente de fondos).`);
+        if (hasDivRow && !cleanNotes.some((n) => /desinversi|venta de marcas|venta de negocio/i.test(n))) {
+          const divAmount = rowValueByConcept((n) => n.includes('marca') || n.includes('desinvers') || n.includes('negocio') || n.includes('divest')) ?? Math.abs(Number(capData?.divestitures ?? 0));
+          cleanNotes.push(capData?.divestitureDescription
+            ? `Desinversiones: Se ingresaron ${formatCellNumber(divAmount)}M por la venta de ${cleanAssetDescription(capData.divestitureDescription)} (fuente de fondos).`
+            : `Desinversiones: Se ingresaron ${formatCellNumber(divAmount)}M por ventas de activos o negocios (fuente de fondos).`);
           brandNoteNum = cleanNotes.length;
+        }
+
+        // Nota de financiación de capital: preferentes y venta de participaciones no controladoras
+        const preferredRow = horizon.capital.rows.find((r) => /preferent/i.test(String(r.name).replace(/\*\d+/g, '').trim()));
+        const nonControllingRow = horizon.capital.rows.find((r) => /participacion/i.test(String(r.name).replace(/\*\d+/g, '').trim()));
+        if (preferredRow || nonControllingRow) {
+          const equityParts = [];
+          if (preferredRow) equityParts.push(`${formatCellNumber(Math.abs(parseLooseReportNumber(preferredRow.value)))}M por emisión de preferentes`);
+          if (nonControllingRow) equityParts.push(`${formatCellNumber(Math.abs(parseLooseReportNumber(nonControllingRow.value)))}M por venta de participaciones no controladoras`);
+          cleanNotes.push(`Financiación de capital: se obtuvieron ${equityParts.join(' y ')} (fuente de fondos; no es deuda ni desinversión).`);
+          equityNoteNum = cleanNotes.length;
         }
 
         // Nota obligatoria de Deuda Balance, Deuda Neta y movimiento de Caja
@@ -3484,6 +4053,41 @@ export class AnalystAgent extends BaseAgent {
           }
         }
 
+        // Nota de efectivo restringido/escrow (liberado o consignado en el periodo).
+        const restrictedRow = horizon.capital.rows.find((r) => /restringid/i.test(String(r.name).replace(/\*\d+/g, '').trim()));
+        if (restrictedRow) {
+          const restrictedAmount = parseLooseReportNumber(restrictedRow.value);
+          if (Number.isFinite(restrictedAmount)) {
+            cleanNotes.push(restrictedAmount >= 0
+              ? `Efectivo restringido: se liberaron ${formatCellNumber(Math.abs(restrictedAmount))}M de efectivo restringido/escrow (fuente de fondos).`
+              : `Efectivo restringido: se consignaron ${formatCellNumber(Math.abs(restrictedAmount))}M como efectivo restringido/escrow (uso de fondos).`);
+            restrictedNoteNum = cleanNotes.length;
+          }
+        }
+
+        // En el horizonte trimestral, si una adquisición material se financió con recursos
+        // levantados antes del trimestre (preferentes, participaciones o efectivo restringido)
+        // y el 10-Q solo publica el flujo acumulado, el cuadre del trimestre no puede cerrar.
+        const ytdEquityFinancing = (Number(extracted.facts?.preferredIssuanceYtd) || 0)
+          + (Number(extracted.facts?.nonControllingSaleYtd) || 0);
+        if (isTrimestral && !restrictedRow && Math.abs(Number(capData?.acquisitions ?? 0)) >= 50 && ytdEquityFinancing >= 50) {
+          cleanNotes.push('Nota: la adquisición se financió en parte con recursos levantados antes del trimestre (emisión de preferentes, venta de participaciones y efectivo restringido/escrow de trimestres anteriores); el 10-Q solo publica el estado de flujos acumulado, por lo que la suma de los últimos 3 meses no puede cerrar exactamente.');
+        }
+
+        // Nota de deuda asumida (no-cash): desglosa el aumento de deuda del balance entre
+        // la deuda emitida/amortizada con caja y la heredada de la empresa adquirida.
+        const assumedRow = horizon.capital.rows.find((r) => /asumida/i.test(String(r.name).replace(/\*\d+/g, '').trim()));
+        if (assumedRow) {
+          const assumedAmount = Math.abs(parseLooseReportNumber(assumedRow.value));
+          const debtDelta = Number(capData?.deuda);
+          const debtCashNet = Number.isFinite(debtDelta) ? Math.round((debtDelta - assumedAmount) * 10) / 10 : null;
+          const detail = Number.isFinite(debtCashNet) && debtCashNet >= 0
+            ? `de los ${formatCellNumber(debtDelta)}M que sube la deuda del balance, ${formatCellNumber(debtCashNet)}M son deuda emitida/amortizada con caja y ${formatCellNumber(assumedAmount)}M son deuda que ya existía en la empresa adquirida y se asume con la compra`
+            : `${formatCellNumber(assumedAmount)}M corresponden a deuda que ya existía en la empresa adquirida y se asume con la compra (la variación de deuda del periodo incluye además movimientos con caja y otros ajustes)`;
+          cleanNotes.push(`Deuda asumida (no-cash): ${detail}; esa parte no supone entrada de caja y se resta en el cuadre.`);
+          assumedNoteNum = cleanNotes.length;
+        }
+
         // Renumerar correlativamente
         horizon.capital.notes = cleanNotes.map((text, idx) => `*${idx + 1}: ${text}`);
 
@@ -3494,11 +4098,47 @@ export class AnalystAgent extends BaseAgent {
 
           if (brandNoteNum && (n.includes('marca') || n.includes('desinvers') || n.includes('negocio') || n.includes('adquisic') || n.includes('acquisic'))) {
             r.name = `${baseName}*${brandNoteNum}`;
+          } else if (equityNoteNum && (n.includes('preferent') || n.includes('participacion'))) {
+            r.name = `${baseName}*${equityNoteNum}`;
+          } else if (assumedNoteNum && n.includes('asumida')) {
+            r.name = `${baseName}*${assumedNoteNum}`;
+          } else if (restrictedNoteNum && n.includes('restringid')) {
+            r.name = `${baseName}*${restrictedNoteNum}`;
           } else if (debtNoteNum && (n === 'caja' || n.includes('caja') || n.includes('deuda') || n.includes('corto plazo') || n.includes('inversiones'))) {
             r.name = `${baseName}*${debtNoteNum}`;
           } else {
             r.name = baseName;
           }
+        });
+      }
+      if (emptyCapital) {
+        horizon.capital = { rows: [], verification: '', notes: [] };
+      }
+
+      // Coherencia de notas en Ventas: toda llamada de nota (*N) de una fila debe existir
+      // realmente en el bloque; si no, se reasigna por concepto o se retira la llamada.
+      if (horizon.sales?.rows?.length) {
+        const salesNotes = Array.isArray(horizon.sales.notes) ? horizon.sales.notes : [];
+        const hasPrefixed = salesNotes.some((n) => /^\s*\*?\d+\s*:/.test(String(n)));
+        const tagExists = (tag) => {
+          const num = Number(tag);
+          if (!Number.isFinite(num) || num < 1 || num > salesNotes.length) return false;
+          if (!hasPrefixed) return true;
+          return /^\s*\*?\d+\s*:/.test(String(salesNotes[num - 1] ?? ''));
+        };
+        horizon.sales.rows.forEach((row) => {
+          const tag = (String(row.adjustedNote ?? '').match(/\d+/) || [])[0];
+          if (!tag || tagExists(tag)) return;
+          const concept = String(row.name ?? '').toLowerCase();
+          let remapped = null;
+          salesNotes.forEach((note, idx) => {
+            if (remapped) return;
+            const text = String(note).toLowerCase();
+            if (concept.includes('operativ') && /impair|deterior|intangible|amortiz/.test(text)) remapped = `*${idx + 1}`;
+            if (concept.includes('neto') && /impuesto|fiscal|23\s*%|tasa/.test(text)) remapped = `*${idx + 1}`;
+          });
+          row.adjustedNote = remapped ?? undefined;
+          if (!remapped) row.isAdjusted = false;
         });
       }
     });
@@ -3668,9 +4308,11 @@ export class AnalystAgent extends BaseAgent {
       }
       // Histórico de deuda: combinar la serie de la IA con la oficial de EDGAR (que gana)
       // para garantizar hasta 10 ejercicios con importes válidos.
-      const aiDebtHistory = (Array.isArray(result.conclusion.debt.debtHistory) && result.conclusion.debt.debtHistory.length)
+      const debtHistoryMaxYear = Number.isFinite(Number(fiscalYear)) ? Number(fiscalYear) : null;
+      const aiDebtHistory = ((Array.isArray(result.conclusion.debt.debtHistory) && result.conclusion.debt.debtHistory.length)
         ? result.conclusion.debt.debtHistory
-        : (Array.isArray(extractionDebt.debtHistory) ? extractionDebt.debtHistory : []);
+        : (Array.isArray(extractionDebt.debtHistory) ? extractionDebt.debtHistory : []))
+        .filter((point) => debtHistoryMaxYear == null || Number(point?.year) <= debtHistoryMaxYear);
       const mergedDebtHistory = mergeHistoryByYear(aiDebtHistory, edgarDebtHistory).slice(-10);
       if (mergedDebtHistory.length) {
         result.conclusion.debt.debtHistory = mergedDebtHistory;

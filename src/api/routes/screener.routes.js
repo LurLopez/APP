@@ -15,24 +15,24 @@ import {
   getFilingContentBuffer,
 } from '../../services/edgar.service.js';
 import { analyzePdf, analyzeText, htmlToText, buildPresentationText, buildDownloadBase } from '../../services/analysis.service.js';
-import { generateReportPdf, cleanupGeneratedReports, GENERATED_DIR } from '../../services/report.service.js';
+import { generateReportPdf, GENERATED_DIR } from '../../services/report.service.js';
 import {
   findLatestDoneAnalysis,
-  getAnalyzedAccessions,
   getAnalyzedAccessionsWithRatings,
+  getAnalysisVersions,
   findUserAnalysis,
   createAnalysis,
   updateAnalysis,
-  deleteAnalysesByFiling,
 } from '../../../db/repositories/analysisRepository.js';
+import { resolveAnalysisVersion, isAnalysisOutdated } from '../../agents/sectorAgent.js';
 import { AgentError } from '../../agents/baseAgent.js';
+import { AiProviderError } from '../../services/ai/modelProvider.js';
 import { getChartSeries, getCompanyHolders } from '../../services/market.service.js';
 import { resolveUser } from '../../middleware/auth.middleware.js';
 import { rateLimit } from '../../middleware/rateLimit.middleware.js';
 import {
   getAiQuota,
-  assertAiQuotaAvailable,
-  consumeAiQuota,
+  reserveAiQuota,
   refundAiQuota,
 } from '../../services/aiQuota.service.js';
 import fs from 'node:fs';
@@ -164,7 +164,7 @@ router.get('/company/:ticker/filings', async (req, res, next) => {
     const user = await resolveUser(req);
     const analyzedMap = await getAnalyzedAccessionsWithRatings(ticker, accessions, user?.id ?? null);
     let anyPresentationsMissing = false;
-    const filings = (result?.filings ?? []).map((filing, idx) => {
+    const filings = await Promise.all((result?.filings ?? []).map(async (filing, idx) => {
       const info = analyzedMap.get(filing.accession);
       let presentations = filing.presentations;
       let presentationsLoaded = Boolean(filing.presentations);
@@ -181,6 +181,15 @@ router.get('/company/:ticker/filings', async (req, res, next) => {
           }
         }
       }
+      const analysisVersion = info?.latestVersion ?? null;
+      const analysisSubsector = info?.latestSubsector ?? null;
+      const versionOptions = {
+        sector: 'defensive_consumer',
+        subsector: analysisSubsector,
+        ticker,
+        formType: filing.formType,
+      };
+      const currentVersion = await resolveAnalysisVersion(versionOptions);
       return {
         ...filing,
         kind: 'report',
@@ -188,10 +197,20 @@ router.get('/company/:ticker/filings', async (req, res, next) => {
         presentationsLoaded,
         hasAnalysis: Boolean(info),
         analysisId: info?.analysisId ?? null,
+        latestAnalysisId: info?.latestAnalysisId ?? null,
+        analysisVersion,
+        analysisSubsector,
+        versionsCount: info?.versionsCount ?? 0,
+        isReviewed: Boolean(info?.latestIsReviewed),
+        currentVersion,
+        versionOutdated: Boolean(info) && await isAnalysisOutdated({
+          version: analysisVersion,
+          ...versionOptions,
+        }),
         ratingAverage: info?.ratingAverage ?? null,
         ratingCount: info?.ratingCount ?? 0,
       };
-    });
+    }));
     res.json({
       ok: true,
       company: result.company,
@@ -224,6 +243,57 @@ router.get('/company/:ticker/filings/presentations', async (req, res, next) => {
       presentationsByAccession = await getFilingsPresentationsMap(ticker);
     }
     res.json({ ok: true, ticker, presentationsByAccession });
+  } catch (error) {
+    handleEdgarError(error, res, next);
+  }
+});
+
+// Historial de versiones de un mismo informe. Se conservan todas al regenerar:
+// cada una se puede consultar y descargar. Devuelve también la versión actual
+// para que el frontend sepa si procede ofrecer la actualización.
+router.get('/company/:ticker/filings/:accession/versions', async (req, res, next) => {
+  try {
+    const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
+    const accession = normalizeAccession(req.params.accession);
+    if (!TICKER_PATTERN.test(ticker) || !ACCESSION_PATTERN.test(accession)) {
+      res.status(400).json({ error: 'Parámetros no válidos.' });
+      return;
+    }
+    const user = await resolveUser(req);
+    const versions = await getAnalysisVersions({ ticker, accession, userId: user?.id ?? null });
+    const latest = versions[0] ?? null;
+    const versionOptions = {
+      sector: 'defensive_consumer',
+      subsector: latest?.subsector ?? null,
+      ticker,
+      formType: latest?.form_type ?? null,
+    };
+    const currentVersion = await resolveAnalysisVersion(versionOptions);
+    res.json({
+      ok: true,
+      ticker,
+      accession,
+      currentVersion,
+      isReviewed: Boolean(latest?.is_reviewed),
+      versionOutdated: latest ? await isAnalysisOutdated({
+        version: latest.version,
+        ...versionOptions,
+      }) : false,
+      versions: versions.map((entry) => ({
+        id: entry.id,
+        version: entry.version ?? null,
+        subsector: entry.subsector ?? null,
+        sectorVersion: entry.sector_version ?? null,
+        isReviewed: Boolean(entry.is_reviewed),
+        reviewedAt: entry.reviewed_at ?? null,
+        reviewedBy: entry.reviewed_by ?? null,
+        modelUsed: entry.model_used ?? null,
+        formType: entry.form_type ?? null,
+        createdAt: entry.created_at,
+        pdfUrl: entry.pdf_url ?? null,
+        downloadBase: entry.pdf_url ? String(entry.pdf_url).replace(/\.pdf$/, '') : null,
+      })),
+    });
   } catch (error) {
     handleEdgarError(error, res, next);
   }
@@ -289,27 +359,24 @@ router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, async
 
     const user = await resolveUser(req);
     const force = req.query.force === '1' || req.query.force === 'true' || req.body?.force === true || res.locals.forceRegeneration === true;
-    let preservePublic = false;
+    const upgrade = req.body?.upgrade === true || req.query.upgrade === '1' || res.locals.upgradeVersion === true;
 
-    if (force) {
-      if (!user?.isAdmin) {
-        res.status(403).json({ error: 'Solo los administradores pueden forzar la regeneración de informes.' });
+    if (force && !user?.isAdmin) {
+      res.status(403).json({ error: 'Solo los administradores pueden forzar la regeneración de informes.' });
+      return;
+    }
+
+    if (upgrade || force) {
+      const existingLatest = await findLatestDoneAnalysis({ ticker, accession });
+      if (existingLatest?.is_reviewed && !user?.isAdmin) {
+        res.status(403).json({ error: 'Este análisis ha sido revisado por un humano. Solo un administrador puede regenerarlo o actualizarlo.' });
         return;
-      }
-      // Se comprueba si existe una copia pública compartida del informe para conservarla
-      // pública tras la regeneración (aunque la regeneración la haga un usuario admin).
-      const publicBeforeRegeneration = await findLatestDoneAnalysis({ ticker, accession, userId: null });
-      preservePublic = Boolean(publicBeforeRegeneration);
-      const deleted = await deleteAnalysesByFiling({ ticker, accession });
-      for (const item of deleted) {
-        if (item.pdf_url) {
-          await cleanupGeneratedReports(item.pdf_url);
-        }
       }
     }
 
-    // 1. Si ya tenemos un análisis completado de este informe y no es regeneración, lo servimos de inmediato sin coste ni espera
-    if (!force) {
+    // 1. Si ya tenemos un análisis completado de este informe y no es regeneración
+    // ni actualización de versión, lo servimos de inmediato sin coste ni espera.
+    if (!force && !upgrade) {
       const existing = await findLatestDoneAnalysis({ ticker, accession, userId: user?.id ?? null });
       if (existing && existing.report) {
         let pdfUrl = existing.pdf_url;
@@ -354,6 +421,9 @@ router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, async
                 pdfUrl,
                 sourceUrl: existing.source_url,
                 accession,
+                version: existing.version ?? null,
+                subsector: existing.subsector ?? null,
+                sectorVersion: existing.sector_version ?? null,
               });
               // Copiar el análisis completo (no solo el PDF) para que el historial
               // del usuario pueda abrir y regenerar el informe sin depender del autor original.
@@ -370,12 +440,29 @@ router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, async
         }
 
         const formType = existing.report?.formType ?? '10-Q';
+        const versionOptions = {
+          sector: existing.sector ?? 'defensive_consumer',
+          subsector: existing.subsector ?? null,
+          ticker: existing.ticker ?? ticker,
+          formType,
+        };
+        const currentVersion = await resolveAnalysisVersion(versionOptions);
         res.json({
           ok: true,
           analysisId: existing.id,
           origin: existing.origin ?? 'US',
           formType,
           sector: existing.sector ?? 'defensive_consumer',
+          subsector: existing.subsector ?? null,
+          version: existing.version ?? null,
+          sectorVersion: existing.sector_version ?? null,
+          isReviewed: Boolean(existing.is_reviewed),
+          reviewedAt: existing.reviewed_at ?? null,
+          currentVersion,
+          versionOutdated: await isAnalysisOutdated({
+            version: existing.version,
+            ...versionOptions,
+          }),
           report: existing.report,
           pdfUrl,
           downloadBase: buildDownloadBase(existing.report, formType),
@@ -396,8 +483,9 @@ router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, async
       return;
     }
 
-    await assertAiQuotaAvailable(user);
-    const usageId = await consumeAiQuota(user);
+    // Reserva atómica de cupo: inserta y comprueba en una sola operación para que
+    // peticiones paralelas del mismo usuario no superen el límite diario.
+    const usageId = await reserveAiQuota(user);
 
     let result;
     try {
@@ -423,8 +511,7 @@ router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, async
       const options = {
         // Los informes de filings oficiales se comparten siempre de forma pública
         // (caché global): el siguiente visitante lo lee al instante y sin cupo.
-        // En una regeneración de un informe que ya era público se mantiene sin propietario.
-        userId: preservePublic ? null : user.id,
+        userId: user.id,
         actor: user.username || user.email,
         isPublic: true,
         filename: `${ticker}-${accession}.pdf`,
@@ -449,6 +536,11 @@ router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, async
       origin: result.origin,
       formType: result.formType,
       sector: result.sector,
+      subsector: result.subsector ?? null,
+      version: result.version ?? null,
+      sectorVersion: result.sectorVersion ?? null,
+      currentVersion: result.version ?? null,
+      versionOutdated: false,
       report: result.report,
       pdfUrl: result.pdfUrl,
       downloadBase: result.downloadBase,
@@ -459,6 +551,10 @@ router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, async
   } catch (error) {
     if (error instanceof AgentError) {
       res.status(422).json({ error: error.message, code: error.code });
+      return;
+    }
+    if (error instanceof AiProviderError) {
+      res.status(error.status || 503).json({ error: error.message, code: error.code });
       return;
     }
     handleEdgarError(error, res, next);

@@ -1,11 +1,12 @@
 import express from "express";
 import { requireAdmin, resolveUser } from "../../middleware/auth.middleware.js";
+import { rateLimit } from "../../middleware/rateLimit.middleware.js";
+import { parseIdParam, pickCategory, isValidEmail, normalizeEmail, sanitizeReportImages } from "../../utils/validate.js";
 import {
   listAnalysesForAdminReports,
   updateAnalysisErrorReport,
   deleteAnalysisErrorReport,
   deleteAnalysisById,
-  deleteAnalysesByFiling,
   getAnalysisById,
 } from "../../../db/repositories/analysisRepository.js";
 import {
@@ -20,9 +21,29 @@ import { cleanupGeneratedReports } from "../../services/report.service.js";
 import { getFilingContentBuffer, getPresentationBuffers } from "../../services/edgar.service.js";
 import { analyzePdf, analyzeText, htmlToText, buildPresentationText } from "../../services/analysis.service.js";
 import { AgentError } from "../../agents/baseAgent.js";
+import { AiProviderError } from "../../services/ai/modelProvider.js";
 import { invalidateReportCache } from "../../services/seo.service.js";
 
 const router = express.Router();
+
+const GENERAL_REPORT_CATEGORIES = [
+  'bug',
+  'market_data',
+  'screener',
+  'portfolio',
+  'suggestion',
+  'account',
+  'other',
+];
+
+const generalReportLimiter = rateLimit({
+  windowMs: 30 * 60 * 1000,
+  max: 10,
+  scope: 'reports:general',
+  message: 'Has enviado demasiados reportes. Espera un poco antes de volver a intentarlo.',
+});
+
+const ERROR_REPORT_STATUS = ['pending', 'reviewed', 'resolved', 'dismissed'];
 
 /* ── Métricas y resumen global ── */
 router.get("/admin/reports/stats", requireAdmin, async (_req, res, next) => {
@@ -80,12 +101,17 @@ router.get("/admin/reports/ai", requireAdmin, async (req, res, next) => {
 /* Actualizar incidencia de error de análisis de IA */
 router.patch("/admin/reports/ai/:id", requireAdmin, async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = parseIdParam(req.params.id);
+    if (!id) {
       res.status(400).json({ error: "Identificador no válido." });
       return;
     }
-    const { status, adminNotes } = req.body;
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const { status, adminNotes } = body;
+    if (status !== undefined && !ERROR_REPORT_STATUS.includes(status)) {
+      res.status(400).json({ error: "Estado no válido. Usa: pending, reviewed, resolved o dismissed." });
+      return;
+    }
     const updated = await updateAnalysisErrorReport(id, { status, adminNotes });
     if (!updated) {
       res.status(404).json({ error: "Reporte de incidencia no encontrado." });
@@ -100,8 +126,8 @@ router.patch("/admin/reports/ai/:id", requireAdmin, async (req, res, next) => {
 /* Eliminar incidencia de error de análisis de IA */
 router.delete("/admin/reports/ai/:id", requireAdmin, async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = parseIdParam(req.params.id);
+    if (!id) {
       res.status(400).json({ error: "Identificador no válido." });
       return;
     }
@@ -119,8 +145,8 @@ router.delete("/admin/reports/ai/:id", requireAdmin, async (req, res, next) => {
 /* Eliminar informe de análisis por ID */
 router.delete("/admin/reports/ai-analysis/:id", requireAdmin, async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = parseIdParam(req.params.id);
+    if (!id) {
       res.status(400).json({ error: "Identificador no válido." });
       return;
     }
@@ -142,8 +168,8 @@ router.delete("/admin/reports/ai-analysis/:id", requireAdmin, async (req, res, n
 /* Regenerar informe de análisis por ID */
 router.post("/admin/reports/ai-analysis/:id/regenerate", requireAdmin, async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = parseIdParam(req.params.id);
+    if (!id) {
       res.status(400).json({ error: "Identificador no válido." });
       return;
     }
@@ -161,15 +187,10 @@ router.post("/admin/reports/ai-analysis/:id/regenerate", requireAdmin, async (re
       return;
     }
 
-    // 1. Eliminar informe previo y archivos
-    const deleted = await deleteAnalysesByFiling({ ticker, accession });
-    for (const item of deleted) {
-      if (item.pdf_url) {
-        await cleanupGeneratedReports(item.pdf_url);
-      }
-    }
+    // Se genera una versión nueva sin eliminar las anteriores: el histórico
+    // completo del informe queda disponible para consultar y descargar.
 
-    // 2. Volver a generar desde SEC EDGAR
+    // Volver a generar desde SEC EDGAR
     const content = await getFilingContentBuffer(ticker, accession);
     if (!content) {
       res.status(404).json({ error: "Informe no encontrado en SEC EDGAR.", code: "FILING_NOT_FOUND" });
@@ -211,15 +232,22 @@ router.post("/admin/reports/ai-analysis/:id/regenerate", requireAdmin, async (re
       origin: result.origin,
       formType: result.formType,
       sector: result.sector,
+      subsector: result.subsector ?? null,
+      version: result.version ?? null,
+      sectorVersion: result.sectorVersion ?? null,
       report: result.report,
       pdfUrl: result.pdfUrl,
       downloadBase: result.downloadBase,
       regenerated: true,
-      message: "Informe generado de nuevo con éxito.",
+      message: "Nueva versión generada con éxito. Se conservan las anteriores.",
     });
   } catch (error) {
     if (error instanceof AgentError) {
       res.status(422).json({ error: error.message, code: error.code });
+      return;
+    }
+    if (error instanceof AiProviderError) {
+      res.status(error.status || 503).json({ error: error.message, code: error.code });
       return;
     }
     next(error);
@@ -246,12 +274,17 @@ router.get("/admin/reports/general", requireAdmin, async (req, res, next) => {
 /* Actualizar reporte general */
 router.patch("/admin/reports/general/:id", requireAdmin, async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = parseIdParam(req.params.id);
+    if (!id) {
       res.status(400).json({ error: "Identificador no válido." });
       return;
     }
-    const { status, adminNotes } = req.body;
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const { status, adminNotes } = body;
+    if (status !== undefined && !ERROR_REPORT_STATUS.includes(status)) {
+      res.status(400).json({ error: "Estado no válido. Usa: pending, reviewed, resolved o dismissed." });
+      return;
+    }
     const updated = await updateGeneralReport(id, { status, adminNotes });
     if (!updated) {
       res.status(404).json({ error: "Reporte general no encontrado." });
@@ -266,8 +299,8 @@ router.patch("/admin/reports/general/:id", requireAdmin, async (req, res, next) 
 /* Eliminar reporte general */
 router.delete("/admin/reports/general/:id", requireAdmin, async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = parseIdParam(req.params.id);
+    if (!id) {
       res.status(400).json({ error: "Identificador no válido." });
       return;
     }
@@ -283,13 +316,16 @@ router.delete("/admin/reports/general/:id", requireAdmin, async (req, res, next)
 });
 
 /* Crear reporte general (abierto a cualquier usuario o administrador) */
-router.post("/reports/general", async (req, res, next) => {
+router.post("/reports/general", generalReportLimiter, async (req, res, next) => {
   try {
     const user = await resolveUser(req);
-    const title = String(req.body.title || "").trim().slice(0, 255);
-    const description = String(req.body.description || "").trim().slice(0, 4000);
-    const category = String(req.body.category || "general").trim();
-    const userEmail = String(req.body.userEmail || user?.email || "").trim().slice(0, 255) || null;
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const title = String(body.title || "").trim().slice(0, 255);
+    const description = String(body.description || "").trim().slice(0, 4000);
+    const category = pickCategory(body.category, GENERAL_REPORT_CATEGORIES, "other");
+    const images = sanitizeReportImages(body.images);
+    const rawEmail = String(body.userEmail || user?.email || "").trim().slice(0, 255);
+    const userEmail = rawEmail && isValidEmail(rawEmail) ? normalizeEmail(rawEmail) : null;
 
     if (!title || !description) {
       res.status(400).json({ error: "Por favor, introduce un título y una descripción detallada del problema." });
@@ -302,6 +338,7 @@ router.post("/reports/general", async (req, res, next) => {
       category,
       title,
       description,
+      images,
     });
 
     res.status(201).json({

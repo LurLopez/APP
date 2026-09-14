@@ -87,15 +87,19 @@ function drawTable(doc, columns, rows, options = {}) {
 
   // Asegurar espacio para cabecera y al menos 2 filas antes de pintar
   if (y + rowHeight * 3 > doc.page.height - doc.page.margins.bottom - 10) {
-    doc.addPage();
-    y = doc.page.margins.top;
+    if (y > doc.page.margins.top + 10) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
   }
 
   const ensureSpace = (needed) => {
     if (y + needed > doc.page.height - doc.page.margins.bottom - 20) {
-      doc.addPage();
-      y = doc.page.margins.top;
-      drawHeaderRow();
+      if (y > doc.page.margins.top + 10) {
+        doc.addPage();
+        y = doc.page.margins.top;
+        drawHeaderRow();
+      }
     }
   };
 
@@ -212,7 +216,8 @@ function drawTable(doc, columns, rows, options = {}) {
 }
 
 function drawSectionTitle(doc, title, y, minSpace = 130) {
-  if (y + minSpace > doc.page.height - doc.page.margins.bottom - 10) {
+  const pageBottom = doc.page.height - doc.page.margins.bottom;
+  if (y + minSpace > pageBottom - 10 && y > doc.page.margins.top + 10) {
     doc.addPage();
     y = doc.page.margins.top;
   }
@@ -222,7 +227,14 @@ function drawSectionTitle(doc, title, y, minSpace = 130) {
 
 function drawNotes(doc, notes, y) {
   let currentY = y;
-  (notes ?? []).filter(Boolean).forEach((note) => {
+  const filtered = (notes ?? []).filter(Boolean);
+  if (!filtered.length) return currentY;
+
+  const pageBottom = doc.page.height - doc.page.margins.bottom;
+  const left = doc.page.margins.left;
+  const availablePageWidth = doc.page.width - left * 2;
+
+  filtered.forEach((note) => {
     const raw = sanitize(note);
     const match = raw.match(/^\*(\d+):?\s*([\s\S]*)$/);
     if (match) {
@@ -233,19 +245,49 @@ function drawNotes(doc, notes, y) {
 
       doc.font('Helvetica-Bold').fontSize(7.5);
       const markerWidth = doc.widthOfString(marker) + 6;
-      doc.rect(doc.page.margins.left, currentY, markerWidth, 10).fill(colorScheme.bg);
-      doc.fillColor(colorScheme.text).font('Helvetica-Bold').fontSize(7.5).text(marker, doc.page.margins.left + 3, currentY + 1.5);
-      doc.fillColor('#4b5563').font('Helvetica').fontSize(7.5).text(rest, doc.page.margins.left + markerWidth + 4, currentY + 1.5, { width: doc.page.width - doc.page.margins.left * 2 - markerWidth - 4, lineBreak: true });
-      currentY = doc.y + 4;
+      const textWidth = availablePageWidth - markerWidth - 4;
+
+      doc.font('Helvetica').fontSize(7.5);
+      const textHeight = doc.heightOfString(rest, { width: textWidth });
+      const itemHeight = Math.max(12, textHeight + 4);
+
+      // Si no cabe la nota en la página actual, pasar a una nueva página antes de dibujar el recuadro y el texto
+      if (currentY + itemHeight > pageBottom - 10 && currentY > doc.page.margins.top + 10) {
+        doc.addPage();
+        currentY = doc.page.margins.top;
+      }
+
+      const noteTop = currentY;
+      doc.rect(left, noteTop, markerWidth, 10).fill(colorScheme.bg);
+      doc.fillColor(colorScheme.text).font('Helvetica-Bold').fontSize(7.5).text(marker, left + 3, noteTop + 1.5, { lineBreak: false });
+      doc.fillColor('#4b5563').font('Helvetica').fontSize(7.5).text(rest, left + markerWidth + 4, noteTop + 1.5, {
+        width: textWidth,
+        lineBreak: true,
+      });
+      currentY = Math.max(doc.y, noteTop + 10) + 4;
     } else {
-      doc.font('Helvetica-Oblique').fontSize(7.5).fillColor('#6b7280');
-      currentY = doc.text(raw, doc.page.margins.left, currentY, { width: doc.page.width - doc.page.margins.left * 2, lineBreak: true }).y + 3;
+      doc.font('Helvetica-Oblique').fontSize(7.5);
+      const textHeight = doc.heightOfString(raw, { width: availablePageWidth });
+      const itemHeight = textHeight + 4;
+
+      if (currentY + itemHeight > pageBottom - 10 && currentY > doc.page.margins.top + 10) {
+        doc.addPage();
+        currentY = doc.page.margins.top;
+      }
+
+      const noteTop = currentY;
+      doc.fillColor('#6b7280').text(raw, left, noteTop, { width: availablePageWidth, lineBreak: true });
+      currentY = doc.y + 4;
     }
   });
   return currentY + 4;
 }
 
 function drawHorizontalRule(doc, y) {
+  const pageBottom = doc.page.height - doc.page.margins.bottom;
+  if (y >= pageBottom - 15) {
+    return y;
+  }
   doc.moveTo(doc.page.margins.left, y).lineTo(doc.page.width - doc.page.margins.left, y).lineWidth(0.5).strokeColor('#d1d5db').stroke();
   return y + 10;
 }
@@ -259,8 +301,10 @@ function drawSharesChart(doc, chart, y) {
   const plotH = 130;
   const boxH = 22 + plotH + 22;
   if (y + boxH > doc.page.height - doc.page.margins.bottom - 20) {
-    doc.addPage();
-    y = doc.page.margins.top;
+    if (y > doc.page.margins.top + 10) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
   }
   doc.rect(margin, y, pageWidth, boxH).fill('#f8fafc');
   doc.rect(margin, y, pageWidth, boxH).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
@@ -337,8 +381,10 @@ function drawDebtMaturityChart(doc, chart, y) {
   const boxH = headerH + plotH + footerH + 28;
 
   if (y + boxH > doc.page.height - doc.page.margins.bottom - 20) {
-    doc.addPage();
-    y = doc.page.margins.top;
+    if (y > doc.page.margins.top + 10) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
   }
 
   // Fondo y borde del contenedor
@@ -442,8 +488,10 @@ function drawDebtHistoryChart(doc, chart, y) {
   const boxH = headerH + plotH + 26;
 
   if (y + boxH > doc.page.height - doc.page.margins.bottom - 20) {
-    doc.addPage();
-    y = doc.page.margins.top;
+    if (y > doc.page.margins.top + 10) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
   }
 
   doc.rect(margin, y, pageWidth, boxH).fill('#f8fafc');
@@ -552,8 +600,10 @@ function drawDividendChart(doc, chart, y) {
   const boxH = headerH + plotH + 26 + footH;
 
   if (y + boxH > doc.page.height - doc.page.margins.bottom - 20) {
-    doc.addPage();
-    y = doc.page.margins.top;
+    if (y > doc.page.margins.top + 10) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
   }
 
   doc.rect(margin, y, pageWidth, boxH).fill('#f8fafc');
@@ -659,8 +709,10 @@ function drawDebtRefinancingBox(doc, refinancing, y) {
 
   const boxHeight = boxPad + labelH + 28 + (textH ? textH + 8 : 0) + (impactH ? impactH + 6 : 0) + boxPad;
   if (y + boxHeight > doc.page.height - doc.page.margins.bottom - 20) {
-    doc.addPage();
-    y = doc.page.margins.top;
+    if (y > doc.page.margins.top + 10) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
   }
 
   const boxStartY = y;
@@ -840,8 +892,10 @@ function drawPdfSecSnippet(doc, snippet, y) {
   // Si no queda espacio para cabecera y al menos 4 filas (~110 pt), mover a nueva página
   const minStartSpace = 32 + headerH + 60;
   if (y + minStartSpace > pageBottom) {
-    doc.addPage();
-    y = doc.page.margins.top;
+    if (y > doc.page.margins.top + 10) {
+      doc.addPage();
+      y = doc.page.margins.top;
+    }
   }
 
   // Encabezado del extracto SEC
@@ -899,9 +953,11 @@ function drawPdfSecSnippet(doc, snippet, y) {
       rowHeight = Math.max(rowHeight, cellH + 9);
     });
     if (y + rowHeight > pageBottom - 15) {
-      doc.addPage();
-      y = doc.page.margins.top;
-      drawSnippetHeaderRow();
+      if (y > doc.page.margins.top + 10) {
+        doc.addPage();
+        y = doc.page.margins.top;
+        drawSnippetHeaderRow();
+      }
     }
     const isOdd = rIdx % 2 === 1;
     if (isOdd) doc.rect(margin, y, pageWidth, rowHeight).fill('#f8fafc');
@@ -1016,8 +1072,15 @@ export function buildReportPdf(report) {
         if (sales.shares) extras.push(`ACCIONES: ${sanitize(sales.shares)}`);
         if (sales.eps) extras.push(`BPA: ${sanitize(sales.eps)}`);
         if (extras.length) {
-          doc.font('Helvetica-Bold').fontSize(8).fillColor('#111827').text(extras.join('  ·  '), margin, y, { lineBreak: false });
-          y += 14;
+          const extrasText = extras.join('  ·  ');
+          doc.font('Helvetica-Bold').fontSize(8);
+          const extrasH = doc.heightOfString(extrasText, { width: doc.page.width - margin * 2 });
+          if (y + extrasH + 8 > doc.page.height - doc.page.margins.bottom - 10 && y > doc.page.margins.top + 10) {
+            doc.addPage();
+            y = doc.page.margins.top;
+          }
+          doc.fillColor('#111827').text(extrasText, margin, y, { width: doc.page.width - margin * 2 });
+          y = doc.y + 6;
         }
         y = drawNotes(doc, sales.notes, y);
         y = drawHorizontalRule(doc, y);
@@ -1057,8 +1120,15 @@ export function buildReportPdf(report) {
         const capitalRows = capital.rows.map((row) => [row.name, row.value]);
         y = drawTable(doc, ['Métrica', 'Valor'], capitalRows, { startY: y, colWidths: [150, 365], rowHeight: 18, isCapital: true });
         if (capital.verification) {
-          doc.font('Helvetica-Bold').fontSize(8).fillColor('#111827').text(sanitize(capital.verification), margin, y);
-          y += 14;
+          const verifText = sanitize(capital.verification);
+          doc.font('Helvetica-Bold').fontSize(8);
+          const verifH = doc.heightOfString(verifText, { width: doc.page.width - margin * 2 });
+          if (y + verifH + 8 > doc.page.height - doc.page.margins.bottom - 10 && y > doc.page.margins.top + 10) {
+            doc.addPage();
+            y = doc.page.margins.top;
+          }
+          doc.fillColor('#111827').text(verifText, margin, y, { width: doc.page.width - margin * 2 });
+          y = doc.y + 6;
         }
         y = drawNotes(doc, capital.notes, y);
         y = drawHorizontalRule(doc, y);
@@ -1069,8 +1139,10 @@ export function buildReportPdf(report) {
 
     // PARTE II y PARTE III para informes anuales (Form 10-K)
     if (report.conclusion || report.rating) {
-      doc.addPage();
-      y = doc.page.margins.top;
+      if (y > doc.page.margins.top + 10) {
+        doc.addPage();
+        y = doc.page.margins.top;
+      }
 
       const conclusion = report.conclusion || {};
 
@@ -1082,19 +1154,29 @@ export function buildReportPdf(report) {
 
       const ensureSpace = (needed) => {
         if (y + needed > doc.page.height - doc.page.margins.bottom - 20) {
+          if (y > doc.page.margins.top + 10) {
+            doc.addPage();
+            y = doc.page.margins.top;
+          }
+        }
+      };
+
+      // Cada punto de la Parte II comienza en una página propia, salvo el primero que arranca tras la cabecera
+      let isFirstSection = true;
+      const startSectionPage = () => {
+        if (isFirstSection) {
+          isFirstSection = false;
+          return;
+        }
+        if (y > doc.page.margins.top + 30) {
           doc.addPage();
           y = doc.page.margins.top;
         }
       };
 
-      // Cada punto de la Parte II comienza en una página propia
-      const startSectionPage = () => {
-        doc.addPage();
-        y = doc.page.margins.top;
-      };
-
       // 1: Recompras
       if (conclusion.repurchases) {
+        startSectionPage();
         const rep = conclusion.repurchases;
         ensureSpace(60);
         y = drawSectionTitle(doc, rep.title || '1: RECOMPRAS', y);
@@ -1112,8 +1194,11 @@ export function buildReportPdf(report) {
           rep.futureProjection ? `Proyección 5 años: ${rep.futureProjection}` : null,
         ].filter(Boolean);
         if (repBadges.length) {
-          ensureSpace(20);
           repBadges.forEach((b) => {
+            if (y > doc.page.height - doc.page.margins.bottom - 20) {
+              doc.addPage();
+              y = doc.page.margins.top;
+            }
             y = drawHighlightedText(doc, `• ${sanitize(b)}`, margin + 6, y, { width: doc.page.width - margin * 2 - 12, baseSize: 8, baseFont: 'Helvetica-Bold', baseColor: '#854d0e', boldFont: 'Helvetica-Bold', boldColor: '#7c2d12' }) + 3;
           });
           y += 5;
@@ -1143,8 +1228,11 @@ export function buildReportPdf(report) {
           out.efficiencyPlans ? `Programas de ahorro / eficiencia: ${out.efficiencyPlans}` : null,
         ].filter(Boolean);
         if (outDetails.length) {
-          ensureSpace(20);
           outDetails.forEach((d) => {
+            if (y > doc.page.height - doc.page.margins.bottom - 20) {
+              doc.addPage();
+              y = doc.page.margins.top;
+            }
             y = drawPdfFormattedText(doc, `• ${d}`, margin + 6, y, doc.page.width - margin * 2 - 12, 'Helvetica', 'Helvetica-Bold', 8, '#4b5563') + 3;
           });
           y += 5;
@@ -1249,7 +1337,10 @@ export function buildReportPdf(report) {
         startSectionPage();
         y = drawSectionTitle(doc, conclusion.watchlist.title || 'COSAS A TENER EN CUENTA', y);
         conclusion.watchlist.items.forEach((item) => {
-          ensureSpace(16);
+          if (y > doc.page.height - doc.page.margins.bottom - 20) {
+            doc.addPage();
+            y = doc.page.margins.top;
+          }
           doc.font('Helvetica-Bold').fontSize(8).fillColor('#16a34a').text('OK', margin + 6, y, { continued: true });
           doc.font('Helvetica').fontSize(8).fillColor('#374151').text(`  ${sanitize(item)}`, { width: doc.page.width - margin * 2 - 20, lineBreak: true });
           y = doc.y + 4;

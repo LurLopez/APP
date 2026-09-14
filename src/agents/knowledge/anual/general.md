@@ -2,6 +2,7 @@
 
 > Nivel 1 — Marco Universal aplicable a todos los análisis anuales (Form 10-K) para cualquier empresa, sector y subsector.
 > Documento de referencia canónico: `TAP 2025_ANNUAL ANÁLISIS_ES.pdf` (almacenado en `src/agents/knowledge/anual/ejemplos/`).
+> Versión: 0
 
 ---
 
@@ -100,7 +101,7 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
     $$\text{Desviación WC} = \text{WC}_{\text{reportado}} - \text{WK}_{\text{teórico}}$$
     $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - \text{Desviación WC}$$
   - **Regla de signos en la nota (obligatoria)**: la desviación conserva su signo y el ajuste se escribe como una resta explícita. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WK teórico (12,1M): -159,1M. El Cash Flow ajustado resta esa desviación: 1784,4M - (-159,1M) = 1943,5M.` Queda terminantemente prohibido escribir frases contradictorias como `ajuste de -159M (1784,4M + 159,1M)`.
-  - **Ajuste fiscal del Cash Flow**: Si los impuestos en efectivo efectivamente pagados difieren del gasto devengado normalizado, se descuenta o suma la diferencia exacta en el Cash Flow Ajustado.
+  - **Ajuste fiscal del Cash Flow**: Se compara lo que la empresa debería pagar en realidad (23 % sobre el EBT ajustado) frente a lo que consta que ha pagado en el estado de flujos (en la línea de efectivo pagado "Income tax (paid) received" / "Income taxes paid" o en la conciliación de impuestos diferidos). Si existe una discrepancia, se ajusta el Cash Flow en la columna Ajustado: si pagó menos de lo normalizado se resta la diferencia; si pagó más, se suma. Se añade la Nota `*2: Impuestos: ...` explicando cuántos impuestos debería haber pagado y cuánto ha pagado realmente.
   - La nota explicativa al pie detalla minuciosamente ambos ajustes (circulante e impuestos).
 
 ---
@@ -116,6 +117,11 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
   6. `Caja`: Variación de tesorería del balance de cierre anual (negativo `-` si la caja aumentó, positivo `+` si disminuyó).
   7. `Deuda`: Variación de deuda total en balance durante el ejercicio (positivo `+` si la deuda creció, negativo `-` si se amortizó).
   8. `En total`: Suma algebraica de todas las partidas.
+
+- **Nota Obligatoria de Deuda y Caja (balance)**:
+  - Toda tabla anual debe incluir la nota con el formato exacto:
+    > `*N: Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M). Caja balance: <anterior>M -> <actual>M (<variación>M); la caja aumentó: uso de capital (-) / la caja disminuyó: fuente de liquidez (+); fila Caja = <valor>M.`
+  - La caja y la deuda se miden SIEMPRE por la variación de saldos del balance (nunca por el cambio neto de efectivo del estado de flujos de caja) y la cifra de la fila `Caja` debe coincidir con la de la nota. Si el estado de flujos presenta un neto de caja distinto, se explica la diferencia (efectivo restringido, efecto divisa u otras partidas no monetarias) citando las notas del 10-K.
 
 - **Veredicto Analítico de Cuadre**:
   - Al pie se emite el veredicto con criterio profesional (ej. *"No cuadra del todo, pero más o menos ha gastado todo lo que estaba libre en recompras."* o *"El resultado cuadra razonablemente."*).
@@ -342,6 +348,7 @@ Para dar respaldo documental y valor visual a la Parte II:
 
 - **Prohibición de redondeo**: Todas las cifras deben ser **exactas**, copiadas tal cual de los estados financieros y del JSON de extracción (que el sistema completa desde el XBRL de la SEC). Queda terminantemente prohibido redondear o estimar cifras reportadas (ej. no escribir `4500M` si la cifra es `4462M`, ni `800M` si es `801M`, ni `1900M` si es `1898M`). Si una cifra no consta en ninguna fuente, se indica que no consta; nunca se sustituye por una aproximación redondeada.
 - **Moneda**: Millones de dólares estadounidenses con sufijo **`M`** (ej. `13040M`, `2300M`). Símbolo **`$`** para precios y ratios por acción (ej. `5,69 $`, `50 $`). Para miles de millones en texto libre se puede usar `M` o `millones de $`.
+- **Decimales**: todas las cifras (flujos, asignación de capital, etc.) llevan **como máximo 2 decimales** tras la coma y nunca muestran artefactos de coma flotante (ej. prohibido `1827,1000000000004`; correcto `1827,1`).
 - **Porcentajes**: Con **coma decimal** y signo explícito.
   - Positivos en **verde** (`#16a34a`).
   - Negativos en **rojo** (`#dc2626`).

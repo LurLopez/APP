@@ -168,8 +168,17 @@ export function seoHtmlMiddleware(req, res, next) {
   }
 
   if (pathname === '/guias') {
-    if (serveGuideHub(res)) return;
-    next();
+    serveHtml(res, HTML_FILE, { pathname: '/guias', noIndex: false });
+    return;
+  }
+
+  if (pathname === '/guías') {
+    res.redirect(301, '/guias');
+    return;
+  }
+
+  if (pathname.startsWith('/guías/')) {
+    res.redirect(301, '/guias/' + pathname.slice('/guías/'.length));
     return;
   }
 

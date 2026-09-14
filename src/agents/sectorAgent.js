@@ -1,5 +1,8 @@
 import { BaseAgent, AgentError } from './baseAgent.js';
-import { chatJson } from '../services/ai/modelProvider.js';
+import { chatJson, AiProviderError } from '../services/ai/modelProvider.js';
+import { resolveAnalysisVersionInfo } from './versionRegistry.js';
+
+export { compareVersions, resolveAnalysisVersion, isAnalysisOutdated } from './versionRegistry.js';
 
 const PROMPT = `Eres el verificador de sector de un analizador financiero. Analiza el documento siguiente y determina si la empresa pertenece al sector de consumo defensivo (Consumer Staples).
 
@@ -14,19 +17,10 @@ Responde únicamente con un JSON válido con esta forma exacta:
 
 const MAX_CHARS = 80000;
 
-// Versión del análisis definida por el agente de sector. Si el análisis tiene
-// subsector, la versión de ese subsector tiene preferencia sobre la del sector.
-export const VERSION = '0.1';
-
-export const SUBSECTOR_VERSIONS = {
-  cerveceras: '0.1',
-};
-
-export function resolveVersion(subsector = null) {
-  const slug = String(subsector ?? '').trim().toLowerCase();
-  return (slug && SUBSECTOR_VERSIONS[slug]) || VERSION;
-}
-
+// La versión del análisis es jerárquica: general.sector[.subsector][.empresa].
+// El número de cada nivel se declara al principio de su .md en
+// src/agents/knowledge/ (p. ej. general.md, <sector>/sector.md,
+// <sector>/subsectores/<slug>/subsector.md y <sector>/empresas/<ticker>/empresa.md).
 export class SectorAgent extends BaseAgent {
   constructor() {
     super({
@@ -48,7 +42,8 @@ export class SectorAgent extends BaseAgent {
         { role: 'system', content: PROMPT },
         { role: 'user', content: input.text.slice(0, MAX_CHARS) },
       ]);
-    } catch {
+    } catch (error) {
+      if (error instanceof AiProviderError) throw error;
       throw new AgentError('El modelo no devolvió una respuesta válida al verificar el sector.', 'INVALID_MODEL_RESPONSE');
     }
 
@@ -56,6 +51,18 @@ export class SectorAgent extends BaseAgent {
       throw new AgentError('Este informe no corresponde al sector de consumo defensivo.', 'NOT_DEFENSIVE_CONSUMER');
     }
 
-    return { sector: 'defensive_consumer', subsector, version: resolveVersion(subsector) };
+    const versionInfo = await resolveAnalysisVersionInfo({
+      sector: 'defensive_consumer',
+      subsector,
+      ticker: input?.ticker ?? null,
+      formType: input?.formType ?? null,
+    });
+
+    return {
+      sector: 'defensive_consumer',
+      subsector,
+      version: versionInfo.version,
+      sectorVersion: versionInfo.sectorVersion,
+    };
   }
 }

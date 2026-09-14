@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { extractTextFromPdf } from './pdf.service.js';
 import { aiContext } from './ai/modelProvider.js';
 import { getAgent } from '../agents/agentRegistry.js';
+import { AgentError } from '../agents/baseAgent.js';
 import { generateReportPdf } from './report.service.js';
 import { createAnalysis, updateAnalysis } from '../../db/repositories/analysisRepository.js';
 import { createAnalysisLog } from '../../db/repositories/analysisLogRepository.js';
@@ -37,7 +38,7 @@ export function htmlToText(html) {
     .trim();
 }
 
-async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, accession, modelUsed, version = null }) {
+async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, accession, modelUsed, version = null, subsector = null, sectorVersion = null }) {
   const report = result.report ?? {};
   const periodEnd = PERIOD_DATE_PATTERN.test(report.reportingPeriod ?? '') ? report.reportingPeriod : null;
   const parsedAccession = accession || (filename?.match(/[0-9]{10}-[0-9]{2}-[0-9]{6}/)?.[0] ?? null);
@@ -54,6 +55,8 @@ async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, acc
     sourceUrl: sourceUrl ?? null,
     accession: parsedAccession,
     version,
+    subsector,
+    sectorVersion,
   });
 
   return updateAnalysis(created.id, {
@@ -149,6 +152,16 @@ async function logAnalysis({ options, result = null, error = null, startedAt }) 
   }
 }
 
+// El registro del análisis (fichero .log + BD) nunca debe romper el análisis ni
+// enmascarar el error real: se envuelve y solo se registra el fallo del log.
+async function safeLogAnalysis(args) {
+  try {
+    await logAnalysis(args);
+  } catch (logError) {
+    console.error('[analysis:log]', logError.message);
+  }
+}
+
 async function runAnalysis(text, options, sessionId) {
   const startedAt = Date.now();
   console.log(`[analysis] sesión IA ${sessionId.slice(0, 8)} · ${options.filename ?? 'informe'}`);
@@ -160,7 +173,12 @@ async function runAnalysis(text, options, sessionId) {
     const effectiveFormType = options.formType || originResult.formType;
 
     const sectorAgent = getAgent('sector');
-    const sectorResult = await sectorAgent.run({ text, subsector: options.subsector ?? null });
+    const sectorResult = await sectorAgent.run({
+      text,
+      subsector: options.subsector ?? null,
+      formType: effectiveFormType,
+      ticker: options.ticker ?? null,
+    });
 
     const analystAgent = getAgent('analyst');
     const report = await analystAgent.run({
@@ -172,14 +190,26 @@ async function runAnalysis(text, options, sessionId) {
       ticker: options.ticker ?? null,
     });
 
-    const { url, docxUrl, odtUrl } = await generateReportPdf(report);
+    let pdfResult;
+    try {
+      pdfResult = await generateReportPdf(report);
+    } catch (pdfError) {
+      console.error('[analysis:pdf]', pdfError.message);
+      throw new AgentError(
+        'Se completó el análisis pero no se pudo generar el PDF del informe. Inténtalo de nuevo; si persiste, contacta con el administrador.',
+        'REPORT_PDF_FAILED',
+      );
+    }
+    const { url, docxUrl, odtUrl } = pdfResult;
 
     const result = {
       text,
       origin: originResult.origin,
       formType: effectiveFormType,
       sector: sectorResult.sector,
+      subsector: sectorResult.subsector ?? null,
       version: sectorResult.version,
+      sectorVersion: sectorResult.sectorVersion ?? null,
       report,
       pdfUrl: url,
       docxUrl,
@@ -197,6 +227,8 @@ async function runAnalysis(text, options, sessionId) {
         accession: options.accession ?? null,
         modelUsed: options.modelUsed ?? null,
         version: sectorResult.version,
+        subsector: sectorResult.subsector ?? null,
+        sectorVersion: sectorResult.sectorVersion ?? null,
         result,
       });
     } catch (error) {
@@ -204,16 +236,24 @@ async function runAnalysis(text, options, sessionId) {
     }
 
     result.analysisId = saved?.id ?? null;
-    await logAnalysis({ options, result, startedAt });
+    await safeLogAnalysis({ options, result, startedAt });
     return result;
   } catch (error) {
-    await logAnalysis({ options, error, startedAt });
+    await safeLogAnalysis({ options, error, startedAt });
     throw error;
   }
 }
 
 export async function analyzePdf(buffer, options = {}) {
   const text = await extractTextFromPdf(buffer);
+  // PDF sin texto (escaneo o imágenes): los agentes no pueden hacer nada con él;
+  // se detecta aquí con un mensaje claro en vez de fallar en el primer agente.
+  if (!text || text.trim().length < 100) {
+    throw new AgentError(
+      'El PDF no contiene texto legible (parece un escaneo o está compuesto por imágenes). Usa el PDF oficial descargado de SEC EDGAR.',
+      'PDF_NOT_READABLE',
+    );
+  }
   return analyzeText(text, options);
 }
 

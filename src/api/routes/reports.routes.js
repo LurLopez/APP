@@ -1,27 +1,27 @@
 import { Router } from 'express';
-import jwt from 'jsonwebtoken';
-import config from '../../../config/index.js';
-import { findUserById } from '../../../db/repositories/userRepository.js';
+import { resolveUser } from '../../middleware/auth.middleware.js';
+import { rateLimit } from '../../middleware/rateLimit.middleware.js';
+import { pickCategory, sanitizeReportImages, normalizeEmail, isValidEmail } from '../../utils/validate.js';
 import { createGeneralReport } from '../../../db/repositories/generalReportsRepository.js';
 
 const router = Router();
 
-async function resolveUser(req) {
-  try {
-    const token = req.cookies?.token;
-    if (!token) return null;
-    const decoded = jwt.verify(token, config.jwtSecret);
-    return await findUserById(decoded.id);
-  } catch {
-    return null;
-  }
-}
+const GENERAL_REPORT_CATEGORIES = ['general', 'bug', 'screener', 'market_data', 'portfolio', 'account', 'suggestion', 'other'];
 
-router.post('/', async (req, res, next) => {
+const reportLimiter = rateLimit({
+  windowMs: 30 * 60 * 1000,
+  max: 10,
+  scope: 'reports:general',
+  message: 'Has enviado demasiados reportes. Espera un poco antes de volver a intentarlo.',
+});
+
+router.post('/', reportLimiter, async (req, res, next) => {
   try {
-    const title = String(req.body.title || '').trim().slice(0, 255);
-    const category = String(req.body.category || 'bug').trim();
-    const description = String(req.body.description || '').trim().slice(0, 5000);
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const title = String(body.title || '').trim().slice(0, 255);
+    const category = pickCategory(body.category, GENERAL_REPORT_CATEGORIES, 'bug');
+    const description = String(body.description || '').trim().slice(0, 5000);
+    const images = sanitizeReportImages(body.images);
 
     if (!title) {
       res.status(400).json({ error: 'Por favor, introduce un título para el reporte.' });
@@ -33,15 +33,13 @@ router.post('/', async (req, res, next) => {
       return;
     }
 
-    const rawImages = Array.isArray(req.body.images) ? req.body.images : [];
-    const images = rawImages
-      .filter((img) => typeof img === 'string' && (img.startsWith('data:image/') || img.startsWith('http://') || img.startsWith('https://')))
-      .slice(0, 5);
-
     const user = await resolveUser(req);
+    const rawEmail = String(body.email || user?.email || '').trim().slice(0, 255);
+    const userEmail = rawEmail && isValidEmail(rawEmail) ? normalizeEmail(rawEmail) : null;
+
     const report = await createGeneralReport({
       userId: user?.id ?? null,
-      userEmail: user?.email ?? req.body.email ?? null,
+      userEmail,
       category,
       title,
       description,

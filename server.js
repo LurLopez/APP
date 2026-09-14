@@ -44,6 +44,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
   lastModified: true,
   setHeaders(res, filePath) {
     const ext = path.extname(filePath);
+    if (!config.production) {
+      res.set('Cache-Control', 'no-cache, must-revalidate');
+      return;
+    }
     if (ext === '.css' || ext === '.js') {
       res.set('Cache-Control', 'public, max-age=604800');
     } else if (ext === '.png' || ext === '.svg' || ext === '.ico' || ext === '.jpg' || ext === '.webp') {

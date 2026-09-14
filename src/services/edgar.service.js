@@ -69,6 +69,7 @@ const STATEMENTS = {
   ],
   balance: [
     { key: 'cash', label: 'Efectivo y equivalentes', tags: ['CashAndCashEquivalentsAtCarryingValue'], unit: 'USD' },
+    { key: 'restrictedCash', label: 'Efectivo restringido', tags: ['RestrictedCashAndCashEquivalentsAtCarryingValue', 'RestrictedCashAndCashEquivalentsCurrent', 'RestrictedCash'], unit: 'USD' },
     { key: 'shortTermInvestments', label: 'Activos financieros para vender', tags: ['ShortTermInvestments', 'OtherShortTermInvestments', 'MarketableSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecuritiesCurrent', 'AvailableForSaleSecuritiesDebtSecurities', 'MarketableSecurities', 'AvailableForSaleSecuritiesCurrent'], unit: 'USD' },
     { key: 'cashAndShortTermInvestments', label: 'Efectivo total e inversiones a corto plazo', tags: ['CashCashEquivalentsAndShortTermInvestments'], unit: 'USD', emphasis: true, derived: true },
     { key: 'receivables', label: 'Cuentas por cobrar', tags: ['AccountsReceivableNetCurrent', 'ReceivablesNetCurrent', 'AccountsNotesAndLoansReceivableNetCurrent'], unit: 'USD' },
@@ -3464,12 +3465,13 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
     const rawDivYtd = toMillions(currentRow?.ytdValues?.divestitures ?? currentRow?.values?.divestitures);
     const currDivestituresYtd = rawDivYtd == null ? null : (rawDivYtd >= 50 ? rawDivYtd : 0);
 
-    // Acquisitions of business: only material cash acquisitions (>= 50M), negative sign (use of capital)
+    // Acquisitions of business: only material cash acquisitions (>= 50M), negative sign (use of capital).
+    // El XBRL guarda la salida de caja en negativo: se compara en valor absoluto para no descartarla.
     const rawAcq3M = toMillions(currentRow?.values?.acquisitions);
-    const currAcquisitions3M = rawAcq3M == null ? null : (rawAcq3M >= 50 ? -Math.abs(rawAcq3M) : 0);
+    const currAcquisitions3M = rawAcq3M == null ? null : (Math.abs(rawAcq3M) >= 50 ? -Math.abs(rawAcq3M) : 0);
 
     const rawAcqYtd = toMillions(currentRow?.ytdValues?.acquisitions ?? currentRow?.values?.acquisitions);
-    const currAcquisitionsYtd = rawAcqYtd == null ? null : (rawAcqYtd >= 50 ? -Math.abs(rawAcqYtd) : 0);
+    const currAcquisitionsYtd = rawAcqYtd == null ? null : (Math.abs(rawAcqYtd) >= 50 ? -Math.abs(rawAcqYtd) : 0);
 
     // Proceeds from sales of PP&E and other assets (positive, source of funds)
     const assetSales3M = toMillions(currentRow?.values?.salePPE);
@@ -3507,6 +3509,9 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
         : null),
       netChangeInCashYtd: toMillions(pickVal('netChangeInCash')),
       cash: prevCash,
+      restrictedCash: toMillions(currentRow?.values?.restrictedCash),
+      previousRestrictedCash: toMillions(prevRow?.values?.restrictedCash),
+      fyStartRestrictedCash: toMillions(fyStartRow?.values?.restrictedCash),
       totalDebt: prevDebt,
       shortTermInvestments: prevShortTerm,
       fyStartCash,
@@ -3517,6 +3522,7 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
       changePayablesYtd: toMillions(pickVal('changeAccountsPayable')),
       workingCapitalChangeYtd: toMillions(pickVal('workingCapitalChange')),
       divestituresYtd: toMillions(pickVal('divestitures')),
+      acquisitionsYtd: toMillions(pickVal('acquisitions') !== undefined ? Math.abs(pickVal('acquisitions')) : null),
       capitalAllocation: {
         threeMonths: {
           deuda: diffDebt3M,
@@ -3558,6 +3564,8 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
         shares: toMillions(currentRow.values?.weightedSharesDiluted || currentRow.values?.sharesOutstanding || currentRow.values?.weightedSharesBasic),
         totalDebt: currDebt,
         cash: currCash,
+        restrictedCash: toMillions(currentRow?.values?.restrictedCash),
+        previousRestrictedCash: toMillions(prevRow?.values?.restrictedCash),
         divestitures3M: currDivestitures3M,
         divestituresYtd: currDivestituresYtd,
         buybacks3M: currBuybacks3M ? -Math.abs(currBuybacks3M) : 0,

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Hook pre-commit: exige el token secreto del propietario para poder commitear.
+# Instalado y protegido por scripts/commit-token-setup.sh. No editar a mano.
+
+set -u
+
+LOCK_DIR_NAME="cifra-commit-lock"
+
+real_home() {
+  local home=""
+  if command -v getent >/dev/null 2>&1; then
+    home="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6)"
+  fi
+  [[ -n "$home" ]] || home="${HOME:-}"
+  printf '%s' "$home"
+}
+
+HASH_FILE="$(real_home)/.config/$LOCK_DIR_NAME/token.sha256"
+
+fail() {
+  printf 'Commit bloqueado: %s\n' "$1" >&2
+  exit 1
+}
+
+[[ -f "$HASH_FILE" ]] || fail "no hay token configurado. Ejecuta scripts/commit-token-setup.sh."
+
+stored="$(tr -d '[:space:]' < "$HASH_FILE")"
+[[ "$stored" == *'$'* ]] || fail "el archivo del token está dañado. Ejecuta scripts/commit-token-setup.sh."
+
+salt="${stored%%\$*}"
+expected="${stored#*\$}"
+
+if ! { exec 3<>/dev/tty; } 2>/dev/null; then
+  fail "se necesita una terminal interactiva para el token (un agente no puede commitear)."
+fi
+
+for attempt in 1 2 3; do
+  printf 'Token de commit: ' >&3
+  if ! IFS= read -r -s -t 300 token <&3; then
+    printf '\n' >&3
+    fail "no se recibió el token."
+  fi
+  printf '\n' >&3
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(printf '%s' "$salt$token" | sha256sum | cut -d' ' -f1)"
+  else
+    actual="$(printf '%s' "$salt$token" | shasum -a 256 | cut -d' ' -f1)"
+  fi
+
+  if [[ "$actual" == "$expected" ]]; then
+    exec 3>&-
+    exit 0
+  fi
+
+  printf 'Token incorrecto (%d de 3).\n' "$attempt" >&3
+done
+
+fail "token incorrecto."

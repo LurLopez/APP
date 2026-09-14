@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import config from '../../config/index.js';
 import { query } from '../../db/pool.js';
 import { getCompanySeoProfile, getCompanyResults, filingPeriodLabel } from './edgar.service.js';
+import { resolveAnalysisVersion, isAnalysisOutdated } from '../agents/sectorAgent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
@@ -107,6 +108,16 @@ export const GUIDES = [
     description: 'La asignación de capital es lo que una empresa hace con el dinero que genera: dividendos, recompras, deuda, adquisiciones e inversión. Claves para el inversor.',
   },
   {
+    slug: 'como-analiza-la-ia-por-sectores',
+    title: 'Cómo analiza la IA de Cifra según cada sector',
+    description: 'Descubre la metodología multi-agente de Cifra: dos horizontes temporales y adaptación a consumo defensivo, software, industriales y retail.',
+  },
+  {
+    slug: 'que-es-el-bpa-ajustado',
+    title: '¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo?',
+    description: 'El BPA ajustado en los resultados trimestrales: diferencias con el BPA GAAP, partidas excluidas, trampas de maquillaje y cómo lo normaliza Cifra.',
+  },
+  {
     slug: 'como-analizar-una-empresa-de-consumo-defensivo',
     title: 'Cómo analizar una empresa de consumo defensivo',
     description: 'Guía para analizar empresas de consumo defensivo (alimentos, bebidas, tabaco, hogar): ingresos, márgenes, flujo de caja, dividendos y deuda.',
@@ -208,26 +219,38 @@ function formatUsdShare(value) {
 }
 
 function readTemplate(fileName) {
-  const cached = templatesCache.get(fileName);
-  if (cached) return cached;
+  if (config.production) {
+    const cached = templatesCache.get(fileName);
+    if (cached) return cached;
+  }
   const html = fs.readFileSync(path.join(PUBLIC_DIR, fileName), 'utf8');
-  templatesCache.set(fileName, html);
+  if (config.production) {
+    templatesCache.set(fileName, html);
+  }
   return html;
 }
 
 function readGuide(fileName) {
-  const cached = guidesCache.get(fileName);
-  if (cached) return cached;
+  if (config.production) {
+    const cached = guidesCache.get(fileName);
+    if (cached) return cached;
+  }
   const html = fs.readFileSync(path.join(GUIDES_DIR, fileName), 'utf8');
-  guidesCache.set(fileName, html);
+  if (config.production) {
+    guidesCache.set(fileName, html);
+  }
   return html;
 }
 
 function readLegal(fileName) {
-  const cached = legalCache.get(fileName);
-  if (cached) return cached;
+  if (config.production) {
+    const cached = legalCache.get(fileName);
+    if (cached) return cached;
+  }
   const html = fs.readFileSync(path.join(LEGAL_DIR, fileName), 'utf8');
-  legalCache.set(fileName, html);
+  if (config.production) {
+    legalCache.set(fileName, html);
+  }
   return html;
 }
 
@@ -902,7 +925,7 @@ export function buildReportSlug(row) {
 
 export async function loadPublicReportRow(id) {
   const rows = await query(
-    `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, report
+    `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, sector, version, subsector, sector_version, report
        FROM analyses
        WHERE id = $1 AND is_public = true AND status = 'done'
       LIMIT 1`,
@@ -917,7 +940,7 @@ export async function loadPublicReportBySlug(ticker, rawSlug) {
 
   let normSlug = String(rawSlug || '').trim().toUpperCase().replace(/10-K/, '10K');
   const rows = await query(
-    `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, report
+    `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, sector, version, subsector, sector_version, report
        FROM analyses
        WHERE is_public = true AND status = 'done' AND UPPER(ticker) = $1
        ORDER BY created_at DESC, id DESC`,
@@ -1216,7 +1239,7 @@ async function loadPublicReportsForSitemap() {
   return rows.rows;
 }
 
-function buildReportPage(row) {
+async function buildReportPage(row) {
   const report = row.report ?? {};
   const ticker = String(row.ticker ?? report.ticker ?? '').toUpperCase();
   const company = report.company ?? row.company_name ?? ticker;
@@ -1279,6 +1302,13 @@ function buildReportPage(row) {
     out = out.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/, jsonLdScript);
   }
 
+  const versionOptions = {
+    sector: row.sector ?? 'defensive_consumer',
+    subsector: row.subsector ?? null,
+    ticker,
+    formType,
+  };
+
   const initialPayload = {
     id: row.id,
     ticker,
@@ -1291,6 +1321,14 @@ function buildReportPage(row) {
     periodTitle: fyLabel,
     formType,
     downloadBase: row.pdf_url ? row.pdf_url.replace(/\.pdf$/, '') : null,
+    version: row.version ?? null,
+    subsector: row.subsector ?? null,
+    sectorVersion: row.sector_version ?? null,
+    currentVersion: await resolveAnalysisVersion(versionOptions),
+    versionOutdated: await isAnalysisOutdated({
+      version: row.version,
+      ...versionOptions,
+    }),
     report,
   };
   const initialScript = `<script id="cifra-initial-report" type="application/json">${JSON.stringify(initialPayload).replaceAll('<', '\\u003c')}</script>`;
@@ -1335,7 +1373,7 @@ export async function getPublicReportHtmlBySlug(ticker, rawSlug) {
   }
 
   const canonicalSlug = buildReportSlug(row);
-  const html = buildReportPage(row);
+  const html = await buildReportPage(row);
   const result = { html, canonicalSlug, ticker: String(row.ticker ?? cleanTicker).toUpperCase() };
 
   reportCache.set(cacheKey, { data: result, at: Date.now() });
@@ -1363,7 +1401,7 @@ export async function getPublicReportHtml(id) {
     return null;
   }
 
-  const html = buildReportPage(row);
+  const html = await buildReportPage(row);
   reportCache.set(cleanId, { data: html, at: Date.now() });
   return html;
 }
@@ -1533,6 +1571,12 @@ export function buildReportMarkdown(row) {
         lines.push(`| ${r.name} | ${act ?? '—'} | ${prev ?? '—'} | ${varPct ?? '—'} |`);
       }
       lines.push('');
+      if (horizon.sales.notes?.length) {
+        for (const note of horizon.sales.notes) {
+          lines.push(`> ${note}`);
+        }
+        lines.push('');
+      }
     }
     if (horizon.cashFlow?.rows?.length) {
       lines.push('### Flujo de Caja');
@@ -1547,6 +1591,12 @@ export function buildReportMarkdown(row) {
         lines.push(`**Escenarios:** ${horizon.cashFlow.scenarios.join(' · ')}`);
         lines.push('');
       }
+      if (horizon.cashFlow.notes?.length) {
+        for (const note of horizon.cashFlow.notes) {
+          lines.push(`> ${note}`);
+        }
+        lines.push('');
+      }
     }
     if (horizon.capital?.rows?.length) {
       lines.push('### Asignación de Capital');
@@ -1559,6 +1609,12 @@ export function buildReportMarkdown(row) {
       lines.push('');
       if (horizon.capital.verification) {
         lines.push(`**Verificación:** ${horizon.capital.verification}`);
+        lines.push('');
+      }
+      if (horizon.capital.notes?.length) {
+        for (const note of horizon.capital.notes) {
+          lines.push(`> ${note}`);
+        }
         lines.push('');
       }
     }
