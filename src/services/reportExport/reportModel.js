@@ -10,6 +10,7 @@ import { buildDebtMaturityModel } from './debtMaturityModel.js';
 import { buildDebtHistoryModel, buildDebtRefinancingModel } from './debtHistoryRefinancingModel.js';
 import { buildAcquisitionsModel, buildDividendModel, buildDividendTable } from './dividendsAndAcquisitionsModel.js';
 import { buildSalesSection, buildCashFlowSection, buildCapitalSection, buildSecSnippetTable } from './reportSections.js';
+import { getExecutiveChanges } from './executiveChanges.js';
 
 /**
  * Construye las tarjetas de la Parte II: Indagación a fondo y conclusiones.
@@ -47,20 +48,13 @@ function buildConclusionCards(conc, report) {
     });
   }
 
-  if (conc.ceoChange) {
-    const ceo = conc.ceoChange;
+  const executiveChanges = getExecutiveChanges(conc);
+  if (executiveChanges) {
     cards.push({
-      title: ceo.title || 'Cambio de CEO',
-      text: ceo.text || null,
-      ceoChange: {
-        announcementDate: ceo.announcementDate || null,
-        effectiveDate: ceo.effectiveDate || null,
-        reason: ceo.reason || null,
-        oldCeo: ceo.oldCeo || null,
-        newCeo: ceo.newCeo || null,
-        marketReaction: ceo.marketReaction || null,
-        marketData: ceo.marketData || null,
-        disclaimer: ceo.disclaimer || null,
+      title: executiveChanges.title,
+      executiveChanges: {
+        changes: executiveChanges.changes,
+        disclaimer: executiveChanges.disclaimer,
       },
     });
   }
@@ -157,7 +151,7 @@ export function buildReportModel(report) {
   if (report?.conclusion) {
     model.conclusion = {
       title: 'PARTE II: INDAGACIÓN A FONDO Y CONCLUSIÓN',
-      subtitle: 'Análisis detallado de recompras, cambios de CEO, outlook oficial, deuda y asignación de capital',
+      subtitle: 'Análisis detallado de recompras, cambios en la dirección, outlook oficial, deuda y asignación de capital',
       cards: buildConclusionCards(report.conclusion, report),
     };
   }

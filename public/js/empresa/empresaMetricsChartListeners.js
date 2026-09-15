@@ -43,6 +43,11 @@
         openMetricsPalette(swatch, seriesId);
         return;
       }
+      const visibility = event.target.closest('.metrics-legend-visibility');
+      if (visibility) {
+        toggleSeriesVisibility(visibility.dataset.seriesId);
+        return;
+      }
       const remove = event.target.closest('.metrics-legend-remove');
       if (remove) removeChartMetric(remove.dataset.removeKey);
     });
@@ -67,8 +72,26 @@
     document.querySelector('#metrics-chart-clear')?.addEventListener('click', () => {
       chartMetrics.clear();
       seriesColorMap.clear();
+      clearHiddenSeries();
       syncChartRowSelection();
       renderMetricsChart();
+    });
+
+    document.querySelector('#metrics-chart-fullscreen')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFullscreen(document.querySelector('#metrics-chart-block'));
+    });
+
+    let metricsFullscreenActive = false;
+    document.addEventListener('fullscreenchange', () => {
+      const block = document.querySelector('#metrics-chart-block');
+      if (!block) return;
+      const isFs = document.fullscreenElement === block || block.classList.contains('is-fullscreen');
+      if (!isFs && !metricsFullscreenActive) return;
+      metricsFullscreenActive = isFs;
+      requestAnimationFrame(renderMetricsChart);
+      setTimeout(renderMetricsChart, 60);
+      setTimeout(renderMetricsChart, 180);
     });
 
     document.querySelector('#metrics-compare-add-btn')?.addEventListener('click', (e) => {

@@ -5,6 +5,8 @@
 (function (window) {
   const EMS = window.EmpresaMetricsState;
 
+  const EYE_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_OFF_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
   function renderMetricsChart() {
     const setup = setupMetricsChartBlock();
@@ -67,12 +69,15 @@
       };
     });
 
+    const isFullscreen = block.classList.contains('is-fullscreen') || document.fullscreenElement === block;
     const width = Math.max(320, wrap.clientWidth || 720);
-    const height = 300;
+    const height = isFullscreen
+      ? Math.max(320, Math.round(wrap.clientHeight || window.innerHeight - 160))
+      : 300;
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
     const metrics = [...chartMetrics.values()];
-    const series = [];
+    const allSeries = [];
     let colorIndexHint = 0;
 
     metrics.forEach((metric) => {
@@ -99,24 +104,58 @@
           };
         });
 
-        series.push({
+        allSeries.push({
           id: seriesId,
           metric,
           company: comp,
           label,
           color,
           points,
+          hidden: isSeriesHidden(seriesId),
         });
       });
     });
 
-    legend.innerHTML = series.map((entry) => `
-      <span class="metrics-legend-item">
+    legend.innerHTML = allSeries.map((entry) => `
+      <span class="metrics-legend-item${entry.hidden ? ' is-hidden-series' : ''}">
         <button type="button" class="metrics-swatch" data-series-id="${escapeHtml(entry.id)}" aria-label="Cambiar el color de ${escapeHtml(entry.label)}" style="background:${entry.color}"></button>
         <span class="metrics-legend-label" title="${escapeHtml(entry.label)}">${escapeHtml(entry.label)}</span>
         <span class="metrics-legend-type">${metricChartType(entry.metric) === 'bar' ? 'barras' : 'línea'}</span>
+        <button type="button" class="metrics-legend-visibility${entry.hidden ? ' is-hidden' : ''}" data-series-id="${escapeHtml(entry.id)}" aria-pressed="${!entry.hidden}" aria-label="${entry.hidden ? 'Mostrar' : 'Ocultar'} ${escapeHtml(entry.label)} en el gráfico" title="${entry.hidden ? 'Mostrar en el gráfico' : 'Ocultar en el gráfico'}">${entry.hidden ? EYE_OFF_SVG : EYE_SVG}</button>
         <button type="button" class="metrics-legend-remove" data-remove-key="${escapeHtml(entry.metric.key)}" aria-label="Quitar ${escapeHtml(entry.metric.label)} del gráfico">×</button>
       </span>`).join('');
+
+    const body = document.querySelector('#metrics-chart-body');
+    body.querySelectorAll('.metric-cagr-label').forEach((el) => el.remove());
+    body.querySelectorAll('.metrics-chart-hidden-placeholder').forEach((el) => el.remove());
+
+    const series = allSeries.filter((entry) => !entry.hidden);
+
+    if (!series.length) {
+      svg.innerHTML = '';
+      const placeholder = document.createElement('div');
+      placeholder.className = 'metrics-chart-placeholder metrics-chart-hidden-placeholder';
+      placeholder.innerHTML = `
+        <div class="metrics-chart-placeholder-card">
+          <span class="placeholder-icon">👁</span>
+          <strong>Todas las series están ocultas</strong>
+          <p>Usa el icono del ojo de la leyenda para volver a mostrar las métricas en el gráfico.</p>
+        </div>
+      `;
+      body.appendChild(placeholder);
+      EMS.metricsChartState = {
+        rows: timeline,
+        series: [],
+        centers: [],
+        margin: { top: 14, right: 12, bottom: 26, left: 58 },
+        height,
+        width,
+        rightScale: null,
+        yLeft: () => 0,
+        yRight: () => 0,
+      };
+      return;
+    }
 
     const barSeries = series.filter((entry) => metricChartType(entry.metric) === 'bar');
     const lineSeries = series.filter((entry) => metricChartType(entry.metric) === 'line');
@@ -136,8 +175,8 @@
     const innerHeight = height - margin.top - margin.bottom;
     const slotWidth = timeline.length ? innerWidth / timeline.length : innerWidth;
     const centers = timeline.map((_, index) => margin.left + slotWidth * (index + 0.5));
-    const yLeft = metricY(leftScale, margin, innerHeight);
-    const yRight = metricY(rightScale ?? leftScale, margin, innerHeight);
+    const yLeft = leftScale ? metricY(leftScale, margin, innerHeight) : () => 0;
+    const yRight = rightScale ? metricY(rightScale, margin, innerHeight) : () => 0;
 
     const xLabelStep = Math.max(1, Math.ceil(timeline.length / 8));
     const xLabels = timeline.map((t, index) => (index % xLabelStep === 0
@@ -213,9 +252,6 @@
         });
       });
     }
-
-    const body = document.querySelector('#metrics-chart-body');
-    body.querySelectorAll('.metric-cagr-label').forEach((el) => el.remove());
 
     let cagrLinesSvg = '';
     const cagrLabels = [];

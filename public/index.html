@@ -158,7 +158,7 @@
   }
   </script>
 
-  <link rel="stylesheet" href="/styles.css?v=114">
+  <link rel="stylesheet" href="/styles.css?v=116">
 </head>
 <body class="company-page">
   <div class="app-shell">
@@ -612,6 +612,9 @@
                     </div>
                   </div>
                   <button type="button" class="metrics-chart-clear" id="metrics-chart-clear" hidden>Limpiar</button>
+                  <button type="button" class="chart-fs metrics-chart-fullscreen-btn pf-chart-fullscreen-btn" id="metrics-chart-fullscreen" aria-label="Pantalla completa del gráfico de métricas" title="Pantalla completa">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg>
+                  </button>
                 </div>
               </div>
               <div class="metrics-chart-legend" id="metrics-chart-legend"></div>
@@ -636,6 +639,7 @@
             </div>
             <div class="screener-tabs" role="tablist" aria-label="Estado financiero">
               <button class="screener-tab active" type="button" role="tab" data-statement="valuation">Valoración</button>
+              <button class="screener-tab" type="button" role="tab" data-statement="favorites">Favoritos</button>
               <button class="screener-tab" type="button" role="tab" data-statement="income">Cuenta de resultados</button>
               <button class="screener-tab" type="button" role="tab" data-statement="balance">Balance</button>
               <button class="screener-tab" type="button" role="tab" data-statement="cashflow">Estado de Flujo de Efectivo</button>
@@ -1707,7 +1711,7 @@
 
   <script src="/js/empresa/empresaStatementsValues.js"></script>
 
-  <script src="/js/empresa/empresaStatementsTable.js"></script>
+  <script src="/js/empresa/empresaStatementsTable.js?v=80"></script>
 
   <script src="/js/empresa/empresaStatementsDrag.js"></script>
 
@@ -1724,19 +1728,20 @@
   <script src="/js/empresa/empresaHolders.js?v=76"></script>
   <script src="/js/empresa/empresaMetricsChartState.js"></script>
 
-  <script src="/js/empresa/empresaMetricsChartCore.js"></script>
+  <script src="/js/empresa/empresaMetricsChartCore.js?v=81"></script>
 
-  <script src="/js/empresa/empresaMetricsChartScale.js"></script>
+  <script src="/js/empresa/empresaMetricsChartScale.js?v=81"></script>
 
-  <script src="/js/empresa/empresaMetricsChartRender.js"></script>
+  <script src="/js/empresa/empresaMetricsChartRender.js?v=81"></script>
 
-  <script src="/js/empresa/empresaMetricsChartHover.js"></script>
+  <script src="/js/empresa/empresaMetricsChartHover.js?v=80"></script>
 
-  <script src="/js/empresa/empresaMetricsChartListeners.js"></script>
+  <script src="/js/empresa/empresaMetricsChartListeners.js?v=81"></script>
 
-  <script src="/js/empresa/empresaMetricsChart.js?v=77"></script>
+  <script src="/js/empresa/empresaMetricsChart.js?v=80"></script>
+  <script src="/js/empresa/empresaFavoriteMetrics.js?v=2"></script>
   <script src="/js/empresa/empresaChartTooltip.js?v=1"></script>
-  <script src="/js/empresa/empresaChartFullscreen.js?v=1"></script>
+  <script src="/js/empresa/empresaChartFullscreen.js?v=2"></script>
   <script src="/js/empresa/empresaPriceChartData.js?v=1"></script>
   <script src="/js/empresa/empresaPriceChartRender.js?v=1"></script>
   <script src="/js/empresa/empresaPriceChartMeasure.js?v=1"></script>
@@ -1755,14 +1760,14 @@
   <script src="/js/empresa/empresaPriceChart.js?v=2"></script>
   <script src="/js/empresa/empresaCore.js"></script>
 
-  <script src="/js/empresa/empresaCompany.js"></script>
+  <script src="/js/empresa/empresaCompany.js?v=80"></script>
 
   <script src="/js/empresa/empresaShell.js"></script>
 
-  <script src="/js/empresa/empresaLoad.js"></script>
+  <script src="/js/empresa/empresaLoad.js?v=80"></script>
 
-  <script src="/js/empresa/empresaBoot.js"></script>
+  <script src="/js/empresa/empresaBoot.js?v=80"></script>
 
-  <script src="/empresa.js?v=79"></script>
+  <script src="/empresa.js?v=80"></script>
 </body>
 </html>

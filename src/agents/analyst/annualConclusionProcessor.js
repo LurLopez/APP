@@ -4,8 +4,8 @@
  * @module agents/analyst/annualConclusionProcessor
  */
 
-export { processCeoChangeSection, processRepurchasesSection } from './annualConclusionCeoRepurchases.js';
-export { fetchCeoMarketReaction, processOutlookSection, processDebtSection, processAcquisitionsDividendsAndWatchlist, renumberConclusionSections } from './annualConclusionSections.js';
+export { processExecutiveChangesSection, processRepurchasesSection } from './annualConclusionCeoRepurchases.js';
+export { processOutlookSection, processDebtSection, processAcquisitionsDividendsAndWatchlist, renumberConclusionSections } from './annualConclusionSections.js';
 
 import {
   isPlaceholderText,

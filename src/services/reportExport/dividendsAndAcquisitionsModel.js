@@ -90,7 +90,7 @@ export function buildDividendModel(report) {
   const dividendNumber = 3 + (repurchasesShown ? 1 : 0) + (acquisitionsMaterial ? 1 : 0);
 
   return {
-    title: `${dividendNumber}: Dividendos`,
+    title: div?.title || `${dividendNumber}: Dividendos`,
     text: div?.text || generatedText,
     points,
     changeType,

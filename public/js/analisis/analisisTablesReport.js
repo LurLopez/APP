@@ -56,46 +56,91 @@
     return `<div class="ceo-person-box"><span class="ceo-block-label">${escapeHtml(label)}</span>${heading}${fields}</div>`;
   }
 
-  function formatCeoMarketData(marketData) {
-    if (!marketData || !Number.isFinite(Number(marketData.changeFirstSessionPct))) return '';
-    const fmt = (value) => `${Number(value) > 0 ? '+' : ''}${String(value).replace('.', ',')} %`;
-    const third = Number.isFinite(Number(marketData.changeThreeSessionsPct))
-      ? ` y ${fmt(marketData.changeThreeSessionsPct)} a 3 sesiones`
-      : '';
-    const source = marketData.source ? ` (${escapeHtml(String(marketData.source))})` : '';
-    const date = marketData.announcementDate ? ` del ${escapeHtml(String(marketData.announcementDate))}` : '';
-    return `Cotización en torno al anuncio${date}: ${fmt(marketData.changeFirstSessionPct)} en la primera sesión${third}${source}.`;
+  function getExecutiveChanges(conclusion) {
+    const modern = conclusion?.executiveChanges;
+    if (modern && Array.isArray(modern.changes) && modern.changes.length) {
+      return { title: modern.title, changes: modern.changes, disclaimer: modern.disclaimer || null };
+    }
+    const legacy = conclusion?.ceoChange;
+    if (legacy && typeof legacy === 'object') {
+      return {
+        title: legacy.title || 'Cambios en la dirección',
+        changes: [{
+          role: 'CEO',
+          text: legacy.text,
+          announcementDate: legacy.announcementDate,
+          effectiveDate: legacy.effectiveDate,
+          reason: legacy.reason,
+          oldExecutive: legacy.oldCeo,
+          newExecutive: legacy.newCeo,
+        }],
+        disclaimer: legacy.disclaimer || null,
+      };
+    }
+    return null;
   }
 
-  function renderCeoChangeBody(ceo) {
+  function renderExecutiveChangeBody(change) {
+    const roleLabel = String(change.role || 'Directivo').toUpperCase();
     const blocks = [
-      renderCeoPersonBlock('ANTIGUO CEO', ceo.oldCeo),
-      renderCeoPersonBlock('NUEVO CEO', ceo.newCeo),
+      renderCeoPersonBlock(`ANTIGUO ${roleLabel}`, change.oldExecutive),
+      renderCeoPersonBlock(`NUEVO ${roleLabel}`, change.newExecutive),
     ].filter(Boolean).join('');
-    const sentiment = String(ceo.marketReaction?.sentiment ?? '').toLowerCase();
-    const sentimentClass = sentiment === 'positiva' ? 'ceo-market-positive'
-      : (sentiment === 'negativa' ? 'ceo-market-negative' : 'ceo-market-mixed');
-    const marketDataLine = formatCeoMarketData(ceo.marketData);
-    const reaction = (ceo.marketReaction?.summary || marketDataLine)
-      ? `<div class="ceo-market-box ${sentimentClass}">
-          <span class="ceo-block-label">Reacción del mercado</span>
-          ${ceo.marketReaction?.sentiment ? `<span class="ceo-market-tag">${escapeHtml(sentiment || ceo.marketReaction.sentiment)}</span>` : ''}
-          ${ceo.marketReaction?.summary ? `<p class="ceo-market-text">${formatAnnualRichText(ceo.marketReaction.summary)}</p>` : ''}
-          ${marketDataLine ? `<p class="ceo-market-data">${marketDataLine}</p>` : ''}
-        </div>`
-      : '';
 
     return `
-      ${ceo.text ? `<p class="annual-card-text">${formatAnnualRichText(ceo.text)}</p>` : ''}
-      ${(ceo.announcementDate || ceo.effectiveDate || ceo.reason) ? `<div class="ceo-meta">${[
-        ceo.announcementDate ? `<span class="annual-badge">Anuncio: <strong>${escapeHtml(String(ceo.announcementDate))}</strong></span>` : '',
-        ceo.effectiveDate ? `<span class="annual-badge">Efectivo: <strong>${escapeHtml(String(ceo.effectiveDate))}</strong></span>` : '',
-        ceo.reason ? `<span class="annual-badge">Motivo: <strong>${escapeHtml(String(ceo.reason))}</strong></span>` : '',
+      ${change.text ? `<p class="annual-card-text">${formatAnnualRichText(change.text)}</p>` : ''}
+      ${(change.announcementDate || change.effectiveDate || change.reason) ? `<div class="ceo-meta">${[
+        change.announcementDate ? `<span class="annual-badge">Anuncio: <strong>${escapeHtml(String(change.announcementDate))}</strong></span>` : '',
+        change.effectiveDate ? `<span class="annual-badge">Efectivo: <strong>${escapeHtml(String(change.effectiveDate))}</strong></span>` : '',
+        change.reason ? `<span class="annual-badge">Motivo: <strong>${escapeHtml(String(change.reason))}</strong></span>` : '',
       ].filter(Boolean).join('')}</div>` : ''}
       ${blocks ? `<div class="ceo-grid">${blocks}</div>` : ''}
-      ${reaction}
-      ${ceo.disclaimer ? `<p class="ceo-disclaimer">${escapeHtml(ceo.disclaimer)}</p>` : ''}
     `;
+  }
+
+  function renderExecutiveChangesBody(section) {
+    const changes = Array.isArray(section?.changes) ? section.changes : [];
+    const body = changes.map((change, index) => `
+      ${index > 0 ? '<div class="ceo-change-separator"></div>' : ''}
+      ${changes.length > 1 ? `<div class="ceo-block-label">${escapeHtml(String(change.role || 'Directivo'))}</div>` : ''}
+      ${renderExecutiveChangeBody(change)}
+    `).join('');
+    return `${body}${section?.disclaimer ? `<p class="ceo-disclaimer">${escapeHtml(section.disclaimer)}</p>` : ''}`;
+  }
+
+  function parseCapitalAmount(value) {
+    let text = String(value ?? '').replace(/[$€£\s]/g, '').trim();
+    if (!text) return NaN;
+    if (text.includes(',') && text.includes('.')) {
+      text = text.lastIndexOf(',') > text.lastIndexOf('.')
+        ? text.replace(/\./g, '').replace(/,/g, '.')
+        : text.replace(/,/g, '');
+    } else if (text.includes(',')) {
+      const parts = text.split(',');
+      text = parts.length > 2 || parts[1]?.length === 3 ? parts.join('') : text.replace(',', '.');
+    }
+    return parseFloat(text);
+  }
+
+  function hasMaterialAcquisitions(report, conclusion) {
+    const rows = report?.horizons?.[0]?.capital?.rows ?? [];
+    const readValue = (needles) => {
+      for (const row of rows) {
+        const name = String(row?.name ?? '').toLowerCase();
+        if (!needles.some((needle) => name.includes(needle))) continue;
+        const raw = Array.isArray(row?.values) ? row.values[0] : row?.value;
+        const num = parseCapitalAmount(raw);
+        if (Number.isFinite(num)) return num;
+      }
+      return null;
+    };
+    const acquisitions = readValue(['adquisic', 'acquisit']);
+    const divestitures = readValue(['desinvers', 'divestit']);
+    const text = String(conclusion?.acquisitions?.text ?? '');
+    const saysNone = /no se realizaron|no hubo|no material|sin adquisiciones|no acquisitions|no se produjeron|none/i.test(text);
+    return (Number.isFinite(acquisitions) && Math.abs(acquisitions) >= 50)
+      || (Number.isFinite(divestitures) && Math.abs(divestitures) >= 50)
+      || (text.trim().length > 0 && !saysNone);
   }
 
   function renderAnnualConclusion(conclusion, report) {
@@ -119,12 +164,12 @@
       `;
     }
 
-    const ceo = conclusion.ceoChange;
-    if (ceo) {
+    const exec = getExecutiveChanges(conclusion);
+    if (exec) {
       html += `
         <div class="annual-deepdive-card ceo-change-card">
-          <h5 class="annual-card-title">${escapeHtml(ceo.title || '2: Cambio de CEO')}</h5>
-          ${renderCeoChangeBody(ceo)}
+          <h5 class="annual-card-title">${escapeHtml(exec.title || '2: Cambios en la dirección')}</h5>
+          ${renderExecutiveChangesBody(exec)}
         </div>
       `;
     }
@@ -149,6 +194,16 @@
           ${window.AnalisisCharts.renderDebtMaturityChart(debt, report?.fiscalYear)}
           ${window.AnalisisCharts.renderDebtHistoryChart(debt, report)}
           ${window.AnalisisCharts.renderDebtRefinancingCard(debt, report)}
+        </div>
+      `;
+    }
+
+    const acq = conclusion.acquisitions;
+    if (acq && hasMaterialAcquisitions(report, conclusion)) {
+      html += `
+        <div class="annual-deepdive-card">
+          <h5 class="annual-card-title">${escapeHtml(acq.title || '5: Adquisiciones')}</h5>
+          ${acq.text ? `<p class="annual-card-text">${formatAnnualRichText(acq.text)}</p>` : ''}
         </div>
       `;
     }
@@ -201,8 +256,8 @@
 window.renderSecSnippet = renderSecSnippet;
 window.renderCeoFieldLine = renderCeoFieldLine;
 window.renderCeoPersonBlock = renderCeoPersonBlock;
-window.formatCeoMarketData = formatCeoMarketData;
-window.renderCeoChangeBody = renderCeoChangeBody;
+window.getExecutiveChanges = getExecutiveChanges;
+window.renderExecutiveChangesBody = renderExecutiveChangesBody;
 window.renderAnnualConclusion = renderAnnualConclusion;
 window.renderAnnualRating = renderAnnualRating;
 window.renderReport = renderReport;

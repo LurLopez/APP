@@ -5,55 +5,41 @@
 import { cleanAssetDescription } from './financialParsers.js';
 import { mergeHistoryByYear, mergeDividendHistory } from './historyBuilders.js';
 import { withOutlookComparison, completeOutlookPriorColumn, mergeOutlookRows } from './outlookHelpers.js';
-import { getHistoricalPrices } from '../../services/market.service.js';
+import { buildMaturityScheduleFromDebtTable, maturityItemsLookBucketed } from './debtMaturityFallback.js';
 
-function isoDateShift(isoDate, days) {
-  const date = new Date(`${isoDate}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
+function formatAcquisitionAmount(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  const [int, dec] = (Math.round(num * 10) / 10).toFixed(1).split('.');
+  const formattedInt = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return dec === '0' ? formattedInt : `${formattedInt},${dec}`;
 }
 
-export async function fetchCeoMarketReaction(announcementDate, ticker) {
-  const dateMatch = String(announcementDate ?? '').match(/(\d{4})-(\d{2})-(\d{2})/);
-  const normalizedTicker = String(ticker ?? '').trim().toUpperCase();
-  if (!dateMatch || !normalizedTicker) return null;
-
-  const dateIso = dateMatch[0];
-  const from = isoDateShift(dateIso, -10);
-  const to = isoDateShift(dateIso, 14);
-  if (!from || !to) return null;
-
-  const prices = await getHistoricalPrices(normalizedTicker, { from, to });
-  if (!Array.isArray(prices) || prices.length < 2) return null;
-
-  const before = [...prices].reverse().find((point) => point.date < dateIso) ?? null;
-  const after = prices.filter((point) => point.date >= dateIso);
-  if (!before || !after.length) return null;
-
-  const changePct = (current, base) => (Number.isFinite(Number(current)) && Number(base) > 0
-    ? Math.round(((Number(current) / Number(base)) - 1) * 1000) / 10
-    : null);
-
-  const first = after[0];
-  const third = after[Math.min(2, after.length - 1)];
-  const changeFirstSessionPct = changePct(first.close, before.close);
-  const changeThreeSessionsPct = changePct(third.close, before.close);
-  if (changeFirstSessionPct == null) return null;
-
-  return {
-    ticker: normalizedTicker,
-    announcementDate: dateIso,
-    previousDate: before.date,
-    previousClose: before.close,
-    firstDate: first.date,
-    firstClose: first.close,
-    changeFirstSessionPct,
-    thirdDate: third.date,
-    thirdClose: third.close,
-    changeThreeSessionsPct,
-    source: 'Yahoo Finance',
-  };
+function buildAcquisitionsTextFromDetails(items) {
+  if (!Array.isArray(items) || !items.length) return null;
+  const paragraphs = items.map((item) => {
+    const name = String(item?.name ?? '').trim();
+    if (!name) return null;
+    const parts = [];
+    const description = String(item?.description ?? '').trim();
+    parts.push(`Se adquirió **${name}**${description ? `, ${description}` : ''}.`);
+    const price = formatAcquisitionAmount(item?.price);
+    const priceNote = String(item?.priceNote ?? '').trim();
+    if (price) parts.push(`El importe pagado fue de **${price}M$**${priceNote ? ` (${priceNote})` : ''}.`);
+    else if (priceNote) parts.push(`Condiciones de la operación: ${priceNote}.`);
+    const rationale = String(item?.rationale ?? '').trim();
+    if (rationale) parts.push(`Motivo declarado de la compra: ${rationale}.`);
+    const metrics = String(item?.businessMetrics ?? '').trim();
+    if (metrics) parts.push(`Tamaño del negocio adquirido: ${metrics}.`);
+    const impact = String(item?.expectedImpact ?? '').trim();
+    if (impact) parts.push(`Impacto esperado: ${impact}.`);
+    const terms = String(item?.paymentTerms ?? '').trim();
+    if (terms) parts.push(`Forma de pago: ${terms}.`);
+    const date = String(item?.date ?? '').trim();
+    if (date) parts.push(`Fecha de la operación: ${date}.`);
+    return parts.join(' ');
+  }).filter(Boolean);
+  return paragraphs.length ? paragraphs.join('\n\n') : null;
 }
 
 export function processOutlookSection(conclusion, rawAnn, result) {
@@ -107,28 +93,47 @@ export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear) {
   const extractionMaturity = (Array.isArray(extractionDebt.maturityItems) && extractionDebt.maturityItems.length)
     ? extractionDebt.maturityItems
     : ((Array.isArray(extractionDebt.maturitySchedule) && extractionDebt.maturitySchedule.length) ? extractionDebt.maturitySchedule : null);
+  const extractionBucketed = maturityItemsLookBucketed(extractionMaturity, fiscalYear);
   const hasMaturitySchedule = Array.isArray(d.maturitySchedule) && d.maturitySchedule.length > 0;
+  const fallbackMaturity = ((!extractionMaturity || extractionBucketed) && !hasMaturitySchedule)
+    ? buildMaturityScheduleFromDebtTable(rawAnn.debtMaturitiesSecTable || extractionDebt.secTable, fiscalYear)
+    : null;
 
-  if (extractionMaturity) {
+  if (extractionMaturity && !(extractionBucketed && fallbackMaturity)) {
     d.maturitySchedule = extractionMaturity;
+  } else if (!hasMaturitySchedule && fallbackMaturity) {
+    d.maturitySchedule = fallbackMaturity.items;
   } else if (!hasMaturitySchedule && edgarData.edgarDebtMaturities) {
     d.maturitySchedule = edgarData.edgarDebtMaturities.years.map((y) => ({
       year: y.year,
       label: 'Vencimientos contractuales de deuda',
       amount: y.amount,
       type: 'Deuda total',
-      interestRate: null,
+      interestRate: edgarData.edgarDebtMaturities.weightedAverageRate ?? null,
+      estimated: edgarData.edgarDebtMaturities.weightedAverageRate != null,
     }));
   }
 
-  if (edgarData.edgarDebtMaturities?.afterYearFive != null) {
-    d.maturityAfterFive = edgarData.edgarDebtMaturities.afterYearFive;
+  if (d.maturityAfterFive == null) {
+    if (fallbackMaturity?.afterYearFive != null) {
+      d.maturityAfterFive = fallbackMaturity.afterYearFive;
+    } else if (extractionDebt.maturityAfterFive != null) {
+      d.maturityAfterFive = extractionDebt.maturityAfterFive;
+    } else if (edgarData.edgarDebtMaturities?.afterYearFive != null) {
+      d.maturityAfterFive = edgarData.edgarDebtMaturities.afterYearFive;
+    }
   }
 
-  if (extractionDebt.allDebtAverageRate != null) {
-    d.allDebtAverageRate = extractionDebt.allDebtAverageRate;
-    d.allDebtAverageRateEstimated = extractionDebt.allDebtAverageRateEstimated === true;
-    d.allDebtAverageRateSource = extractionDebt.allDebtAverageRateSource ?? null;
+  if (d.allDebtAverageRate == null) {
+    if (extractionDebt.allDebtAverageRate != null) {
+      d.allDebtAverageRate = extractionDebt.allDebtAverageRate;
+      d.allDebtAverageRateEstimated = extractionDebt.allDebtAverageRateEstimated === true;
+      d.allDebtAverageRateSource = extractionDebt.allDebtAverageRateSource ?? null;
+    } else if (edgarData.edgarDebtMaturities?.weightedAverageRate != null) {
+      d.allDebtAverageRate = edgarData.edgarDebtMaturities.weightedAverageRate;
+      d.allDebtAverageRateEstimated = true;
+      d.allDebtAverageRateSource = 'SEC XBRL (tipo medio ponderado)';
+    }
   }
 
   const debtHistoryMaxYear = Number.isFinite(Number(fiscalYear)) ? Number(fiscalYear) : null;
@@ -140,13 +145,17 @@ export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear) {
   const mergedDebtHistory = mergeHistoryByYear(aiDebtHistory, edgarData.edgarDebtHistory).slice(-10);
   if (mergedDebtHistory.length) d.debtHistory = mergedDebtHistory;
 
-  if (!d.refinancing && (extractionDebt.refinancing || extractionDebt.nearTermRates || extractionDebt.nearTermMaturities)) {
-    d.refinancing = extractionDebt.refinancing || {
-      occurred: Boolean(extractionDebt.nearTermMaturities),
-      amountRefinanced: extractionDebt.nearTermMaturities,
-      estimatedRefinancingRate: extractionDebt.estimatedRefinancingRate,
-      annualInterestImpact: extractionDebt.estimatedInterestIncrease,
-    };
+  // Solo se acepta una refinanciación realmente ejecutada o acordada en el ejercicio:
+  // un vencimiento futuro sin decisión anunciada no es una refinanciación.
+  if (!d.refinancing && extractionDebt.refinancing?.occurred === true) {
+    d.refinancing = extractionDebt.refinancing;
+  }
+  if (d.refinancing && d.refinancing.occurred !== true) {
+    delete d.refinancing;
+  }
+  if (!d.refinancing) {
+    d.refinancingAnalysis = null;
+    d.refinancingImpact = null;
   }
 
   if (!d.secSnippet && (rawAnn.debtMaturitiesSecTable || extractionDebt.secTable)) {
@@ -159,7 +168,9 @@ export function processAcquisitionsDividendsAndWatchlist(conclusion, rawAnn, ext
   conclusion.acquisitions = conclusion.acquisitions || {};
   const acq = conclusion.acquisitions;
   acq.title = acq.title || '4: Adquisiciones';
-  acq.text = acq.text || rawAnn.acquisitionsNarrative || (extracted.facts?.acquisitionsYtd
+  const acquisitionItems = Array.isArray(rawAnn.acquisitions?.items) ? rawAnn.acquisitions.items : [];
+  const detailedAcquisitionText = buildAcquisitionsTextFromDetails(acquisitionItems);
+  acq.text = acq.text || rawAnn.acquisitionsNarrative || detailedAcquisitionText || (extracted.facts?.acquisitionsYtd
     ? `Se completaron adquisiciones corporativas por un importe neto de ${extracted.facts.acquisitionsYtd}M.`
     : 'No se realizaron adquisiciones materiales durante el ejercicio.');
 
@@ -217,7 +228,7 @@ export function processAcquisitionsDividendsAndWatchlist(conclusion, rawAnn, ext
 export function renumberConclusionSections(conclusion) {
   const sections = [
     ['repurchases', 'Recompras'],
-    ['ceoChange', 'Cambio de CEO'],
+    ['executiveChanges', 'Cambios en la dirección'],
     ['outlook', 'Outlook'],
     ['debt', 'Deuda'],
     ['acquisitions', 'Adquisiciones'],

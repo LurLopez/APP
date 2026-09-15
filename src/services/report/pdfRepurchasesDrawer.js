@@ -42,7 +42,7 @@ export function drawRepurchases(doc, rep, margin, y) {
   return drawHorizontalRule(doc, curY);
 }
 
-function drawCeoPersonBlock(doc, label, person, margin, y) {
+function drawExecutivePersonBlock(doc, label, person, margin, y) {
   if (!person) return y;
   let curY = y;
   const width = doc.page.width - margin * 2 - 20;
@@ -78,80 +78,41 @@ function drawCeoPersonBlock(doc, label, person, margin, y) {
   return curY + 4;
 }
 
-function ceoMarketDataText(marketData) {
-  if (!marketData || !Number.isFinite(Number(marketData.changeFirstSessionPct))) return null;
-  const fmt = (value) => `${Number(value) > 0 ? '+' : ''}${String(value).replace('.', ',')} %`;
-  const third = Number.isFinite(Number(marketData.changeThreeSessionsPct))
-    ? ` y ${fmt(marketData.changeThreeSessionsPct)} a 3 sesiones`
-    : '';
-  const source = marketData.source ? ` Fuente: ${sanitize(String(marketData.source))}.` : '';
-  const date = marketData.announcementDate ? ` (${sanitize(String(marketData.announcementDate))})` : '';
-  return `Cotización en torno al anuncio${date}: ${fmt(marketData.changeFirstSessionPct)} en la primera sesión${third}.${source}`;
-}
+export function drawExecutiveChanges(doc, section, margin, y) {
+  const changes = Array.isArray(section?.changes) ? section.changes : [];
+  let curY = drawSectionTitle(doc, section?.title || '2: CAMBIOS EN LA DIRECCIÓN', y);
 
-function drawCeoMarketBox(doc, ceo, margin, y) {
-  const reaction = ceo.marketReaction || {};
-  const dataLine = ceoMarketDataText(ceo.marketData);
-  const summary = reaction.summary ? sanitize(reaction.summary) : null;
-  if (!summary && !dataLine) return y;
+  changes.forEach((change, index) => {
+    const roleLabel = sanitize(String(change.role || 'Directivo').toUpperCase());
+    if (changes.length > 1) {
+      if (curY > doc.page.height - doc.page.margins.bottom - 20) {
+        doc.addPage();
+        curY = doc.page.margins.top;
+      }
+      curY = drawHighlightedText(doc, roleLabel, margin + 6, curY, { width: doc.page.width - margin * 2 - 12, baseSize: 8, baseFont: 'Helvetica-Bold', baseColor: '#4f46e5', boldFont: 'Helvetica-Bold', boldColor: '#4338ca' }) + 4;
+    }
+    if (change.text) {
+      curY = drawHighlightedText(doc, sanitize(change.text), margin, curY, { width: doc.page.width - margin * 2, baseSize: 8.5, baseColor: '#374151', boldColor: '#0f172a' }) + 8;
+    }
+    const meta = [
+      change.announcementDate ? `Anuncio: ${change.announcementDate}` : null,
+      change.effectiveDate ? `Efectivo: ${change.effectiveDate}` : null,
+      change.reason ? `Motivo: ${change.reason}` : null,
+    ].filter(Boolean);
+    if (meta.length) {
+      curY = drawHighlightedText(doc, `• ${sanitize(meta.join('  ·  '))}`, margin + 6, curY, { width: doc.page.width - margin * 2 - 12, baseSize: 8, baseFont: 'Helvetica-Bold', baseColor: '#854d0e', boldFont: 'Helvetica-Bold', boldColor: '#7c2d12' }) + 5;
+    }
+    curY = drawExecutivePersonBlock(doc, `ANTIGUO ${roleLabel}`, change.oldExecutive, margin, curY);
+    curY = drawExecutivePersonBlock(doc, `NUEVO ${roleLabel}`, change.newExecutive, margin, curY);
+    if (index < changes.length - 1) curY += 6;
+  });
 
-  const sentiment = String(reaction.sentiment || '').toLowerCase();
-  const bg = sentiment === 'positiva' ? '#ecfdf5' : (sentiment === 'negativa' ? '#fef2f2' : '#fffbeb');
-  const border = sentiment === 'positiva' ? '#bbf7d0' : (sentiment === 'negativa' ? '#fecaca' : '#fde68a');
-  const labelColor = sentiment === 'positiva' ? '#15803d' : (sentiment === 'negativa' ? '#dc2626' : '#b45309');
-  const width = doc.page.width - margin * 2;
-
-  doc.font('Helvetica-Bold').fontSize(9);
-  const labelH = doc.heightOfString('Reacción del mercado', { width: width - 24 });
-  doc.font('Helvetica').fontSize(8);
-  const summaryH = summary ? doc.heightOfString(summary, { width: width - 24, lineBreak: true }) : 0;
-  doc.font('Helvetica-Oblique').fontSize(7.5);
-  const dataH = dataLine ? doc.heightOfString(dataLine, { width: width - 24, lineBreak: true }) : 0;
-  const boxHeight = 12 + labelH + (summary ? summaryH + 3 : 0) + (dataLine ? dataH + 3 : 0) + 4;
-
-  let curY = y;
-  if (curY + boxHeight > doc.page.height - doc.page.margins.bottom - 10) {
-    doc.addPage();
-    curY = doc.page.margins.top;
-  }
-  doc.rect(margin, curY, width, boxHeight).fill(bg);
-  doc.rect(margin, curY, width, boxHeight).lineWidth(1).strokeColor(border).stroke();
-
-  let innerY = curY + 6;
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(labelColor).text('Reacción del mercado', margin + 10, innerY, { width: width - 20 });
-  innerY = doc.y + 2;
-  if (summary) {
-    doc.font('Helvetica').fontSize(8).fillColor('#374151').text(summary, margin + 10, innerY, { width: width - 20, lineBreak: true });
-    innerY = doc.y + 2;
-  }
-  if (dataLine) {
-    doc.font('Helvetica-Oblique').fontSize(7.5).fillColor('#64748b').text(dataLine, margin + 10, innerY, { width: width - 20, lineBreak: true });
-  }
-  return curY + boxHeight + 8;
-}
-
-export function drawCeoChange(doc, ceo, margin, y) {
-  let curY = drawSectionTitle(doc, ceo.title || '2: CAMBIO DE CEO', y);
-  if (ceo.text) {
-    curY = drawHighlightedText(doc, sanitize(ceo.text), margin, curY, { width: doc.page.width - margin * 2, baseSize: 8.5, baseColor: '#374151', boldColor: '#0f172a' }) + 8;
-  }
-  const meta = [
-    ceo.announcementDate ? `Anuncio: ${ceo.announcementDate}` : null,
-    ceo.effectiveDate ? `Efectivo: ${ceo.effectiveDate}` : null,
-    ceo.reason ? `Motivo: ${ceo.reason}` : null,
-  ].filter(Boolean);
-  if (meta.length) {
-    curY = drawHighlightedText(doc, `• ${sanitize(meta.join('  ·  '))}`, margin + 6, curY, { width: doc.page.width - margin * 2 - 12, baseSize: 8, baseFont: 'Helvetica-Bold', baseColor: '#854d0e', boldFont: 'Helvetica-Bold', boldColor: '#7c2d12' }) + 5;
-  }
-  curY = drawCeoPersonBlock(doc, 'ANTIGUO CEO', ceo.oldCeo, margin, curY);
-  curY = drawCeoPersonBlock(doc, 'NUEVO CEO', ceo.newCeo, margin, curY);
-  curY = drawCeoMarketBox(doc, ceo, margin, curY);
-  if (ceo.disclaimer) {
+  if (section?.disclaimer) {
     if (curY > doc.page.height - doc.page.margins.bottom - 14) {
       doc.addPage();
       curY = doc.page.margins.top;
     }
-    doc.font('Helvetica-Oblique').fontSize(7).fillColor('#94a3b8').text(sanitize(ceo.disclaimer), margin + 6, curY, { width: doc.page.width - margin * 2 - 12, lineBreak: true });
+    doc.font('Helvetica-Oblique').fontSize(7).fillColor('#94a3b8').text(sanitize(section.disclaimer), margin + 6, curY, { width: doc.page.width - margin * 2 - 12, lineBreak: true });
     curY = doc.y + 4;
   }
   return drawHorizontalRule(doc, curY);

@@ -87,36 +87,39 @@ export async function loadKnowledgeRules(sector, subsector, formType = '10-Q', t
   return parts.join('\n\n---\n\n') || sectorRules;
 }
 
-/**
- * Extrae secciones críticas dirigidas del texto del 10-K / 10-Q (deuda, cupones, recompras, acciones).
- * @param {string} text - Texto completo del documento SEC.
- * @returns {string} Bloques de texto identificados.
- */
-export function extractKeyFilingSections(text) {
-  const source = String(text ?? '');
+const KEY_SECTION_PATTERNS = [
+  { re: /(?:Note\s+\d+[\s.:–-]+)?Debt Obligations[\s\S]{0,120}?(?:As of|\(In millions\)|December\s+\d{1,2},)/i, before: 400, after: 8500, label: 'DEUDA: NOTA DE OBLIGACIONES CON CUPONES Y VENCIMIENTOS' },
+  { re: /(?:Note\s+\d+[\s.:–-]+)?Long-Term Debt:?\s*(?:The following table|The components|The Company)|Long-term debt obligations[^\n]{0,140}(?:table|summariz)/i, before: 300, after: 8500, label: 'DEUDA: NOTA DE DEUDA A LARGO PLAZO CON CUPONES' },
+  { re: /aggregate principal maturities|principal maturities of our long-term debt|(?:scheduled\s+)?maturities of (?:long-term )?debt/i, before: 1500, after: 2500, label: 'DEUDA: VENCIMIENTOS DE PRINCIPAL POR EJERCICIO' },
+  { re: /Material Cash Requirements[^\n]{0,90}Obligations|Contractual (?:Cash )?Maturities/i, before: 300, after: 5500, label: 'DEUDA: VENCIMIENTOS CONTRACTUALES' },
+  { re: /(?:\n\s*Share Repurchase Program\s*\n|Issuer Purchases of Equity Securities|Share Repurchase(?:s| Program| Plans)?|Stock Repurchase(?:s| Program| Plans)?|Common Stock Repurchase(?:s| Program)?)/i, before: 300, after: 5000, label: 'RECOMPRAS: PROGRAMA Y REMANENTE' },
+  { re: /remaining authorization|authorization remaining|remaining under the (?:share |stock )?repurchase/i, before: 300, after: 1500, label: 'RECOMPRAS: AUTORIZACIÓN REMANENTE' },
+  { re: /(?:appointed|named|elect(?:ed)?|succeed(?:ed|ing)?)[^\n]{0,160}(?:Chief Executive Officer|CEO|Chief Financial Officer|CFO|Chief Operating Officer|COO|President|Consejero Delegado|Director Financiero)|(?:Chief Executive Officer|CEO|Chief Financial Officer|CFO|Chief Operating Officer|COO|President|Consejero Delegado)[^\n]{0,160}(?:transition|succession|retire|retiring|step(?:ping)? down|resign|departure|appointment)/i, before: 600, after: 5000, label: 'CAMBIO DE DIRECTIVOS: NOMBRAMIENTOS Y SUCESIÓN' },
+  { re: /(?:Executive Officers of the Registrant|Item 5\.02|Departure of Directors or (?:Certain )?Officers|Leadership Transition|Management Transition)/i, before: 400, after: 5000, label: 'CAMBIO DE DIRECTIVOS: CÚPULA DIRECTIVA' },
+  { re: /Shares of common stock issued, in treasury, and outstanding/i, before: 300, after: 2500, label: 'ACCIONES EN CIRCULACIÓN' },
+  { re: /Selected Financial Data|Five[- ]Year Summary/i, before: 200, after: 6000, label: 'RESUMEN QUINQUENAL' },
+];
+
+function pickKeySections(source, labelPrefix) {
   if (!source) return '';
-
-  const wanted = [
-    { re: /Debt Obligations[\s\S]{0,120}?(?:As of|\(In millions\)|December\s+\d{1,2},)/i, before: 400, after: 8500, label: 'DEUDA: NOTA DE OBLIGACIONES CON CUPONES Y VENCIMIENTOS' },
-    { re: /Long-Term Debt:?\s*(?:The following table|The components|The Company)|Long-term debt obligations[^\n]{0,140}(?:table|summariz)/i, before: 300, after: 8500, label: 'DEUDA: NOTA DE DEUDA A LARGO PLAZO CON CUPONES' },
-    { re: /aggregate principal maturities|principal maturities of our long-term debt/i, before: 1500, after: 2500, label: 'DEUDA: VENCIMIENTOS DE PRINCIPAL POR EJERCICIO' },
-    { re: /Material Cash Requirements[^\n]{0,90}Obligations|Contractual Maturities/i, before: 300, after: 5500, label: 'DEUDA: VENCIMIENTOS CONTRACTUALES' },
-    { re: /\n\s*Share Repurchase Program\s*\n/i, before: 300, after: 5000, label: 'RECOMPRAS: PROGRAMA Y REMANENTE' },
-    { re: /remaining authorization|authorization remaining/i, before: 300, after: 1500, label: 'RECOMPRAS: AUTORIZACIÓN REMANENTE' },
-    { re: /(?:appointed|named|elect(?:ed)?|succeed(?:ed|ing)?)[^\n]{0,160}(?:Chief Executive Officer|CEO)|(?:Chief Executive Officer|CEO)[^\n]{0,160}(?:transition|succession|retire|retiring|step(?:ping)? down|resign)/i, before: 600, after: 4500, label: 'CAMBIO DE CEO: NOMBRAMIENTOS Y SUCESIÓN' },
-    { re: /Shares of common stock issued, in treasury, and outstanding/i, before: 300, after: 2500, label: 'ACCIONES EN CIRCULACIÓN' },
-    { re: /Selected Financial Data|Five[- ]Year Summary/i, before: 200, after: 6000, label: 'RESUMEN QUINQUENAL' },
-  ];
-
   const overlaps = (a, b) => a.start < b.end && b.start < a.end;
   const picked = [];
 
-  for (const item of wanted) {
-    const match = source.match(item.re);
-    if (!match || match.index == null) continue;
+  for (const item of KEY_SECTION_PATTERNS) {
+    if (labelPrefix && !item.label.startsWith(labelPrefix)) continue;
+    const flags = item.re.flags.includes('g') ? item.re.flags : `${item.re.flags}g`;
+    const regex = new RegExp(item.re.source, flags);
+    let match;
+    let chosen = null;
+    while ((match = regex.exec(source)) !== null) {
+      const snippet = source.slice(match.index, match.index + 260);
+      if (!INDEX_ENTRY_PATTERN.test(snippet)) { chosen = match; break; }
+      regex.lastIndex = match.index + 1;
+    }
+    if (!chosen || chosen.index == null) continue;
     const range = {
-      start: Math.max(0, match.index - item.before),
-      end: Math.min(source.length, match.index + item.after),
+      start: Math.max(0, chosen.index - item.before),
+      end: Math.min(source.length, chosen.index + item.after),
       label: item.label,
     };
     if (picked.some((existing) => overlaps(existing, range))) continue;
@@ -128,19 +131,127 @@ export function extractKeyFilingSections(text) {
   return picked.map((range) => `### ${range.label}\n${source.slice(range.start, range.end).trim()}`).join('\n\n');
 }
 
+/**
+ * Extrae secciones críticas dirigidas del texto del 10-K / 10-Q (deuda, cupones, recompras, acciones).
+ * @param {string} text - Texto completo del documento SEC.
+ * @returns {string} Bloques de texto identificados.
+ */
+export function extractKeyFilingSections(text) {
+  return pickKeySections(String(text ?? ''), null);
+}
+
+const DEBT_COVER_PATTERN = /securities registered|name of each exchange|title of each class|nasdaq|new york stock exchange|stock exchange/i;
+const DEBT_EXHIBIT_PATTERN = /incorporated herein by reference|current report on form 8-k|exhibit\s+\d|\bform of\b[\s\S]{0,90}?\b(?:senior\s+)?notes?\b/i;
+
+function isDebtCoverOrIndexEntry(source, index) {
+  const around = source.slice(Math.max(0, index - 250), index + 300);
+  return DEBT_COVER_PATTERN.test(around) || DEBT_EXHIBIT_PATTERN.test(around);
+}
+
+function maturityWindowScore(source, range) {
+  const snippet = source.slice(range.start, range.end);
+  const yearRows = (snippet.match(/(?:due|maturing(?:\s+in)?)\s+(?:19|20)\d{2}/gi) || []).length;
+  const amounts = (snippet.match(/\d{1,3}(?:,\d{3})+|\$\s?\d/g) || []).length;
+  return yearRows * 3 + amounts * 10;
+}
+
+/**
+ * Extrae únicamente los bloques de la nota de deuda (vencimientos y cupones).
+ * Localiza las filas de vencimiento ("due 2019", "maturing in 2027") para no caer en el
+ * índice del informe, descarta las menciones de la portada y del índice de exhibiciones, y
+ * ordena las ventanas por contenido de tabla de vencimientos (años + importes) para que la
+ * pasada focalizada reciba primero la nota real y no un fragmento de contexto.
+ * @param {string} text - Texto completo del documento SEC.
+ * @returns {string} Bloques de deuda identificados.
+ */
+export function extractDebtFilingText(text) {
+  const source = String(text ?? '');
+  if (!source) return '';
+
+  const rowPattern = /(?:(?:due|maturing(?:\s+in)?)\s+(?:19|20)\d{2}|(?:maturities of (?:long-term )?debt|contractual maturities|scheduled maturities)[\s\S]{0,300}?\b20[2-4]\d\b)/gi;
+  const windows = [];
+  let match;
+  while ((match = rowPattern.exec(source)) !== null && windows.length < 10) {
+    if (isDebtCoverOrIndexEntry(source, match.index)) continue;
+    const range = {
+      start: Math.max(0, match.index - 3000),
+      end: Math.min(source.length, match.index + 800),
+    };
+    const last = windows[windows.length - 1];
+    if (last && range.start <= last.end) {
+      last.end = Math.max(last.end, range.end);
+    } else {
+      windows.push(range);
+    }
+  }
+
+  if (windows.length) {
+    windows.sort((a, b) => maturityWindowScore(source, b) - maturityWindowScore(source, a));
+    return windows.map((range) => source.slice(range.start, range.end).trim()).join('\n\n[...]\n\n');
+  }
+  return pickKeySections(source, 'DEUDA');
+}
+
+const REFINANCING_SIGNALS = [
+  /cash tender offer/gi,
+  /exchange offer/gi,
+  /debt extinguishment/gi,
+  /early redemption/gi,
+  /(?:we|company) redeemed/gi,
+  /redemption of (?:the )?(?:notes|debt)/gi,
+  /repurchase of (?:the )?(?:notes|debt)/gi,
+  /amortizaci[oó]n anticipada/gi,
+  /oferta(?:s)? de (?:compra|canje)/gi,
+  /recompra de (?:bonos|notas|deuda)/gi,
+];
+
+/**
+ * Extrae los bloques que describen una refinanciación real (tender offers, exchange offers,
+ * amortizaciones anticipadas o extinciones de deuda), ignorando provisiones genéricas.
+ * @param {string} text - Texto completo del documento SEC.
+ * @returns {string} Bloques de refinanciación identificados o cadena vacía.
+ */
+export function extractRefinancingFilingText(text) {
+  const source = String(text ?? '');
+  if (!source) return '';
+
+  const windows = [];
+  for (const signal of REFINANCING_SIGNALS) {
+    const regex = new RegExp(signal.source, 'gi');
+    let match;
+    while ((match = regex.exec(source)) !== null) {
+      const range = {
+        start: Math.max(0, match.index - 1500),
+        end: Math.min(source.length, match.index + 3000),
+      };
+      const last = windows[windows.length - 1];
+      if (last && range.start <= last.end) {
+        last.end = Math.max(last.end, range.end);
+      } else {
+        windows.push(range);
+      }
+      if (windows.length >= 3) break;
+    }
+    if (windows.length >= 3) break;
+  }
+
+  if (!windows.length) return '';
+  return windows.map((range) => source.slice(range.start, range.end).trim()).join('\n\n[...]\n\n').slice(0, 16000);
+}
+
 const REAL_FINANCIAL_PATTERNS = [
   // Cash Flows real:
-  /(?:consolidated|condensed consolidated)\s+statements?\s+of\s+cash\s+flows?[\s\S]{0,250}?(?:\(in millions|\(in thousands|operating activities|cash flows? from operating)/i,
+  /(?:(?:consolidated|condensed consolidated)\s+statements?\s+of\s+cash\s+flows?|statements?\s+of\s+cash\s+flows?)[\s\S]{0,250}?(?:\(in millions|\(in thousands|operating activities|cash flows? from operating)/i,
   // Income / Operations real:
-  /(?:consolidated|condensed consolidated)\s+statements?\s+of\s+(?:operations|income|earnings)[\s\S]{0,250}?(?:\(in millions|\(in thousands|operating revenues|revenues|net sales|cost of)/i,
+  /(?:(?:consolidated|condensed consolidated)\s+statements?\s+of\s+(?:operations|income|earnings|loss|net earnings|profit and loss)|statements?\s+of\s+(?:operations|income|earnings|loss|net earnings|profit and loss))[\s\S]{0,250}?(?:\(in millions|\(in thousands|operating revenues|revenues|net sales|cost of)/i,
   // Balance Sheets real:
-  /(?:consolidated|condensed consolidated)\s+balance\s+sheets?[\s\S]{0,250}?(?:\(in millions|\(in thousands|current assets|cash and cash equivalents)/i,
+  /(?:(?:consolidated|condensed consolidated)\s+(?:balance\s+sheets?|statements?\s+of\s+financial\s+(?:position|condition))|balance\s+sheets?|statements?\s+of\s+financial\s+(?:position|condition))[\s\S]{0,250}?(?:\(in millions|\(in thousands|current assets|cash and cash equivalents)/i,
 ];
 
 const FALLBACK_FINANCIAL_MARKERS = [
-  /(?:consolidated|condensed consolidated)\s+statements?\s+of\s+cash\s+flows?/gi,
-  /(?:consolidated|condensed consolidated)\s+balance\s+sheets?/gi,
-  /(?:consolidated|condensed consolidated)\s+statements?\s+of\s+(?:operations|income|earnings)/gi,
+  /(?:(?:condensed\s+)?consolidated\s+)?statements?\s+of\s+cash\s+flows?/gi,
+  /(?:(?:condensed\s+)?consolidated\s+)?(?:balance\s+sheets?|statements?\s+of\s+financial\s+(?:position|condition))/gi,
+  /(?:(?:condensed\s+)?consolidated\s+)?statements?\s+of\s+(?:operations|income|earnings|net\s+earnings|profit\s+and\s+loss)/gi,
 ];
 
 const INDEX_ENTRY_PATTERN = /(?:\.{3,}|\t|\s{6,})\s*\d+\b/;

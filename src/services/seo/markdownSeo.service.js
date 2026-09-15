@@ -7,6 +7,7 @@ import config from '../../../config/index.js';
 import { filingPeriodLabel } from '../edgar.service.js';
 import { titleCaseName, formatUsdMillions, formatUsdShare } from './seoConstants.js';
 import { buildCompanyMeta } from './companyMeta.service.js';
+import { getExecutiveChanges } from '../reportExport/executiveChanges.js';
 import { getCompanySeoContent } from './botContent.service.js';
 import {
   buildReportSlug,
@@ -198,10 +199,9 @@ export function buildReportMarkdown(row) {
     if (c.debt?.text) lines.push(`### Deuda\n${c.debt.text}\n`);
     if (c.outlook?.text) lines.push(`### Perspectivas de la Dirección\n${c.outlook.text}\n`);
     if (c.repurchases?.text) lines.push(`### Recompras de Acciones\n${c.repurchases.text}\n`);
-    if (c.ceoChange) {
-      const ceo = c.ceoChange;
-      lines.push('### Cambio de CEO\n');
-      if (ceo.text) lines.push(`${ceo.text}\n`);
+    const executiveChanges = getExecutiveChanges(c);
+    if (executiveChanges) {
+      lines.push(`### ${executiveChanges.title || 'Cambios en la dirección'}\n`);
       const personLine = (label, person) => {
         if (!person) return null;
         const fields = [
@@ -218,18 +218,20 @@ export function buildReportMarkdown(row) {
         return `**${label}:** ${heading}`
           + fields.map(([fieldLabel, value]) => `\n  - **${fieldLabel}:** ${value}`).join('');
       };
-      [personLine('Antiguo CEO', ceo.oldCeo), personLine('Nuevo CEO', ceo.newCeo)]
-        .filter(Boolean)
-        .forEach((line) => lines.push(`${line}\n`));
-      if (ceo.marketReaction?.summary) {
-        const sentiment = ceo.marketReaction.sentiment ? ` (${ceo.marketReaction.sentiment})` : '';
-        lines.push(`**Reacción del mercado${sentiment}:** ${ceo.marketReaction.summary}\n`);
-      }
-      if (ceo.marketData && Number.isFinite(Number(ceo.marketData.changeFirstSessionPct))) {
-        const fmt = (value) => `${Number(value) > 0 ? '+' : ''}${String(value).replace('.', ',')} %`;
-        const third = Number.isFinite(Number(ceo.marketData.changeThreeSessionsPct)) ? ` y ${fmt(ceo.marketData.changeThreeSessionsPct)} a 3 sesiones` : '';
-        lines.push(`*Cotización en torno al anuncio (${ceo.marketData.announcementDate || ''}): ${fmt(ceo.marketData.changeFirstSessionPct)} en la primera sesión${third}.*\n`);
-      }
+      executiveChanges.changes.forEach((change) => {
+        const role = change.role || 'Directivo';
+        if (change.text) lines.push(`${change.text}\n`);
+        const meta = [
+          change.announcementDate ? `Anuncio: ${change.announcementDate}` : null,
+          change.effectiveDate ? `Efectivo: ${change.effectiveDate}` : null,
+          change.reason ? `Motivo: ${change.reason}` : null,
+        ].filter(Boolean);
+        lines.push(meta.length ? `**${role}** — ${meta.join(' · ')}\n` : `**${role}**\n`);
+        [personLine(`Antiguo ${role}`, change.oldExecutive), personLine(`Nuevo ${role}`, change.newExecutive)]
+          .filter(Boolean)
+          .forEach((line) => lines.push(`${line}\n`));
+      });
+      if (executiveChanges.disclaimer) lines.push(`*${executiveChanges.disclaimer}*\n`);
     }
     if (c.acquisitions?.text) lines.push(`### Adquisiciones\n${c.acquisitions.text}\n`);
     if (c.watchlist?.items?.length) {

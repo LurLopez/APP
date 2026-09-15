@@ -13,6 +13,8 @@
     const comparisonCache = new Map(); // ticker -> companyData
     const seriesColorMap = new Map(); // seriesId -> hex color
     const comparisonLoadingTickers = new Set();
+    const HIDDEN_SERIES_STORAGE_KEY = 'cifra_hidden_chart_series_v1';
+    const hiddenSeries = loadHiddenSeries(); // seriesId ocultos sin quitarlos del gráfico
     const MARGIN_DEFINITIONS = {
     grossProfitMargin: { key: 'grossProfitMargin', kind: 'margin', baseKey: 'grossProfit', label: '% Márgenes brutos', format: 'percent' },
     operatingIncomeMargin: { key: 'operatingIncomeMargin', kind: 'margin', baseKey: 'operatingIncome', label: '% Márgenes operativos', format: 'percent' },
@@ -23,6 +25,7 @@
   };
 
   function resetComparison() {
+    comparisonCompanies.forEach((comp) => pruneHiddenSeriesForCompany(comp.ticker));
     comparisonCompanies.clear();
     comparisonLoadingTickers.clear();
     seriesColorMap.clear();
@@ -33,6 +36,75 @@
 
   function escapeHtml(value) {
     return window.HtmlUtils.escapeHtml(value);
+  }
+
+  function loadHiddenSeries() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(HIDDEN_SERIES_STORAGE_KEY) ?? '[]');
+      return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  function persistHiddenSeries() {
+    try {
+      if (hiddenSeries.size) window.localStorage.setItem(HIDDEN_SERIES_STORAGE_KEY, JSON.stringify([...hiddenSeries]));
+      else window.localStorage.removeItem(HIDDEN_SERIES_STORAGE_KEY);
+    } catch {}
+  }
+
+  function notifyHiddenSeriesChange() {
+    window.dispatchEvent(new CustomEvent('chart:hidden-series-change'));
+  }
+
+  function saveHiddenSeries() {
+    persistHiddenSeries();
+    notifyHiddenSeriesChange();
+  }
+
+  function replaceHiddenSeries(seriesIds) {
+    hiddenSeries.clear();
+    (Array.isArray(seriesIds) ? seriesIds : []).forEach((id) => {
+      if (typeof id === 'string' && id) hiddenSeries.add(id);
+    });
+    persistHiddenSeries();
+  }
+
+  function isSeriesHidden(seriesId) {
+    return hiddenSeries.has(seriesId);
+  }
+
+  function toggleSeriesVisibility(seriesId) {
+    if (!seriesId) return;
+    if (hiddenSeries.has(seriesId)) hiddenSeries.delete(seriesId);
+    else hiddenSeries.add(seriesId);
+    saveHiddenSeries();
+    renderMetricsChart();
+  }
+
+  function pruneHiddenSeries(predicate) {
+    let changed = false;
+    [...hiddenSeries].forEach((seriesId) => {
+      if (predicate(seriesId)) {
+        hiddenSeries.delete(seriesId);
+        changed = true;
+      }
+    });
+    if (changed) saveHiddenSeries();
+  }
+
+  function pruneHiddenSeriesForMetric(metricKey) {
+    pruneHiddenSeries((seriesId) => seriesId.split('__')[0] === metricKey);
+  }
+
+  function pruneHiddenSeriesForCompany(ticker) {
+    pruneHiddenSeries((seriesId) => seriesId.endsWith(`__${ticker}`));
+  }
+
+  function clearHiddenSeries() {
+    hiddenSeries.clear();
+    saveHiddenSeries();
   }
 
   function getActiveCompanyData() {
@@ -121,6 +193,7 @@
     const key = item.key;
     if (chartMetrics.has(key)) {
       chartMetrics.delete(key);
+      pruneHiddenSeriesForMetric(key);
       getAllChartCompanies().forEach((comp) => {
         seriesColorMap.delete(`${key}__${comp.ticker}`);
       });
@@ -133,6 +206,7 @@
 
   function removeChartMetric(key) {
     chartMetrics.delete(key);
+    pruneHiddenSeriesForMetric(key);
     getAllChartCompanies().forEach((comp) => {
       seriesColorMap.delete(`${key}__${comp.ticker}`);
     });
@@ -270,5 +344,12 @@ window.comparisonCache = comparisonCache;
 window.seriesColorMap = seriesColorMap;
 window.comparisonLoadingTickers = comparisonLoadingTickers;
 window.MARGIN_DEFINITIONS = MARGIN_DEFINITIONS;
+window.chartHiddenSeries = hiddenSeries;
+window.isSeriesHidden = isSeriesHidden;
+window.toggleSeriesVisibility = toggleSeriesVisibility;
+window.replaceHiddenSeries = replaceHiddenSeries;
+window.pruneHiddenSeriesForMetric = pruneHiddenSeriesForMetric;
+window.pruneHiddenSeriesForCompany = pruneHiddenSeriesForCompany;
+window.clearHiddenSeries = clearHiddenSeries;
 
 })(window);

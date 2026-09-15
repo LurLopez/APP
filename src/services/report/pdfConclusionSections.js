@@ -7,7 +7,8 @@ import { drawPdfSecSnippet } from './pdfSnippetDrawer.js';
 import { drawDividendChart } from './pdfEquityCharts.js';
 import { drawDebtMaturityChart, drawDebtHistoryChart, drawDebtRefinancingBox } from './pdfDebtCharts.js';
 import { withOutlookComparison, buildDebtMaturityModel, buildDebtHistoryModel, buildDebtRefinancingModel, buildAcquisitionsModel, buildDividendModel } from '../reportExport.service.js';
-import { drawRepurchases, drawCeoChange } from './pdfRepurchasesDrawer.js';
+import { getExecutiveChanges } from '../reportExport/executiveChanges.js';
+import { drawRepurchases, drawExecutiveChanges } from './pdfRepurchasesDrawer.js';
 
 function drawOutlook(doc, out, report, margin, y) {
   let curY = drawSectionTitle(doc, out.title || '2: OUTLOOK', y);
@@ -107,7 +108,7 @@ export function drawConclusion(doc, report, startY) {
     const conc = report.conclusion || {};
     doc.font('Helvetica-Bold').fontSize(14).fillColor('#111827').text('PARTE II: INDAGACIÓN A FONDO Y CONCLUSIÓN', margin, y);
     y += 18;
-    doc.font('Helvetica').fontSize(9).fillColor('#6b7280').text('Análisis detallado de recompras, cambios de CEO, outlook oficial, deuda y asignación de capital', margin, y);
+    doc.font('Helvetica').fontSize(9).fillColor('#6b7280').text('Análisis detallado de recompras, cambios en la dirección, outlook oficial, deuda y asignación de capital', margin, y);
     y += 18;
     y = drawHorizontalRule(doc, y);
 
@@ -121,7 +122,8 @@ export function drawConclusion(doc, report, startY) {
     };
 
     if (conc.repurchases) { startPage(); y = drawRepurchases(doc, conc.repurchases, margin, y); }
-    if (conc.ceoChange) { startPage(); y = drawCeoChange(doc, conc.ceoChange, margin, y); }
+    const executiveChanges = getExecutiveChanges(conc);
+    if (executiveChanges) { startPage(); y = drawExecutiveChanges(doc, executiveChanges, margin, y); }
     if (conc.outlook) { startPage(); y = drawOutlook(doc, conc.outlook, report, margin, y); }
     if (conc.debt) { startPage(); y = drawDebtSection(doc, conc.debt, report, margin, y); }
 

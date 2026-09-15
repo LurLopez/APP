@@ -123,27 +123,30 @@ export const EXTRACTION_SCHEMA = `{
         ]
       }
     },
-    "ceoChange": {
-      "occurred": false,
-      "announcementDate": "AAAA-MM-DD o null",
-      "effectiveDate": "AAAA-MM-DD o null",
-      "reason": "Motivo declarado del relevo (sucesión planificada, jubilación, dimisión, despido) o null",
-      "oldCeo": {
-        "name": "Nombre del CEO saliente o null",
-        "role": "CEO (periodo en el cargo) o null",
-        "tenureStart": "Año o fecha en que asumió como CEO o null",
-        "whereTheyGo": "A dónde pasa el CEO saliente (jubilación, presidencia del consejo, otra empresa) o null",
-        "salesDuringTenure": "Evolución de las ventas durante su mandato (cifra inicial, final y variación) o null",
-        "policies": "Políticas y decisiones destacadas de su etapa según el informe o null"
-      },
-      "newCeo": {
-        "name": "Nombre del CEO entrante o null",
-        "origin": "Empresa y puesto del que viene, con el periodo si consta, o null",
-        "trackRecord": "Qué hizo en puestos directivos anteriores (fechas y resultados concretos) o null",
-        "commitments": "Qué ha dicho que va a hacer o qué prioridades ha anunciado o null"
-      },
-      "source": "10-K, 8-K/presentación complementaria o ambos"
-    },
+    "executiveChanges": [
+      {
+        "role": "CEO",
+        "occurred": true,
+        "announcementDate": "AAAA-MM-DD o null",
+        "effectiveDate": "AAAA-MM-DD o null",
+        "reason": "Motivo declarado del relevo (sucesión planificada, jubilación, dimisión, despido) o null",
+        "oldExecutive": {
+          "name": "Nombre del directivo saliente o null",
+          "role": "Cargo y periodo en el puesto o null",
+          "tenureStart": "Año o fecha en que asumió el cargo o null",
+          "whereTheyGo": "A dónde pasa el directivo saliente (jubilación, presidencia del consejo, otra empresa) o null",
+          "salesDuringTenure": "Evolución de las ventas durante su mandato (cifra inicial, final y variación) o null",
+          "policies": "Políticas y decisiones destacadas de su etapa según el informe o null"
+        },
+        "newExecutive": {
+          "name": "Nombre del directivo entrante o null",
+          "origin": "Empresa y puesto del que viene, con el periodo si consta, o null",
+          "trackRecord": "Qué hizo en puestos directivos anteriores (fechas y resultados concretos) o null",
+          "commitments": "Qué ha dicho que va a hacer o qué prioridades ha anunciado o null"
+        },
+        "source": "10-K, 8-K/presentación complementaria o ambos"
+      }
+    ],
     "dividends": {
       "history": [
         { "year": 2025, "dps": 1.88, "total": 376.3, "adjustedEps": 5.42 },
@@ -153,6 +156,22 @@ export const EXTRACTION_SCHEMA = `{
       "changeType": "increase",
       "changePct": 6.8,
       "changeDate": "febrero de 2026"
+    },
+    "acquisitions": {
+      "occurred": true,
+      "items": [
+        {
+          "name": "Nombre de la empresa o negocio adquirido o null",
+          "description": "A qué se dedica: productos, marcas, geografía y canal, según el 10-K, o null",
+          "price": 1197,
+          "priceNote": "Matices del precio (valoración total, deuda asumida, pagos aplazados, neto de caja adquirida) o null",
+          "date": "AAAA-MM-DD o null",
+          "paymentTerms": "Forma de pago y financiación (efectivo, deuda, acciones) o null",
+          "rationale": "Motivo estratégico declarado por la compañía para la compra o null",
+          "businessMetrics": "Tamaño del negocio adquirido (ventas, EBITDA, empleados) si consta o null",
+          "expectedImpact": "Sinergias, impacto esperado en resultados o BPA e integración, o null"
+        }
+      ]
     },
     "outlook": {
       "guidanceSales": "Flat +/- 1% constant currency",
@@ -184,10 +203,6 @@ export const EXTRACTION_SCHEMA = `{
       }
     },
     "debt": {
-      "nearTermMaturities": 2364,
-      "nearTermRates": "CAD 500M al 3.44% y USD 2.0B al 3.0% vencimiento julio 2026",
-      "estimatedRefinancingRate": 5.0,
-      "estimatedInterestIncrease": 46,
       "maturitiesSchedule": "2026: 2.364M, 2027: 0.5M, 2028: 0.5M, 2029: 1.7M, 2030: 0.5M, después de 2030: 3.841,6M",
       "maturityAfterFive": 3841.6,
       "maturityItems": [
@@ -204,7 +219,7 @@ export const EXTRACTION_SCHEMA = `{
       ],
       "refinancing": {
         "occurred": true,
-        "description": "Amortización de notas al 3.00% y emisión de notas al 5.25%",
+        "description": "Amortización anticipada de notas al 3.00% financiada con una nueva emisión al 5.25%",
         "oldDebtRate": 3.00,
         "newDebtRate": 5.25,
         "amountRefinanced": 1000,

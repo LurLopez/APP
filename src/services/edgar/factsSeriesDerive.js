@@ -25,9 +25,21 @@ export function deriveRowMetrics(all) {
         values.revenue = Math.round((Number(values.grossProfit) - Number(values.costOfRevenue)) * 1e6) / 1e6;
       } else if (values.costOfRevenue === undefined && values.revenue !== undefined && values.grossProfit !== undefined) {
         values.costOfRevenue = Math.round((Number(values.grossProfit) - Number(values.revenue)) * 1e6) / 1e6;
+      } else if (values.revenue === undefined && values.grossProfit !== undefined) {
+        values.revenue = Math.round(Number(values.grossProfit) * 1e6) / 1e6;
       }
   
-      setDerived(values, 'grossProfit', (data) => sumValues(data, ['revenue', 'costOfRevenue']));
+      setDerived(values, 'grossProfit', (data) => {
+        const sum = sumValues(data, ['revenue', 'costOfRevenue']);
+        if (sum !== undefined) return sum;
+        if (data.revenue !== undefined) return Number(data.revenue);
+        if (data.operatingIncome !== undefined && data.operatingExpenses !== undefined) {
+          const opExp = Number(data.operatingExpenses);
+          const opInc = Number(data.operatingIncome);
+          return opExp < 0 ? opInc - opExp : opInc + opExp;
+        }
+        return undefined;
+      });
   
       const unusualNet = calculateUnusualTotal(values);
       const nonOpKeys = ['interestExpense', 'interestIncome', 'equityMethodIncome', 'foreignCurrencyGainLoss', 'otherNonoperatingIncome'];
@@ -39,8 +51,12 @@ export function deriveRowMetrics(all) {
       if (values.operatingIncome === undefined) {
         if (values.pretaxIncome !== undefined) {
           values.operatingIncome = values.pretaxIncome - nonOpTotal;
+        } else if (values.ebtIncludingUnusual !== undefined) {
+          values.operatingIncome = (values.ebtIncludingUnusual - unusualNet) - nonOpTotal;
         } else if (values.grossProfit !== undefined && values.operatingExpenses !== undefined) {
-          values.operatingIncome = values.grossProfit - values.operatingExpenses;
+          const opExp = Number(values.operatingExpenses);
+          const gp = Number(values.grossProfit);
+          values.operatingIncome = opExp < 0 ? gp + opExp : gp - opExp;
         }
       }
       if (values.operatingExpenses === undefined && values.grossProfit !== undefined && values.operatingIncome !== undefined) {
@@ -76,7 +92,18 @@ export function deriveRowMetrics(all) {
       setDerived(values, 'ebtIncludingUnusual', (data) => sumValues(data, ['pretaxIncome', 'mergerRestructuringCharges', 'goodwillImpairment', 'gainLossOnInvestments', 'gainLossOnAssets', 'assetImpairment', 'insuranceSettlements', 'legalSettlements', 'otherUnusualItems']));
   
       setDerived(values, 'incomeFromContinuingOps', (data) => sumValues(data, ['ebtIncludingUnusual', 'incomeTax']));
-      setDerived(values, 'netIncome', (data) => sumValues(data, ['incomeFromContinuingOps', 'discontinuedOperations']));
+      setDerived(values, 'netIncome', (data) => {
+        const standard = sumValues(data, ['incomeFromContinuingOps', 'discontinuedOperations']);
+        if (standard !== undefined) return standard;
+        if (data.incomeFromContinuingOps !== undefined) return Number(data.incomeFromContinuingOps);
+        if (data.ebtIncludingUnusual !== undefined && data.incomeTax !== undefined) {
+          return Number(data.ebtIncludingUnusual) + Number(data.incomeTax);
+        }
+        if (data.pretaxIncome !== undefined && data.incomeTax !== undefined) {
+          return Number(data.pretaxIncome) + (unusualNet || 0) + Number(data.incomeTax);
+        }
+        return undefined;
+      });
       setDerived(values, 'netIncomeToCommonIncludingUnusual', (data) => {
         const netIncome = Number(data.netIncome);
         const minority = Number(data.minorityInterestIncome) || 0;
@@ -200,7 +227,12 @@ export function deriveRowMetrics(all) {
       setDerived(values, 'cfi', (data) => sumValues(data, ['capex', 'salePPE', 'acquisitions', 'divestitures', 'securitiesInvesting', 'loansInvesting', 'otherInvestingActivities']));
       setDerived(values, 'cff', (data) => sumValues(data, ['debtIssued', 'debtPaid', 'commonStockIssued', 'buybacks', 'dividendsCommon', 'dividendsPreferred', 'otherFinancingActivities']));
       setDerived(values, 'netChangeInCash', (data) => sumValues(data, ['cfo', 'cfi', 'cff', 'fx']));
-      setDerived(values, 'freeCashFlow', (data) => sumValues(data, ['cfo', 'capex']));
+      setDerived(values, 'freeCashFlow', (data) => {
+        const fcf = sumValues(data, ['cfo', 'capex']);
+        if (fcf !== undefined) return fcf;
+        if (data.cfo !== undefined) return Number(data.cfo);
+        return undefined;
+      });
       setDerived(values, 'cashEnding', (data) => data.cash);
       setDerived(values, 'cashBeginning', (data) => Number.isFinite(Number(data.cashEnding)) && Number.isFinite(Number(data.netChangeInCash))
         ? Number(data.cashEnding) - Number(data.netChangeInCash)

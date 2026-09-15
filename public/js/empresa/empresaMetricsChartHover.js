@@ -44,7 +44,10 @@
   }
 
   function updateMetricsChartHover(event) {
-    if (!EMS.metricsChartState || !EMS.metricsChartState.rows?.length) return;
+    if (!EMS.metricsChartState?.rows?.length || !EMS.metricsChartState.series?.length) {
+      hideMetricsChartTooltip();
+      return;
+    }
     const svg = document.querySelector('#metrics-chart');
     if (!svg) return;
     const rect = svg.getBoundingClientRect();

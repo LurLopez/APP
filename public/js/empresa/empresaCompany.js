@@ -99,6 +99,7 @@ function renderScreenerTables() {
   const title = document.querySelector('#screener-table-title');
   const statementNames = {
     valuation: 'Valoración',
+    favorites: 'Favoritos',
     income: 'Cuenta de resultados',
     balance: 'Balance de situación',
     cashflow: 'Estado de Flujo de Efectivo',
@@ -141,6 +142,15 @@ function renderScreenerTables() {
 
   if (isValuation) {
     renderMetricsChart();
+    return;
+  }
+
+  if (screenerStatement === 'favorites') {
+    const favoriteItems = window.EmpresaFavoriteMetrics?.buildFavoriteItems?.(statements)
+      ?? [{ kind: 'note', label: 'Aún no tienes métricas favoritas. Pulsa el corazón de cualquier fila para guardarla aquí y verla en el gráfico.' }];
+    renderStatementTable(rows, visibleIndexes, favoriteItems);
+    renderMetricsChart();
+    syncMarginSelector();
     return;
   }
 

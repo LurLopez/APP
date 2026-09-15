@@ -122,6 +122,7 @@
         type,
         amount,
         interestRate: rate,
+        estimated: entry?.estimated === true,
       });
     };
 
@@ -170,7 +171,10 @@
     const niceMax = Math.ceil(max / step) * step || max;
     const slotW = plotW / groupedYears.length;
     const barW = Math.min(50, slotW * 0.65);
-    const fmtM = (v) => `$${Math.round(v)}M`;
+    const fmtM = (v) => {
+      const [int, dec] = Number(v).toFixed(1).split('.');
+      return `$${int.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${dec}M`;
+    };
     const parts = [];
 
     for (let g = 0; g <= 3; g += 1) {
@@ -183,10 +187,19 @@
     groupedYears.forEach((yr, i) => {
       const cx = padL + slotW * (i + 0.5);
       let baseline = padT + plotH;
+      const multi = yr.items.length > 1;
       yr.items.forEach((it) => {
         const blockH = Math.max(3, (Number(it.amount) / niceMax) * plotH);
         const topY = baseline - blockH;
         parts.push(`<rect x="${(cx - barW / 2).toFixed(1)}" y="${topY.toFixed(1)}" width="${barW.toFixed(1)}" height="${blockH.toFixed(1)}" rx="2" fill="${it.color || '#f59e0b'}"/>`);
+        const rateText = it.interestRate != null ? `${it.estimated ? '~' : ''}${Number(it.interestRate).toFixed(2).replace('.', ',')}%` : null;
+        if (multi && blockH >= 18 && barW >= 28) {
+          const textTop = topY + blockH / 2 - 2;
+          parts.push(`<text x="${cx.toFixed(1)}" y="${textTop.toFixed(1)}" text-anchor="middle" font-size="8.5" font-weight="700" fill="${it.textColor || '#ffffff'}">${fmtM(it.amount)}</text>`);
+          if (rateText) parts.push(`<text x="${cx.toFixed(1)}" y="${(textTop + 9).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="${it.textColor || '#ffffff'}">${rateText}</text>`);
+        } else if (rateText && blockH >= 11 && barW >= 26) {
+          parts.push(`<text x="${cx.toFixed(1)}" y="${(topY + blockH / 2 + 3.5).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="${it.textColor || '#ffffff'}">${rateText}</text>`);
+        }
         baseline = topY;
       });
       if (yr.totalAmount > 0) {
@@ -198,8 +211,11 @@
     const bannerY = H - 28;
     parts.push(`<rect x="${padL}" y="${bannerY}" width="${plotW}" height="22" rx="4" fill="#1e293b"/>`);
     const afterText = Number.isFinite(afterYearFive) ? ` · Después del año 5: ${fmtM(afterYearFive)}` : '';
+    const anyEstimated = allRatedItems.some((it) => it.estimated === true);
+    const rateLabel = anyEstimated ? 'Tipo de interés medio estimado de la deuda' : 'Tipo de interés medio total de la deuda';
+    const ratePrefix = anyEstimated ? '~' : '';
     const bannerText = totalAverageRate != null
-      ? `Tipo medio estimado: ${totalAverageRate.toFixed(2).replace('.', ',')} % · Deuda a amortizar: ${fmtM(allAmount)}${afterText}`
+      ? `${rateLabel}: ${ratePrefix}${totalAverageRate.toFixed(2).replace('.', ',')} % · Deuda a amortizar: ${fmtM(allAmount)}${afterText}`
       : `Deuda a amortizar (5 años): ${fmtM(allAmount)}${afterText}`;
     parts.push(`<text x="${(padL + plotW / 2).toFixed(1)}" y="${bannerY + 14.5}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#ffffff">${escapeHtml(bannerText)}</text>`);
 

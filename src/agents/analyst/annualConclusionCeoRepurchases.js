@@ -5,9 +5,9 @@
 import { isPlaceholderText, parseLooseReportNumber } from './financialParsers.js';
 import { buildFutureProjectionText, buildShareCountEvolutionText, buildRepurchaseSecTable, enrichRepurchaseSnippet, mergeHistoryByYear } from './historyBuilders.js';
 
-const CEO_CHANGE_DISCLAIMER = 'La trayectoria del directivo y la reacción del mercado combinan los hechos del informe con contexto público general; verifícalas con fuentes externas antes de decidir.';
+const EXECUTIVE_CHANGE_DISCLAIMER = 'La trayectoria de los directivos combina los hechos del informe con contexto público general; verifícala con fuentes externas antes de decidir.';
 
-const PLACEHOLDER_CEO_TEXT = /^(?:resumen breve del relevo[: ]|nombre del ceo saliente|nombre del ceo entrante|motivo declarado del relevo|cargo y periodo en el poder|de dónde viene: empresa, puesto y periodo|qué hizo en puestos directivos anteriores|qué ha dicho que va a hacer o qué prioridades ha anunciado|políticas y decisiones destacadas de su etapa|evolución de las ventas durante su mandato, con cifras|a dónde pasa el ceo saliente|empresa y puesto del que viene)/i;
+const PLACEHOLDER_EXECUTIVE_TEXT = /^(?:resumen breve del relevo[: ]|nombre del (?:ceo|directivo) saliente|nombre del (?:ceo|directivo) entrante|motivo declarado del relevo|cargo y periodo en el poder|de dónde viene: empresa, puesto y periodo|qué hizo en puestos directivos anteriores|qué ha dicho que va a hacer o qué prioridades ha anunciado|políticas y decisiones destacadas de su etapa|evolución de las ventas durante su mandato, con cifras|a dónde pasa el (?:ceo|directivo) saliente|empresa y puesto del que viene)/i;
 
 const REPURCHASE_MATERIALITY_PCT = 1;
 
@@ -19,7 +19,7 @@ function cleanReportText(value) {
   if (value == null) return null;
   const text = String(value).trim();
   if (!text || /^(null|undefined|n\/a|na|no consta|not disclosed)$/i.test(text)) return null;
-  if (PLACEHOLDER_CEO_TEXT.test(text)) return null;
+  if (PLACEHOLDER_EXECUTIVE_TEXT.test(text)) return null;
   return text;
 }
 
@@ -36,7 +36,7 @@ function pickReportField(aiValue, extractedValue) {
   return cleanReportText(aiValue) ?? cleanReportText(extractedValue) ?? null;
 }
 
-function mergeCeoPerson(aiPerson, extractedPerson, keys) {
+function mergeExecutivePerson(aiPerson, extractedPerson, keys) {
   const merged = {};
   keys.forEach((key) => {
     const value = pickReportField(aiPerson?.[key], extractedPerson?.[key]);
@@ -45,67 +45,118 @@ function mergeCeoPerson(aiPerson, extractedPerson, keys) {
   return Object.keys(merged).length ? merged : null;
 }
 
-function normalizeCeoSentiment(value) {
-  const text = String(value ?? '').toLowerCase();
-  if (!text) return null;
-  if (/positiv|favorable|buena|optimis|alcista/.test(text)) return 'positiva';
-  if (/negativ|desfavorable|mala|preocup|bajista/.test(text)) return 'negativa';
-  if (/mixt|neutr|tibia|ambig|ambivalente/.test(text)) return 'mixta';
-  return null;
+function normalizeExecutiveChange(aiChange, extractedChange) {
+  const oldExecutive = mergeExecutivePerson(aiChange?.oldExecutive ?? aiChange?.outgoingExecutive, extractedChange?.oldExecutive ?? extractedChange?.outgoingExecutive, ['name', 'role', 'tenureStart', 'whereTheyGo', 'salesDuringTenure', 'policies']);
+  const newExecutive = mergeExecutivePerson(aiChange?.newExecutive ?? aiChange?.incomingExecutive, extractedChange?.newExecutive ?? extractedChange?.incomingExecutive, ['name', 'origin', 'trackRecord', 'commitments']);
+  const text = cleanReportText(aiChange?.text)
+    || cleanReportText(aiChange?.description)
+    || cleanReportText(extractedChange?.text)
+    || cleanReportText(extractedChange?.description);
+  const occurred = extractedChange?.occurred === true
+    || aiChange?.occurred === true
+    || Boolean(oldExecutive?.name)
+    || Boolean(newExecutive?.name)
+    || Boolean(text)
+    || Boolean(aiChange?.role || extractedChange?.role);
+  if (!occurred) return null;
+
+  return {
+    role: pickReportField(aiChange?.role, extractedChange?.role) || 'Directivo',
+    text,
+    announcementDate: pickReportField(aiChange?.announcementDate, extractedChange?.announcementDate),
+    effectiveDate: pickReportField(aiChange?.effectiveDate, extractedChange?.effectiveDate),
+    reason: pickReportField(aiChange?.reason, extractedChange?.reason),
+    oldExecutive,
+    newExecutive,
+    source: pickReportField(aiChange?.source, extractedChange?.source) || 'SEC 10-K / 8-K',
+  };
 }
 
-export function processCeoChangeSection(conclusion, rawAnn) {
-  const extraction = rawAnn?.ceoChange ?? {};
-  const ai = conclusion.ceoChange ?? {};
+function sameExecutiveChange(aiChange, extractedChange) {
+  if (!aiChange || !extractedChange) return false;
+  const normalize = (value) => String(value ?? '').trim().toLowerCase();
+  const aiRole = normalize(aiChange.role);
+  const extractedRole = normalize(extractedChange.role);
+  if (aiRole && extractedRole) {
+    if (aiRole === extractedRole || aiRole.includes(extractedRole) || extractedRole.includes(aiRole)) return true;
+    if ((aiRole === 'ceo' || aiRole.includes('chief executive')) && (extractedRole === 'ceo' || extractedRole.includes('chief executive'))) return true;
+    if ((aiRole === 'cfo' || aiRole.includes('chief financial')) && (extractedRole === 'cfo' || extractedRole.includes('chief financial'))) return true;
+    if ((aiRole === 'coo' || aiRole.includes('chief operating')) && (extractedRole === 'coo' || extractedRole.includes('chief operating'))) return true;
+  }
+  const aiOldName = normalize(aiChange.oldExecutive?.name ?? aiChange.outgoingExecutive?.name);
+  const extractedOldName = normalize(extractedChange.oldExecutive?.name ?? extractedChange.outgoingExecutive?.name);
+  if (aiOldName && extractedOldName && (aiOldName === extractedOldName || aiOldName.includes(extractedOldName) || extractedOldName.includes(aiOldName))) return true;
+  const aiNewName = normalize(aiChange.newExecutive?.name ?? aiChange.incomingExecutive?.name);
+  const extractedNewName = normalize(extractedChange.newExecutive?.name ?? extractedChange.incomingExecutive?.name);
+  if (aiNewName && extractedNewName && (aiNewName === extractedNewName || aiNewName.includes(extractedNewName) || extractedNewName.includes(aiNewName))) return true;
+  return false;
+}
 
-  const oldCeo = mergeCeoPerson(ai.oldCeo, extraction.oldCeo, ['name', 'role', 'tenureStart', 'whereTheyGo', 'salesDuringTenure', 'policies']);
-  const newCeo = mergeCeoPerson(ai.newCeo, extraction.newCeo, ['name', 'origin', 'trackRecord', 'commitments']);
-  const text = cleanReportText(ai.text);
-  const occurred = extraction.occurred === true
-    || Boolean(oldCeo?.name)
-    || Boolean(newCeo?.name)
-    || Boolean(text);
-  if (!occurred) {
-    delete conclusion.ceoChange;
+export function processExecutiveChangesSection(conclusion, rawAnn) {
+  const extraction = Array.isArray(rawAnn?.executiveChanges) ? rawAnn.executiveChanges : [];
+  const ai = conclusion.executiveChanges ?? {};
+  let aiChanges = [];
+  if (Array.isArray(ai)) {
+    aiChanges = ai;
+  } else if (Array.isArray(ai.changes)) {
+    aiChanges = ai.changes;
+  } else if (ai.role || ai.text || ai.oldExecutive || ai.newExecutive) {
+    aiChanges = [ai];
+  } else if (conclusion.ceoChange) {
+    if (Array.isArray(conclusion.ceoChange.changes)) {
+      aiChanges = conclusion.ceoChange.changes;
+    } else if (Array.isArray(conclusion.ceoChange)) {
+      aiChanges = conclusion.ceoChange;
+    } else if (conclusion.ceoChange.role || conclusion.ceoChange.oldExecutive || conclusion.ceoChange.newExecutive) {
+      aiChanges = [conclusion.ceoChange];
+    }
+  }
+
+  const changes = [];
+  const usedAiIndexes = new Set();
+  extraction.forEach((extractedChange) => {
+    const aiIndex = aiChanges.findIndex((candidate, index) => !usedAiIndexes.has(index) && sameExecutiveChange(candidate, extractedChange));
+    if (aiIndex !== -1) usedAiIndexes.add(aiIndex);
+    const change = normalizeExecutiveChange(aiIndex !== -1 ? aiChanges[aiIndex] : null, extractedChange);
+    if (change) changes.push(change);
+  });
+  aiChanges.forEach((aiChange, index) => {
+    if (usedAiIndexes.has(index)) return;
+    const change = normalizeExecutiveChange(aiChange, null);
+    if (change) changes.push(change);
+  });
+
+  if (!changes.length) {
+    delete conclusion.executiveChanges;
     return;
   }
 
-  const marketSummary = pickReportField(ai.marketReaction?.summary, extraction.marketReaction?.summary);
-  const marketSentiment = normalizeCeoSentiment(pickReportField(ai.marketReaction?.sentiment, extraction.marketReaction?.sentiment));
-
-  const ceoChange = {
-    title: cleanReportText(ai.title) || 'Cambio de CEO',
-    text,
-    announcementDate: pickReportField(ai.announcementDate, extraction.announcementDate),
-    effectiveDate: pickReportField(ai.effectiveDate, extraction.effectiveDate),
-    reason: pickReportField(ai.reason, extraction.reason),
-    oldCeo,
-    newCeo,
-    marketReaction: (marketSentiment || marketSummary) ? { sentiment: marketSentiment, summary: marketSummary } : null,
-    source: pickReportField(ai.source, extraction.source),
-    disclaimer: CEO_CHANGE_DISCLAIMER,
+  conclusion.executiveChanges = {
+    title: cleanReportText(ai.title) || cleanReportText(conclusion.ceoChange?.title) || 'Cambios en la dirección',
+    changes,
+    disclaimer: EXECUTIVE_CHANGE_DISCLAIMER,
   };
-
-  if (!ceoChange.text && !ceoChange.oldCeo && !ceoChange.newCeo && !ceoChange.marketReaction) {
-    delete conclusion.ceoChange;
-    return;
-  }
-
-  conclusion.ceoChange = ceoChange;
 }
 
 export function processRepurchasesSection(conclusion, rawAnn, extracted) {
   conclusion.repurchases = conclusion.repurchases || {};
   const rep = conclusion.repurchases;
+  const extractionRep = rawAnn.repurchases ?? {};
   rep.title = rep.title || '1: Recompras';
   rep.text = rep.text || rawAnn.repurchasesNarrative || 'Detalle de los programas de recompras de acciones ejecutados durante el ejercicio.';
-  rep.programAuthorization = rep.programAuthorization || rawAnn.repurchaseProgramSummary || null;
-  rep.programRemaining = rep.programRemaining || rawAnn.repurchaseRemaining || null;
+  rep.programAuthorization = rep.programAuthorization
+    || rawAnn.repurchaseProgramSummary
+    || extractionRep.programSummary
+    || (extractionRep.programAuthorizedTotal ? `Autorización de ${extractionRep.programAuthorizedTotal}M` : null)
+    || null;
+  rep.programRemaining = rep.programRemaining
+    || rawAnn.repurchaseRemaining
+    || extractionRep.programRemaining
+    || null;
   rep.shareCountEvolution = rep.shareCountEvolution || null;
   rep.bpaImpact = rep.bpaImpact || null;
   rep.futureProjection = rep.futureProjection || null;
 
-  const extractionRep = rawAnn.repurchases ?? {};
   const currentAuthRemaining = rep.authorizationRemaining;
   if ((!currentAuthRemaining || isPlaceholderText(currentAuthRemaining)) && extractionRep.programRemaining != null && extractionRep.programRemaining !== '') {
     const remNum = Number(extractionRep.programRemaining);
@@ -175,8 +226,9 @@ export function processRepurchasesSection(conclusion, rawAnn, extracted) {
     );
   }
 
-  // Materialidad de las recompras: solo se muestra si son relevantes
-  // (>= 1 % del capital, programa nuevo o cancelado) o si faltan datos para calcularlo.
+  // Materialidad y preservación de recompras:
+  // Se conserva siempre que haya recompras ejecutadas, remanente autorizado, programa nuevo/modificado,
+  // tabla o narrativa específica. Solo se omite si la empresa no tuvo actividad alguna ni programa.
   const buybackCandidates = [];
   const factsBuybacks = Number(extracted.facts?.shareBuybacks);
   if (Number.isFinite(factsBuybacks) && factsBuybacks !== 0) buybackCandidates.push(Math.abs(factsBuybacks));
@@ -221,8 +273,30 @@ export function processRepurchasesSection(conclusion, rawAnn, extracted) {
   const hasProgramEvent = Boolean(newProgramText || cancelledProgramText || cleanReportText(rep.programChanges));
   const materialByShares = buybackPctOfShares != null && buybackPctOfShares >= REPURCHASE_MATERIALITY_PCT;
   const materialByFallback = buybackPctOfShares == null && maxBuyback != null && maxBuyback >= 50;
+  const hasRemainingAuth = Boolean(
+    (extractionRep.programRemaining != null && extractionRep.programRemaining !== '')
+    || (rep.programRemaining != null && rep.programRemaining !== '')
+    || (rep.authorizationRemaining && !isPlaceholderText(rep.authorizationRemaining))
+  );
+  const hasActiveBuybacks = (Number.isFinite(maxBuyback) && maxBuyback > 0)
+    || (Number.isFinite(sharesRepurchased) && sharesRepurchased > 0);
+  const hasSnippet = Boolean(rep.secSnippet && Array.isArray(rep.secSnippet.rows) && rep.secSnippet.rows.length > 0);
+  const hasCustomNarrative = Boolean(rep.text && !isPlaceholderText(rep.text) && !rep.text.startsWith('Detalle de los programas'));
+  const hasProgramAuth = Boolean(
+    (rep.programAuthorization && !isPlaceholderText(rep.programAuthorization))
+    || (extractionRep.programSummary && !isPlaceholderText(extractionRep.programSummary))
+  );
 
-  if (conclusion.repurchases && !hasProgramEvent && !materialByShares && !materialByFallback) {
+  const keepRepurchases = hasProgramEvent
+    || materialByShares
+    || materialByFallback
+    || hasRemainingAuth
+    || hasActiveBuybacks
+    || hasSnippet
+    || hasCustomNarrative
+    || hasProgramAuth;
+
+  if (conclusion.repurchases && !keepRepurchases) {
     delete conclusion.repurchases;
     return;
   }

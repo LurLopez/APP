@@ -7,19 +7,20 @@
 function toggleFullscreen(element) {
   if (!element) return;
   const isVal = element.id === 'val-chart-block' || element.classList.contains('val-chart-block');
+  const isMetrics = element.id === 'metrics-chart-block' || element.classList.contains('metrics-chart-block');
+  const rerenderTarget = () => {
+    if (isMetrics) {
+      if (typeof renderMetricsChart === 'function') renderMetricsChart();
+    } else if (isVal) {
+      renderValuationChart();
+    } else {
+      renderPriceChart();
+    }
+  };
   const rerender = () => {
-    requestAnimationFrame(() => {
-      if (isVal) renderValuationChart();
-      else renderPriceChart();
-    });
-    setTimeout(() => {
-      if (isVal) renderValuationChart();
-      else renderPriceChart();
-    }, 60);
-    setTimeout(() => {
-      if (isVal) renderValuationChart();
-      else renderPriceChart();
-    }, 180);
+    requestAnimationFrame(rerenderTarget);
+    setTimeout(rerenderTarget, 60);
+    setTimeout(rerenderTarget, 180);
   };
   if (document.fullscreenElement === element || element.classList.contains('is-fullscreen')) {
     if (document.fullscreenElement) {

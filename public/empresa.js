@@ -138,12 +138,17 @@ if (typeof ResizeObserver !== 'undefined') {
       if (chartBlock && !chartBlock.hidden && chartPoints && chartPoints.length) {
         renderPriceChart();
       }
+      if (typeof renderMetricsChart === 'function' && window.chartMetrics?.size) {
+        renderMetricsChart();
+      }
     }, 80);
   });
   const valBody = document.querySelector('#val-chart-body');
   if (valBody) chartRo.observe(valBody);
   const priceBody = document.querySelector('#chart-body');
   if (priceBody) chartRo.observe(priceBody);
+  const metricsBody = document.querySelector('#metrics-chart-body');
+  if (metricsBody) chartRo.observe(metricsBody);
 }
 
 /* ── Datos financieros (tablas) ─────────────────────────────── */

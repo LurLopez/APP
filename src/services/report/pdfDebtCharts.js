@@ -209,13 +209,12 @@ export function drawDebtRefinancingBox(doc, refinancing, y) {
   doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#9a3412').text(boxLabel, margin + 10, curY);
   curY += labelH + 6;
 
-  const possible = refinancing.possible === true;
   const badgeW = (boxWidth - 20) / 4;
   const badges = [
-    { label: possible ? 'Tipo deuda actual' : 'Tipo deuda anterior', val: refinancing.oldDebtRate != null ? `${refinancing.oldDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
-    { label: possible ? 'Posible tipo nueva emisión' : 'Tipo nueva emisión', val: refinancing.newDebtRate != null ? `${refinancing.newDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
-    { label: possible ? 'Volumen a refinanciar' : 'Volumen refinanciado', val: refinancing.amount != null ? `$${Math.round(refinancing.amount)}M` : '—' },
-    { label: possible ? 'Posible impacto en BPA' : 'Impacto en BPA', val: refinancing.epsImpact != null ? `${refinancing.epsImpact >= 0 ? '+' : ''}${refinancing.epsImpact.toFixed(2).replace('.', ',')} $/acc` : '—', highlight: true },
+    { label: 'Tipo deuda anterior', val: refinancing.oldDebtRate != null ? `${refinancing.oldDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
+    { label: 'Tipo nueva emisión', val: refinancing.newDebtRate != null ? `${refinancing.newDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
+    { label: 'Volumen refinanciado', val: refinancing.amount != null ? `$${Math.round(refinancing.amount)}M` : '—' },
+    { label: 'Impacto en BPA', val: refinancing.epsImpact != null ? `${refinancing.epsImpact >= 0 ? '+' : ''}${refinancing.epsImpact.toFixed(2).replace('.', ',')} $/acc` : '—', highlight: true },
   ];
 
   badges.forEach((b, idx) => {

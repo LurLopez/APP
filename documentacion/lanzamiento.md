@@ -88,6 +88,7 @@ Documento maestro con todo lo necesario para desplegar, configurar y optimizar l
     ```cron
     0 3 * * * /home/deploy/backup-db.sh
     ```
+  - **Ampliación en producción**: además de los dumps, el VPS crea cada día a las 03:30 un snapshot incremental de todo el servidor (código, `.env`, `uploads/`, configuración; retención 180 días) y el equipo local descarga solo los cambios a un repositorio `restic` cifrado y deduplicado con retención propia (30 diarios + 12 semanales + 12 mensuales). Detalles, coste de almacenamiento, contraseña y restauración en [`backup.md`](backup.md).
 
 ---
 

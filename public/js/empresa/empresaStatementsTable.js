@@ -87,8 +87,13 @@
     const dotColor = isSelected ? (chartMetrics.get(itemKey)?.color || '#4f46e5') : '';
     const dot = isSelected ? `<span class="metric-chart-dot" style="background:${dotColor}"></span>` : '';
 
+    const favoriteStatement = item.favoriteStatement || window.screenerStatement || '';
+    const favoriteButton = favoriteStatement
+      ? (window.EmpresaFavoriteMetrics?.favoriteButtonHtml?.(item, favoriteStatement) || '')
+      : '';
+
     const classAttr = rowClass ? ` class="${rowClass}"` : '';
-    return `<tr${classAttr} data-metric="${escapeHtml(item.label)}" data-chart-key="${escapeHtml(itemKey)}"><td class="sticky-col">${dot}${escapeHtml(item.label)}</td>${cellsHtml}</tr>`;
+    return `<tr${classAttr} data-metric="${escapeHtml(item.label)}" data-chart-key="${escapeHtml(itemKey)}"><td class="sticky-col">${favoriteButton}${dot}${escapeHtml(item.label)}</td>${cellsHtml}</tr>`;
   }
 
   function setupTableColumns(table, visibleIndexes) {
@@ -127,6 +132,16 @@
         } else if (typeof window.toggleChartMetric === 'function') {
           window.toggleChartMetric(item);
         }
+      });
+    });
+
+    table.querySelectorAll('tbody .metric-favorite-btn').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const statement = button.dataset.favoriteStatement || '';
+        const item = items.find((candidate) => candidate.key === button.dataset.favoriteKey);
+        if (item) window.EmpresaFavoriteMetrics?.toggleFavorite?.(item, statement);
       });
     });
   }

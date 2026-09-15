@@ -143,22 +143,28 @@
   }
 
   function renderDebtRefinancingCard(debt, report) {
-    if (!debt) return '';
+    if (!debt || debt.refinancing?.occurred !== true) return '';
     const oldRate = debt.refinancing?.oldDebtRate ?? null;
-    const newRate = debt.refinancing?.newDebtRate ?? debt.refinancing?.estimatedRefinancingRate ?? null;
-    const amount = debt.refinancing?.amountRefinanced ?? debt.refinancing?.nearTermMaturities ?? null;
+    const newRate = debt.refinancing?.newDebtRate ?? null;
+    const amount = debt.refinancing?.amountRefinanced ?? null;
 
-    if (!Number.isFinite(oldRate) && !Number.isFinite(newRate) && !debt.refinancingAnalysis && !debt.refinancingImpact) {
+    if (!Number.isFinite(oldRate) && !Number.isFinite(newRate) && !Number.isFinite(amount) && !debt.refinancingAnalysis && !debt.refinancingImpact) {
       return '';
     }
+
+    const epsImpact = Number(debt.refinancing?.epsImpact);
+    const epsBadge = Number.isFinite(epsImpact)
+      ? `<div class="annual-badge"><strong>Impacto en BPA:</strong> ${epsImpact >= 0 ? '+' : ''}${epsImpact.toFixed(2).replace('.', ',')} $/acc</div>`
+      : '';
 
     return `
       <div class="annual-calc-box" style="border-left-color:#ea580c;background:#fff7ed;">
         <strong style="color:#9a3412;">Refinanciación de deuda e impacto en BPA:</strong>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;">
-          <div class="annual-badge"><strong>Tipo anterior:</strong> ${oldRate != null ? `${oldRate.toFixed(2).replace('.', ',')} %` : '—'}</div>
+          <div class="annual-badge"><strong>Tipo deuda anterior:</strong> ${oldRate != null ? `${oldRate.toFixed(2).replace('.', ',')} %` : '—'}</div>
           <div class="annual-badge"><strong>Tipo nueva emisión:</strong> ${newRate != null ? `${newRate.toFixed(2).replace('.', ',')} %` : '—'}</div>
-          <div class="annual-badge"><strong>Volumen:</strong> ${amount != null ? `$${Math.round(amount)}M` : '—'}</div>
+          <div class="annual-badge"><strong>Volumen refinanciado:</strong> ${amount != null ? `$${Math.round(amount)}M` : '—'}</div>
+          ${epsBadge}
         </div>
         ${debt.refinancingAnalysis ? `<p>${formatAnnualRichText(debt.refinancingAnalysis)}</p>` : ''}
         ${debt.refinancingImpact ? `<p class="calc-impact" style="color:#9a3412;"><strong>Impacto en costes e intereses:</strong> ${formatAnnualRichText(debt.refinancingImpact)}</p>` : ''}

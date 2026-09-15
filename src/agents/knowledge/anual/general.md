@@ -21,7 +21,7 @@ INFORME ANUAL (FORM 10-K)
 │
 ├── PARTE II: CONCLUSIÓN E INDAGACIÓN A FONDO EN PUNTOS CRÍTICOS
 │   ├── 1. Recompras de Acciones (Share Repurchases) + Captura SEC obligatoria
-│   ├── (+) Cambio de CEO (justo después de Recompras, solo si aplica)
+│   ├── (+) Cambios en la dirección (justo después de Recompras, solo si aplica)
 │   ├── 2. Outlook y Perspectivas Futuras (Guidance) + Captura SEC obligatoria
 │   ├── 3. Deuda y Calendario de Vencimientos (Debt Maturity) + Captura SEC obligatoria
 │   ├── 4. Adquisiciones y Operaciones Corporativas (si existen)
@@ -102,8 +102,9 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
     $$\text{Desviación WC} = \text{WC}_{\text{reportado}} - \text{WK}_{\text{teórico}}$$
     $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - \text{Desviación WC}$$
   - **Regla de signos en la nota (obligatoria)**: la desviación conserva su signo y el ajuste se escribe como una resta explícita. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WK teórico (12,1M): -159,1M. El Cash Flow ajustado resta esa desviación: 1784,4M - (-159,1M) = 1943,5M.` Queda terminantemente prohibido escribir frases contradictorias como `ajuste de -159M (1784,4M + 159,1M)`.
-  - **Ajuste fiscal del Cash Flow**: Se compara lo que la empresa debería pagar en realidad (23 % sobre el EBT ajustado) frente a lo que consta que ha pagado en el estado de flujos (en la línea de efectivo pagado "Income tax (paid) received" / "Income taxes paid" o en la conciliación de impuestos diferidos). Si existe una discrepancia, se ajusta el Cash Flow en la columna Ajustado: si pagó menos de lo normalizado se resta la diferencia; si pagó más, se suma. Se añade la Nota `*2: Impuestos: ...` explicando cuántos impuestos debería haber pagado y cuánto ha pagado realmente.
-  - La nota explicativa al pie detalla minuciosamente ambos ajustes (circulante e impuestos).
+   - **Ajuste fiscal del Cash Flow**: Se compara lo que la empresa debería pagar en realidad (23 % sobre el EBT ajustado) frente a lo que consta que ha pagado en el estado de flujos (en la línea de efectivo pagado "Income tax (paid) received" / "Income taxes paid" o en la conciliación de impuestos diferidos). Si existe una discrepancia, se ajusta el Cash Flow en la columna Ajustado: si pagó menos de lo normalizado se resta la diferencia; si pagó más, se suma. Se añade la Nota `*2: Impuestos: ...` explicando cuántos impuestos debería haber pagado y cuánto ha pagado realmente.
+   - **Doble ajuste (circulante + impuestos)**: cuando se apliquen ambos ajustes, la Nota `*2` debe cerrar la cadena completa `Cash Flow Normal -> ajuste de circulante -> ajuste fiscal -> Cash Flow Ajustado`, mostrando CADA ajuste con su importe y su signo y aclarando si ambos se compensan. Ejemplo: `La cifra final combina los dos ajustes: 9415M -646,7M (circulante) +654,7M (impuestos) = 9423M; el efecto neto es de solo +8M porque ambos ajustes se cancelan en gran medida.` Queda prohibido dejar la impresión de que el ajuste fue irrelevante cuando hubo dos ajustes brutos grandes de signo opuesto.
+   - La nota explicativa al pie detalla minuciosamente ambos ajustes (circulante e impuestos).
 
 ---
 
@@ -115,9 +116,14 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
   3. `Recompras`: Desembolso en recompra de acciones propias (signo negativo `-`).
   4. `Desinversiones`: Cobros por venta de negocios, marcas o activos (signo positivo `+`).
   5. `Adquisiciones`: Pagos por compra de negocios o empresas (signo negativo `-`).
-  6. `Caja`: Variación de tesorería del balance de cierre anual (negativo `-` si la caja aumentó, positivo `+` si disminuyó).
-  7. `Deuda`: Variación de deuda total en balance durante el ejercicio (positivo `+` si la deuda creció, negativo `-` si se amortizó).
-  8. `En total`: Suma algebraica de todas las partidas.
+  6. `Efectivo restringido`: Variación del efectivo restringido / escrow / colateral (negativo `-` si aumenta, positivo `+` si disminuye). Es distinto de la fila `Caja`, que solo recoge el efectivo no restringido del balance. Fila obligatoria si la variación es $\ge 50\text{M}$.
+  7. `Emisión de preferentes` y `Venta de participaciones`: fuentes de capital (signo positivo `+`) por emisión de preferentes o venta de participaciones no controladoras; cada fila si es $\ge 50\text{M}$.
+  8. `Deuda asumida (no-cash)`: parte del aumento de deuda del balance que no supone entrada de caja (deuda asumida en una compra), con signo negativo `-` ($\ge 50\text{M}$), para que la fila `Deuda` refleje solo la deuda con caja.
+  9. `Caja`: Variación de tesorería del balance de cierre anual (negativo `-` si la caja aumentó, positivo `+` si disminuyó).
+  10. `Deuda`: Variación de deuda total en balance durante el ejercicio (positivo `+` si la deuda creció, negativo `-` si se amortizó).
+  11. `En total`: Suma algebraica de todas las partidas.
+
+- **Movimientos no monetarios y reclasificaciones (obligatorio)**: además de las partidas anteriores, se mapean siempre las variaciones que no suponen entrada o salida real de caja y que rompen el cuadre: efectivo restringido/escrow de adquisiciones o colaterales (fila `Efectivo restringido`), deuda asumida en compras (fila `Deuda asumida (no-cash)`), efecto divisa sobre la caja y reclasificaciones entre caja e inversiones a corto plazo detectadas en las notas. Si tras mapearlas el `En total` sigue descuadrado, la verificación indica el importe exacto del desfase y que corresponde a movimientos no monetarios o reclasificaciones a revisar en las notas de flujos y balance; nunca se deja el descuadre sin cifra ni sin explicación, ni se oculta con una fila genérica sin desglose.
 
 - **Nota Obligatoria de Deuda y Caja (balance)**:
   - Toda tabla anual debe incluir la nota con el formato exacto:
@@ -126,6 +132,7 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
 
 - **Veredicto Analítico de Cuadre**:
   - Al pie se emite el veredicto con criterio profesional (ej. *"No cuadra del todo, pero más o menos ha gastado todo lo que estaba libre en recompras."* o *"El resultado cuadra razonablemente."*).
+  - Si el descuadre supera el umbral (máximo de 50M, 20 % del capital Libre y 10 % de la suma bruta de movimientos), el veredicto debe incluir el importe exacto del desfase y señalar que corresponde a movimientos no monetarios o reclasificaciones de balance (efectivo restringido, efecto divisa en caja, deuda asumida en compras, reclasificaciones caja/inversiones) a revisar en las notas de flujos y balance del 10-K.
 
 ---
 
@@ -295,7 +302,7 @@ Por lo tanto, cosas a tener en cuenta en 2026:
 
 Además de los puntos canónicos 1-4, la Parte II incorpora —siempre **después de Adquisiciones y antes de la Watchlist**— cualquier punto crítico que aparezca con materialidad en el 10-K (umbral de referencia: **≥ 50 M$** o relevancia estratégica, mismo criterio que en la Asignación de Capital). Si un punto no aplica, simplemente no aparece; la Watchlist cierra siempre la Parte II.
 
-**Excepción de posición**: el **Cambio de CEO (6.9)** es un punto propio que se coloca **inmediatamente después de Recompras**, antes de Outlook, por su relevancia estratégica. El resto de puntos condicionales (6.1–6.8) van después de Adquisiciones.
+**Excepción de posición**: los **Cambios en la dirección (6.9)** son un punto propio que se coloca **inmediatamente después de Recompras**, antes de Outlook, por su relevancia estratégica. El resto de puntos condicionales (6.1–6.8) van después de Adquisiciones.
 
 - **6.1 Dividendos**: evolución del dividendo por acción y del total pagado, política de payout, cobertura por FCF, racha de años consecutivos de subida (o recortes) y dividendo extraordinario si existe.
 - **6.2 Desinversiones / venta de marcas o negocios**: aplicando la regla 6 trimestral portada al ejercicio anual (beneficio estimado del negocio vendido, PER implícito, comparación de márgenes, juicio sobre la operación e impacto en caja).
@@ -305,12 +312,11 @@ Además de los puntos canónicos 1-4, la Parte II incorpora —siempre **despué
 - **6.6 Impuestos**: tipo efectivo anómalo, controversias fiscales abiertas (ej. disputa con el IRS) y su exposición potencial en caja.
 - **6.7 Pensiones / OPEB**: estado de financiación del plan, déficit o aportaciones relevantes cuando el 10-K las señala.
 - **6.8 Concentración de clientes y cadena de suministro**: clientes que suponen > 10 % de las ventas (ej. Walmart) y dependencias críticas de suministro manifestadas en el filing.
-- **6.9 Cambio de CEO / dirección**: si durante el ejercicio (o anunciado para el siguiente) hay relevo en el CEO:
-  - **Antiguo CEO**: quién era (nombre, cargo y periodo en el poder), cómo evolucionaron las ventas durante su mandato (cifras y variación porcentual), qué políticas implementó (reestructuraciones, adquisiciones o desinversiones, dividendos, recompras, cambios de estrategia o de cartera de marcas) y a dónde pasa ahora (jubilación, presidencia del consejo, otra compañía; si no consta, se indica "No consta").
-  - **Nuevo CEO**: nombre, de dónde viene (empresa, puesto y periodo), qué ha hecho en puestos directivos anteriores (con fechas y resultados concretos: evolución de ventas y márgenes, reestructuraciones, recuperaciones; ejemplo de estilo: "fue directivo de HRL entre 2015 y 2017, cuando la compañía estaba estancada y los márgenes empeoraban; ejecutó una reestructuración que recuperó parcialmente los márgenes y logró que las ventas crecieran en línea con la inflación") y qué ha dicho que va a hacer (compromisos y prioridades anunciadas).
-  - **Reacción del mercado**: si la noticia se recibió de forma positiva, negativa o mixta y los argumentos esgrimidos a favor o en contra. Si el sistema aporta la variación real de la cotización en torno al anuncio, se usa esa cifra como dato objetivo.
+- **6.9 Cambios en la dirección (CEO, CFO u otro directivo de primer nivel)**: si durante el ejercicio (o anunciado para el siguiente) hay relevo en el CEO, el CFO (director financiero), el COO (director de operaciones), el presidente u otro directivo de primer nivel:
+  - **Directivo saliente**: quién era (nombre, cargo y periodo en el poder), cómo evolucionaron las ventas durante su mandato (cifras y variación porcentual), qué políticas implementó (reestructuraciones, adquisiciones o desinversiones, dividendos, recompras, cambios de estrategia o de cartera de marcas) y a dónde pasa ahora (jubilación, presidencia del consejo, otra compañía; si no consta, se indica "No consta").
+  - **Directivo entrante**: nombre, de dónde viene (empresa, puesto y periodo), qué ha hecho en puestos directivos anteriores (con fechas y resultados concretos: evolución de ventas y márgenes, reestructuraciones, recuperaciones; ejemplo de estilo: "fue directivo de HRL entre 2015 y 2017, cuando la compañía estaba estancada y los márgenes empeoraban; ejecutó una reestructuración que recuperó parcialmente los márgenes y logró que las ventas crecieran en línea con la inflación") y qué ha dicho que va a hacer (compromisos y prioridades anunciadas).
   - Contexto del relevo: sucesión planificada, dimisión, despido o salto a otra compañía; costes asociados observables (*severance*) si constan.
-  - **Fuentes y honestidad**: los hechos del filing tienen prioridad. Para la trayectoria del directivo y la reacción del mercado se permite información pública general y conocida, pero queda prohibido inventar nombres, fechas, cifras o reacciones; si no hay información fiable, se indica "No se dispone de información pública verificada".
+  - **Fuentes y honestidad**: los hechos del filing tienen prioridad. Para la trayectoria del directivo se permite información pública general y conocida, pero queda prohibido inventar nombres, fechas o cifras; si no hay información fiable, se indica "No se dispone de información pública verificada".
   - Juicio breve del analista (positivo/negativo/neutro) fundamentado en los hechos; prohibido especular sobre resultados futuros de la compañía.
   - Si no hubo cambios relevantes, este punto no aparece.
 

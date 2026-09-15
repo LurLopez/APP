@@ -34,6 +34,9 @@ for (const concept of CONCEPTS) {
 const INSTANCE_ONLY_TAGS = {
   CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents: ['cash'],
   CashAndCashEquivalentsAtCarryingValueIncludingDiscontinuedOperations: ['cash'],
+  CashCashEquivalentsAndShortTermInvestments: ['cash', 'cashAndShortTermInvestments'],
+  Cash: ['cash'],
+  CashEquivalentsAtCarryingValue: ['cash'],
 };
 
 export function parseInstanceFacts(xml) {

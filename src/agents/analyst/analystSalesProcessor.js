@@ -30,10 +30,33 @@ export function normalizeSalesBlock(horizon, extracted) {
       return null;
     })();
 
+    // Fallbacks entre métricas de la cuenta de resultados si alguna falta
+    const resolveReportedMetric = (rep) => {
+      if (!reportedKey || rep == null) return null;
+      if (rep[reportedKey] != null) return rep[reportedKey];
+      if (reportedKey === 'grossProfit') {
+        if (rep.sales != null && rep.cogs != null) return Number(rep.sales) - Number(rep.cogs);
+        if (rep.sales != null) return rep.sales;
+      }
+      if (reportedKey === 'operatingIncome') {
+        if (rep.ebt != null) return rep.ebt;
+        if (rep.grossProfit != null && rep.operatingExpenses != null) return Number(rep.grossProfit) - Number(rep.operatingExpenses);
+      }
+      if (reportedKey === 'ebt') {
+        if (rep.operatingIncome != null) return rep.operatingIncome;
+        if (rep.netIncome != null) return rep.netIncome;
+      }
+      if (reportedKey === 'netIncome') {
+        if (rep.ebt != null) return rep.ebt;
+        if (rep.operatingIncome != null) return rep.operatingIncome;
+      }
+      return null;
+    };
+
     if (reportedKey) {
       const formatReported = (val) => (Number.isFinite(Number(val)) ? `${formatFinancialValue(Number(val))}M` : null);
-      const normalFill = formatReported(reported[reportedKey]);
-      const prevFill = formatReported(reportedPrev[reportedKey]);
+      const normalFill = formatReported(resolveReportedMetric(reported));
+      const prevFill = formatReported(resolveReportedMetric(reportedPrev));
       if (normalFill && (!row.normal || row.normal === '—')) row.normal = normalFill;
       if (prevFill) {
         const officialPrev = parseFinancialValue(prevFill);

@@ -159,6 +159,28 @@ CREATE INDEX IF NOT EXISTS idx_watchlists_user ON watchlists (user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_items_watchlist ON watchlist_items (watchlist_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_items_ticker ON watchlist_items (ticker);
 
+CREATE TABLE IF NOT EXISTS user_metric_favorites (
+    id         SERIAL PRIMARY KEY,
+    user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    statement  TEXT NOT NULL CHECK (statement IN ('income', 'balance', 'cashflow')),
+    metric_key TEXT NOT NULL,
+    label      TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, statement, metric_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_metric_favorites_user ON user_metric_favorites (user_id);
+
+CREATE TABLE IF NOT EXISTS user_hidden_chart_series (
+    id         SERIAL PRIMARY KEY,
+    user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    series_id  TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, series_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_hidden_chart_series_user ON user_hidden_chart_series (user_id);
+
 CREATE TABLE IF NOT EXISTS user_calendar_tickers (
     id           SERIAL PRIMARY KEY,
     user_id      INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

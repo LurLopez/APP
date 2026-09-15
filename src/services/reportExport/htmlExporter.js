@@ -6,7 +6,6 @@
 import { escapeHtml, parseRichSegments, COLORS } from './exportColors.js';
 import { buildDebtRefinancingBadges } from './debtHistoryRefinancingModel.js';
 import { buildReportModel } from './reportModel.js';
-import { ceoMarketDataText } from './ceoText.js';
 import {
   renderHtmlSharesChart,
   renderHtmlDebtMaturityChart,
@@ -62,7 +61,7 @@ export function renderHtmlRefinancingBox(refinancing) {
     </div>`;
 }
 
-function renderCeoPersonHtml(label, person) {
+function renderExecutivePersonHtml(label, person) {
   if (!person) return '';
   const fields = [
     ['Inicio en el cargo', person.tenureStart],
@@ -81,42 +80,37 @@ function renderCeoPersonHtml(label, person) {
   </div>`;
 }
 
-function renderCeoChangeBox(ceo) {
-  if (!ceo || typeof ceo !== 'object') return '';
-  const sentiment = String(ceo.marketReaction?.sentiment || '').toLowerCase();
-  const marketBg = sentiment === 'positiva' ? '#ecfdf5' : (sentiment === 'negativa' ? '#fef2f2' : '#fffbeb');
-  const marketBorder = sentiment === 'positiva' ? '#bbf7d0' : (sentiment === 'negativa' ? '#fecaca' : '#fde68a');
-  const marketLabel = sentiment === 'positiva' ? '#15803d' : (sentiment === 'negativa' ? '#dc2626' : '#b45309');
-
+function renderExecutiveChangeHtml(change) {
+  if (!change || typeof change !== 'object') return '';
+  const roleLabel = String(change.role || 'Directivo').toUpperCase();
   const meta = [
-    ceo.announcementDate ? `Anuncio: <strong>${escapeHtml(String(ceo.announcementDate))}</strong>` : '',
-    ceo.effectiveDate ? `Efectivo: <strong>${escapeHtml(String(ceo.effectiveDate))}</strong>` : '',
-    ceo.reason ? `Motivo: <strong>${escapeHtml(String(ceo.reason))}</strong>` : '',
+    change.announcementDate ? `Anuncio: <strong>${escapeHtml(String(change.announcementDate))}</strong>` : '',
+    change.effectiveDate ? `Efectivo: <strong>${escapeHtml(String(change.effectiveDate))}</strong>` : '',
+    change.reason ? `Motivo: <strong>${escapeHtml(String(change.reason))}</strong>` : '',
   ].filter(Boolean);
   const blocks = [
-    renderCeoPersonHtml('ANTIGUO CEO', ceo.oldCeo),
-    renderCeoPersonHtml('NUEVO CEO', ceo.newCeo),
+    renderExecutivePersonHtml(`ANTIGUO ${roleLabel}`, change.oldExecutive),
+    renderExecutivePersonHtml(`NUEVO ${roleLabel}`, change.newExecutive),
   ].filter(Boolean);
 
-  const marketSummary = ceo.marketReaction?.summary
-    ? `<p style="font-size:8.5pt;line-height:1.45;margin:3pt 0 0;color:#374151;">${renderRichHtml(ceo.marketReaction.summary)}</p>`
-    : '';
-  const marketData = ceo.marketData ? ceoMarketDataText(ceo.marketData) : '';
-  const marketDataHtml = marketData
-    ? `<p style="font-size:7.5pt;line-height:1.4;margin:4pt 0 0;color:#64748b;font-style:italic;">${escapeHtml(marketData)}</p>`
-    : '';
-  const market = (marketSummary || marketDataHtml)
-    ? `<div style="margin:6pt 0 0;background:${marketBg};border:1px solid ${marketBorder};border-radius:5px;padding:7pt 9pt;">
-        <div style="font-size:7pt;font-weight:800;letter-spacing:0.4pt;text-transform:uppercase;color:${marketLabel};">Reacción del mercado${ceo.marketReaction?.sentiment ? ` · ${escapeHtml(String(ceo.marketReaction.sentiment))}` : ''}</div>
-        ${marketSummary}${marketDataHtml}
-      </div>`
-    : '';
-
   return `
+    ${change.text ? `<p style="font-size:9pt;line-height:1.5;margin:4pt 0 2pt;color:#374151;">${renderRichHtml(change.text)}</p>` : ''}
     ${meta.length ? `<div style="font-size:8pt;color:#854d0e;margin:4pt 0 2pt;">${meta.map((m) => `• ${m}`).join('&nbsp;&nbsp;&nbsp;')}</div>` : ''}
     ${blocks.length ? `<div style="display:flex;gap:8pt;flex-wrap:wrap;margin:6pt 0;">${blocks.join('')}</div>` : ''}
-    ${market}
-    ${ceo.disclaimer ? `<p style="font-size:7pt;font-style:italic;color:#94a3b8;margin:6pt 0 0;">${escapeHtml(ceo.disclaimer)}</p>` : ''}
+  `;
+}
+
+function renderExecutiveChangesBox(section) {
+  const changes = Array.isArray(section?.changes) ? section.changes : [];
+  if (!changes.length) return '';
+  const body = changes
+    .map((change, index) => `<div style="${index > 0 ? 'margin-top:8pt;border-top:1px solid #e2e8f0;padding-top:6pt;' : ''}">
+      ${changes.length > 1 ? `<div style="font-size:7.5pt;font-weight:800;letter-spacing:0.3pt;text-transform:uppercase;color:#4f46e5;">${escapeHtml(String(change.role || 'Directivo'))}</div>` : ''}
+      ${renderExecutiveChangeHtml(change)}
+    </div>`)
+    .join('');
+  return `${body}
+    ${section.disclaimer ? `<p style="font-size:7pt;font-style:italic;color:#94a3b8;margin:6pt 0 0;">${escapeHtml(section.disclaimer)}</p>` : ''}
   `;
 }
 
@@ -130,7 +124,7 @@ function renderConclusionHtml(conclusion) {
     <div style="border:1px solid ${COLORS.rule};border-radius:6px;padding:10pt 12pt;margin-bottom:12pt;background:#fff;${cardIndex > 0 ? 'page-break-before:always;' : ''}">
       <h3 style="margin:0 0 6pt;font-size:11pt;color:${COLORS.ink};">${escapeHtml(card.title)}</h3>
       ${card.text ? `<p style="font-size:9pt;line-height:1.5;margin:4pt 0 8pt;color:#374151;">${renderRichHtml(card.text)}</p>` : ''}
-      ${card.ceoChange ? renderCeoChangeBox(card.ceoChange) : ''}
+      ${card.executiveChanges ? renderExecutiveChangesBox(card.executiveChanges) : ''}
       ${card.badges?.length ? `<ul style="font-size:8.5pt;color:#854d0e;padding-left:14pt;margin:4pt 0 8pt;">${card.badges.map((b) => `<li>${renderRichHtml(b)}</li>`).join('')}</ul>` : ''}
       ${card.chart ? renderHtmlSharesChart(card.chart) : ''}
       ${card.debtMaturityChart ? renderHtmlDebtMaturityChart(card.debtMaturityChart) : ''}

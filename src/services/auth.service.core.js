@@ -4,6 +4,7 @@
 
 import bcrypt from 'bcryptjs';
 import { createUser, createGoogleUser, findUserByEmail, findUserByGoogleId, findUserByUsername, linkGoogleAccount, markEmailVerified, updatePassword, updateUsername } from '../../db/repositories/userRepository.js';
+import { seedDefaultMetricFavorites } from '../../db/repositories/metricFavoriteRepository.js';
 import { normalizeEmail, isValidEmail, isValidPassword } from '../utils/validate.js';
 import { emailServiceEnabled } from './email.service.js';
 import { issueVerificationCode, issuePasswordResetCode, validateAndConsumeCode } from './auth/verificationCode.service.js';
@@ -30,6 +31,21 @@ export function toPublicUser(user) {
 
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync('cifra-timing-equalizer', SALT_ROUNDS);
 
+/**
+ * Crea las métricas favoritas por defecto de una cuenta recién creada sin
+ * interrumpir el registro si la inserción falla.
+ * @private
+ * @param {number} userId - Identificador del usuario.
+ * @returns {Promise<void>}
+ */
+async function applyDefaultMetricFavorites(userId) {
+  try {
+    await seedDefaultMetricFavorites(userId);
+  } catch (error) {
+    console.error('[auth:default-favorites]', error.message);
+  }
+}
+
 export async function register({ email, password }) {
   const normalizedEmail = normalizeEmail(email);
 
@@ -54,6 +70,7 @@ export async function register({ email, password }) {
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
   const user = await createUser({ email: normalizedEmail, passwordHash });
+  await applyDefaultMetricFavorites(user.id);
   await issueVerificationCode(user);
 
   return toPublicUser(user);
@@ -165,6 +182,7 @@ export async function loginOrRegisterGoogle({ googleId, email }) {
   }
 
   user = await createGoogleUser({ email: normalizedEmail, googleId });
+  await applyDefaultMetricFavorites(user.id);
   return toPublicUser(user);
 }
 

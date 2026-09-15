@@ -23,6 +23,11 @@ Object.defineProperty(window, 'screenerSeries', {
   set: (v) => { screenerSeries = v; },
   configurable: true,
 });
+Object.defineProperty(window, 'screenerStatement', {
+  get: () => screenerStatement,
+  set: (v) => { screenerStatement = v; },
+  configurable: true,
+});
 Object.defineProperty(window, 'screenerPrecision', {
   get: () => screenerPrecision,
   set: (v) => { screenerPrecision = v; },

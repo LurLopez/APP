@@ -112,14 +112,11 @@ export function buildDebtHistoryTable(chart) {
  * @returns {object|null} Datos numéricos de tipos, delta de intereses e impacto por acción.
  */
 export function buildDebtRefinancingModel(debt, report) {
-  if (!debt) return null;
+  if (!debt || debt.refinancing?.occurred !== true) return null;
   let oldDebtRate = debt.refinancing?.oldDebtRate ?? null;
-  let newDebtRate = debt.refinancing?.newDebtRate ?? debt.refinancing?.estimatedRefinancingRate ?? null;
-  let amount = debt.refinancing?.amountRefinanced ?? debt.refinancing?.nearTermMaturities ?? null;
+  let newDebtRate = debt.refinancing?.newDebtRate ?? null;
+  let amount = debt.refinancing?.amountRefinanced ?? null;
   const narrative = `${debt.refinancingAnalysis || ''} ${debt.refinancingImpact || ''} ${debt.text || ''}`;
-  const refinancingOccurred = debt.refinancing?.occurred === true;
-  const possible = debt.refinancing?.occurred === false
-    || (!refinancingOccurred && /posible|estimad|evaluando|si (?:la compa[ñn][íi]a )?refinancia|sin decisi[oó]n|podr[íi]a|alternativas|previsi[oó]n|prev[eé]\b/i.test(narrative));
 
   const parseLocaleNumber = (raw) => {
     let s = String(raw ?? '').trim();
@@ -128,26 +125,6 @@ export function buildDebtRefinancingModel(debt, report) {
     const n = parseFloat(s);
     return Number.isFinite(n) ? n : null;
   };
-
-  const scheduleEntries = Array.isArray(debt.maturitySchedule) ? debt.maturitySchedule : [];
-  const scheduleItems = scheduleEntries.flatMap((entry) => {
-    if (Array.isArray(entry?.items) && entry.items.length) {
-      return entry.items.map((item) => ({ ...item, year: Number(entry.year) }));
-    }
-    return [{ ...entry, year: Number(entry?.year) }];
-  }).filter((item) => Number.isFinite(item.year) && Number.isFinite(parseSecNumber(item.amount)) && parseSecNumber(item.amount) > 0);
-
-  const firstMaturityYear = scheduleItems.reduce((min, item) => Math.min(min, item.year), Infinity);
-  const firstYearItems = scheduleItems.filter((item) => item.year === firstMaturityYear);
-  const firstYearRated = firstYearItems.filter((item) => {
-    const rate = parseSecNumber(item.interestRate ?? item.rate);
-    return Number.isFinite(rate) && rate > 0;
-  });
-  const firstYearRatedAmount = firstYearRated.reduce((sum, item) => sum + parseSecNumber(item.amount), 0);
-  const firstYearWeightedRate = firstYearRatedAmount > 0
-    ? firstYearRated.reduce((sum, item) => sum + parseSecNumber(item.amount) * parseSecNumber(item.interestRate ?? item.rate), 0) / firstYearRatedAmount
-    : null;
-  const firstYearAmount = firstYearItems.reduce((sum, item) => sum + parseSecNumber(item.amount), 0);
 
   if (oldDebtRate == null) {
     const m = narrative.match(/(?:tipo anterior|antigua|vencida|vendida|retirada|emisi[oó]n original|original(?:es)?|devengaba|pagaba|alrededor del|al)[^.%]{0,60}?(\d+(?:[.,]\d+)?)\s*%/i);
@@ -163,12 +140,6 @@ export function buildDebtRefinancingModel(debt, report) {
       const parsed = parseLocaleNumber(m[1]);
       if (parsed != null) amount = /mil millones|B\b/i.test(m[0]) ? parsed * 1000 : parsed;
     }
-  }
-  if (amount == null && possible && Number.isFinite(firstYearAmount) && firstYearAmount > 0) {
-    amount = Math.round(firstYearAmount * 10) / 10;
-  }
-  if (possible && firstYearWeightedRate != null) {
-    oldDebtRate = Math.round(firstYearWeightedRate * 100) / 100;
   }
 
   let shares = null;
@@ -199,18 +170,26 @@ export function buildDebtRefinancingModel(debt, report) {
 
   if (epsImpact != null) {
     const absEps = Math.abs(epsImpact).toFixed(2).replace('.', ',');
-    if (possible) {
-      epsText = epsImpact < 0
-        ? `posible impacto en el BPA de **-${absEps} $/acción** por el sobrecoste neto de intereses tras impuestos`
-        : `posible impacto favorable en el BPA de **+${absEps} $/acción**`;
-    } else {
-      epsText = epsImpact < 0
-        ? `los nuevos costes suben reduciendo en torno a **${absEps} $/acción** el BPA (impacto: **-${absEps} $/acc**)`
-        : `los nuevos costes bajan en torno a **${absEps} $/acción** (impacto favorable en el BPA de **+${absEps} $/acc**)`;
-    }
+    epsText = epsImpact < 0
+      ? `los nuevos costes suben reduciendo en torno a **${absEps} $/acción** el BPA (impacto: **-${absEps} $/acc**)`
+      : `los nuevos costes bajan en torno a **${absEps} $/acción** (impacto favorable en el BPA de **+${absEps} $/acc**)`;
   }
 
-  const hasData = Number.isFinite(oldDebtRate) || Number.isFinite(newDebtRate) || debt.refinancingAnalysis || debt.refinancingImpact;
+  const reportedInterestImpact = Number(debt.refinancing?.annualInterestImpact);
+  if (interestDelta == null && Number.isFinite(reportedInterestImpact)) {
+    interestDelta = Math.round(reportedInterestImpact * 10) / 10;
+  }
+
+  const reportedEpsImpact = Number(debt.refinancing?.epsImpact);
+  if (epsImpact == null && Number.isFinite(reportedEpsImpact)) {
+    epsImpact = Math.round(reportedEpsImpact * 100) / 100;
+    const absEps = Math.abs(epsImpact).toFixed(2).replace('.', ',');
+    epsText = epsImpact < 0
+      ? `impacto en el BPA de **-${absEps} $/acción** según el informe`
+      : `impacto favorable en el BPA de **+${absEps} $/acción** según el informe`;
+  }
+
+  const hasData = Number.isFinite(oldDebtRate) || Number.isFinite(newDebtRate) || Number.isFinite(amount) || Number.isFinite(epsImpact) || debt.refinancingAnalysis || debt.refinancingImpact;
   if (!hasData) return null;
 
   return {
@@ -222,9 +201,8 @@ export function buildDebtRefinancingModel(debt, report) {
     shares,
     epsImpact,
     epsText,
-    possible,
     badge: (oldDebtRate != null && newDebtRate != null)
-      ? `${possible ? 'Posible refinanciación' : 'Refinanciación'}: deuda ${possible ? 'actual' : 'vendida/vencida'} al **${oldDebtRate.toFixed(2).replace('.', ',')} %** vs ${possible ? 'posible nueva emisión' : 'nueva emitida'} al **${newDebtRate.toFixed(2).replace('.', ',')} %**${epsText ? ` · ${epsText}` : ''}`
+      ? `Refinanciación: deuda vendida/vencida al **${oldDebtRate.toFixed(2).replace('.', ',')} %** vs nueva emitida al **${newDebtRate.toFixed(2).replace('.', ',')} %**${epsText ? ` · ${epsText}` : ''}`
       : null,
     explanation: debt.refinancingAnalysis || null,
     impactExplanation: debt.refinancingImpact || null,
@@ -238,13 +216,12 @@ export function buildDebtRefinancingModel(debt, report) {
  */
 export function buildDebtRefinancingBadges(refinancing) {
   if (!refinancing) return [];
-  const possible = refinancing.possible === true;
   return [
-    { label: possible ? 'Tipo deuda actual' : 'Tipo deuda anterior', val: refinancing.oldDebtRate != null ? `${refinancing.oldDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
-    { label: possible ? 'Posible tipo nueva emisión' : 'Tipo nueva emisión', val: refinancing.newDebtRate != null ? `${refinancing.newDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
-    { label: possible ? 'Volumen a refinanciar' : 'Volumen refinanciado', val: refinancing.amount != null ? `$${Math.round(refinancing.amount)}M` : '—' },
+    { label: 'Tipo deuda anterior', val: refinancing.oldDebtRate != null ? `${refinancing.oldDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
+    { label: 'Tipo nueva emisión', val: refinancing.newDebtRate != null ? `${refinancing.newDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
+    { label: 'Volumen refinanciado', val: refinancing.amount != null ? `$${Math.round(refinancing.amount)}M` : '—' },
     {
-      label: possible ? 'Posible impacto en BPA' : 'Impacto en BPA',
+      label: 'Impacto en BPA',
       val: refinancing.epsImpact != null ? `${refinancing.epsImpact >= 0 ? '+' : ''}${refinancing.epsImpact.toFixed(2).replace('.', ',')} $/acc` : '—',
       highlight: true,
     },

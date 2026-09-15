@@ -190,10 +190,12 @@ export function buildWorkingCapitalDataFallback(extracted) {
   const inv = Number(balance.inventories);
   const pay = Number(balance.accountsPayable);
   const rec = Number(balance.accountsReceivable ?? 0);
-  const cfo = Number(extracted.cashFlow?.operating);
-  const capex = extracted.cashFlow?.capex != null ? Math.abs(Number(extracted.cashFlow.capex)) : NaN;
-  const dividends = extracted.cashFlow?.dividends != null ? Math.abs(Number(extracted.cashFlow.dividends)) : NaN;
-  if (![cfo, capex].every(Number.isFinite)) return null;
+  const cfo = Number(extracted.cashFlow?.operating ?? extracted.facts?.cfo ?? extracted.facts?.operatingCashFlow ?? extracted.ytd?.cfo ?? extracted.quarter?.cfo);
+  const rawCapex = extracted.cashFlow?.capex ?? extracted.facts?.capex;
+  const capex = rawCapex != null && Number.isFinite(Number(rawCapex)) ? Math.abs(Number(rawCapex)) : 0;
+  const rawDividends = extracted.cashFlow?.dividends ?? extracted.facts?.dividends ?? extracted.facts?.dividendsCommon;
+  const dividends = rawDividends != null && Number.isFinite(Number(rawDividends)) ? Math.abs(Number(rawDividends)) : NaN;
+  if (!Number.isFinite(cfo)) return null;
 
   const inflation = Number.isFinite(Number(wc.inflationRate)) ? Number(wc.inflationRate) : 3;
   const volume = Number.isFinite(Number(wc.volumeGrowth)) ? Number(wc.volumeGrowth) : 0;
@@ -211,13 +213,14 @@ export function buildWorkingCapitalDataFallback(extracted) {
   const fcfAdj = Math.round((cfoAdjYtd - capex) * 10) / 10;
   const shares = Number(extracted.shares);
   const format = (value) => Number.isFinite(value) ? String(Math.round(value * 100) / 100).replace('.', ',') : null;
+  const effectiveDividends = Number.isFinite(dividends) ? dividends : 0;
   const ytdValues = {
     cfo: [format(cfo), format(cfoAdjYtd)],
     capex: [format(capex), format(capex)],
     fcf: [format(fcf), format(fcfAdj)],
     fcfPerShare: [Number.isFinite(shares) && shares ? `${(fcf / shares).toFixed(2).replace('.', ',')} $` : null, Number.isFinite(shares) && shares ? `${(fcfAdj / shares).toFixed(2).replace('.', ',')} $` : null],
-    dividends: [Number.isFinite(dividends) ? format(dividends) : null, Number.isFinite(dividends) ? format(dividends) : null],
-    libre: [Number.isFinite(dividends) ? format(fcf - dividends) : null, Number.isFinite(dividends) ? format(fcfAdj - dividends) : null],
+    dividends: [Number.isFinite(dividends) ? format(dividends) : '0', Number.isFinite(dividends) ? format(dividends) : '0'],
+    libre: [format(fcf - effectiveDividends), format(fcfAdj - effectiveDividends)],
   };
   const result = {
     ytdScenarios: [`Normal (WC=${Math.round(repYtd)})`, `Ajustado (WC=${Math.round(ytdWcReq)})`],

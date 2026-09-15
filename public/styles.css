@@ -656,8 +656,46 @@ body.screener-table-dragging {
 .metric-cagr-label.dragging { cursor: grabbing; }
 .metrics-legend-remove { display: grid; width: 17px; height: 17px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: #e4e6ea; color: var(--muted); font-size: 12px; line-height: 1; cursor: pointer; }
 .metrics-legend-remove:hover { background: var(--red-bg); color: var(--red); }
+.metrics-legend-visibility { display: grid; width: 17px; height: 17px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.metrics-legend-visibility:hover { background: var(--surface-3); color: var(--ink-3); }
+.metrics-legend-visibility.is-hidden { color: var(--muted-2); }
+.metrics-legend-item.is-hidden-series { opacity: .6; }
+.metrics-legend-item.is-hidden-series .metrics-legend-label { text-decoration: line-through; }
+.metrics-legend-item.is-hidden-series .metrics-swatch { opacity: .35; filter: grayscale(1); }
+.metric-favorite-btn { display: inline-grid; width: 18px; height: 18px; margin-right: 5px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #b6bcc6; cursor: pointer; vertical-align: -4px; transition: color .12s, background .12s, transform .12s; }
+.metric-favorite-btn:hover { background: var(--red-bg); color: var(--red); transform: scale(1.12); }
+.metric-favorite-btn.is-favorite { color: var(--red); }
+.metric-favorite-btn.is-favorite svg { fill: currentColor; }
+.metric-favorite-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .metrics-chart-body { position: relative; min-height: 300px; }
 #metrics-chart { display: block; width: 100%; height: 300px; }
+.metrics-chart-head-actions .metrics-chart-fullscreen-btn { width: 24px; height: 24px; border-radius: 4px; }
+.metrics-chart-block:fullscreen,
+.metrics-chart-block.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  margin: 0;
+  padding: 14px 18px 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.metrics-chart-block:fullscreen .metrics-chart-legend,
+.metrics-chart-block.is-fullscreen .metrics-chart-legend { max-height: 30vh; overflow-y: auto; }
+.metrics-chart-block:fullscreen .metrics-chart-body,
+.metrics-chart-block.is-fullscreen .metrics-chart-body { flex: 1 1 auto; min-height: 0; }
+.metrics-chart-block:fullscreen #metrics-chart,
+.metrics-chart-block.is-fullscreen #metrics-chart { height: 100%; }
 .metric-line { fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .metric-dot { fill: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .metrics-chart-tooltip-row { display: flex; align-items: center; gap: 6px; }
@@ -10670,9 +10708,14 @@ th.sorted-desc::after { content: '↓'; }
   color: #374151;
 }
 
-/* Cambio de CEO */
+/* Cambios en la dirección */
 .ceo-change-card {
   border-left: 3px solid var(--accent);
+}
+
+.ceo-change-separator {
+  margin: 14px 0;
+  border-top: 1px dashed var(--line-soft2);
 }
 
 .ceo-meta {
@@ -10728,54 +10771,6 @@ th.sorted-desc::after { content: '↓'; }
 .ceo-field-label {
   font-weight: 700;
   color: var(--ink-3);
-}
-
-.ceo-market-box {
-  padding: 12px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--line-soft2);
-  background: var(--surface-3);
-}
-
-.ceo-market-box.ceo-market-positive {
-  background: var(--green-bg);
-  border-color: var(--green-border);
-}
-
-.ceo-market-box.ceo-market-negative {
-  background: var(--red-bg);
-  border-color: var(--red-border);
-}
-
-.ceo-market-box.ceo-market-mixed {
-  background: var(--amber-bg);
-  border-color: var(--amber-border);
-}
-
-.ceo-market-tag {
-  display: inline-block;
-  margin: 0 0 4px;
-  font-size: 10.5px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-
-.ceo-market-positive .ceo-market-tag { color: var(--green-text-2); }
-.ceo-market-negative .ceo-market-tag { color: var(--red-text); }
-.ceo-market-mixed .ceo-market-tag { color: var(--amber-text); }
-
-.ceo-market-text {
-  margin: 0 0 4px;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--ink-3);
-}
-
-.ceo-market-data {
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--muted-strong);
 }
 
 .ceo-disclaimer {

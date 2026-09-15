@@ -30,7 +30,10 @@
     removeComparisonCompany,
     resetComparison,
     chartMetrics,
-    comparisonCompanies
+    comparisonCompanies,
+    hiddenSeries: window.chartHiddenSeries,
+    isSeriesHidden: window.isSeriesHidden,
+    toggleSeriesVisibility: window.toggleSeriesVisibility
   };
 
   window.EmpresaMetricsChart = EmpresaMetricsChart;

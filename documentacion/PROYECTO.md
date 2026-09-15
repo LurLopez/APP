@@ -47,6 +47,7 @@ Web que analiza con IA informes financieros de EE. UU. (10-Q trimestral, 10-K an
 - ✅ **Formato del informe**: 2 horizontes + bloques Ventas / Cash Flow / Asignación de Capital según `src/agents/prompts/consumo-defensivo.md` (derivado del informe de referencia del usuario); pendiente refinar con más referencias.
 - ✅ **Administrador único y secreto**: solo la cuenta definida con `ADMIN_USERNAME`/`ADMIN_PASSWORD` en el `.env` (local y servidor) tiene rol `admin`; el registro y el login con Google nunca conceden admin.
 - ✅ **Límite de IA**: generar un análisis nuevo exige sesión y consume cupo (3/día por usuario; admin ilimitado); leer análisis existentes (propios o cacheados públicos) no consume.
+- 📋 **Multi-idioma (ES/EN)**: planificado (idioma de interfaz y de análisis independientes); plan específico en `documentacion/PLAN-MULTIIDIOMA.md`.
 - 🔴 **Despliegue**: ya publicado en producción (cifraresearch.com, VPS Contabo, pipelines `development` → dev y `production` → prod).
 
 ## Interacción con el usuario (importante)

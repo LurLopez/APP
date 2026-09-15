@@ -84,30 +84,31 @@ export const ANNUAL_OUTPUT_SCHEMA = `{
         ]
       }
     },
-    "ceoChange": {
-      "title": "2: Cambio de CEO",
-      "text": "Resumen breve del relevo en la cúpula: quién sale, quién entra, fechas y contexto.",
-      "announcementDate": "AAAA-MM-DD o null",
-      "effectiveDate": "AAAA-MM-DD o null",
-      "reason": "Motivo declarado del relevo o null",
-      "oldCeo": {
-        "name": "Nombre del CEO saliente",
-        "role": "Cargo y periodo en el poder",
-        "salesDuringTenure": "Evolución de las ventas durante su mandato, con cifras y variación.",
-        "whereTheyGo": "A dónde pasa el CEO saliente o 'No consta'",
-        "policies": "Políticas y decisiones destacadas de su etapa."
-      },
-      "newCeo": {
-        "name": "Nombre del CEO entrante",
-        "origin": "De dónde viene: empresa, puesto y periodo.",
-        "trackRecord": "Qué hizo en puestos directivos anteriores, con fechas y resultados concretos.",
-        "commitments": "Qué ha dicho que va a hacer o qué prioridades ha anunciado."
-      },
-      "marketReaction": {
-        "sentiment": "positiva | negativa | mixta",
-        "summary": "Cómo tomó la noticia el mercado y con qué argumentos a favor o en contra."
-      },
-      "source": "10-K / 8-K / información pública general"
+    "executiveChanges": {
+      "title": "2: Cambios en la dirección",
+      "changes": [
+        {
+          "role": "CEO",
+          "text": "En **2018** se produjo una sucesión planificada en la cúpula directiva: **Ramon Laguarta** asumió como **Chairman and CEO**, sucediendo a **Indra Nooyi**.",
+          "announcementDate": "2018-08-06",
+          "effectiveDate": "2018-10-03",
+          "reason": "Sucesión planificada",
+          "oldExecutive": {
+            "name": "Indra Nooyi",
+            "role": "Chairman and CEO (hasta 2018)",
+            "salesDuringTenure": "No se dispone de información detallada en el texto disponible.",
+            "whereTheyGo": "No consta en el texto disponible",
+            "policies": "No se dispone de información detallada en el texto disponible."
+          },
+          "newExecutive": {
+            "name": "Ramon Laguarta",
+            "origin": "PepsiCo; anteriormente CEO, Europe Sub-Saharan Africa (2015-2017) y CEO, PepsiCo Europe (2015)",
+            "trackRecord": "En PepsiCo desde 1996; Presidente de Europa (2008-2012), Presidente de Mercados Desarrollados y Emergentes, CEO de PepsiCo Europa (2015) y CEO de Europa Sub-Sahariana Africa (2015-2017).",
+            "commitments": "Enfocado en capitalizar el impulso del negocio, invertir en capacidades y lograr crecimiento orgánico de ingresos del 4 % en 2019."
+          },
+          "source": "10-K / información pública general"
+        }
+      ]
     },
     "outlook": {
       "title": "3: Outlook",
@@ -168,7 +169,7 @@ export const ANNUAL_OUTPUT_SCHEMA = `{
     },
     "acquisitions": {
       "title": "5: Adquisiciones",
-      "text": "No se realizaron adquisiciones materiales durante el ejercicio."
+      "text": "En **agosto de 2018** la compañía completó la adquisición de **SodaStream International Ltd.** por **1.197M$** netos de efectivo adquirido (valoración total de la operación de **3.200M$**). SodaStream es un fabricante de sistemas de carbonatación doméstica y sabores con las marcas SodaStream y bubly, con presencia principal en Europa y Estados Unidos.\\n\\nEl motivo declarado de la operación es acelerar la estrategia de bebidas más saludables y el canal de consumo en casa, combinando la distribución global de la compañía con la plataforma de carbonatación doméstica de SodaStream. La compra se financió con caja y deuda a corto plazo, y la dirección espera sinergias de ingresos y ahorros de costes a partir de 2019."
     },
     "dividends": {
       "title": "6: Dividendos",

@@ -161,6 +161,8 @@ La arquitectura debe estar preparada desde el principio para:
 | **6** | Nuevos países y sectores (más agentes) | ⏳ Pendiente |
 
 > El detalle de todo lo implementado hasta la fecha está en `documentacion/IMPLEMENTACION.md`.
+>
+> Plan específico del **multi-idioma (interfaz y análisis ES/EN)**: `documentacion/PLAN-MULTIIDIOMA.md`.
 
 ## 9. Decisiones pendientes
 
@@ -170,6 +172,7 @@ La arquitectura debe estar preparada desde el principio para:
 | **Despliegue (dónde alojarlo)** | VPS único vs PaaS (Render/Railway/Neon) con BD gestionada | 🔴 No bloquea; decidir cuando toque publicar |
 | **Modelo de IA** | Comparados: DeepSeek directo vs OpenCode Go | 🔶 En uso: **DeepSeek directo** (`AI_PROVIDER=deepseek`, 22–23 s, fiable; OpenCode Go intermitente). Confirmar a medio plazo |
 | **Formato del informe final** | Los informes de referencia del usuario guían el prompt (`src/agents/prompts/consumo-defensivo.md`); se refinará con más referencias | 🔶 Formato base en producción (2 horizontes + Ventas/Cash Flow/Asignación de Capital) |
+| **Multi-idioma (ES/EN)** | Interfaz y análisis con idioma independiente; detección por idioma del navegador; caché de análisis por idioma | 📋 Planificado: plan específico en `documentacion/PLAN-MULTIIDIOMA.md` |
 
 ## 10. Contexto del desarrollador
 

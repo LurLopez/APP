@@ -9,6 +9,7 @@ import {
   findUserByEmail,
   findUserByUsername,
 } from '../../../db/repositories/userRepository.js';
+import { seedDefaultMetricFavorites, countMetricFavorites } from '../../../db/repositories/metricFavoriteRepository.js';
 import { normalizeEmail } from '../../utils/validate.js';
 import config from '../../../config/index.js';
 
@@ -21,6 +22,25 @@ const SALT_ROUNDS = 10;
  */
 export function checkIsAdmin(user) {
   return Boolean(user && user.role === 'admin');
+}
+
+/**
+ * Aplica las métricas favoritas por defecto a la cuenta admin cuando todavía
+ * no tiene ninguna (instalaciones nuevas o cuenta recién creada).
+ * @private
+ * @param {number} userId - Identificador del administrador.
+ * @returns {Promise<void>}
+ */
+async function applyDefaultMetricFavoritesIfEmpty(userId) {
+  try {
+    if (await countMetricFavorites(userId) > 0) return;
+    const inserted = await seedDefaultMetricFavorites(userId);
+    if (inserted > 0) {
+      console.log(`[auth] Favoritos por defecto aplicados al admin (${inserted} métricas).`);
+    }
+  } catch (error) {
+    console.error('[auth:default-favorites]', error.message);
+  }
 }
 
 /**
@@ -67,6 +87,8 @@ export async function ensureAdminUser() {
     );
     adminUser = rows[0];
   }
+
+  await applyDefaultMetricFavoritesIfEmpty(adminUser.id);
 
   const { rowCount } = await query(
     `UPDATE users SET role = 'user' WHERE role = 'admin' AND id <> $1`,

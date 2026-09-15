@@ -90,6 +90,7 @@ export function buildDebtMaturityModel(debt, reportFiscalYear) {
       type,
       amount,
       interestRate: Number.isFinite(rate) && rate > 0 ? rate : null,
+      estimated: entry?.estimated === true,
     });
   };
 
@@ -122,6 +123,7 @@ export function buildDebtMaturityModel(debt, reportFiscalYear) {
   const allRatedItems = rawItems.filter((it) => Number.isFinite(it.interestRate) && it.interestRate > 0);
   const allRatedAmount = allRatedItems.reduce((sum, it) => sum + it.amount, 0);
   const itemsAverageRate = allRatedAmount > 0 ? allRatedItems.reduce((sum, it) => sum + it.amount * it.interestRate, 0) / allRatedAmount : null;
+  const itemsAverageRateEstimated = allRatedItems.some((it) => it.estimated === true);
   const snippetAverage = rateFromSecSnippet(debt.secSnippet);
   const fallbackRateRaw = parseSecNumber(debt.allDebtAverageRate);
   const fallbackRate = Number.isFinite(fallbackRateRaw) && fallbackRateRaw > 0 ? fallbackRateRaw : null;
@@ -133,6 +135,7 @@ export function buildDebtMaturityModel(debt, reportFiscalYear) {
     totalAverageRateEstimated = snippetAverage.estimated === true;
   } else if (itemsAverageRate != null) {
     totalAverageRate = itemsAverageRate;
+    totalAverageRateEstimated = itemsAverageRateEstimated;
   } else if (fallbackRate != null) {
     totalAverageRate = fallbackRate;
     totalAverageRateEstimated = true;
@@ -155,8 +158,13 @@ export function buildDebtMaturityModel(debt, reportFiscalYear) {
     const totalAmount = items.reduce((sum, it) => sum + it.amount, 0);
     const ratedItems = items.filter((it) => Number.isFinite(it.interestRate) && it.interestRate > 0);
     const ratedAmount = ratedItems.reduce((sum, it) => sum + it.amount, 0);
-    const averageRate = ratedAmount > 0 ? ratedItems.reduce((sum, it) => sum + it.amount * it.interestRate, 0) / ratedAmount : null;
-    groupedYears.push({ year: yr, totalAmount, averageRate, averageRateEstimated: false, items });
+    let averageRate = ratedAmount > 0 ? ratedItems.reduce((sum, it) => sum + it.amount * it.interestRate, 0) / ratedAmount : null;
+    let averageRateEstimated = ratedItems.some((it) => it.estimated === true);
+    if (averageRate == null && totalAverageRate != null && totalAmount > 0) {
+      averageRate = totalAverageRate;
+      averageRateEstimated = true;
+    }
+    groupedYears.push({ year: yr, totalAmount, averageRate, averageRateEstimated, items });
   }
 
   const totalAmount = filtered.reduce((sum, it) => sum + it.amount, 0);
@@ -211,7 +219,10 @@ export function buildDebtMaturityTable(chart) {
         cell(idx === 0 ? String(yr.year) : '', { bold: true, color: COLORS.ink }),
         cell(it.name, { color: COLORS.ink }),
         cell(`$${it.amount.toFixed(1).replace('.', ',')}M`, { bold: true, color: COLORS.ink }),
-        cell(it.interestRate != null ? `${it.estimated ? '~' : ''}${it.interestRate.toFixed(2).replace('.', ',')} %` : '—', { bold: true, color: '#c2410c' }),
+        cell(it.interestRate != null
+          ? `${it.estimated ? '~' : ''}${it.interestRate.toFixed(2).replace('.', ',')} %`
+          : (yr.averageRate != null ? `~${yr.averageRate.toFixed(2).replace('.', ',')} %` : '—'),
+          { bold: true, color: '#c2410c' }),
         cell(idx === 0 && yr.averageRate != null ? `${yr.averageRateEstimated ? '~' : ''}${yr.averageRate.toFixed(2).replace('.', ',')} %` : '', { bold: true, color: '#0369a1', bg: idx === 0 ? '#f0fdfa' : null }),
       ]);
     });

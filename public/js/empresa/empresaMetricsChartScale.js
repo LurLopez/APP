@@ -11,6 +11,7 @@
     [...seriesColorMap.keys()].forEach((k) => {
       if (k.endsWith(`__${ticker}`)) seriesColorMap.delete(k);
     });
+    window.pruneHiddenSeriesForCompany?.(ticker);
     renderComparisonChips();
     renderMetricsChart();
   }
@@ -141,6 +142,14 @@
     return (value) => margin.top + innerHeight - ((Number(value) - scale.min) / (scale.max - scale.min)) * innerHeight;
   }
 
+  function exitMetricsChartFullscreen(block) {
+    if (!block) return;
+    block.classList.remove('is-fullscreen');
+    if (document.fullscreenElement === block && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
   function setupMetricsChartBlock() {
     const block = document.querySelector('#metrics-chart-block');
     const svg = document.querySelector('#metrics-chart');
@@ -157,6 +166,7 @@
     const hasComparisons = comparisonCompanies.size > 0;
 
     if (!hasMetrics && !hasComparisons) {
+      exitMetricsChartFullscreen(block);
       block.hidden = true;
       svg.innerHTML = '';
       legend.innerHTML = '';

@@ -26,6 +26,9 @@ async function loadCompany() {
       return;
     }
     renderCompany(data);
+    try {
+      await window.EmpresaFavoriteMetrics?.loadFavorites?.();
+    } catch {}
     companyBody.hidden = false;
     renderCompanyWatchState();
     renderPriceChart();
