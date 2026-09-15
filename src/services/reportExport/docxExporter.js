@@ -11,6 +11,7 @@ import { buildDebtMaturityTable } from './debtMaturityModel.js';
 import { buildDebtHistoryTable } from './debtHistoryRefinancingModel.js';
 import { buildReportChartImages } from './chartImages.js';
 import { buildReportModel } from './reportModel.js';
+import { ceoMarketDataText } from './ceoText.js';
 
 function docxRun(text, { size, bold, italic, color, highlight } = {}) {
   const rPr = [
@@ -102,10 +103,53 @@ function docxRefinancingBox(refinancing) {
   return `<w:tbl><w:tblPr><w:tblW w:w="10466" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:shd w:val="clear" w:color="auto" w:fill="FFF7ED"/><w:tblBorders><w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="28" w:space="0" w:color="EA580C"/><w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/></w:tblBorders><w:tblCellMar><w:top w:w="120" w:type="dxa"/><w:left w:w="220" w:type="dxa"/><w:bottom w:w="120" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="10466"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="10466" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="FFF7ED"/></w:tcPr>${content}</w:tc></w:tr></w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>`;
 }
 
+function docxCeoChangeBlock(ceo) {
+  if (!ceo || typeof ceo !== 'object') return [];
+  const parts = [];
+  const meta = [
+    ceo.announcementDate ? `Anuncio: ${ceo.announcementDate}` : null,
+    ceo.effectiveDate ? `Efectivo: ${ceo.effectiveDate}` : null,
+    ceo.reason ? `Motivo: ${ceo.reason}` : null,
+  ].filter(Boolean);
+  if (meta.length) parts.push(docxParagraph(`• ${meta.join('   ·   ')}`, { size: 8, bold: true, color: '#854D0E', after: 20 }));
+
+  const personBlock = (label, person) => {
+    if (!person) return;
+    const fields = [
+      ['Inicio en el cargo', person.tenureStart],
+      ['Ventas durante su mandato', person.salesDuringTenure],
+      ['A dónde pasa', person.whereTheyGo],
+      ['Políticas de su etapa', person.policies],
+      ['De dónde viene', person.origin],
+      ['Trayectoria previa', person.trackRecord],
+      ['Qué ha anunciado', person.commitments],
+    ].filter(([, value]) => value);
+    if (!person.name && !fields.length) return;
+    parts.push(docxParagraph(label, { size: 7.5, bold: true, color: '#4F46E5', after: 20, before: 60 }));
+    if (person.name) parts.push(docxParagraph(`${person.name}${person.role ? ` — ${person.role}` : ''}`, { size: 8.5, bold: true, color: '#0F172A', after: 20 }));
+    fields.forEach(([fieldLabel, value]) => parts.push(docxRichParagraph(`**${fieldLabel}:** ${value}`, { size: 8.5, color: '#374151', boldColor: '#334155', after: 20 })));
+  };
+  personBlock('ANTIGUO CEO', ceo.oldCeo);
+  personBlock('NUEVO CEO', ceo.newCeo);
+
+  const reaction = ceo.marketReaction || {};
+  const marketData = ceo.marketData ? ceoMarketDataText(ceo.marketData) : null;
+  if (reaction.summary || marketData) {
+    const sentiment = String(reaction.sentiment || '').toLowerCase();
+    const labelColor = sentiment === 'positiva' ? '#15803D' : (sentiment === 'negativa' ? '#DC2626' : '#B45309');
+    parts.push(docxParagraph(`Reacción del mercado${reaction.sentiment ? ` · ${reaction.sentiment}` : ''}`, { size: 8, bold: true, color: labelColor, after: 20, before: 60 }));
+    if (reaction.summary) parts.push(docxRichParagraph(reaction.summary, { size: 8.5, color: '#374151', after: 20 }));
+    if (marketData) parts.push(docxParagraph(marketData, { size: 7.5, italic: true, color: '#64748B', after: 20 }));
+  }
+  if (ceo.disclaimer) parts.push(docxParagraph(ceo.disclaimer, { size: 7, italic: true, color: '#94A3B8', after: 20 }));
+  return parts;
+}
+
 function appendCardsToDocx(parts, cards, images, ids) {
   cards.forEach((card, cardIndex) => {
     parts.push(docxParagraph(card.title, { size: 11, bold: true, color: COLORS.ink, after: 40, before: 60, pageBreakBefore: cardIndex > 0 }));
     if (card.text) parts.push(docxRichParagraph(card.text, { size: 8.5, color: COLORS.ink, after: 40 }));
+    if (card.ceoChange) docxCeoChangeBlock(card.ceoChange).forEach((part) => parts.push(part));
     if (card.badges?.length) card.badges.forEach((b) => parts.push(docxRichParagraph(`• ${b}`, { size: 8, color: '#854D0E', boldColor: '#7C2D12', after: 20 })));
     if (card.chart) {
       parts.push(docxParagraph(card.chart.title, { size: 8, bold: true, color: '#475569', after: 40 }));

@@ -23,11 +23,18 @@ function buildConclusionCards(conc, report) {
     const rep = conc.repurchases;
     const repExpiry = (rep.authorizationExpiry && !/no indicad|not disclosed|not stated|no consta|no especificad/i.test(String(rep.authorizationExpiry)))
       ? rep.authorizationExpiry : null;
+    const buybackPctLabel = (() => {
+      if (rep.buybackPctOfShares == null) return null;
+      const value = String(rep.buybackPctOfShares).replace('.', ',');
+      return `Peso en el capital: ${rep.buybackPctOfSharesEstimated ? '≈' : ''}${value} % de las acciones en el año`;
+    })();
     const badges = [
       (rep.authorizationRemaining || rep.programRemaining) ? `Autorización restante: ${rep.authorizationRemaining || rep.programRemaining}` : null,
       repExpiry ? `Vigencia: ${repExpiry}` : null,
       rep.shareCountEvolution ? `Evolución acciones: ${rep.shareCountEvolution}` : null,
+      buybackPctLabel,
       rep.bpaImpact ? `Impacto BPA: ${rep.bpaImpact}` : null,
+      rep.programChanges ? `Programa: ${rep.programChanges}` : null,
       rep.futureProjection ? `Proyección 5 años: ${rep.futureProjection}` : null,
     ].filter(Boolean);
     cards.push({
@@ -37,6 +44,24 @@ function buildConclusionCards(conc, report) {
       highlight: true,
       chart: buildSharesChartModel(rep.sharesHistory),
       table: buildSecSnippetTable(withAveragePriceRow(rep.secSnippet)),
+    });
+  }
+
+  if (conc.ceoChange) {
+    const ceo = conc.ceoChange;
+    cards.push({
+      title: ceo.title || 'Cambio de CEO',
+      text: ceo.text || null,
+      ceoChange: {
+        announcementDate: ceo.announcementDate || null,
+        effectiveDate: ceo.effectiveDate || null,
+        reason: ceo.reason || null,
+        oldCeo: ceo.oldCeo || null,
+        newCeo: ceo.newCeo || null,
+        marketReaction: ceo.marketReaction || null,
+        marketData: ceo.marketData || null,
+        disclaimer: ceo.disclaimer || null,
+      },
     });
   }
 
@@ -132,7 +157,7 @@ export function buildReportModel(report) {
   if (report?.conclusion) {
     model.conclusion = {
       title: 'PARTE II: INDAGACIÓN A FONDO Y CONCLUSIÓN',
-      subtitle: 'Análisis detallado de recompras, outlook oficial, deuda y asignación de capital',
+      subtitle: 'Análisis detallado de recompras, cambios de CEO, outlook oficial, deuda y asignación de capital',
       cards: buildConclusionCards(report.conclusion, report),
     };
   }

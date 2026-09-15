@@ -3,8 +3,13 @@
  * @module utils/validate
  */
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { resolveClientIp } from './clientIp.js';
+
+const EMAIL_PATTERN = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_EMAIL_LENGTH = 254;
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 128;
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
 /**
@@ -17,21 +22,25 @@ export function normalizeEmail(email) {
 }
 
 /**
- * Verifica si un correo electrónico cumple con el formato estándar.
+ * Verifica si un correo electrónico cumple con el formato estándar y su longitud máxima.
  * @param {unknown} email - Cadena a comprobar.
  * @returns {boolean} Verdadero si es un correo válido.
  */
 export function isValidEmail(email) {
-  return EMAIL_PATTERN.test(String(email ?? ''));
+  const value = String(email ?? '');
+  return value.length <= MAX_EMAIL_LENGTH && EMAIL_PATTERN.test(value);
 }
 
 /**
- * Valida si una contraseña cumple con los requisitos mínimos de seguridad (mínimo 8 caracteres).
+ * Valida si una contraseña cumple con los requisitos mínimos de seguridad (8–128 caracteres).
+ * El máximo evita abusos de CPU en bcrypt y payloads desproporcionados.
  * @param {unknown} password - Contraseña en texto plano.
  * @returns {boolean} Verdadero si cumple los requisitos.
  */
 export function isValidPassword(password) {
-  return typeof password === 'string' && password.length >= 8;
+  return typeof password === 'string'
+    && password.length >= MIN_PASSWORD_LENGTH
+    && password.length <= MAX_PASSWORD_LENGTH;
 }
 
 /**
@@ -60,19 +69,21 @@ export function pickCategory(raw, allowed, fallback) {
 
 /**
  * Sanea un array de imágenes adjuntas en base64 o URL.
+ * Solo se aceptan data URLs de imagen reales (png/jpeg/webp/gif en base64) o https.
  * @param {unknown} raw - Array candidato.
  * @param {Object} [options] - Opciones de límite.
- * @param {number} [options.max=5] - Número máximo de imágenes.
- * @param {number} [options.maxChars=7340032] - Tamaño máximo de caracteres por imagen (~7 MB).
+ * @param {number} [options.max=3] - Número máximo de imágenes.
+ * @param {number} [options.maxChars=2621440] - Tamaño máximo de caracteres por imagen (~2,5 MB).
  * @returns {string[]} Lista de URLs o representaciones seguras.
  */
-export function sanitizeReportImages(raw, { max = 5, maxChars = 7 * 1024 * 1024 } = {}) {
+export function sanitizeReportImages(raw, { max = 3, maxChars = 2.5 * 1024 * 1024 } = {}) {
   if (!Array.isArray(raw)) return [];
+  const dataImagePattern = /^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
   return raw
     .filter((img) => typeof img === 'string'
       && img.length > 0
       && img.length <= maxChars
-      && (img.startsWith('data:image/') || img.startsWith('https://')))
+      && (dataImagePattern.test(img) || /^https:\/\/[^\s]+$/i.test(img)))
     .slice(0, max);
 }
 
@@ -129,16 +140,15 @@ export function isRealPdf(buffer) {
 }
 
 /**
- * Normaliza la dirección IP del cliente a partir de headers de proxies o conexión directa.
+ * Normaliza la dirección IP del cliente usando la resolución segura de proxies
+ * (ver clientIp.js): no confía en cabeceras falsificables.
  * @param {import('express').Request} req - Petición HTTP.
  * @returns {string|null} IP limpia de hasta 64 caracteres.
  */
 export function normalizeIpAddress(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim().slice(0, 64) || null;
-  }
-  return (req.ip || req.socket?.remoteAddress || null) ?? null;
+  const ip = resolveClientIp(req);
+  if (!ip) return null;
+  return ip.slice(0, 64) || null;
 }
 
 /**

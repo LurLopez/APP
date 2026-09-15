@@ -10,14 +10,8 @@
   let companyHoldersLoading = false;
   let activeHoldersTab = 'institutions';
 
-  function escapeHtml(val) {
-    if (val === null || val === undefined) return '';
-    return String(val)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+  function escapeHtml(value) {
+    return window.HtmlUtils.escapeHtml(value);
   }
 
   function formatNumber(val, digits = 2) {

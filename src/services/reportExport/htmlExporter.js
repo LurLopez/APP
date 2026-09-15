@@ -6,6 +6,7 @@
 import { escapeHtml, parseRichSegments, COLORS } from './exportColors.js';
 import { buildDebtRefinancingBadges } from './debtHistoryRefinancingModel.js';
 import { buildReportModel } from './reportModel.js';
+import { ceoMarketDataText } from './ceoText.js';
 import {
   renderHtmlSharesChart,
   renderHtmlDebtMaturityChart,
@@ -61,6 +62,64 @@ export function renderHtmlRefinancingBox(refinancing) {
     </div>`;
 }
 
+function renderCeoPersonHtml(label, person) {
+  if (!person) return '';
+  const fields = [
+    ['Inicio en el cargo', person.tenureStart],
+    ['Ventas durante su mandato', person.salesDuringTenure],
+    ['A dónde pasa', person.whereTheyGo],
+    ['Políticas de su etapa', person.policies],
+    ['De dónde viene', person.origin],
+    ['Trayectoria previa', person.trackRecord],
+    ['Qué ha anunciado', person.commitments],
+  ].filter(([, value]) => value);
+  if (!person.name && !fields.length) return '';
+  return `<div style="flex:1;min-width:220pt;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:8pt 10pt;">
+    <div style="font-size:7pt;font-weight:800;letter-spacing:0.4pt;color:#4f46e5;">${escapeHtml(label)}</div>
+    ${person.name ? `<div style="font-size:9pt;font-weight:700;color:#0f172a;margin:2pt 0 4pt;">${escapeHtml(person.name)}${person.role ? ` <span style="font-weight:500;color:#64748b;">— ${escapeHtml(person.role)}</span>` : ''}</div>` : ''}
+    ${fields.map(([fieldLabel, value]) => `<div style="font-size:8pt;line-height:1.45;color:#374151;margin:2pt 0;"><strong style="color:#334155;">${escapeHtml(fieldLabel)}:</strong> ${renderRichHtml(String(value))}</div>`).join('')}
+  </div>`;
+}
+
+function renderCeoChangeBox(ceo) {
+  if (!ceo || typeof ceo !== 'object') return '';
+  const sentiment = String(ceo.marketReaction?.sentiment || '').toLowerCase();
+  const marketBg = sentiment === 'positiva' ? '#ecfdf5' : (sentiment === 'negativa' ? '#fef2f2' : '#fffbeb');
+  const marketBorder = sentiment === 'positiva' ? '#bbf7d0' : (sentiment === 'negativa' ? '#fecaca' : '#fde68a');
+  const marketLabel = sentiment === 'positiva' ? '#15803d' : (sentiment === 'negativa' ? '#dc2626' : '#b45309');
+
+  const meta = [
+    ceo.announcementDate ? `Anuncio: <strong>${escapeHtml(String(ceo.announcementDate))}</strong>` : '',
+    ceo.effectiveDate ? `Efectivo: <strong>${escapeHtml(String(ceo.effectiveDate))}</strong>` : '',
+    ceo.reason ? `Motivo: <strong>${escapeHtml(String(ceo.reason))}</strong>` : '',
+  ].filter(Boolean);
+  const blocks = [
+    renderCeoPersonHtml('ANTIGUO CEO', ceo.oldCeo),
+    renderCeoPersonHtml('NUEVO CEO', ceo.newCeo),
+  ].filter(Boolean);
+
+  const marketSummary = ceo.marketReaction?.summary
+    ? `<p style="font-size:8.5pt;line-height:1.45;margin:3pt 0 0;color:#374151;">${renderRichHtml(ceo.marketReaction.summary)}</p>`
+    : '';
+  const marketData = ceo.marketData ? ceoMarketDataText(ceo.marketData) : '';
+  const marketDataHtml = marketData
+    ? `<p style="font-size:7.5pt;line-height:1.4;margin:4pt 0 0;color:#64748b;font-style:italic;">${escapeHtml(marketData)}</p>`
+    : '';
+  const market = (marketSummary || marketDataHtml)
+    ? `<div style="margin:6pt 0 0;background:${marketBg};border:1px solid ${marketBorder};border-radius:5px;padding:7pt 9pt;">
+        <div style="font-size:7pt;font-weight:800;letter-spacing:0.4pt;text-transform:uppercase;color:${marketLabel};">Reacción del mercado${ceo.marketReaction?.sentiment ? ` · ${escapeHtml(String(ceo.marketReaction.sentiment))}` : ''}</div>
+        ${marketSummary}${marketDataHtml}
+      </div>`
+    : '';
+
+  return `
+    ${meta.length ? `<div style="font-size:8pt;color:#854d0e;margin:4pt 0 2pt;">${meta.map((m) => `• ${m}`).join('&nbsp;&nbsp;&nbsp;')}</div>` : ''}
+    ${blocks.length ? `<div style="display:flex;gap:8pt;flex-wrap:wrap;margin:6pt 0;">${blocks.join('')}</div>` : ''}
+    ${market}
+    ${ceo.disclaimer ? `<p style="font-size:7pt;font-style:italic;color:#94a3b8;margin:6pt 0 0;">${escapeHtml(ceo.disclaimer)}</p>` : ''}
+  `;
+}
+
 function renderConclusionHtml(conclusion) {
   if (!conclusion) return '';
   return `
@@ -71,6 +130,7 @@ function renderConclusionHtml(conclusion) {
     <div style="border:1px solid ${COLORS.rule};border-radius:6px;padding:10pt 12pt;margin-bottom:12pt;background:#fff;${cardIndex > 0 ? 'page-break-before:always;' : ''}">
       <h3 style="margin:0 0 6pt;font-size:11pt;color:${COLORS.ink};">${escapeHtml(card.title)}</h3>
       ${card.text ? `<p style="font-size:9pt;line-height:1.5;margin:4pt 0 8pt;color:#374151;">${renderRichHtml(card.text)}</p>` : ''}
+      ${card.ceoChange ? renderCeoChangeBox(card.ceoChange) : ''}
       ${card.badges?.length ? `<ul style="font-size:8.5pt;color:#854d0e;padding-left:14pt;margin:4pt 0 8pt;">${card.badges.map((b) => `<li>${renderRichHtml(b)}</li>`).join('')}</ul>` : ''}
       ${card.chart ? renderHtmlSharesChart(card.chart) : ''}
       ${card.debtMaturityChart ? renderHtmlDebtMaturityChart(card.debtMaturityChart) : ''}

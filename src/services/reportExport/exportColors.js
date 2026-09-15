@@ -4,6 +4,8 @@
  * @module services/reportExport/exportColors
  */
 
+import { escapeXml } from '../../utils/escapeXml.js';
+
 /**
  * Paleta de colores para notas al pie (*1 a *6), sincronizada con la paleta de PDFKit.
  * @type {Array<{bg: string, text: string}>}
@@ -185,12 +187,7 @@ export function headerCell(text) {
  * @returns {string} Cadena XML segura.
  */
 export function esc(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;');
+  return escapeXml(value);
 }
 
 /**

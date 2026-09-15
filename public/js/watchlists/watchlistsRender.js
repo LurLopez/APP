@@ -7,11 +7,7 @@
   'use strict';
 
   function escapeHtml(value) {
-    return String(value ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;');
+    return window.HtmlUtils.escapeHtml(value);
   }
 
   function watchNumber(value) {

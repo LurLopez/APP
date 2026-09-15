@@ -4,11 +4,13 @@
  */
 
 import crypto from 'node:crypto';
+import config from '../../../config/index.js';
 import {
   saveVerificationCode,
   findActiveVerificationCode,
   consumeVerificationCode,
   incrementCodeAttempts,
+  deleteVerificationCodesForUser,
 } from '../../../db/repositories/userRepository.js';
 import { sendVerificationCode, sendPasswordResetCode } from '../email.service.js';
 
@@ -25,12 +27,27 @@ export function generateVerificationCode() {
 }
 
 /**
- * Calcula el hash SHA-256 de un código de verificación para almacenamiento seguro.
+ * Calcula un HMAC-SHA-256 del código usando un secreto del servidor (pepper).
+ * Así, aunque se filtre la base de datos, los códigos no son reversibles por
+ * fuerza bruta (un SHA-256 plano de 6 dígitos se rompe en milisegundos).
  * @param {string} code - Código en texto plano.
  * @returns {string} Digest hexadecimal.
  */
 export function hashVerificationCode(code) {
-  return crypto.createHash('sha256').update(code).digest('hex');
+  return crypto.createHmac('sha256', config.codePepper).update(String(code)).digest('hex');
+}
+
+/**
+ * Compara dos hashes en tiempo constante para no filtrar información por temporización.
+ * @param {string} a - Primer valor.
+ * @param {string} b - Segundo valor.
+ * @returns {boolean}
+ */
+function safeCompare(a, b) {
+  const bufA = Buffer.from(String(a), 'utf8');
+  const bufB = Buffer.from(String(b), 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 /**
@@ -41,6 +58,8 @@ export function hashVerificationCode(code) {
 export async function issueVerificationCode(user) {
   const code = generateVerificationCode();
   const expiresAt = new Date(Date.now() + CODE_TTL_MS);
+  // Se invalidan los códigos anteriores: solo el más reciente puede usarse.
+  await deleteVerificationCodesForUser(user.id);
   await saveVerificationCode({
     userId: user.id,
     codeHash: hashVerificationCode(code),
@@ -57,6 +76,8 @@ export async function issueVerificationCode(user) {
 export async function issuePasswordResetCode(user) {
   const code = generateVerificationCode();
   const expiresAt = new Date(Date.now() + CODE_TTL_MS);
+  // Se invalidan los códigos anteriores: solo el más reciente puede usarse.
+  await deleteVerificationCodesForUser(user.id);
   await saveVerificationCode({
     userId: user.id,
     codeHash: hashVerificationCode(code),
@@ -88,7 +109,7 @@ export async function validateAndConsumeCode(userId, inputCode, AuthErrorClass) 
     );
   }
 
-  const matches = hashVerificationCode(inputCode) === record.code_hash;
+  const matches = safeCompare(hashVerificationCode(inputCode), record.code_hash);
   if (!matches) {
     await incrementCodeAttempts(record.id);
     if (record.attempts + 1 >= MAX_CODE_ATTEMPTS) {

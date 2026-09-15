@@ -21,12 +21,13 @@ INFORME ANUAL (FORM 10-K)
 │
 ├── PARTE II: CONCLUSIÓN E INDAGACIÓN A FONDO EN PUNTOS CRÍTICOS
 │   ├── 1. Recompras de Acciones (Share Repurchases) + Captura SEC obligatoria
+│   ├── (+) Cambio de CEO (justo después de Recompras, solo si aplica)
 │   ├── 2. Outlook y Perspectivas Futuras (Guidance) + Captura SEC obligatoria
 │   ├── 3. Deuda y Calendario de Vencimientos (Debt Maturity) + Captura SEC obligatoria
 │   ├── 4. Adquisiciones y Operaciones Corporativas (si existen)
 │   ├── (+) Puntos condicionales según materialidad (Dividendos, Desinversiones,
 │   │        Impairments, Reestructuraciones, Litigios, Impuestos, Pensiones,
-│   │        Concentración de clientes, Cambio de CEO — solo si aplican)
+│   │        Concentración de clientes)
 │   └── 5. Puntos Clave a Vigilar para el Próximo Ejercicio (Watchlist)
 │
 └── PARTE III: NOTA DE RESULTADOS (1 a 10)
@@ -144,6 +145,13 @@ En los análisis anuales es **obligatorio** profundizar rigurosamente en los mot
 ---
 
 ### 1. Recompras de Acciones (Share Repurchases)
+
+> **Criterio de aparición (materialidad)**: el punto de Recompras solo se incluye en la Parte II si es relevante. Se considera relevante cuando se cumple al menos una de estas condiciones:
+> 1. Las acciones recompradas en el ejercicio suponen **≥ 1 % de las acciones en circulación** (equivalente aproximado a ≥ 1 % de la capitalización).
+> 2. Se ha **lanzado un nuevo programa** de recompra o una ampliación relevante del vigente durante el ejercicio.
+> 3. El programa se ha **cancelado, suspendido o terminado** en el ejercicio.
+>
+> Si las recompras son marginales (< 1 % del capital) y no hay cambios de programa, el punto **no aparece**. Si no hay datos de acciones para calcular el porcentaje, se mantiene el umbral de importe material (≥ 50 M$).
 
 Se debe realizar un examen exhaustivo de la política de recompra de títulos de la compañía:
 
@@ -287,6 +295,8 @@ Por lo tanto, cosas a tener en cuenta en 2026:
 
 Además de los puntos canónicos 1-4, la Parte II incorpora —siempre **después de Adquisiciones y antes de la Watchlist**— cualquier punto crítico que aparezca con materialidad en el 10-K (umbral de referencia: **≥ 50 M$** o relevancia estratégica, mismo criterio que en la Asignación de Capital). Si un punto no aplica, simplemente no aparece; la Watchlist cierra siempre la Parte II.
 
+**Excepción de posición**: el **Cambio de CEO (6.9)** es un punto propio que se coloca **inmediatamente después de Recompras**, antes de Outlook, por su relevancia estratégica. El resto de puntos condicionales (6.1–6.8) van después de Adquisiciones.
+
 - **6.1 Dividendos**: evolución del dividendo por acción y del total pagado, política de payout, cobertura por FCF, racha de años consecutivos de subida (o recortes) y dividendo extraordinario si existe.
 - **6.2 Desinversiones / venta de marcas o negocios**: aplicando la regla 6 trimestral portada al ejercicio anual (beneficio estimado del negocio vendido, PER implícito, comparación de márgenes, juicio sobre la operación e impacto en caja).
 - **6.3 Impairments de goodwill / marcas**: activos deteriorados, importe, causa declarada, recurrencia del deterioro y su efecto en el Beneficio Operativo ajustado.
@@ -295,12 +305,13 @@ Además de los puntos canónicos 1-4, la Parte II incorpora —siempre **despué
 - **6.6 Impuestos**: tipo efectivo anómalo, controversias fiscales abiertas (ej. disputa con el IRS) y su exposición potencial en caja.
 - **6.7 Pensiones / OPEB**: estado de financiación del plan, déficit o aportaciones relevantes cuando el 10-K las señala.
 - **6.8 Concentración de clientes y cadena de suministro**: clientes que suponen > 10 % de las ventas (ej. Walmart) y dependencias críticas de suministro manifestadas en el filing.
-- **6.9 Cambio de CEO / dirección**: si durante el ejercicio (o anunciado para el siguiente) hay relevo en el CEO, CFO u otra figura clave:
-  - Quién sale y quién entra, fecha efectiva y trayectoria del entrante.
-  - Contexto del relevo: sucesión planificada, dimisión, despido o salto a otra compañía.
-  - Continuidad estratégica: cambios de rumbo ya anunciados por el entrante (portfolio, estructura, prioridades de capital).
-  - Costes asociados observables: compensaciones de salida (*severance*) u otros importes relevantes.
-  - Juicio breve del analista (positivo/negativo/neutro) fundamentado solo en hechos del filing; prohibido especular sobre resultados futuros.
+- **6.9 Cambio de CEO / dirección**: si durante el ejercicio (o anunciado para el siguiente) hay relevo en el CEO:
+  - **Antiguo CEO**: quién era (nombre, cargo y periodo en el poder), cómo evolucionaron las ventas durante su mandato (cifras y variación porcentual), qué políticas implementó (reestructuraciones, adquisiciones o desinversiones, dividendos, recompras, cambios de estrategia o de cartera de marcas) y a dónde pasa ahora (jubilación, presidencia del consejo, otra compañía; si no consta, se indica "No consta").
+  - **Nuevo CEO**: nombre, de dónde viene (empresa, puesto y periodo), qué ha hecho en puestos directivos anteriores (con fechas y resultados concretos: evolución de ventas y márgenes, reestructuraciones, recuperaciones; ejemplo de estilo: "fue directivo de HRL entre 2015 y 2017, cuando la compañía estaba estancada y los márgenes empeoraban; ejecutó una reestructuración que recuperó parcialmente los márgenes y logró que las ventas crecieran en línea con la inflación") y qué ha dicho que va a hacer (compromisos y prioridades anunciadas).
+  - **Reacción del mercado**: si la noticia se recibió de forma positiva, negativa o mixta y los argumentos esgrimidos a favor o en contra. Si el sistema aporta la variación real de la cotización en torno al anuncio, se usa esa cifra como dato objetivo.
+  - Contexto del relevo: sucesión planificada, dimisión, despido o salto a otra compañía; costes asociados observables (*severance*) si constan.
+  - **Fuentes y honestidad**: los hechos del filing tienen prioridad. Para la trayectoria del directivo y la reacción del mercado se permite información pública general y conocida, pero queda prohibido inventar nombres, fechas, cifras o reacciones; si no hay información fiable, se indica "No se dispone de información pública verificada".
+  - Juicio breve del analista (positivo/negativo/neutro) fundamentado en los hechos; prohibido especular sobre resultados futuros de la compañía.
   - Si no hubo cambios relevantes, este punto no aparece.
 
 ---

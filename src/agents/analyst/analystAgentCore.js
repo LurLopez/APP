@@ -46,6 +46,8 @@ import {
 } from './analystHorizonProcessor.js';
 import {
   processRepurchasesSection,
+  processCeoChangeSection,
+  fetchCeoMarketReaction,
   processOutlookSection,
   processDebtSection,
   processAcquisitionsDividendsAndWatchlist,
@@ -146,6 +148,13 @@ export class AnalystAgent extends BaseAgent {
     }
 
     // Fase 2: estructuración y redacción analítica
+    const ceoMarketReactionPromise = (isAnnual && ticker)
+      ? fetchCeoMarketReaction(extracted.annualDetails?.ceoChange?.announcementDate, ticker).catch((err) => {
+        console.warn('[analyst] No se pudo obtener la reacción de mercado del cambio de CEO:', err.message);
+        return null;
+      })
+      : Promise.resolve(null);
+
     const basePrompt = isAnnual ? ANNUAL_SYSTEM_PROMPT : SYSTEM_PROMPT;
     const schema = isAnnual ? ANNUAL_OUTPUT_SCHEMA : OUTPUT_SCHEMA;
     const systemPrompt = basePrompt
@@ -189,10 +198,23 @@ export class AnalystAgent extends BaseAgent {
       result.conclusion = result.conclusion || {};
       const rawAnn = extracted.annualDetails || {};
       processRepurchasesSection(result.conclusion, rawAnn, extracted);
+      processCeoChangeSection(result.conclusion, rawAnn);
       processOutlookSection(result.conclusion, rawAnn, result);
       processDebtSection(result.conclusion, rawAnn, edgarData, fiscalYear);
       processAcquisitionsDividendsAndWatchlist(result.conclusion, rawAnn, extracted, edgarData, fiscalYear);
       renumberConclusionSections(result.conclusion);
+
+      let ceoMarketReaction = await ceoMarketReactionPromise;
+      if (!ceoMarketReaction && result.conclusion.ceoChange?.announcementDate && ticker) {
+        try {
+          ceoMarketReaction = await fetchCeoMarketReaction(result.conclusion.ceoChange.announcementDate, ticker);
+        } catch (err) {
+          console.warn('[analyst] No se pudo obtener la reacción de mercado del cambio de CEO:', err.message);
+        }
+      }
+      if (ceoMarketReaction && result.conclusion.ceoChange) {
+        result.conclusion.ceoChange.marketData = ceoMarketReaction;
+      }
 
       result.rating = result.rating || {};
       let scoreNum = Number(result.rating.score);

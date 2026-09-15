@@ -13,11 +13,46 @@ import { getCompanySubmissions } from './companyProfile.js';
 import { getCompanyFilings, normalizeRecentFilings, addDaysToDate } from './filingPeriods.js';
 import { getFilingIndexItems } from './filingDocuments.js';
 import { getIrDeckForFiling } from './irCrawler.js';
+import { assertPublicUrl } from '../../utils/ssrfGuard.js';
 
 const PRESENTATION_NAME_RE = /presentation|slides?|deck|investor.?present|webcast|earnings.?call/i;
 const PRESS_RELEASE_NAME_RE = /press.?release|news.?release|earnings.?release|releas|pressrelease|release.?\d|press.?releases/i;
 const EARNINGS_DOC_NAME_RE = /ex.?99|exhibit.?99|exhibits?99|earnings|results|press|presentation|slides?|deck/i;
 const NON_EARNINGS_DOC_NAME_RE = /proxy|voting|annual.?meeting|bylaws|charter|code.?of.?ethics|compensation|employment|credit.?agreement|indenture|underwriting|auditor|consent/i;
+
+const MAX_PRESENTATION_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Lee el cuerpo de una respuesta con un límite estricto de tamaño (anti-DoS de memoria).
+ * @param {Response} response - Respuesta fetch.
+ * @param {number} maxBytes - Máximo de bytes permitidos.
+ * @returns {Promise<Buffer>} Contenido descargado.
+ */
+async function readLimitedBuffer(response, maxBytes) {
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error('Documento complementario demasiado grande.');
+  }
+  if (!response.body?.getReader) {
+    const arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength > maxBytes) throw new Error('Documento complementario demasiado grande.');
+    return Buffer.from(arrayBuffer);
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new Error('Documento complementario demasiado grande.');
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
 
 const filingPresentationsCache = new Map();
 const filingPresentationsInFlight = new Map();
@@ -232,8 +267,10 @@ export async function getPresentationBuffers(ticker, accession) {
 
   const downloadOne = async (presentation) => {
     try {
-      const isSecUrl = String(presentation.documentUrl ?? '').includes('sec.gov');
-      const response = await fetch(presentation.documentUrl, {
+      // Guarda anti-SSRF: el destino debe ser público (nunca localhost/red privada).
+      const safeUrl = await assertPublicUrl(presentation.documentUrl);
+      const isSecUrl = String(safeUrl.href).includes('sec.gov');
+      const response = await fetch(safeUrl, {
         headers: {
           'User-Agent': isSecUrl ? USER_AGENT : IR_BROWSER_UA,
           Accept: 'application/pdf,text/html',
@@ -242,11 +279,11 @@ export async function getPresentationBuffers(ticker, accession) {
       });
       if (!response.ok) return null;
       const contentType = response.headers.get('content-type') ?? '';
-      const arrayBuffer = await response.arrayBuffer();
-      if (!arrayBuffer.byteLength) return null;
+      const buffer = await readLimitedBuffer(response, MAX_PRESENTATION_BYTES);
+      if (!buffer.byteLength) return null;
       return {
         name: presentation.documentName ?? presentation.name,
-        buffer: Buffer.from(arrayBuffer),
+        buffer,
         kind: contentType.includes('pdf') ? 'pdf' : (contentType.includes('html') ? 'html' : 'pdf'),
       };
     } catch {

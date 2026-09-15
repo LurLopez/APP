@@ -1,6 +1,6 @@
 import { query } from '../pool.js';
 
-const USER_COLUMNS = 'id, email, username, plan, role, email_verified, google_id, created_at';
+const USER_COLUMNS = 'id, email, username, plan, role, email_verified, google_id, created_at, token_version';
 
 export async function createUser({ email, passwordHash, plan = 'free', username = null, role = 'user' }) {
   const defaultUsername = username || email.split('@')[0];
@@ -83,10 +83,12 @@ export async function markEmailVerified(userId) {
 }
 
 export async function updatePassword(userId, passwordHash) {
-  await query(`UPDATE users SET password_hash = $2 WHERE id = $1`, [
-    userId,
-    passwordHash,
-  ]);
+  // Incrementa token_version para invalidar todas las sesiones JWT anteriores
+  // (los tokens antiguos llevan una versión distinta y dejan de ser válidos).
+  await query(
+    `UPDATE users SET password_hash = $2, token_version = token_version + 1 WHERE id = $1`,
+    [userId, passwordHash],
+  );
 }
 
 export async function saveVerificationCode({ userId, codeHash, expiresAt }) {
@@ -107,6 +109,10 @@ export async function findActiveVerificationCode(userId) {
     [userId],
   );
   return rows[0] ?? null;
+}
+
+export async function deleteVerificationCodesForUser(userId) {
+  await query(`DELETE FROM verification_codes WHERE user_id = $1`, [userId]);
 }
 
 export async function consumeVerificationCode(codeId) {

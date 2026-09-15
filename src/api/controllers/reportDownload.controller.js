@@ -6,11 +6,39 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import config from '../../../config/index.js';
 import { pool } from '../../../db/pool.js';
 import { GENERATED_DIR } from '../../services/report.service.js';
+import { resolveUser } from '../../middleware/auth.middleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// El nombre del archivo solo puede contener letras, números y guiones (UUID de informe).
+// Prohibido "_" para que no pueda actuar como comodín en el LIKE de PostgreSQL.
+const FILE_NAME_PATTERN = /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)\.(pdf|docx|odt|html)$/;
+
+/**
+ * Localiza el análisis propietario del informe solicitado por igualdad exacta de `pdf_url`,
+ * nunca mediante comodines. Devuelve también la visibilidad para autorizar la descarga.
+ * @private
+ * @param {string} file - Nombre de archivo solicitado (ej. "uuid.pdf").
+ * @returns {Promise<{ id: number, user_id: number|null, is_public: boolean, report: object, created_at: Date, pdf_url: string }|null>}
+ */
+async function findAnalysisByReportFile(file) {
+  const relativePath = `/api/reports/${file}`;
+  const absolutePath = `${config.siteUrl}/api/reports/${file}`;
+  const { rows } = await pool.query(
+    `SELECT id, user_id, is_public, report, created_at, pdf_url
+       FROM analyses
+      WHERE (pdf_url = $1 OR pdf_url = $2)
+        AND report IS NOT NULL
+      ORDER BY id DESC
+      LIMIT 1`,
+    [relativePath, absolutePath],
+  );
+  return rows[0] ?? null;
+}
 
 const REPORT_CONTENT_TYPES = {
   pdf: 'application/pdf',
@@ -87,26 +115,46 @@ async function regenerateAllReportFormats(baseId, reportData) {
 export async function downloadReportFile(req, res, next) {
   try {
     const { file } = req.params;
-    const match = file.match(/^([\w-]+)\.(pdf|docx|odt|html)$/);
+    const match = FILE_NAME_PATTERN.exec(file);
     if (!match) {
-      res.status(400).json({ error: 'Nombre de archivo no válido.' });
+      res.status(404).json({ error: 'El informe solicitado no existe.' });
       return;
     }
 
-    const [, baseId, ext] = match;
-    const filePath = path.join(GENERATED_DIR, file);
-    const forceRefresh = req.query.refresh === '1' || req.query.force === '1';
+    const [, requestedBase, ext] = match;
+    const analysis = await findAnalysisByReportFile(file);
 
-    const { rows } = await pool.query(
-      'SELECT report, created_at FROM analyses WHERE pdf_url LIKE $1 AND report IS NOT NULL ORDER BY id DESC LIMIT 1',
-      [`%${baseId}%`],
-    );
+    if (!analysis) {
+      res.status(404).json({ error: 'El informe solicitado no existe.' });
+      return;
+    }
 
-    if (rows.length && rows[0].report) {
-      const needsRegen = checkIfRegenerationRequired(filePath, rows[0].created_at, forceRefresh);
-      if (needsRegen) {
-        await regenerateAllReportFormats(baseId, rows[0].report);
-      }
+    const user = await resolveUser(req);
+    const isOwner = Boolean(user && analysis.user_id === user.id);
+    const isAdmin = Boolean(user?.isAdmin);
+    const canAccess = analysis.is_public === true || isOwner || isAdmin;
+
+    if (!canAccess) {
+      // 404 en lugar de 403 para no revelar la existencia del informe.
+      res.status(404).json({ error: 'El informe solicitado no existe.' });
+      return;
+    }
+
+    // El identificador interno del fichero SIEMPRE procede de la base de datos,
+    // nunca del nombre recibido por URL: así no se pueden escribir ficheros
+    // arbitrarios ni reutilizar comodines.
+    const storedBase = path.basename(String(analysis.pdf_url), path.extname(String(analysis.pdf_url)));
+    if (storedBase !== requestedBase) {
+      res.status(404).json({ error: 'El informe solicitado no existe.' });
+      return;
+    }
+
+    const filePath = path.join(GENERATED_DIR, `${storedBase}.${ext}`);
+    const forceRefresh = (req.query.refresh === '1' || req.query.force === '1') && (isOwner || isAdmin);
+
+    const needsRegen = checkIfRegenerationRequired(filePath, analysis.created_at, forceRefresh);
+    if (needsRegen) {
+      await regenerateAllReportFormats(storedBase, analysis.report);
     }
 
     const customName = req.query.name
@@ -115,6 +163,7 @@ export async function downloadReportFile(req, res, next) {
     const isDownload = req.query.download === '1' || (ext !== 'pdf' && ext !== 'html');
 
     res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', REPORT_CONTENT_TYPES[ext]);
 
     if (isDownload) {

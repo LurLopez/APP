@@ -1,0 +1,188 @@
+/**
+ * @fileoverview Módulo extraído de outlookHelpers.js.
+ */
+
+function parseNum(val) {
+  if (val == null) return null;
+  let s = String(val).replace(/[^0-9.,\-]/g, '');
+  if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (s.includes(',')) s = s.replace(',', '.');
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function fmtMoney(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return '$' + Math.round(n).toLocaleString('en-US') + 'M';
+}
+
+function fmtEps(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return '$' + n.toFixed(2);
+}
+
+function extractPctRange(g) {
+  const match = g.match(/\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?\s*(?:to|a|-)\s*\(?([+\-]?\d+(?:[\.,]\d+)?)\s*%\)?/i);
+  if (!match) return null;
+  let p1 = parseFloat(match[1].replace(',', '.')) / 100;
+  let p2 = parseFloat(match[2].replace(',', '.')) / 100;
+  if (/decline|caída|descenso/i.test(g) || g.includes('(')) {
+    p1 = -Math.abs(p1);
+    p2 = -Math.abs(p2);
+  }
+  return { minP: Math.min(p1, p2), maxP: Math.max(p1, p2) };
+}
+
+function projectSales(g, prevSalesVal, prevYear) {
+  if (/flat\s*(?:[±+\-/]+|\+\/-)\s*(\d+(?:[\.,]\d+)?)/i.test(g)) {
+    const pct = parseFloat(g.match(/flat\s*(?:[±+\-/]+|\+\/-)\s*(\d+(?:[\.,]\d+)?)/i)[1].replace(',', '.')) / 100;
+    if (prevSalesVal) {
+      return `~${fmtMoney(prevSalesVal * (1 - pct))} – ${fmtMoney(prevSalesVal * (1 + pct))}`;
+    }
+    return `En línea con ${prevYear}`;
+  }
+  const range = extractPctRange(g);
+  if (range && prevSalesVal) {
+    return `~${fmtMoney(prevSalesVal * (1 + range.minP))} – ${fmtMoney(prevSalesVal * (1 + range.maxP))}`;
+  }
+  return g;
+}
+
+function projectEbt(g, prevEbtVal) {
+  const range = extractPctRange(g);
+  if (range && prevEbtVal) {
+    return `~${fmtMoney(prevEbtVal * (1 + range.minP))} – ${fmtMoney(prevEbtVal * (1 + range.maxP))}`;
+  }
+  return g;
+}
+
+function projectEps(g, prevEpsVal) {
+  if (/\$?([0-9.,]+)\s*(?:to|a|-)\s*\$?([0-9.,]+)/i.test(g) && !g.includes('%')) {
+    const match = g.match(/\$?([0-9.,]+)\s*(?:to|a|-)\s*\$?([0-9.,]+)/i);
+    return `$${parseFloat(match[1].replace(',', '.'))} – $${parseFloat(match[2].replace(',', '.'))}`;
+  }
+  const range = extractPctRange(g);
+  if (range && prevEpsVal) {
+    return `~${fmtEps(prevEpsVal * (1 + range.minP))} – ${fmtEps(prevEpsVal * (1 + range.maxP))}`;
+  }
+  return g;
+}
+
+function projectFcf(g, prevEbtVal) {
+  const bMatch = g.match(/\$([0-9.,]+)\s*B\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+  if (bMatch) {
+    const base = parseFloat(bMatch[1].replace(',', '.')) * 1000;
+    const pct = parseFloat(bMatch[2].replace(',', '.')) / 100;
+    return `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+  }
+  const mMatch = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+  if (mMatch) {
+    const base = parseFloat(mMatch[1].replace(',', '.'));
+    const pct = parseFloat(mMatch[2].replace(',', '.')) / 100;
+    return `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+  }
+  if (/100\s*%/i.test(g)) {
+    return prevEbtVal ? `~${fmtMoney(prevEbtVal * 0.75)} (conversión ~100 %)` : '~100 % conversión';
+  }
+  return g;
+}
+
+function projectCapexOrDepr(g) {
+  const mMatch = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
+  if (mMatch) {
+    const base = parseFloat(mMatch[1].replace(',', '.'));
+    const pct = parseFloat(mMatch[2].replace(',', '.')) / 100;
+    return `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+  }
+  return g;
+}
+
+function buildComparisonRow(row, context) {
+  const metric = Array.isArray(row) ? row[0] : (row.metric ?? row.name);
+  const guidance = Array.isArray(row) ? row[1] : row.value;
+  if (Array.isArray(row) && row.length >= 4) return row;
+
+  const m = String(metric).toLowerCase();
+  const g = String(guidance ?? '');
+  let prevStr = '—';
+  let projStr = '—';
+
+  if (/sales|ventas|revenue/i.test(m)) {
+    if (context.prevSalesVal) prevStr = fmtMoney(context.prevSalesVal);
+    projStr = projectSales(g, context.prevSalesVal, context.prevYear);
+  } else if (/income before|ebt|operating income|beneficio/i.test(m)) {
+    if (context.prevEbtVal) prevStr = `${fmtMoney(context.prevEbtVal)} (adj)`;
+    projStr = projectEbt(g, context.prevEbtVal);
+  } else if (/eps|earnings per share|bpa/i.test(m)) {
+    if (context.prevEpsVal) prevStr = fmtEps(context.prevEpsVal);
+    projStr = projectEps(g, context.prevEpsVal);
+  } else if (/free cash flow|fcf/i.test(m)) {
+    prevStr = context.prevFcfVal
+      ? (context.prevFcfAdjVal ? `${fmtMoney(context.prevFcfVal)} / ${fmtMoney(context.prevFcfAdjVal)} (adj)` : fmtMoney(context.prevFcfVal))
+      : '—';
+    projStr = projectFcf(g, context.prevEbtVal);
+  } else if (/depreciation|amorti/i.test(m)) {
+    projStr = projectCapexOrDepr(g);
+  } else if (/interest/i.test(m)) {
+    projStr = projectCapexOrDepr(g);
+  } else if (/capex|capital expend/i.test(m)) {
+    prevStr = context.prevCapexVal ? fmtMoney(context.prevCapexVal) : '—';
+    projStr = projectCapexOrDepr(g);
+  } else {
+    projStr = g;
+  }
+
+  return [metric, prevStr, guidance, projStr];
+}
+
+export function withOutlookComparison(snippet, report) {
+  if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return snippet;
+  const rawHeaders = Array.isArray(snippet.headers) ? snippet.headers : [];
+  if (rawHeaders.length >= 4) return snippet;
+
+  let nextYear = 2026;
+  const titleMatch = (snippet.title || '').match(/20\d\d/);
+  if (titleMatch) nextYear = parseInt(titleMatch[0], 10);
+  else if (rawHeaders[1] && rawHeaders[1].match(/20\d\d/)) nextYear = parseInt(rawHeaders[1].match(/20\d\d/)[0], 10);
+  else if (report?.fiscalYear) nextYear = report.fiscalYear + 1;
+  const prevYear = nextYear - 1;
+
+  const h0 = report?.horizons?.[0];
+  const salesRows = h0?.sales?.rows || [];
+  const cfRows = h0?.cashFlow?.rows || [];
+
+  const getSalesRow = (name) => salesRows.find((r) => (r.name || '').toLowerCase().includes(name.toLowerCase()));
+  const getCfRow = (name) => cfRows.find((r) => (r.name || '').toLowerCase().includes(name.toLowerCase()));
+
+  const prevSalesRow = getSalesRow('Ventas');
+  const prevSalesVal = parseNum(prevSalesRow?.adjusted || prevSalesRow?.normal);
+  const prevEbtRow = getSalesRow('EBT');
+  const prevEbtVal = parseNum(prevEbtRow?.adjusted || prevEbtRow?.normal);
+  const prevFcfRow = getCfRow('FCF');
+  const prevFcfVal = parseNum(prevFcfRow?.values?.[0]);
+  const prevFcfAdjVal = parseNum(prevFcfRow?.values?.[1]);
+  const prevCapexRow = getCfRow('CAPEX');
+  const prevCapexVal = parseNum(prevCapexRow?.values?.[0]);
+  const prevEpsVal = parseNum(h0?.sales?.eps) || (prevEbtVal ? prevEbtVal / (parseNum(h0?.sales?.shares) || 200) : null);
+
+  const context = {
+    prevYear,
+    prevSalesVal,
+    prevEbtVal,
+    prevFcfVal,
+    prevFcfAdjVal,
+    prevCapexVal,
+    prevEpsVal,
+  };
+
+  const newHeaders = [
+    rawHeaders[0] || 'Métrica',
+    `${prevYear} (Año anterior)`,
+    rawHeaders[1] || `Guidance ${nextYear}E*`,
+    `Cifra Proyectada ${nextYear}E`,
+  ];
+
+  const newRows = snippet.rows.map((row) => buildComparisonRow(row, context));
+
+  return { ...snippet, headers: newHeaders, rows: newRows };
+}

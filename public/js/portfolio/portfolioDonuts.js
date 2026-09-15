@@ -26,15 +26,8 @@
 
   let chartTooltip = null;
 
-  function escapeHtml(val) {
-    if (window.PortfolioFormatting?.escapeHtml) {
-      return window.PortfolioFormatting.escapeHtml(val);
-    }
-    return String(val ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;');
+  function escapeHtml(value) {
+    return window.HtmlUtils.escapeHtml(value);
   }
 
   function fmtMoney(val) {

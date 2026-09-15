@@ -4,20 +4,22 @@
  * @module middleware/rateLimit
  */
 
+import { resolveClientIp } from '../utils/clientIp.js';
+
 const buckets = new Map();
 const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
 let lastCleanup = Date.now();
 
 /**
- * Obtiene el identificador del cliente a partir de cabeceras de proxy (Cloudflare, etc.) o socket.
+ * Obtiene el identificador del cliente aplicando proxies de confianza (ver clientIp.js).
+ * Las cabeceras solo se usan si el salto previo es un proxy/Cloudflare verificado,
+ * de modo que no se puede evadir el límite falsificando cabeceras contra el origen.
  * @private
  * @param {import('express').Request} req - Petición HTTP.
  * @returns {string} Identificador único del cliente.
  */
 function clientKey(req) {
-  const cfIp = req.headers['cf-connecting-ip'];
-  if (typeof cfIp === 'string' && cfIp.trim()) return cfIp.trim();
-  return req.ip || req.socket?.remoteAddress || 'unknown';
+  return resolveClientIp(req);
 }
 
 /**

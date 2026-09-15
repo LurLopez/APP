@@ -6,12 +6,7 @@
   'use strict';
 
   function escapeHtml(value) {
-    return String(value ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
+    return window.HtmlUtils.escapeHtml(value);
   }
 
   function formatForumDate(isoString) {
@@ -47,8 +42,8 @@
 
   function initials(name) {
     if (!name) return '?';
-    const clean = String(name).replace(/[^a-zA-Z0-9]/g, '') || String(name);
-    return clean.slice(0, 2).toUpperCase();
+    const clean = String(name).replace(/[^a-zA-Z0-9]/g, '');
+    return clean.slice(0, 2).toUpperCase() || '?';
   }
 
   function displayUser(name) {

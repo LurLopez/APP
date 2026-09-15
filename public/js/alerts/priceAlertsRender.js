@@ -5,12 +5,8 @@
 (function () {
   'use strict';
 
-  function escapeHtml(str) {
-    return String(str ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+  function escapeHtml(value) {
+    return window.HtmlUtils.escapeHtml(value);
   }
 
   function renderFormHtml(initialCompany = null) {

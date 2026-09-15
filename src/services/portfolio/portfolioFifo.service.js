@@ -102,7 +102,7 @@ export function buildState(transactions) {
  * @returns {Promise<Object>}
  */
 export async function addBuy(userId, { ticker, companyName, shares, price, tradeDate }) {
-  return portfolioRepository.createTransaction(userId, {
+  return portfolioRepository.addTransaction(userId, {
     ticker,
     companyName,
     type: 'buy',
@@ -134,7 +134,7 @@ export async function addSell(userId, { ticker, companyName, shares, price, trad
     throw new PortfolioError('Operación no permitida en la cartera.', 'INVALID_STATE');
   }
 
-  return portfolioRepository.createTransaction(userId, {
+  return portfolioRepository.addTransaction(userId, {
     ticker,
     companyName,
     type: 'sell',

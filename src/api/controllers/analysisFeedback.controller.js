@@ -88,6 +88,13 @@ export async function getAnalysisRating(req, res, next) {
     }
 
     const user = await resolveUser(req);
+    const analysis = await getAnalysisById(id);
+
+    if (!isAnalysisVisible(analysis, user)) {
+      res.status(404).json({ error: 'El análisis no existe.' });
+      return;
+    }
+
     const summary = await getAnalysisRatingSummary(id, user?.id ?? null);
     res.json({ ok: true, ...summary });
   } catch (error) {

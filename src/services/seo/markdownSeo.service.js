@@ -198,6 +198,39 @@ export function buildReportMarkdown(row) {
     if (c.debt?.text) lines.push(`### Deuda\n${c.debt.text}\n`);
     if (c.outlook?.text) lines.push(`### Perspectivas de la Dirección\n${c.outlook.text}\n`);
     if (c.repurchases?.text) lines.push(`### Recompras de Acciones\n${c.repurchases.text}\n`);
+    if (c.ceoChange) {
+      const ceo = c.ceoChange;
+      lines.push('### Cambio de CEO\n');
+      if (ceo.text) lines.push(`${ceo.text}\n`);
+      const personLine = (label, person) => {
+        if (!person) return null;
+        const fields = [
+          ['Inicio en el cargo', person.tenureStart],
+          ['Ventas durante su mandato', person.salesDuringTenure],
+          ['A dónde pasa', person.whereTheyGo],
+          ['Políticas de su etapa', person.policies],
+          ['De dónde viene', person.origin],
+          ['Trayectoria previa', person.trackRecord],
+          ['Qué ha anunciado', person.commitments],
+        ].filter(([, value]) => value);
+        const heading = [person.name, person.role].filter(Boolean).join(' — ');
+        if (!heading && !fields.length) return null;
+        return `**${label}:** ${heading}`
+          + fields.map(([fieldLabel, value]) => `\n  - **${fieldLabel}:** ${value}`).join('');
+      };
+      [personLine('Antiguo CEO', ceo.oldCeo), personLine('Nuevo CEO', ceo.newCeo)]
+        .filter(Boolean)
+        .forEach((line) => lines.push(`${line}\n`));
+      if (ceo.marketReaction?.summary) {
+        const sentiment = ceo.marketReaction.sentiment ? ` (${ceo.marketReaction.sentiment})` : '';
+        lines.push(`**Reacción del mercado${sentiment}:** ${ceo.marketReaction.summary}\n`);
+      }
+      if (ceo.marketData && Number.isFinite(Number(ceo.marketData.changeFirstSessionPct))) {
+        const fmt = (value) => `${Number(value) > 0 ? '+' : ''}${String(value).replace('.', ',')} %`;
+        const third = Number.isFinite(Number(ceo.marketData.changeThreeSessionsPct)) ? ` y ${fmt(ceo.marketData.changeThreeSessionsPct)} a 3 sesiones` : '';
+        lines.push(`*Cotización en torno al anuncio (${ceo.marketData.announcementDate || ''}): ${fmt(ceo.marketData.changeFirstSessionPct)} en la primera sesión${third}.*\n`);
+      }
+    }
     if (c.acquisitions?.text) lines.push(`### Adquisiciones\n${c.acquisitions.text}\n`);
     if (c.watchlist?.items?.length) {
       lines.push('### Lista de Seguimiento (Watchlist)');

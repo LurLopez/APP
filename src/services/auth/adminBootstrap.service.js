@@ -32,6 +32,10 @@ export async function ensureAdminUser() {
   const { username, password, email } = config.adminUser || {};
   if (!username || !password) return null;
 
+  if (password.length < 12) {
+    console.warn('[auth] AVISO: ADMIN_PASSWORD tiene menos de 12 caracteres; usa una contraseña más larga y aleatoria.');
+  }
+
   const normalizedEmail = normalizeEmail(email || `${username}@cifra.local`);
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
@@ -72,6 +76,6 @@ export async function ensureAdminUser() {
     console.log(`[auth] Retirado el rol admin a ${rowCount} cuenta(s) no autorizada(s).`);
   }
 
-  console.log(`[auth] Usuario admin asegurado: username='${adminUser.username}', email='${adminUser.email}' (rol: admin)`);
+  console.log(`[auth] Usuario admin asegurado: username='${adminUser.username}' (rol: admin)`);
   return adminUser;
 }

@@ -4,15 +4,23 @@ import config from '../../../config/index.js';
 import * as authService from '../../services/auth.service.js';
 import { toPublicUser } from '../../services/auth.service.js';
 
-const COOKIE_NAME = 'token';
+const LEGACY_COOKIE_NAME = 'token';
+// __Host- exige Secure, Path=/ y sin Domain: la cookie no puede ser sobrescrita
+// desde subdominios. Solo se usa en producción (requiere HTTPS).
+const COOKIE_NAME = config.production ? '__Host-token' : LEGACY_COOKIE_NAME;
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
-function setAuthCookie(res, userId) {
-  const token = jwt.sign({ sub: userId }, config.jwtSecret, { expiresIn: '7d' });
+function setAuthCookie(res, userId, tokenVersion = 0) {
+  const token = jwt.sign(
+    { sub: userId, tv: Number(tokenVersion) || 0 },
+    config.jwtSecret,
+    { algorithm: 'HS256', expiresIn: '7d' },
+  );
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: config.production,
+    path: '/',
     maxAge: COOKIE_MAX_AGE,
   });
 }
@@ -114,17 +122,23 @@ export async function googleAuthCallback(req, res) {
     if (!profile.email) {
       return safeRedirect(res, returnTo, 'auth_error', 'email_required');
     }
+    if (profile.email_verified === false) {
+      return safeRedirect(res, returnTo, 'auth_error', 'email_unverified');
+    }
 
     const user = await authService.loginOrRegisterGoogle({
       googleId: profile.sub,
       email: profile.email,
     });
 
-    setAuthCookie(res, user.id);
+    setAuthCookie(res, user.id, user.token_version);
     return safeRedirect(res, returnTo, 'auth_success', 'google');
   } catch (err) {
     if (err?.code === 'ADMIN_GOOGLE_BLOCKED') {
       return safeRedirect(res, returnTo, 'auth_error', 'admin_google_blocked');
+    }
+    if (err?.code === 'ACCOUNT_LINK_REQUIRED') {
+      return safeRedirect(res, returnTo, 'auth_error', 'account_exists');
     }
     console.error('[Google OAuth] Error inesperado en callback:', err);
     return safeRedirect(res, returnTo, 'auth_error', 'server_error');
@@ -133,21 +147,22 @@ export async function googleAuthCallback(req, res) {
 
 export async function register(req, res) {
   const user = await authService.register(req.body);
+  // Respuesta uniforme exista o no la cuenta (anti-enumeración).
   res.status(201).json({
     user,
-    message: 'Revisa tu correo: te hemos enviado un código de verificación.',
+    message: 'Si el correo no estaba registrado, recibirás un código de verificación.',
   });
 }
 
 export async function verify(req, res) {
   const user = await authService.verifyEmail(req.body);
-  setAuthCookie(res, user.id);
+  setAuthCookie(res, user.id, user.token_version);
   res.json({ user });
 }
 
 export async function resendCode(req, res) {
   await authService.resendVerificationCode(req.body);
-  res.json({ ok: true, message: 'Te hemos enviado un código nuevo.' });
+  res.json({ ok: true, message: 'Si existe una cuenta sin verificar con ese correo, recibirás un código.' });
 }
 
 export async function forgotPassword(req, res) {
@@ -165,12 +180,13 @@ export async function resetPassword(req, res) {
 
 export async function login(req, res) {
   const user = await authService.login(req.body);
-  setAuthCookie(res, user.id);
+  setAuthCookie(res, user.id, user.token_version);
   res.json({ user });
 }
 
 export function logout(_req, res) {
-  res.clearCookie(COOKIE_NAME);
+  res.clearCookie(COOKIE_NAME, { path: '/' });
+  res.clearCookie(LEGACY_COOKIE_NAME, { path: '/' });
   res.json({ ok: true });
 }
 

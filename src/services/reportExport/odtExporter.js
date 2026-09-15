@@ -11,6 +11,7 @@ import { buildDebtMaturityTable } from './debtMaturityModel.js';
 import { buildDebtHistoryTable } from './debtHistoryRefinancingModel.js';
 import { buildReportChartImages } from './chartImages.js';
 import { buildReportModel } from './reportModel.js';
+import { ceoMarketDataText } from './ceoText.js';
 
 function createOdtStyleRegistry() {
   const textStyles = new Map();
@@ -72,10 +73,51 @@ function createOdtStyleRegistry() {
   return { textStyleFor, cellStyleFor, columnStyleFor, frameStyle, automaticStyles };
 }
 
+function odtCeoChangeBlock(ctx, ceo) {
+  if (!ceo || typeof ceo !== 'object') return;
+  const meta = [
+    ceo.announcementDate ? `Anuncio: ${ceo.announcementDate}` : null,
+    ceo.effectiveDate ? `Efectivo: ${ceo.effectiveDate}` : null,
+    ceo.reason ? `Motivo: ${ceo.reason}` : null,
+  ].filter(Boolean);
+  if (meta.length) ctx.paragraph(`• ${meta.join('   ·   ')}`, { bold: true, color: '#854d0e', size: 8 });
+
+  const personBlock = (label, person) => {
+    if (!person) return;
+    const fields = [
+      ['Inicio en el cargo', person.tenureStart],
+      ['Ventas durante su mandato', person.salesDuringTenure],
+      ['A dónde pasa', person.whereTheyGo],
+      ['Políticas de su etapa', person.policies],
+      ['De dónde viene', person.origin],
+      ['Trayectoria previa', person.trackRecord],
+      ['Qué ha anunciado', person.commitments],
+    ].filter(([, value]) => value);
+    if (!person.name && !fields.length) return;
+    ctx.paragraph(label, { bold: true, color: '#4f46e5', size: 7.5 });
+    if (person.name) ctx.paragraph(`${person.name}${person.role ? ` — ${person.role}` : ''}`, { bold: true, color: '#0f172a', size: 8.5 });
+    fields.forEach(([fieldLabel, value]) => ctx.richParagraph(`**${fieldLabel}:** ${value}`, { color: '#374151', boldColor: '#334155', size: 8.5 }));
+  };
+  personBlock('ANTIGUO CEO', ceo.oldCeo);
+  personBlock('NUEVO CEO', ceo.newCeo);
+
+  const reaction = ceo.marketReaction || {};
+  const marketData = ceo.marketData ? ceoMarketDataText(ceo.marketData) : null;
+  if (reaction.summary || marketData) {
+    const sentiment = String(reaction.sentiment || '').toLowerCase();
+    const labelColor = sentiment === 'positiva' ? '#15803d' : (sentiment === 'negativa' ? '#dc2626' : '#b45309');
+    ctx.paragraph(`Reacción del mercado${reaction.sentiment ? ` · ${reaction.sentiment}` : ''}`, { bold: true, color: labelColor, size: 8 });
+    if (reaction.summary) ctx.richParagraph(reaction.summary, { color: '#374151', size: 8.5 });
+    if (marketData) ctx.paragraph(marketData, { italic: true, color: '#64748b', size: 7.5 });
+  }
+  if (ceo.disclaimer) ctx.paragraph(ceo.disclaimer, { italic: true, color: '#94a3b8', size: 7 });
+}
+
 function appendCardsToOdt(body, cards, images, styles, ctx) {
   cards.forEach((card, cardIndex) => {
     ctx.paragraph(card.title, { bold: true, color: COLORS.ink, size: 11, pageBreakBefore: cardIndex > 0 });
     if (card.text) ctx.richParagraph(card.text, { color: COLORS.ink, size: 8.5 });
+    if (card.ceoChange) odtCeoChangeBlock(ctx, card.ceoChange);
     if (card.badges?.length) card.badges.forEach((b) => ctx.richParagraph(`• ${b}`, { color: '#854d0e', boldColor: '#7c2d12', size: 8 }));
     if (card.chart) {
       ctx.paragraph(card.chart.title, { bold: true, color: '#475569', size: 8 });

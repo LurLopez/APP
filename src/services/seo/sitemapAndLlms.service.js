@@ -17,8 +17,8 @@ import {
   sitemapCache,
   SITEMAP_TTL,
   readGuide,
-  escapeXml,
 } from './seoConstants.js';
+import { escapeXml } from '../../utils/escapeXml.js';
 import { getFeaturedCompanies } from './featuredCompanies.service.js';
 import { buildReportSlug, loadPublicReportsForSitemap } from './reportSeo.service.js';
 

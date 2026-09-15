@@ -8,12 +8,29 @@ import { SITE_NAME, safeHttpUrl } from './seoConstants.js';
 import { getFeaturedCompanies } from './featuredCompanies.service.js';
 
 /**
+ * Serializa un objeto para incrustarlo en un <script>. Neutraliza los caracteres
+ * que permitirían cerrar la etiqueta (</script>) o inyectar HTML/JS, así como los
+ * separadores de línea Unicode. Apto para JSON-LD y payloads iniciales.
+ * @param {object} obj - Objeto a serializar.
+ * @param {number} [spacing=2] - Indentación de JSON.stringify (0 = compacto).
+ * @returns {string} JSON seguro para HTML.
+ */
+export function safeJsonForScript(obj, spacing = 2) {
+  return JSON.stringify(obj, null, spacing)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+/**
  * Envuelve un objeto en una etiqueta script de tipo application/ld+json.
  * @param {object} obj - Objeto estructurado Schema.org.
  * @returns {string} Fragmento HTML con el script JSON-LD formateado.
  */
 export function jsonLdScript(obj) {
-  return `<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`;
+  return `<script type="application/ld+json">\n${safeJsonForScript(obj)}\n</script>`;
 }
 
 /**

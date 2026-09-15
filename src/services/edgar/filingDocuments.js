@@ -4,11 +4,13 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Readable } from 'node:stream';
 import { USER_AGENT } from './statementConcepts.js';
 import { getCompanyFilings } from './filingPeriods.js';
+import { assertPublicUrl } from '../../utils/ssrfGuard.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -16,10 +18,22 @@ export const FILINGS_DIR = new URL('../../../uploads/generated/filings/', import
 export const PREVIEWS_DIR = new URL('../../../uploads/generated/filings/previews/', import.meta.url).pathname;
 
 const CHROME_BIN = process.env.CHROME_BIN || 'google-chrome';
+// Sandbox activo por defecto; definir CHROME_NO_SANDBOX=1 solo si el servidor lo requiere.
+const CHROME_NO_SANDBOX = /^(1|true|yes)$/i.test(String(process.env.CHROME_NO_SANDBOX || '').trim());
+const CHROME_SANDBOX_ARGS = CHROME_NO_SANDBOX ? ['--no-sandbox'] : [];
 const PDFTOPPM_BIN = process.env.PDFTOPPM_BIN || 'pdftoppm';
 const PREVIEW_DPI = Number(process.env.PREVIEW_DPI) || 100;
 const FILING_INDEX_TTL = 60 * 60 * 1000;
 const filingIndexCache = new Map();
+
+/**
+ * Sanea el nombre de un documento remoto para usarlo como nombre de archivo local.
+ * @param {unknown} value - Nombre en bruto.
+ * @returns {string} Nombre seguro (sin rutas ni caracteres raros).
+ */
+function safeDocumentStem(value) {
+  return path.basename(String(value ?? 'informe')).replace(/[^\w.-]/g, '_').slice(0, 150) || 'informe';
+}
 
 /**
  * Asegura la existencia del directorio de almacenamiento local para PDFs de filings.
@@ -38,7 +52,7 @@ export async function ensureFilingsDir() {
  * @returns {string} Nombre del archivo.
  */
 export function filingPdfFilename(filing) {
-  const stem = (filing.documentName ?? 'informe').replace(/\.html?$/, '');
+  const stem = safeDocumentStem(filing.documentName ?? 'informe').replace(/\.html?$/, '');
   const period = filing.period ? String(filing.period).slice(0, 10) : null;
   return period ? `${stem}-${period}.pdf` : `${stem}.pdf`;
 }
@@ -49,8 +63,8 @@ export function filingPdfFilename(filing) {
  * @returns {string} Ruta absoluta del archivo PDF en caché.
  */
 export function filingPdfCachePath(filing) {
-  const stem = (filing.documentName ?? 'informe').replace(/\.html?$/, '');
-  const accessionNoDashes = (filing.accession ?? '').replaceAll('-', '');
+  const stem = safeDocumentStem(filing.documentName ?? 'informe').replace(/\.html?$/, '');
+  const accessionNoDashes = String(filing.accession ?? '').replace(/[^\d-]/g, '').replaceAll('-', '');
   return `${FILINGS_DIR}${stem}-${accessionNoDashes}.pdf`;
 }
 
@@ -67,6 +81,7 @@ export async function getFilingIndexItems(company, filing) {
   if (cached && Date.now() - cached.at <= FILING_INDEX_TTL) return cached.data;
   let items = null;
   try {
+    await assertPublicUrl(indexUrl);
     const response = await fetch(indexUrl, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
       signal: AbortSignal.timeout(15000),
@@ -107,10 +122,12 @@ async function findFilingPdfUrl(company, filing) {
  * @param {string} outPath - Ruta destino local.
  */
 async function generateFilingPdf(documentUrl, outPath) {
+  await assertPublicUrl(documentUrl);
   await execFileAsync(CHROME_BIN, [
     '--headless=new',
     '--disable-gpu',
-    '--no-sandbox',
+    ...CHROME_SANDBOX_ARGS,
+    '--disable-extensions',
     '--no-pdf-header-footer',
     `--user-agent=${USER_AGENT}`,
     `--print-to-pdf=${outPath}`,
@@ -136,8 +153,9 @@ export async function getFilingPdfPath(company, filing) {
 
   const realPdf = await findFilingPdfUrl(company, filing);
   if (realPdf) {
-    const pdfUrl = `https://www.sec.gov/Archives/edgar/data/${company.cik}/${filing.accession.replaceAll('-', '')}/${realPdf}`;
+    const pdfUrl = `https://www.sec.gov/Archives/edgar/data/${company.cik}/${filing.accession.replaceAll('-', '')}/${encodeURIComponent(realPdf)}`;
     try {
+      await assertPublicUrl(pdfUrl);
       const response = await fetch(pdfUrl, {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/pdf' },
         signal: AbortSignal.timeout(60000),
@@ -186,6 +204,7 @@ export async function getFilingDocumentStream(ticker, accession) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60000);
   try {
+    await assertPublicUrl(filing.documentUrl);
     const response = await fetch(filing.documentUrl, {
       headers: {
         'User-Agent': USER_AGENT,
@@ -226,6 +245,7 @@ export async function getFilingContentBuffer(ticker, accession) {
   if (filePath) {
     return { filing, buffer: fs.readFileSync(filePath), kind: 'pdf' };
   }
+  await assertPublicUrl(filing.documentUrl);
   const response = await fetch(filing.documentUrl, {
     headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/pdf' },
     signal: AbortSignal.timeout(60000),

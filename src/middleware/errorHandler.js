@@ -39,7 +39,7 @@ export function errorHandler(err, _req, res, _next) {
     const tooLarge = err.type === 'entity.too.large';
     res.status(tooLarge ? 413 : 400).json({
       error: tooLarge
-        ? 'El contenido enviado supera el tamaño máximo permitido (25 MB).'
+        ? 'El contenido enviado supera el tamaño máximo permitido (12 MB).'
         : 'El cuerpo de la petición no es un JSON válido.',
     });
     return;

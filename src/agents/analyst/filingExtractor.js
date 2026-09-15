@@ -103,6 +103,7 @@ export function extractKeyFilingSections(text) {
     { re: /Material Cash Requirements[^\n]{0,90}Obligations|Contractual Maturities/i, before: 300, after: 5500, label: 'DEUDA: VENCIMIENTOS CONTRACTUALES' },
     { re: /\n\s*Share Repurchase Program\s*\n/i, before: 300, after: 5000, label: 'RECOMPRAS: PROGRAMA Y REMANENTE' },
     { re: /remaining authorization|authorization remaining/i, before: 300, after: 1500, label: 'RECOMPRAS: AUTORIZACIÓN REMANENTE' },
+    { re: /(?:appointed|named|elect(?:ed)?|succeed(?:ed|ing)?)[^\n]{0,160}(?:Chief Executive Officer|CEO)|(?:Chief Executive Officer|CEO)[^\n]{0,160}(?:transition|succession|retire|retiring|step(?:ping)? down|resign)/i, before: 600, after: 4500, label: 'CAMBIO DE CEO: NOMBRAMIENTOS Y SUCESIÓN' },
     { re: /Shares of common stock issued, in treasury, and outstanding/i, before: 300, after: 2500, label: 'ACCIONES EN CIRCULACIÓN' },
     { re: /Selected Financial Data|Five[- ]Year Summary/i, before: 200, after: 6000, label: 'RESUMEN QUINQUENAL' },
   ];

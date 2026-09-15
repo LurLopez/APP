@@ -10670,6 +10670,121 @@ th.sorted-desc::after { content: '↓'; }
   color: #374151;
 }
 
+/* Cambio de CEO */
+.ceo-change-card {
+  border-left: 3px solid var(--accent);
+}
+
+.ceo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.ceo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin: 4px 0 12px;
+}
+
+.ceo-person-box {
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft2);
+  border-radius: 6px;
+}
+
+.ceo-block-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.ceo-person-name {
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.ceo-person-role {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.ceo-field {
+  margin: 0 0 5px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #374151;
+}
+
+.ceo-field-label {
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.ceo-market-box {
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line-soft2);
+  background: var(--surface-3);
+}
+
+.ceo-market-box.ceo-market-positive {
+  background: var(--green-bg);
+  border-color: var(--green-border);
+}
+
+.ceo-market-box.ceo-market-negative {
+  background: var(--red-bg);
+  border-color: var(--red-border);
+}
+
+.ceo-market-box.ceo-market-mixed {
+  background: var(--amber-bg);
+  border-color: var(--amber-border);
+}
+
+.ceo-market-tag {
+  display: inline-block;
+  margin: 0 0 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.ceo-market-positive .ceo-market-tag { color: var(--green-text-2); }
+.ceo-market-negative .ceo-market-tag { color: var(--red-text); }
+.ceo-market-mixed .ceo-market-tag { color: var(--amber-text); }
+
+.ceo-market-text {
+  margin: 0 0 4px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+.ceo-market-data {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted-strong);
+}
+
+.ceo-disclaimer {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--muted-2);
+}
+
 @media (max-width: 700px) {
   .result-preview { padding: 20px 16px; }
   .annual-deepdive-card { padding: 14px; }

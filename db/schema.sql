@@ -13,6 +13,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAU
 ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+-- Versión de sesión: se incrementa al cambiar la contraseña para invalidar los JWT antiguos.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 UPDATE users SET username = split_part(email, '@', 1) WHERE username IS NULL;
@@ -334,6 +336,21 @@ CREATE TABLE IF NOT EXISTS analysis_ratings (
 
 CREATE INDEX IF NOT EXISTS idx_analysis_ratings_analysis ON analysis_ratings (analysis_id);
 CREATE INDEX IF NOT EXISTS idx_analysis_ratings_user ON analysis_ratings (user_id);
+
+-- Anti-fraude: un voto anónimo por análisis e IP (los NULL de user_id no aplican
+-- al UNIQUE original). Primero se eliminan duplicados históricos para poder crear
+-- el índice parcial sin errores.
+DELETE FROM analysis_ratings a
+ USING analysis_ratings b
+ WHERE a.id < b.id
+   AND a.user_id IS NULL
+   AND b.user_id IS NULL
+   AND a.analysis_id = b.analysis_id
+   AND a.ip_address IS NOT DISTINCT FROM b.ip_address;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_analysis_ratings_anon_unique
+  ON analysis_ratings (analysis_id, ip_address)
+  WHERE user_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS analysis_error_reports (
     id          SERIAL PRIMARY KEY,

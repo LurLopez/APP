@@ -194,6 +194,41 @@ export function renderConclusionSsr(conclusion) {
       html += `<p class="report-extras">${escapeHtml(title)}</p><p style="font-size:12px;line-height:1.5;color:var(--ink-secondary);">${escapeHtml(item.text)}</p>`;
     }
   }
+
+  const ceo = conclusion.ceoChange;
+  if (ceo && typeof ceo === 'object') {
+    html += '<p class="report-extras">Cambio de CEO</p>';
+    if (ceo.text) {
+      html += `<p style="font-size:12px;line-height:1.5;color:var(--ink-secondary);">${escapeHtml(ceo.text)}</p>`;
+    }
+    const personHtml = (label, person) => {
+      if (!person) return '';
+      const fields = [
+        ['Inicio en el cargo', person.tenureStart],
+        ['Ventas durante su mandato', person.salesDuringTenure],
+        ['A dónde pasa', person.whereTheyGo],
+        ['Políticas de su etapa', person.policies],
+        ['De dónde viene', person.origin],
+        ['Trayectoria previa', person.trackRecord],
+        ['Qué ha anunciado', person.commitments],
+      ].filter(([, value]) => value);
+      if (!person.name && !fields.length) return '';
+      return `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(person.name || '')}${person.role ? ` (${escapeHtml(person.role)})` : ''}`
+        + fields.map(([fieldLabel, value]) => `<br><strong>${escapeHtml(fieldLabel)}:</strong> ${escapeHtml(String(value))}`).join('')
+        + '</li>';
+    };
+    const people = [personHtml('Antiguo CEO', ceo.oldCeo), personHtml('Nuevo CEO', ceo.newCeo)].filter(Boolean);
+    if (people.length) html += `<ul class="report-notes">${people.join('')}</ul>`;
+    if (ceo.marketReaction?.summary) {
+      const sentiment = ceo.marketReaction.sentiment ? ` (${ceo.marketReaction.sentiment})` : '';
+      html += `<p style="font-size:12px;line-height:1.5;color:var(--ink-secondary);"><strong>Reacción del mercado${escapeHtml(sentiment)}:</strong> ${escapeHtml(ceo.marketReaction.summary)}</p>`;
+    }
+    if (ceo.marketData && Number.isFinite(Number(ceo.marketData.changeFirstSessionPct))) {
+      const fmt = (value) => `${Number(value) > 0 ? '+' : ''}${String(value).replace('.', ',')} %`;
+      const third = Number.isFinite(Number(ceo.marketData.changeThreeSessionsPct)) ? ` y ${fmt(ceo.marketData.changeThreeSessionsPct)} a 3 sesiones` : '';
+      html += `<p style="font-size:11px;color:var(--muted);">Cotización en torno al anuncio (${escapeHtml(String(ceo.marketData.announcementDate || ''))}): ${fmt(ceo.marketData.changeFirstSessionPct)} en la primera sesión${third}.</p>`;
+    }
+  }
   if (conclusion.watchlist?.items?.length) {
     html += '<p class="report-extras">Puntos clave en seguimiento</p><ul class="report-notes">';
     for (const item of conclusion.watchlist.items) {
