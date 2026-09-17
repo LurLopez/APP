@@ -55,7 +55,6 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          script_stop: true
           script: |
             set -e
             cd /var/www/cifra-prod
@@ -67,6 +66,13 @@ jobs:
             sudo fuser -k "3000/tcp" >/dev/null 2>&1 || true
             sleep 1
             sudo systemctl restart cifra-prod
-            sleep 3
-            curl -fsS http://127.0.0.1:3000/robots.txt > /dev/null
-            echo "Despliegue de production completado"
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:3000/robots.txt >/dev/null 2>&1; then
+                echo "Despliegue de production completado (servicio listo tras ${i} intento(s))"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "El servicio cifra-prod no respondió en 60 s; últimas líneas del log:"
+            sudo journalctl -u cifra-prod -n 40 --no-pager || true
+            exit 1
