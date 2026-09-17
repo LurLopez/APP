@@ -4,7 +4,29 @@
  */
 
 import { escapeHtml } from './exportColors.js';
-import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { t, normalizeLanguage, formatFixed } from '../../utils/i18n.js';
+
+/**
+ * Formatea un número con el separador decimal del idioma (coma en español, punto en inglés).
+ * @param {number|string} value
+ * @param {number} decimals
+ * @param {string} language
+ * @returns {string}
+ */
+function localeNumber(value, decimals, language) {
+  return formatFixed(value, decimals, normalizeLanguage(language));
+}
+
+/**
+ * Formatea un importe con separadores de millar y decimal del idioma.
+ * @param {number|string} value
+ * @param {number} decimals
+ * @param {string} language
+ * @returns {string}
+ */
+function localeAmount(value, decimals, language) {
+  return formatFixed(value, decimals, normalizeLanguage(language));
+}
 
 export function renderSharesChartSvg(chart) {
   if (!chart || !Array.isArray(chart.points) || chart.points.length < 2) return '';
@@ -15,8 +37,8 @@ export function renderSharesChartSvg(chart) {
   const niceMax = Math.ceil(max / step) * step || max;
   const xFor = (i) => padL + (plotW / n) * (i + 0.5);
   const yFor = (v) => padT + plotH * (1 - v / niceMax);
-  const fmtP = (v) => `${v < 0 ? '' : '-'}${v.toFixed(1).replace('.', ',')} %`;
-  const fmtB = (v) => `+${v.toFixed(1).replace('.', ',')} %`;
+  const fmtP = (v) => `${v < 0 ? '' : '-'}${localeNumber(v, 1, chart.language)} %`;
+  const fmtB = (v) => `+${localeNumber(v, 1, chart.language)} %`;
   const parts = [];
 
   for (let g = 0; g <= 3; g += 1) {
@@ -42,7 +64,7 @@ export function renderSharesChartSvg(chart) {
   if (mets.length) {
     const midX = (xFor(0) + xFor(n - 1)) / 2;
     const lineMidY = (y0 + yN) / 2;
-    const label1 = `CAGR: ${fmtP(mets[0].pct)} · BPA ${fmtB(mets[0].bpa)}`;
+    const label1 = `CAGR: ${fmtP(mets[0].pct)} · ${normalizeLanguage(chart.language) === 'en' ? 'EPS' : 'BPA'} ${fmtB(mets[0].bpa)}`;
     const w1 = label1.length * 5.4 + 12;
     parts.push(`<rect x="${(midX - w1 / 2).toFixed(1)}" y="${(lineMidY - 20).toFixed(1)}" width="${w1.toFixed(1)}" height="15" rx="3" fill="#1f2937"/>`);
     parts.push(`<text x="${midX.toFixed(1)}" y="${(lineMidY - 9).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">${escapeHtml(label1)}</text>`);
@@ -72,10 +94,7 @@ export function renderDebtMaturitySvg(chart) {
   const step = max > 5000 ? 1000 : (max > 1000 ? 500 : (max > 200 ? 100 : 50));
   const niceMax = Math.ceil(max / step) * step || max;
   const n = chart.years.length; const slotW = plotW / n; const barW = Math.min(50, slotW * 0.65);
-  const fmtMillions = (val) => {
-    const [int, dec] = Number(val).toFixed(1).split('.');
-    return `$${int.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${dec}M`;
-  };
+  const fmtMillions = (val) => `$${localeAmount(val, 1, chart.language)}M`;
   const parts = [];
 
   for (let g = 0; g <= 3; g += 1) {
@@ -95,7 +114,7 @@ export function renderDebtMaturitySvg(chart) {
         const blockH = Math.max(3, (Number(it.amount) / niceMax) * plotH);
         const topY = baseline - blockH;
         parts.push(`<rect x="${(cx - barW / 2).toFixed(1)}" y="${topY.toFixed(1)}" width="${barW.toFixed(1)}" height="${blockH.toFixed(1)}" rx="2" fill="${it.color || '#f59e0b'}"/>`);
-        const rateText = it.interestRate != null ? `${it.estimated ? '~' : ''}${Number(it.interestRate).toFixed(2).replace('.', ',')}%` : null;
+        const rateText = it.interestRate != null ? `${it.estimated ? '~' : ''}${localeNumber(it.interestRate, 2, chart.language)}%` : null;
         if (multi && blockH >= 18 && barW >= 28) {
           const textTop = topY + blockH / 2 - 2;
           parts.push(`<text x="${cx.toFixed(1)}" y="${textTop.toFixed(1)}" text-anchor="middle" font-size="8.5" font-weight="700" fill="${it.textColor || '#ffffff'}">${fmtMillions(it.amount)}</text>`);
@@ -123,7 +142,7 @@ export function renderDebtMaturitySvg(chart) {
     : t('Tipo de interés medio total de la deuda', null, svgLang);
   const rateValue = chart.totalAverageRateEstimated ? '~' : '';
   const bannerText = chart.totalAverageRate != null
-    ? `${rateLabel}: ${rateValue}${chart.totalAverageRate.toFixed(2).replace('.', ',')} %  ·  ${t('Deuda a amortizar: {amount}', { amount: fmtMillions(chart.totalAmount) }, svgLang)}${afterText}`
+    ? `${rateLabel}: ${rateValue}${localeNumber(chart.totalAverageRate, 2, svgLang)} %  ·  ${t('Deuda a amortizar: {amount}', { amount: fmtMillions(chart.totalAmount) }, svgLang)}${afterText}`
     : `${t('Deuda a amortizar en los próximos 5 años: {amount}', { amount: fmtMillions(chart.totalAmount) }, svgLang)}${afterText}`;
   parts.push(`<text x="${(padL + plotW / 2).toFixed(1)}" y="${bannerY + 14.5}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#ffffff">${escapeHtml(bannerText)}</text>`);
 
@@ -149,8 +168,11 @@ export function renderDebtHistorySvg(chart) {
   parts.push('<rect x="330" y="10" width="10" height="10" rx="2" fill="#d97706"/>');
   parts.push(`<text x="345" y="18" font-size="8.5" font-weight="700" fill="#334155">${escapeHtml(t('Deuda Neta', null, normalizeLanguage(chart.language)))}</text>`);
   const cagrParts = [];
-  if (chart.cagrTotalDebt != null) cagrParts.push(`normal ${chart.cagrTotalDebt >= 0 ? '+' : ''}${chart.cagrTotalDebt.toFixed(1).replace('.', ',')} %`);
-  if (chart.cagrNetDebt != null) cagrParts.push(`neta ${chart.cagrNetDebt >= 0 ? '+' : ''}${chart.cagrNetDebt.toFixed(1).replace('.', ',')} %`);
+  const histLang = normalizeLanguage(chart.language);
+  const sign = (value) => `${value >= 0 ? '+' : ''}`;
+  const netLabel = histLang === 'en' ? 'net' : 'neta';
+  if (chart.cagrTotalDebt != null) cagrParts.push(`normal ${sign(chart.cagrTotalDebt)}${localeNumber(chart.cagrTotalDebt, 1, histLang)} %`);
+  if (chart.cagrNetDebt != null) cagrParts.push(`${netLabel} ${sign(chart.cagrNetDebt)}${localeNumber(chart.cagrNetDebt, 1, histLang)} %`);
   if (cagrParts.length) parts.push(`<text x="${W - padR}" y="18" text-anchor="end" font-size="8.5" font-weight="700" fill="#64748b">CAGR ${chart.points[0].year}–${chart.points[chart.points.length - 1].year}: ${escapeHtml(cagrParts.join(' · '))}</text>`);
 
   for (let g = 0; g <= 3; g += 1) {
@@ -198,6 +220,7 @@ export function renderDividendSvg(chart) {
   const maxPayout = Math.max(...chart.points.map((p) => (Number.isFinite(p.payoutPct) ? p.payoutPct : 0)), 25);
   const nicePayout = Math.ceil(maxPayout / 25) * 25 || 25;
   const n = chart.points.length; const slotW = plotW / n; const barW = Math.min(46, slotW * 0.5);
+  const divLang = normalizeLanguage(chart.language);
   const yDps = (v) => padT + plotH * (1 - Math.max(0, v) / niceDps);
   const yPayout = (v) => padT + plotH * (1 - Math.max(0, v) / nicePayout);
   const parts = [];
@@ -205,19 +228,19 @@ export function renderDividendSvg(chart) {
   for (let g = 0; g <= 3; g += 1) {
     const v = (niceDps * (3 - g)) / 3; const gy = yDps(v);
     parts.push(`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="${g === 3 ? '#cbd5e1' : '#e2e8f0'}" stroke-width="1"${g === 3 ? ' stroke-dasharray="4 3"' : ''}/>`);
-    parts.push(`<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">$${v.toFixed(1).replace('.', ',')}</text>`);
+    parts.push(`<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">$${localeNumber(v, 1, divLang)}</text>`);
     parts.push(`<text x="${W - padR + 6}" y="${(gy + 3).toFixed(1)}" text-anchor="start" font-size="9" fill="#0f766e">${Math.round((nicePayout * (3 - g)) / 3)}%</text>`);
   }
 
   parts.push(`<rect x="${padL}" y="10" width="10" height="10" rx="2" fill="#f59e0b"/>`);
-  parts.push(`<text x="${padL + 14}" y="18" font-size="8.5" font-weight="700" fill="#334155">${escapeHtml(t('Dividendo por acción ($)', null, normalizeLanguage(chart.language)))}</text>`);
+  parts.push(`<text x="${padL + 14}" y="18" font-size="8.5" font-weight="700" fill="#334155">${escapeHtml(t('Dividendo por acción ($)', null, divLang))}</text>`);
   parts.push(`<line x1="${padL + 165}" y1="15" x2="${padL + 185}" y2="15" stroke="#0f766e" stroke-width="2.5"/>`);
   parts.push(`<circle cx="${padL + 175}" cy="15" r="3.2" fill="#0f766e"/>`);
-  parts.push(`<text x="${padL + 190}" y="18" font-size="8.5" font-weight="700" fill="#0f766e">${escapeHtml(t('Payout s/ BPA ajustado (%)', null, normalizeLanguage(chart.language)))}</text>`);
+  parts.push(`<text x="${padL + 190}" y="18" font-size="8.5" font-weight="700" fill="#0f766e">${escapeHtml(t('Payout s/ BPA ajustado (%)', null, divLang))}</text>`);
   if (chart.dpsCagr != null || chart.totalCagr != null) {
     const cagrParts = [];
-    if (chart.totalCagr != null) cagrParts.push(`importe ${chart.totalCagr >= 0 ? '+' : ''}${chart.totalCagr.toFixed(1).replace('.', ',')} %`);
-    if (chart.dpsCagr != null) cagrParts.push(`por acción ${chart.dpsCagr >= 0 ? '+' : ''}${chart.dpsCagr.toFixed(1).replace('.', ',')} %`);
+    if (chart.totalCagr != null) cagrParts.push(`${divLang === 'en' ? 'amount' : 'importe'} ${chart.totalCagr >= 0 ? '+' : ''}${localeNumber(chart.totalCagr, 1, divLang)} %`);
+    if (chart.dpsCagr != null) cagrParts.push(`${divLang === 'en' ? 'per share' : 'por acción'} ${chart.dpsCagr >= 0 ? '+' : ''}${localeNumber(chart.dpsCagr, 1, divLang)} %`);
     parts.push(`<text x="${W - 14}" y="30" text-anchor="end" font-size="8.5" font-weight="700" fill="#64748b">CAGR ${chart.points[0].year}–${chart.points[chart.points.length - 1].year}: ${escapeHtml(cagrParts.join(' · '))}</text>`);
   }
 
@@ -227,7 +250,7 @@ export function renderDividendSvg(chart) {
     if (Number.isFinite(point.dps)) {
       const top = yDps(point.dps);
       parts.push(`<rect x="${(cx - barW / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${(padT + plotH - top).toFixed(1)}" rx="2" fill="#f59e0b"/>`);
-      parts.push(`<text x="${cx.toFixed(1)}" y="${(top - 4).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="#b45309">${Number(point.dps).toFixed(2).replace('.', ',')} $</text>`);
+      parts.push(`<text x="${cx.toFixed(1)}" y="${(top - 4).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="#b45309">${localeNumber(point.dps, 2, divLang)} $</text>`);
     }
     parts.push(`<text x="${cx.toFixed(1)}" y="${(padT + plotH + 15).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#334155">${point.year}</text>`);
     if (Number.isFinite(point.payoutPct)) {
@@ -239,7 +262,7 @@ export function renderDividendSvg(chart) {
   }
   linePoints.forEach((p) => {
     parts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.6" fill="#0f766e"/>`);
-    const pctLabel = `${p.pct.toFixed(1).replace('.', ',')}%`;
+    const pctLabel = `${localeNumber(p.pct, 1, divLang)}%`;
     const overlaps = p.barTop != null && Math.abs((p.y - 8) - (p.barTop - 4)) < 13;
     if (overlaps) {
       const placeRight = p.barRight + 6 + pctLabel.length * 4.6 <= W - padR;

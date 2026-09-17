@@ -74,7 +74,7 @@ export async function listMetricFavorites(userId) {
 /**
  * Añade (o actualiza la etiqueta de) una métrica favorita del usuario.
  * @param {number} userId - Identificador del usuario.
- * @param {string} statement - Estado financiero ('income' | 'balance' | 'cashflow').
+ * @param {string} statement - Estado financiero ('income' | 'balance' | 'cashflow' | 'ratios').
  * @param {string} metricKey - Clave de la métrica.
  * @param {string} label - Etiqueta visible de la métrica.
  * @returns {Promise<Object|null>} Favorito guardado.

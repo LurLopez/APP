@@ -19,6 +19,7 @@ const extensionFactsCache = new Map();
 const EXTENSION_FACTS_TTL = 24 * 60 * 60 * 1000;
 const EXTENSION_CONCURRENCY = 3;
 const EXTENSION_ANNUAL_MIN_DAYS = 300;
+const EXTENSION_ANNUAL_MAX_DAYS = 400;
 const EXTENSION_QUARTERLY_DIRECT_DAYS = 110;
 const EXTENSION_QUARTERLY_YTD_DAYS = 370;
 
@@ -247,7 +248,7 @@ export function mergeInstanceFacts(annual, quarterly, facts, ticker = '') {
       return valid[0].fact;
     };
     const valueFor = (row) => {
-      const duration = pick(row.periodEnd, EXTENSION_ANNUAL_MIN_DAYS, Infinity);
+      const duration = pick(row.periodEnd, EXTENSION_ANNUAL_MIN_DAYS, EXTENSION_ANNUAL_MAX_DAYS);
       if (duration) return duration.value;
       const instant = instantAt(row.periodEnd);
       return instant ? instant.value : null;

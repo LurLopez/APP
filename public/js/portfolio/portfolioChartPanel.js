@@ -36,6 +36,9 @@
       },
       onSelectedIdsChange: (ids) => {
         PS.chartSelectedIds = ids;
+        if (typeof window.syncChartTriggerButtons === 'function') {
+          window.syncChartTriggerButtons(document);
+        }
       },
       onRangeChange: (r) => {
         PS.chartRange = r;

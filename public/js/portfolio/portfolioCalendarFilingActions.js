@@ -44,7 +44,7 @@
       .then((resData) => {
         clearTimeout(CS.calPreviewLoadTimeout);
         if (!resData || resData.ok !== true || !resData.pages) {
-          if (loading) loading.textContent = 'No se pudo generar la vista previa. Abre el documento en una pestaña nueva.';
+          if (loading) loading.textContent = resData?.error || 'No se pudo generar la vista previa. Abre el documento en una pestaña nueva.';
           return;
         }
         if (loading) loading.hidden = true;

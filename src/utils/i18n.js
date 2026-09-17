@@ -229,6 +229,24 @@ export function formatNumber(value, options, lang) {
 }
 
 /**
+ * Formatea un número con decimales fijos y los separadores del idioma
+ * (millares y decimal: «2.364,3» en español, «2,364.3» en inglés).
+ * @param {number|string} value
+ * @param {number} [decimals]
+ * @param {string} [lang]
+ * @returns {string}
+ */
+export function formatFixed(value, decimals = 0, lang) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return new Intl.NumberFormat(localeFor(lang), {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: true,
+  }).format(number);
+}
+
+/**
  * Formatea un porcentaje con signo (15.5 → "+15,5 %" en español, "+15.5%" en inglés).
  * @param {number} value
  * @param {{ digits?: number, signed?: boolean, lang?: string }} [options]

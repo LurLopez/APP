@@ -31,7 +31,7 @@
       return `Hace ${days} día${days > 1 ? 's' : ''}`;
     }
 
-    return date.toLocaleDateString('es-ES', {
+    return date.toLocaleDateString((window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',

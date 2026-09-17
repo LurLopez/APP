@@ -6,6 +6,7 @@
   const CS = window.PortfolioCalendarState;
     const CALENDAR_VISIBILITY_STORAGE_KEY = 'cifra_calendar_visibility_v1';
     const CALENDAR_COMPANY_VISIBILITY_STORAGE_KEY = 'cifra_calendar_company_visibility_v2';
+    const CALENDAR_COMPANIES_HIDDEN_STORAGE_KEY = 'cifra_calendar_companies_hidden_v1';
     const fmt = () => window.PortfolioFormatting || {};
     const donutsMod = () => window.PortfolioDonuts || {};
 
@@ -70,6 +71,22 @@
     }
   }
 
+  function loadCalendarCompaniesHidden() {
+    try {
+      return localStorage.getItem(CALENDAR_COMPANIES_HIDDEN_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function saveCalendarCompaniesHidden(hidden) {
+    try {
+      localStorage.setItem(CALENDAR_COMPANIES_HIDDEN_STORAGE_KEY, hidden ? '1' : '0');
+    } catch {
+      // Ignorar
+    }
+  }
+
   function getUserPreferences(data) {
     if (data?.userPreferences) return data.userPreferences;
     if (typeof window.Settings !== 'undefined' && typeof window.Settings.getPreferences === 'function') {
@@ -85,6 +102,8 @@
       portfolioNotifyEarnings: true,
       portfolioNotifyExdiv: true,
       portfolioNotifyPayout: true,
+      dividendWithholdingPct: 20,
+      dividendNetEnabled: false,
     };
   }
 
@@ -107,11 +126,9 @@
         payout: prefs.portfolioNotifyPayout !== false,
       };
     }
-    return {
-      earnings: prefs.watchlistNotifyEarnings !== false,
-      exdiv: Boolean(prefs.watchlistNotifyExdiv),
-      payout: Boolean(prefs.watchlistNotifyPayout),
-    };
+    // Los avisos de Seguimiento de los ajustes son de email: en el calendario
+    // las empresas en seguimiento muestran resultados y dividendos por defecto.
+    return { earnings: true, exdiv: true, payout: true };
   }
 
   function getCompanyVisibility(ticker, data) {
@@ -158,6 +175,8 @@ window.loadCalendarVisibility = loadCalendarVisibility;
 window.saveCalendarVisibility = saveCalendarVisibility;
 window.loadCalendarCompanyVisibility = loadCalendarCompanyVisibility;
 window.saveCalendarCompanyVisibility = saveCalendarCompanyVisibility;
+window.loadCalendarCompaniesHidden = loadCalendarCompaniesHidden;
+window.saveCalendarCompaniesHidden = saveCalendarCompaniesHidden;
 window.getUserPreferences = getUserPreferences;
 window.isCompanyInPortfolio = isCompanyInPortfolio;
 window.getCompanyDefaultVisibility = getCompanyDefaultVisibility;
@@ -166,6 +185,7 @@ window.hasCustomCompanyFilters = hasCustomCompanyFilters;
 window.hasCustomCalendarFilters = hasCustomCalendarFilters;
 window.CALENDAR_VISIBILITY_STORAGE_KEY = CALENDAR_VISIBILITY_STORAGE_KEY;
 window.CALENDAR_COMPANY_VISIBILITY_STORAGE_KEY = CALENDAR_COMPANY_VISIBILITY_STORAGE_KEY;
+window.CALENDAR_COMPANIES_HIDDEN_STORAGE_KEY = CALENDAR_COMPANIES_HIDDEN_STORAGE_KEY;
 window.fmt = fmt;
 window.donutsMod = donutsMod;
 

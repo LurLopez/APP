@@ -140,6 +140,12 @@
     AS.currentAnalysisIsReviewed = false;
     AS.currentAnalysisVersions = [];
     AS.pendingVersionsMenuOpen = false;
+    AS.currentAnalysisFormType = null;
+    const sourceLink = document.querySelector('#analysis-source-link');
+    if (sourceLink) {
+      sourceLink.hidden = true;
+      sourceLink.removeAttribute('href');
+    }
     const box = document.querySelector('#analysis-version-box');
     if (box) box.hidden = true;
     const menu = document.querySelector('#analysis-versions-menu');
@@ -148,6 +154,31 @@
     if (reviewedBadge) reviewedBadge.hidden = true;
     const reviewedToggle = document.querySelector('#analysis-reviewed-toggle');
     if (reviewedToggle) reviewedToggle.hidden = true;
+  }
+
+  function renderAnalysisSourceLink(formType = null) {
+    const link = document.querySelector('#analysis-source-link');
+    if (!link) return;
+    const ticker = String(AS.currentAnalysisTicker ?? '').trim().toUpperCase();
+    const rawAccession = AS.currentAnalysisAccession ? String(AS.currentAnalysisAccession).trim() : '';
+    const accession = /^\d{18}$/.test(rawAccession)
+      ? `${rawAccession.slice(0, 10)}-${rawAccession.slice(10, 12)}-${rawAccession.slice(12)}`
+      : rawAccession;
+    if (!ticker || !accession) {
+      link.hidden = true;
+      link.removeAttribute('href');
+      return;
+    }
+    const type = String(formType || AS.currentAnalysisFormType || '').trim().toUpperCase();
+    const translate = window.I18n?.t || ((text, params) => (
+      params ? String(text).replace(/\{(\w+)\}/g, (match, key) => (key in params ? String(params[key]) : match)) : text
+    ));
+    const label = type === '10-Q' || type === '10-K'
+      ? translate('Ver {0} original', { 0: type })
+      : translate('Ver original');
+    link.href = `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/document`;
+    link.textContent = `${label} ↗`;
+    link.hidden = false;
   }
 
   function openAnalysisVersionsMenu() {
@@ -174,13 +205,22 @@
   function loadReportData(analysis, { updateHistory = false } = {}) {
     if (!analysis || !analysis.report) return;
     AS.currentPdfUrl = analysis.pdf_url ?? null;
-    AS.currentDownloadBase = AS.currentPdfUrl ? AS.currentPdfUrl.replace(/\.pdf$/, '') : (analysis.downloadBase ?? null);
+    const baseCandidate = AS.currentPdfUrl
+      ? AS.currentPdfUrl.replace(/\.pdf$/, '')
+      : (analysis.downloadBase && String(analysis.downloadBase).startsWith('/') ? String(analysis.downloadBase).replace(/\.pdf$/, '') : null);
+    AS.currentDownloadBase = baseCandidate;
     const cleanDownloadName = (analysis.ticker ? `${analysis.ticker}-${(analysis.periodTitle || analysis.report?.periodTitle || 'informe').replace(/\s+/g, '-')}` : null)
       || (analysis.downloadBase && !analysis.downloadBase.startsWith('/') ? analysis.downloadBase : null)
       || 'analisis-cifra';
     AS.currentDownloadName = cleanDownloadName;
 
-    const titleParts = [analysis.company_name || analysis.company || analysis.ticker, analysis.periodTitle || analysis.report?.periodTitle].filter(Boolean);
+    const periodTitle = analysis.periodTitle || analysis.report?.periodTitle;
+    const tickerForTitle = analysis.ticker || analysis.report?.ticker;
+    const tickerPattern = String(tickerForTitle || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const cleanPeriodTitle = tickerPattern
+      ? String(periodTitle || '').replace(new RegExp(`\\s*[—–-]\\s*${tickerPattern}\\s*$`, 'i'), '').trim() || periodTitle
+      : periodTitle;
+    const titleParts = [analysis.company_name || analysis.company || analysis.ticker, cleanPeriodTitle].filter(Boolean);
     const resultTitle = document.querySelector('#result-title');
     if (resultTitle) resultTitle.textContent = titleParts.length ? titleParts.join(' — ') : 'Informe guardado';
 
@@ -189,7 +229,9 @@
     AS.currentAnalysisId = analysis.id ? Number(analysis.id) : null;
     AS.currentAnalysisTicker = analysis.ticker || analysis.report?.ticker || null;
     AS.currentAnalysisAccession = analysis.accession || null;
+    AS.currentAnalysisFormType = analysis.formType || analysis.report?.formType || null;
     AS.currentAnalysisSlug = analysis.slug || getAnalysisSlug(analysis);
+    renderAnalysisSourceLink();
 
     setAnalysisVersionState({
       version: analysis.version ?? null,
@@ -255,6 +297,7 @@ window.openAnalysisVersionsMenu = openAnalysisVersionsMenu;
 window.closeAnalysisVersionsMenu = closeAnalysisVersionsMenu;
 window.loadReportData = loadReportData;
 window.viewHistoryAnalysis = viewHistoryAnalysis;
+window.renderAnalysisSourceLink = renderAnalysisSourceLink;
 window.analysisVersionsCache = analysisVersionsCache;
 
 })(window);

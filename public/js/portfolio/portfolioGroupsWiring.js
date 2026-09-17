@@ -24,6 +24,7 @@
     scope.querySelectorAll('[data-pf-groups-view]').forEach((button) => {
       button.addEventListener('click', () => {
         PS.groupsView = button.dataset.pfGroupsView;
+        PS.positionsView = button.dataset.pfGroupsView;
         rerenderKeepingScroll();
       });
     });

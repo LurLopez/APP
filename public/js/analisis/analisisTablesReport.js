@@ -255,9 +255,17 @@
     `;
   }
 
+  function cleanPeriodLabel(periodTitle, ticker) {
+    const text = String(periodTitle || '').trim();
+    const code = String(ticker || '').trim();
+    if (!text || !code) return text;
+    const escaped = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp(`\\s*[—–-]\\s*${escaped}\\s*$`, 'i'), '').trim() || text;
+  }
+
   function renderReport(report) {
     const horizons = Array.isArray(report.horizons) ? report.horizons : [];
-    const titleParts = [report.ticker, report.periodTitle].filter(Boolean);
+    const titleParts = [report.ticker, cleanPeriodLabel(report.periodTitle, report.ticker)].filter(Boolean);
     const reportLanguage = report.language
       ? (window.I18n?.normalizeLanguage?.(report.language) || 'es')
       : 'es';

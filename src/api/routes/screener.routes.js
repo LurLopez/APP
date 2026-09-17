@@ -5,6 +5,7 @@
 
 import express from 'express';
 import { rateLimit } from '../../middleware/rateLimit.middleware.js';
+import { isFilingDocumentCached, isFilingPreviewCached } from '../../services/edgar.service.js';
 import {
   searchCompaniesHandler,
   getCompanyDetailsHandler,
@@ -55,11 +56,41 @@ const filingsLimiter = rateLimit({
   message: 'Demasiadas consultas de filings. Espera un poco antes de volver a intentarlo.',
 });
 
+const heavyCrawlerMessage = 'Demasiadas generaciones de documentos seguidas. Espera un poco antes de volver a intentarlo.';
+
 const heavyCrawlerLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 30,
   scope: 'screener:crawler',
-  message: 'Demasiadas generaciones de documentos seguidas. Espera un poco antes de volver a intentarlo.',
+  message: heavyCrawlerMessage,
+});
+
+// Descarga del documento: solo es "pesada" (Chrome headless o descarga a la SEC) si el
+// PDF aún no está en caché. Si ya existe en disco, no consume el cupo de crawler.
+const filingDocumentLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  scope: 'screener:crawler',
+  message: heavyCrawlerMessage,
+  skip: (req) => isFilingDocumentCached(req.params.accession),
+});
+
+// Vista previa: solo consume cupo si hay que generar el PDF o rasterizar páginas (pdftoppm).
+const filingPreviewLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  scope: 'screener:crawler',
+  message: heavyCrawlerMessage,
+  skip: (req) => isFilingDocumentCached(req.params.accession) && isFilingPreviewCached(req.params.accession),
+});
+
+// Servir los PNG ya generados es una lectura de disco barata: se permite cargar
+// documentos largos (una petición por página) sin agotar el cupo de crawler.
+const previewPagesLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 600,
+  scope: 'screener:preview-pages',
+  message: 'Demasiadas páginas de vista previa seguidas. Espera un poco antes de volver a intentarlo.',
 });
 
 // Búsqueda y detalles de empresa
@@ -72,7 +103,7 @@ router.get('/company/:ticker/holders', companyDataLimiter, getCompanyHoldersHand
 // Filings y presentaciones de la SEC
 router.get('/company/:ticker/filings', filingsLimiter, getCompanyFilingsHandler);
 router.get('/company/:ticker/filings/presentations', heavyCrawlerLimiter, getCompanyPresentationsHandler);
-router.get('/company/:ticker/filings/:accession/document', heavyCrawlerLimiter, getFilingDocumentHandler);
+router.get('/company/:ticker/filings/:accession/document', filingDocumentLimiter, getFilingDocumentHandler);
 
 // Versiones, análisis y regeneración con IA
 router.get('/company/:ticker/filings/:accession/versions', filingsLimiter, getFilingVersionsHandler);
@@ -80,7 +111,7 @@ router.post('/company/:ticker/filings/:accession/analyze', analyzeLimiter, analy
 router.post('/company/:ticker/filings/:accession/regenerate', analyzeLimiter, regenerateFilingHandler);
 
 // Previsualización de páginas
-router.get('/company/:ticker/filings/:accession/preview', heavyCrawlerLimiter, getFilingPreviewHandler);
-router.get('/company/:ticker/filings/:accession/preview/pages/:page', heavyCrawlerLimiter, getFilingPreviewPageHandler);
+router.get('/company/:ticker/filings/:accession/preview', filingPreviewLimiter, getFilingPreviewHandler);
+router.get('/company/:ticker/filings/:accession/preview/pages/:page', previewPagesLimiter, getFilingPreviewPageHandler);
 
 export default router;

@@ -189,4 +189,12 @@ window.wireAnalisisAdmin = wireAnalisisAdmin;
 window.analisisInit = init;
 window.setAuthenticated = setAuthenticated;
 
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!AS?.initialized) init();
+    });
+  }
+}
+
 })(window);

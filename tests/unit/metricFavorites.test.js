@@ -17,6 +17,11 @@ test('rechaza estados financieros fuera del conjunto permitido', () => {
   assert.equal(normalizeFavoritePayload(null, 'otro', 'revenue'), null);
 });
 
+test('acepta la pestaña de ratios', () => {
+  const result = normalizeFavoritePayload(null, 'ratios', 'roa');
+  assert.deepEqual(result, { statement: 'ratios', key: 'roa', label: 'roa' });
+});
+
 test('rechaza claves con formato no válido', () => {
   assert.equal(normalizeFavoritePayload(null, 'income', 'revenue; drop table'), null);
   assert.equal(normalizeFavoritePayload(null, 'income', ''), null);

@@ -4,8 +4,10 @@
  */
 
 import config from '../../../config/index.js';
-import { SITE_NAME, safeHttpUrl } from './seoConstants.js';
+import { SITE_NAME, safeHttpUrl, GUIDES } from './seoConstants.js';
+import { t } from '../../utils/i18n.js';
 import { getFeaturedCompanies } from './featuredCompanies.service.js';
+import { HOME_FAQS } from './botContent.service.js';
 
 /**
  * Serializa un objeto para incrustarlo en un <script>. Neutraliza los caracteres
@@ -69,16 +71,185 @@ export async function buildFeaturedItemList(name, url, limit, lang = 'es') {
   };
 }
 
+/**
+ * Construye el grafo base del sitio (WebSite, Organization y WebApplication)
+ * localizado según el idioma de la página.
+ * @param {string} [lang] - Idioma ('es' | 'en').
+ * @returns {object[]} Nodos Schema.org.
+ */
+export function buildSiteGraph(lang = 'es') {
+  const isEn = lang === 'en';
+  const siteUrl = `${config.siteUrl}/`;
+  const organizationId = `${config.siteUrl}/#organization`;
+
+  const webSite = {
+    '@type': 'WebSite',
+    '@id': `${config.siteUrl}/#website`,
+    name: 'Cifra',
+    alternateName: 'Cifra Research',
+    url: siteUrl,
+    inLanguage: isEn ? 'en' : 'es',
+    description: t('Análisis de informes financieros 10-Q y 10-K de empresas estadounidenses con IA.', null, lang),
+    publisher: { '@id': organizationId },
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${config.siteUrl}${isEn ? '/en' : ''}/empresa?ticker={search_term_string}`,
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  };
+
+  const organization = {
+    '@type': 'Organization',
+    '@id': organizationId,
+    name: 'Cifra',
+    alternateName: 'Cifra Research',
+    url: siteUrl,
+    logo: {
+      '@type': 'ImageObject',
+      url: `${config.siteUrl}/logo-cifra.png`,
+      width: 512,
+      height: 512,
+    },
+  };
+
+  const webApplication = {
+    '@type': 'WebApplication',
+    '@id': `${config.siteUrl}/#application`,
+    name: 'Cifra',
+    url: siteUrl,
+    inLanguage: isEn ? 'en' : 'es',
+    applicationCategory: 'BusinessApplication',
+    applicationSubCategory: 'FinanceApplication',
+    operatingSystem: 'Web',
+    description: t('Herramienta para analizar informes financieros 10-Q y 10-K de empresas estadounidenses con datos de SEC EDGAR.', null, lang),
+    publisher: { '@id': organizationId },
+    featureList: [
+      'Análisis automatizado de informes 10-Q y 10-K con IA',
+      'Extracción de ventas, margen operativo, beneficio neto y flujo de caja libre',
+      'Evaluación de la asignación de capital: deuda, recompras de acciones y dividendos',
+      'Integración con presentaciones y comunicados de resultados del Formulario 8-K',
+      'Generación de informes estructurados en PDF',
+    ].map((feature) => t(feature, null, lang)),
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+    },
+  };
+
+  return [webSite, organization, webApplication];
+}
+
+/**
+ * Genera el JSON-LD de la portada: grafo del sitio + listado de empresas destacadas.
+ * @param {string} [lang] - Idioma ('es' | 'en').
+ * @returns {Promise<object>} Objeto Schema.org.
+ */
 export async function getHomeJsonLd(lang = 'es') {
-  return lang === 'en'
+  const itemList = await (lang === 'en'
     ? buildFeaturedItemList('Companies analyzed on Cifra', `${config.siteUrl}/en`, 8, 'en')
-    : buildFeaturedItemList('Empresas analizadas en Cifra', `${config.siteUrl}/`, 8, 'es');
+    : buildFeaturedItemList('Empresas analizadas en Cifra', `${config.siteUrl}/`, 8, 'es'));
+  const { '@context': _context, ...itemListNode } = itemList;
+  return { '@context': 'https://schema.org', '@graph': [...buildSiteGraph(lang), itemListNode] };
+}
+
+/**
+ * Genera el JSON-LD de la FAQ de la portada. Usa exactamente las mismas
+ * preguntas y respuestas que el bloque SSR visible (HOME_FAQS).
+ * @param {string} [lang] - Idioma ('es' | 'en').
+ * @returns {object} Objeto FAQPage de Schema.org.
+ */
+export function getHomeFaqJsonLd(lang = 'es') {
+  const isEn = lang === 'en';
+  const base = isEn ? `${config.siteUrl}/en/guias` : `${config.siteUrl}/guias`;
+  const faqs = HOME_FAQS[isEn ? 'en' : 'es'];
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map(({ q, a, guide }) => ({
+      '@type': 'Question',
+      name: q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: guide ? `${a} ${base}/${guide.slug}` : a,
+      },
+    })),
+  };
 }
 
 export async function getCompaniesJsonLd(lang = 'es') {
-  return lang === 'en'
+  const isEn = lang === 'en';
+  const itemList = await (isEn
     ? buildFeaturedItemList('U.S. Consumer Staples Companies on Cifra', `${config.siteUrl}/en/empresa`, 28, 'en')
-    : buildFeaturedItemList('Empresas de consumo defensivo de EE. UU. en Cifra', `${config.siteUrl}/empresa`, 28, 'es');
+    : buildFeaturedItemList('Empresas de consumo defensivo de EE. UU. en Cifra', `${config.siteUrl}/empresa`, 28, 'es'));
+  const { '@context': _context, ...itemListNode } = itemList;
+  const [webSite, organization] = buildSiteGraph(lang);
+  const collectionPage = {
+    '@type': 'CollectionPage',
+    '@id': `${config.siteUrl}${isEn ? '/en' : ''}/empresa#collection`,
+    url: `${config.siteUrl}${isEn ? '/en' : ''}/empresa`,
+    name: isEn ? 'U.S. Consumer Staples Companies' : 'Empresas de consumo defensivo de EE. UU.',
+    description: isEn
+      ? 'Directory of U.S. consumer staples companies with profile, quote, 10-Q and 10-K filings and AI analysis.'
+      : 'Directorio de empresas estadounidenses de consumo defensivo con perfil, cotización, informes 10-Q y 10-K y análisis con IA.',
+    inLanguage: isEn ? 'en' : 'es',
+    isPartOf: { '@id': `${config.siteUrl}/#website` },
+    publisher: { '@id': `${config.siteUrl}/#organization` },
+    mainEntity: { '@type': 'ItemList', '@id': `${config.siteUrl}${isEn ? '/en' : ''}/empresa#list` },
+  };
+  return { '@context': 'https://schema.org', '@graph': [webSite, organization, collectionPage, itemListNode] };
+}
+
+/**
+ * Genera el JSON-LD del hub de guías: WebPage + BreadcrumbList + listado de guías.
+ * @param {string} [lang] - Idioma ('es' | 'en').
+ * @returns {object} Objeto Schema.org.
+ */
+export function getGuidesJsonLd(lang = 'es') {
+  const isEn = lang === 'en';
+  const base = `${config.siteUrl}${isEn ? '/en' : ''}/guias`;
+  const [, organization] = buildSiteGraph(lang);
+  const webPage = {
+    '@type': 'WebPage',
+    '@id': `${base}#webpage`,
+    url: base,
+    name: isEn ? 'Guides to read 10-Q and 10-K SEC filings' : 'Guías para leer informes 10-Q y 10-K de la SEC',
+    description: isEn
+      ? 'Educational guides for investors: what 10-Q and 10-K filings are, free cash flow, capital allocation and how to analyze consumer staples companies using SEC filings.'
+      : 'Guías educativas para inversores: qué son el 10-Q y el 10-K, flujo de caja libre, asignación de capital y cómo analizar empresas de consumo defensivo con los informes de la SEC.',
+    inLanguage: isEn ? 'en' : 'es',
+    isPartOf: { '@id': `${config.siteUrl}/#website` },
+    publisher: { '@id': `${config.siteUrl}/#organization` },
+    mainEntity: { '@id': `${base}#list` },
+  };
+  const breadcrumb = {
+    '@type': 'BreadcrumbList',
+    '@id': `${base}#breadcrumb`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Cifra', item: `${config.siteUrl}${isEn ? '/en' : ''}` },
+      { '@type': 'ListItem', position: 2, name: isEn ? 'Guides' : 'Guías', item: base },
+    ],
+  };
+  const itemList = {
+    '@type': 'ItemList',
+    '@id': `${base}#list`,
+    name: isEn ? 'SEC filing guides' : 'Guías de informes de la SEC',
+    numberOfItems: GUIDES.length,
+    itemListElement: GUIDES.map((guide, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      item: {
+        '@type': 'Article',
+        headline: isEn && guide.titleEn ? guide.titleEn : guide.title,
+        description: isEn && guide.descriptionEn ? guide.descriptionEn : guide.description,
+        url: `${base}/${guide.slug}`,
+      },
+    })),
+  };
+  return { '@context': 'https://schema.org', '@graph': [webPage, breadcrumb, organization, itemList] };
 }
 
 export function buildCompanyJsonLd(meta, profile, lang = 'es') {
@@ -231,6 +402,7 @@ export function buildCompanyJsonLd(meta, profile, lang = 'es') {
 export function buildReportJsonLd(meta, row) {
   const publishedAt = new Date(row.created_at).toISOString();
   const sourceUrl = safeHttpUrl(row.source_url) || 'https://www.sec.gov/edgar';
+  const isEn = (meta.language ?? 'es') === 'en';
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -241,7 +413,7 @@ export function buildReportJsonLd(meta, row) {
         description: meta.description,
         datePublished: publishedAt,
         dateModified: publishedAt,
-        inLanguage: 'es',
+        inLanguage: isEn ? 'en' : 'es',
         author: { '@type': 'Organization', name: 'Cifra', url: `${config.siteUrl}/` },
         publisher: {
           '@type': 'Organization',
@@ -254,7 +426,9 @@ export function buildReportJsonLd(meta, row) {
         mainEntityOfPage: meta.url,
         isBasedOn: {
           '@type': 'DigitalDocument',
-          name: `Informe oficial ${meta.formType} de ${meta.name} presentado ante la SEC`,
+          name: isEn
+            ? `Official Form ${meta.formType} report filed by ${meta.name} with the SEC`
+            : `Informe oficial ${meta.formType} de ${meta.name} presentado ante la SEC`,
           url: sourceUrl,
           provider: {
             '@type': 'GovernmentOrganization',

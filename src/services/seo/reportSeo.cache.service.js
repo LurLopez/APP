@@ -12,7 +12,7 @@ export function invalidateReportCache() {
 
 export async function loadPublicReportsForSitemap() {
   const rows = await query(
-    `SELECT id, ticker, period_end, created_at, report FROM analyses
+    `SELECT id, ticker, period_end, created_at, language, report FROM analyses
       WHERE is_public = true AND status = 'done'
       ORDER BY ticker, created_at DESC, id DESC`,
   );

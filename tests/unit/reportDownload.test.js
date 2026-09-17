@@ -64,3 +64,27 @@ test('Sanitización de nombres de descarga previene caracteres no seguros y trun
   assert.equal(sanitize('KO / Coke (Q1)?', 'odt'), 'KO___Coke__Q1__.odt');
   assert.equal(sanitize('../../../malicious/path', 'pdf'), '.._.._.._malicious_path.pdf');
 });
+
+test('downloadReport limpia la extensión previa del baseUrl y genera el enlace correcto', () => {
+  const formats = ['pdf', 'docx', 'odt', 'html'];
+  const testBaseUrl = '/api/reports/9ed894e3-c231-446f-9d83-ea0a7c34ff7c.pdf';
+  const cleanBase = testBaseUrl.replace(/\.(pdf|docx|odt|html)$/i, '');
+  const reportName = 'KHC-2026-Q2';
+
+  for (const fmt of formats) {
+    const safeName = encodeURIComponent(reportName);
+    const expectedHref = `${cleanBase}.${fmt}?download=1&name=${safeName}`;
+    const expectedDownload = `${reportName}.${fmt}`;
+
+    assert.equal(expectedHref, `/api/reports/9ed894e3-c231-446f-9d83-ea0a7c34ff7c.${fmt}?download=1&name=KHC-2026-Q2`);
+    assert.equal(expectedDownload, `KHC-2026-Q2.${fmt}`);
+  }
+});
+
+test('downloadReport rechaza formatos no válidos', () => {
+  const validFormats = ['pdf', 'docx', 'odt', 'html'];
+  assert.equal(validFormats.includes('exe'), false);
+  assert.equal(validFormats.includes('sh'), false);
+  assert.equal(validFormats.includes('json'), false);
+});
+

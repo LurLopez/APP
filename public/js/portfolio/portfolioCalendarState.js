@@ -4,13 +4,16 @@
 
 (function (window) {
 
+const today = new Date();
+
 window.PortfolioCalendarState = {
-  calendarYear: 2026,
-  calendarMonth: 7,
+  calendarYear: today.getFullYear(),
+  calendarMonth: today.getMonth(),
   calendarVisibility: undefined,
   calendarCompanyVisibility: undefined,
   calendarEditingCompanyTicker: null,
   calendarConfigModalOpen: false,
+  calendarCompaniesHidden: false,
   calendarViewMode: 'grid',
   calendarActiveModalEvent: null,
   calendarAiLoading: false,

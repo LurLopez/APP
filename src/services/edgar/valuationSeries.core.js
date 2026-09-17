@@ -6,7 +6,7 @@ import { getHistoricalPrices } from '../market.service.js';
 import { getCompanyByTicker, getCompanyFacts, getCompanySubmissions } from './companyProfile.js';
 import { buildSeries } from './factsSeries.js';
 import { getExtensionFacts, mergeInstanceFacts } from './instanceFacts.js';
-import { propagateMissingShares, harmonizeSeriesSplits } from './sharesHarmonizer.js';
+import { normalizeShareUnits, propagateMissingShares, harmonizeSeriesSplits } from './sharesHarmonizer.js';
 import { rederiveCashValues, rederiveIncomeValues, rederiveBalanceValues } from './rederiveStatements.js';
 import { pointInTimeSnapshot } from './valuationPointInTime.js';
 
@@ -61,6 +61,7 @@ export async function getValuationSeries(ticker, rangeKey = '5y') {
   } catch {
     // Continuar
   }
+  normalizeShareUnits(annual, quarterly);
   propagateMissingShares(annual, quarterly);
   rederiveCashValues(annual, quarterly);
   rederiveIncomeValues(annual, quarterly);

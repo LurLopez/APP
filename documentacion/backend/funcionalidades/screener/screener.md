@@ -144,6 +144,11 @@ Combina EDGAR + Yahoo (`getMarketProfile`):
 
 - Renderiza el PDF a PNG por página con **`pdftoppm`** (100 DPI configurable con `PREVIEW_DPI`), caché permanente en `uploads/generated/filings/previews/{accession}/`. Devuelve `{ filename, pages }`; errores → `PREVIEW_UNAVAILABLE`.
 
+### Límites de tasa del documento y la vista previa (revisado 2026-09-17)
+
+- `.../document` y `.../preview` solo consumen el cupo de crawler (30 / 10 min por IP) cuando el PDF o las páginas PNG **no están en caché local** (`isFilingDocumentCached` / `isFilingPreviewCached`, con índice de PDF memoizado 10 s); si ya existen en disco la petición no consume cupo (opción `skip` del middleware `rateLimit`).
+- `.../preview/pages/:page` (lectura de PNG en disco) usa un límite propio y amplio (600 / 10 min por IP): un documento largo genera una petición por página, y con el cupo compartido de crawler abrir una vista previa (ej. TAP, 74 páginas) agotaba el límite y bloqueaba después la descarga con 429.
+
 ## 5. Servicio de mercado (`src/services/market.service.js`)
 
 - `getChartSeries(ticker, range, withMovingAverage)`: rangos 3M/6M (1d), 1Y (1d), 3Y/5Y (1wk), 10Y/ALL (1mo); caché 5 min. **MA 100**: se pide la serie **diaria** con un margen de ~260 días de calendario anteriores al día 0 del gráfico para asegurar al menos 100 sesiones bursátiles previas; de este modo la media móvil de 100 sesiones se calcula desde el día 0 exacto (extremo izquierdo del gráfico) y cubre todo el rango visual sin desfase ni hueco inicial; ante fallo devuelve `maPoints: []`.
@@ -180,6 +185,7 @@ Combina EDGAR + Yahoo (`getMarketProfile`):
 | `src/services/edgar.service.js` | Toda la lógica EDGAR: búsqueda, facts, series (buildSeries), rescate XBRL, perfil, sector, filings, documento/preview, errores con código. |
 | `src/services/market.service.js` | Yahoo Finance: chart con cálculo retrospectivo multi-MA desde día 0, quote, profile, dividendos. |
 | `src/api/routes/screener.routes.js` | 8 endpoints con validaciones y mapeo de errores; streaming del documento; preview por páginas; `POST .../analyze`. |
+| `src/middleware/rateLimit.middleware.js` | Límite por IP y scope con opción `skip`: las peticiones servidas desde caché no consumen cupo. |
 | `src/middleware/auth.middleware.js` | `resolveUser` (opcional) para `authenticated`. |
 | `server.js` | Monta el router en `/api/screener` y la ruta `GET /empresa/:ticker` (página de empresa). |
 
@@ -223,6 +229,7 @@ Sin dependencias npm nuevas (fetch nativo; Chrome y pdftoppm como binarios exter
 - **PG** (cierre junio) e intangibles agregados; **PEP** combinado finite+indefinite y CAPEX; **TAP** pérdidas y acciones diluidas; TGT/KR sin fx porque sus 10-K no presentan la línea (correcto).
 - Perfil: TAP con cotización, capitalización, dividendo y sector; chart con MA100 validada numéricamente contra Yahoo (diferencia 0,0).
 - Filings TAP: 40 ordenados, documento PDF (200, application/pdf), preview con 74 páginas (páginas 1/2/74 → 200 image/png), `POST .../analyze` → 200 en 22,8 s con DeepSeek.
+- Límites 2026-09-17 (verificado con curl): tras agotar el cupo crawler (30), el documento cacheado, el preview cacheado y las páginas PNG siguen devolviendo 200; solo las peticiones que generan (PDF/PNG sin caché) responden 429.
 - Bloqueo PRO: invitado 6 columnas anuales y 4 trimestrales; con sesión todo completo.
 
 ## 10. Relación con otros módulos

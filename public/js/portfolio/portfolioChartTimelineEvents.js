@@ -154,6 +154,9 @@
     if (pickerBtn) pickerBtn.querySelector('span').textContent = `Elementos (${PCS.selectedIds.length})`;
     const counterBadge = pickerBox.querySelector('[data-picker-counter]');
     if (counterBadge) counterBadge.textContent = `${PCS.selectedIds.length} / 20 seleccionados`;
+    panel.querySelectorAll('[data-pf-chart-clear]').forEach((btn) => {
+      btn.style.display = PCS.selectedIds.length > 0 ? '' : 'none';
+    });
   }
 window.attachTimelineEvents = attachTimelineEvents;
 window.syncPickerChecked = syncPickerChecked;

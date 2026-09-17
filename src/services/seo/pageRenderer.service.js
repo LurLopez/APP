@@ -26,9 +26,18 @@ export function isPrivatePath(pathname) {
   return false;
 }
 
-export function serveHtml(res, fileName, { pathname = null, noIndex = false, companyMeta = null, botContent = null, headExtras = null, cacheControl = 'public, max-age=300', lang = 'es' } = {}) {
+export function serveHtml(res, fileName, { pathname = null, noIndex = false, companyMeta = null, botContent = null, headExtras = null, cacheControl = 'public, max-age=300', lang = 'es', title = null, description = null } = {}) {
   const isEn = (lang === 'en') || pathname === '/en' || pathname?.startsWith('/en/');
   let html = replaceTokens(readTemplate(fileName, isEn ? 'en' : 'es'));
+
+  if (title) {
+    html = setMetaTag(html, /<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`);
+    html = setMetaTag(html, /<meta property="og:title" content="[\s\S]*?">/, `<meta property="og:title" content="${escapeHtml(title)}">`);
+  }
+  if (description) {
+    html = setMetaTag(html, /<meta name="description" content="[\s\S]*?">/, `<meta name="description" content="${escapeHtml(description)}">`);
+    html = setMetaTag(html, /<meta property="og:description" content="[\s\S]*?">/, `<meta property="og:description" content="${escapeHtml(description)}">`);
+  }
 
   let esPath = '/';
   let enPath = '/en';
@@ -83,7 +92,7 @@ export function serveHtml(res, fileName, { pathname = null, noIndex = false, com
   if (headExtras) html = html.replace('</head>', `${headExtras}\n</head>`);
   html = withCompliance(html);
   if (botContent) {
-    html = html.replace(/<body([^>]*)>/, `<body$1>\n${botContent}`);
+    html = html.replace(/<body([^>]*)>/, (match, attrs) => `<body${attrs}>\n${botContent}`);
   }
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', cacheControl);
@@ -91,9 +100,10 @@ export function serveHtml(res, fileName, { pathname = null, noIndex = false, com
   res.send(html);
 }
 
-export function serveStandalone(res, html, { cacheControl = 'public, max-age=1800', lang = 'es', pathname = null, isLegal = false, slug = null, title = null, description = null } = {}) {
+export function serveStandalone(res, html, { cacheControl = 'public, max-age=1800', lang = 'es', contentLang = null, hreflangLangs = null, xDefaultContent = false, pathname = null, isLegal = false, slug = null, title = null, description = null } = {}) {
   let out = replaceTokens(html);
   const isEn = (lang === 'en') || pathname === '/en' || pathname?.startsWith('/en/');
+  const contentIsEn = (contentLang ?? lang) === 'en';
 
   let esPath = '/';
   let enPath = '/en';
@@ -115,12 +125,12 @@ export function serveStandalone(res, html, { cacheControl = 'public, max-age=180
     }
   }
 
-  const canonicalUrl = isEn ? `${config.siteUrl}${enPath}` : `${config.siteUrl}${esPath}`;
   const esUrl = `${config.siteUrl}${esPath}`;
   const enUrl = `${config.siteUrl}${enPath}`;
-  const xDefaultUrl = esUrl;
+  const canonicalUrl = contentIsEn ? enUrl : esUrl;
+  const xDefaultUrl = xDefaultContent ? canonicalUrl : esUrl;
 
-  if (isEn) {
+  if (contentIsEn) {
     out = out.replace('<html lang="es">', '<html lang="en">');
   }
 
@@ -138,19 +148,21 @@ export function serveStandalone(res, html, { cacheControl = 'public, max-age=180
 
   out = setMetaTag(out, /<link rel="canonical" href="[\s\S]*?">/, `<link rel="canonical" href="${escapeHtml(canonicalUrl)}">`);
   out = setMetaTag(out, /<meta property="og:url" content="[\s\S]*?">/, `<meta property="og:url" content="${escapeHtml(canonicalUrl)}">`);
-  out = setMetaTag(out, /<meta property="og:locale" content="[\s\S]*?">/, `<meta property="og:locale" content="${isEn ? 'en_US' : 'es_ES'}">`);
+  out = setMetaTag(out, /<meta property="og:locale" content="[\s\S]*?">/, `<meta property="og:locale" content="${contentIsEn ? 'en_US' : 'es_ES'}">`);
 
-  const hreflangEs = `<link rel="alternate" hreflang="es" href="${escapeHtml(esUrl)}">`;
-  const hreflangEn = `<link rel="alternate" hreflang="en" href="${escapeHtml(enUrl)}">`;
+  const langs = Array.isArray(hreflangLangs) && hreflangLangs.length ? hreflangLangs : ['es', 'en'];
+  const hreflangEs = langs.includes('es') ? `<link rel="alternate" hreflang="es" href="${escapeHtml(esUrl)}">` : '';
+  const hreflangEn = langs.includes('en') ? `<link rel="alternate" hreflang="en" href="${escapeHtml(enUrl)}">` : '';
   const hreflangXDefault = `<link rel="alternate" hreflang="x-default" href="${escapeHtml(xDefaultUrl)}">`;
 
   out = out.replace(/<link rel="alternate" hreflang="es"[^>]*>/g, hreflangEs);
   out = out.replace(/<link rel="alternate" hreflang="en"[^>]*>/g, hreflangEn);
   out = out.replace(/<link rel="alternate" hreflang="x-default"[^>]*>/g, hreflangXDefault);
 
-  if (!out.includes('hreflang="es"')) {
-    out = out.replace(/<link rel="canonical"[^>]*>/, `$&\n  ${hreflangEs}\n  ${hreflangEn}\n  ${hreflangXDefault}`);
-  } else if (!out.includes('hreflang="en"')) {
+  if (!out.includes('hreflang=')) {
+    const block = [hreflangEs, hreflangEn, hreflangXDefault].filter(Boolean).join('\n  ');
+    out = out.replace(/<link rel="canonical"[^>]*>/, `$&\n  ${block}`);
+  } else if (langs.includes('en') && !out.includes('hreflang="en"')) {
     out = out.replace(hreflangEs, `${hreflangEs}\n  ${hreflangEn}`);
   }
 
@@ -164,7 +176,7 @@ export function serveStandalone(res, html, { cacheControl = 'public, max-age=180
   }
 
   if (!out.includes('js/shared/i18n.js')) {
-    const i18nScript = '<script src="/js/shared/i18n.js?v=2"></script>';
+    const i18nScript = '<script src="/js/shared/i18n.js?v=9"></script>';
     out = out.includes('</body>')
       ? out.replace('</body>', `  ${i18nScript}\n</body>`)
       : `${out}\n${i18nScript}\n`;

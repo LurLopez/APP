@@ -12,8 +12,10 @@
 
   window.addEventListener('auth:change', (event) => {
     const logged = Boolean(event.detail?.user);
-    setAuthenticated(logged);
-    if (logged && AS.pendingAuthRetry) {
+    if (typeof window.setAuthenticated === 'function') {
+      window.setAuthenticated(logged);
+    }
+    if (logged && AS?.pendingAuthRetry) {
       const retry = AS.pendingAuthRetry;
       AS.pendingAuthRetry = null;
       retry();
@@ -21,10 +23,10 @@
   });
 
   window.AnalysisModule = {
-    init,
-    runFilingAnalysis,
-    fetchAnalyses,
-    setAuthenticated,
-    loadReportData,
+    init: (...args) => (typeof window.analisisInit === 'function' ? window.analisisInit(...args) : (typeof window.init === 'function' ? window.init(...args) : null)),
+    runFilingAnalysis: (...args) => (typeof window.runFilingAnalysis === 'function' ? window.runFilingAnalysis(...args) : null),
+    fetchAnalyses: (...args) => (typeof window.fetchAnalyses === 'function' ? window.fetchAnalyses(...args) : null),
+    setAuthenticated: (...args) => (typeof window.setAuthenticated === 'function' ? window.setAuthenticated(...args) : null),
+    loadReportData: (...args) => (typeof window.loadReportData === 'function' ? window.loadReportData(...args) : null),
   };
 })();

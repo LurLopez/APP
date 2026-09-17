@@ -23,10 +23,21 @@
     for (const item of positions) {
       const held = (Number(item.shares) || 0) > 0;
       const sold = (Number(item.sharesSold) || 0) > 0;
+      if (held && sold) {
+        choices.push({
+          id: `ticker:${item.ticker}:all`,
+          label: `${item.companyName || item.ticker} (Total)`,
+          sub: `${item.ticker} · Total (${fmtShares(item.shares)} en cartera + ${fmtShares(item.sharesSold)} vendidas)`,
+          ticker: item.ticker,
+          kind: 'ticker',
+          category: 'valores',
+          categoryLabel: 'Valores',
+        });
+      }
       if (held) {
         choices.push({
           id: `ticker:${item.ticker}:buy`,
-          label: `${item.companyName || item.ticker} (Compra)`,
+          label: `${item.companyName || item.ticker}${held && sold ? ' (Compra)' : ''}`,
           sub: `${item.ticker} · Compra (${fmtShares(item.shares)} acc)`,
           ticker: item.ticker,
           kind: 'ticker',
@@ -37,7 +48,7 @@
       if (sold) {
         choices.push({
           id: `ticker:${item.ticker}:sell`,
-          label: `${item.companyName || item.ticker} (Venta)`,
+          label: `${item.companyName || item.ticker}${held && sold ? ' (Venta)' : ''}`,
           sub: `${item.ticker} · Venta (${fmtShares(item.sharesSold)} acc vendidas)`,
           ticker: item.ticker,
           kind: 'ticker',
@@ -135,9 +146,11 @@
     const isLot = String(id).startsWith('lot:');
     const isBuy = String(id).includes(':buy');
     const isSell = String(id).includes(':sell');
+    const isAll = String(id).includes(':all');
     let label = isGroup ? 'grupo' : isLot ? 'lote' : 'valor';
     if (isBuy) label += ' (compra)';
     else if (isSell) label += ' (venta)';
+    else if (isAll) label += ' (total)';
     const isSelected = PCS.selectedIds.includes(String(id));
     const title = isSelected ? `Quitar ${label} del gráfico` : `Mostrar ${label} en el gráfico`;
     const iconSvg = isSelected
@@ -148,9 +161,13 @@
   }
 
   function syncChartTriggerButtons(scope = document) {
-    if (!scope) return;
+    let root = (scope && scope.querySelectorAll) ? scope : document;
+    let buttons = root.querySelectorAll('[data-pf-chart-trigger]');
+    if (!buttons.length && root !== document) {
+      buttons = document.querySelectorAll('[data-pf-chart-trigger]');
+    }
     const selectedSet = new Set(PCS.selectedIds);
-    scope.querySelectorAll('[data-pf-chart-trigger]').forEach((button) => {
+    buttons.forEach((button) => {
       const id = button.dataset.pfChartTrigger;
       if (!id) return;
       const isSelected = selectedSet.has(id);
@@ -158,9 +175,11 @@
       const isLot = id.startsWith('lot:');
       const isBuy = id.includes(':buy');
       const isSell = id.includes(':sell');
+      const isAll = id.includes(':all');
       let label = isGroup ? 'grupo' : isLot ? 'lote' : 'valor';
       if (isBuy) label += ' (compra)';
       else if (isSell) label += ' (venta)';
+      else if (isAll) label += ' (total)';
       const title = isSelected ? `Quitar ${label} del gráfico` : `Mostrar ${label} en el gráfico`;
 
       button.classList.toggle('active', isSelected);
@@ -193,6 +212,8 @@
         badgeText += ' (Compra)';
       } else if (choice.id.endsWith(':sell') || choice.id.includes(':sell')) {
         badgeText += ' (Venta)';
+      } else if (choice.id.endsWith(':all') || choice.id.includes(':all')) {
+        badgeText += ' (Total)';
       }
       return `
         <label class="pf-chart-choice ${isChecked ? 'selected' : ''}" data-choice-category="${choice.category}" data-choice-search="${escapeHtml((choice.label + ' ' + (choice.sub || '')).toLowerCase())}">
@@ -293,7 +314,10 @@
           <div class="pf-chart-canvas-wrap" data-pf-chart></div>
         </div>
         <div class="pf-chart-sidebar">
-          <div class="pf-chart-legend-title">Elementos en el gráfico</div>
+          <div class="pf-chart-legend-header">
+            <div class="pf-chart-legend-title">Elementos en el gráfico</div>
+            <button type="button" class="pf-legend-clear-all" data-pf-chart-clear title="Quitar todos los elementos del gráfico" aria-label="Quitar todo" style="${selected.size > 0 ? '' : 'display:none;'}">Quitar todo</button>
+          </div>
           <ul class="pf-chart-legend" data-pf-chart-legend></ul>
         </div>
       </div>

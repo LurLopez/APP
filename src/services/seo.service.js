@@ -23,8 +23,11 @@ export {
 export {
   jsonLdScript,
   buildFeaturedItemList,
+  buildSiteGraph,
   getHomeJsonLd,
+  getHomeFaqJsonLd,
   getCompaniesJsonLd,
+  getGuidesJsonLd,
   buildCompanyJsonLd,
   buildReportJsonLd,
 } from './seo/jsonLd.service.js';

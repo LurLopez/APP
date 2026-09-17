@@ -79,6 +79,7 @@
 
   function chartFormat(value) {
     if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+    if (PCS.metric === 'portfolioValue') return fmtMoney(value);
     if (PCS.metric === 'gainPct' || PCS.metric === 'gainWithDividendsPct') return fmtSignedPct(value);
     if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount') return fmtSigned(value);
     return fmtPct(value);
@@ -88,6 +89,17 @@
     if (!Number.isFinite(Number(value))) return '—';
     const num = Math.abs(value) < 1e-9 ? 0 : Number(value);
     const formatted = formatNumber(Math.abs(num), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    if (PCS.metric === 'portfolioValue') {
+      const sign = num < 0 ? '−' : '';
+      const absVal = Math.abs(num);
+      if (absVal >= 1e6) {
+        return `${sign}$${(absVal / 1e6).toFixed(1)}M`;
+      }
+      if (absVal >= 1e3) {
+        return `${sign}$${formatNumber(absVal / 1e3, { maximumFractionDigits: 1 })}k`;
+      }
+      return `${sign}$${formatNumber(absVal, { maximumFractionDigits: 0 })}`;
+    }
     if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount') {
       if (num > 0) return `+$${formatted}`;
       if (num < 0) return `-$${formatted}`;

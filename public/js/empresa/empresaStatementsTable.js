@@ -20,7 +20,11 @@
     const result = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (item.kind === 'section' || item.kind === 'note') {
+      if (item.kind === 'note') {
+        result.push(item);
+        continue;
+      }
+      if (item.kind === 'section') {
         let hasDataUnderneath = false;
         for (let j = i + 1; j < items.length; j++) {
           if (items[j].kind === 'section') break;
@@ -86,6 +90,7 @@
 
     const dotColor = isSelected ? (chartMetrics.get(itemKey)?.color || '#4f46e5') : '';
     const dot = isSelected ? `<span class="metric-chart-dot" style="background:${dotColor}"></span>` : '';
+    const hint = item.hint ? `<span class="profile-info-dot metric-hint-dot" title="${escapeHtml(item.hint)}">i</span>` : '';
 
     const favoriteStatement = item.favoriteStatement || window.screenerStatement || '';
     const favoriteButton = favoriteStatement
@@ -93,7 +98,7 @@
       : '';
 
     const classAttr = rowClass ? ` class="${rowClass}"` : '';
-    return `<tr${classAttr} data-metric="${escapeHtml(item.label)}" data-chart-key="${escapeHtml(itemKey)}"><td class="sticky-col">${favoriteButton}${dot}${escapeHtml(item.label)}</td>${cellsHtml}</tr>`;
+    return `<tr${classAttr} data-metric="${escapeHtml(item.label)}" data-chart-key="${escapeHtml(itemKey)}"><td class="sticky-col">${favoriteButton}${dot}${escapeHtml(item.label)}${hint}</td>${cellsHtml}</tr>`;
   }
 
   function setupTableColumns(table, visibleIndexes) {
@@ -126,7 +131,8 @@
   function attachTableMetricListeners(table, items) {
     table.querySelectorAll('tbody tr[data-chart-key]').forEach((row) => {
       const item = items.find((candidate) => candidate.key === row.dataset.chartKey);
-      row.addEventListener('click', () => {
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('.metric-hint-dot')) return;
         if (typeof window.EmpresaMetricsChart?.toggleChartMetric === 'function') {
           window.EmpresaMetricsChart.toggleChartMetric(item);
         } else if (typeof window.toggleChartMetric === 'function') {

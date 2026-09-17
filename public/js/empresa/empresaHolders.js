@@ -19,7 +19,7 @@
       return window.EmpresaFormatting.formatProfileNumber(val, digits);
     }
     if (val === null || val === undefined || Number.isNaN(Number(val))) return '—';
-    return new Intl.NumberFormat('es-ES', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(val));
+    return new Intl.NumberFormat((window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(val));
   }
 
   function formatCompactUsd(val) {

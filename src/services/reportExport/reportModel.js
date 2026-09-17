@@ -49,7 +49,7 @@ function buildConclusionCards(conc, report, language = 'es') {
       text: rep.text || null,
       badges,
       highlight: true,
-      chart: buildSharesChartModel(rep.sharesHistory),
+      chart: buildSharesChartModel(rep.sharesHistory, lang),
       table: buildSecSnippetTable(withAveragePriceRow(rep.secSnippet)),
     });
   }
@@ -82,7 +82,7 @@ function buildConclusionCards(conc, report, language = 'es') {
 
   if (conc.debt) {
     const debt = conc.debt;
-    const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear);
+    const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear, lang);
     const historyChart = buildDebtHistoryModel(debt, report);
     const refinancingModel = buildDebtRefinancingModel(debt, report);
     const details = [

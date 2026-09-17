@@ -18,10 +18,62 @@
   const closeGeneralModal = (...args) => (Actions().closeGeneralModal || window.closeGeneralModal)(...args);
   const submitGeneralReport = (...args) => (Actions().submitGeneralReport || window.submitGeneralReport)(...args);
 
-  function wireEvents(container) {
-    if (!container) return;
+  function toggleSelection(selection, id, checked) {
+    if (checked) selection.add(id);
+    else selection.delete(id);
+  }
 
-    // ── Navegación de Pestañas Principales ──────────────────────────────────
+  function navigateToAnalysis() {
+    document.querySelectorAll('.nav-link[data-section]').forEach((item) => {
+      item.classList.toggle('active', item.dataset.section === 'analisis');
+    });
+    window.showSection?.('analisis');
+    history.pushState(null, '', '/analisis');
+  }
+
+  async function deleteReport({ url, successMessage, failureMessage, refresh }) {
+    try {
+      const res = await fetch(url, { method: 'DELETE' });
+      if (!res.ok) return;
+      window.showToast?.(successMessage);
+      await refresh();
+      await fetchStats();
+      render();
+    } catch {
+      window.showToast?.(failureMessage);
+    }
+  }
+
+  function wireDebouncedSearch(input, applyQuery) {
+    if (!input) return;
+    let debounceTimer = null;
+    input.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        applyQuery(input.value);
+        render();
+      }, 200);
+    });
+  }
+
+  function wireSortableHeaders(container, selector, fieldKey, orderKey) {
+    container.querySelectorAll(selector).forEach((header) => {
+      header.addEventListener('click', () => {
+        const field = header.dataset.sort;
+        if (RS[fieldKey] === field) {
+          RS[orderKey] = RS[orderKey] === 'asc' ? 'desc' : 'asc';
+        } else {
+          RS[fieldKey] = field;
+          RS[orderKey] = 'desc';
+        }
+        render();
+      });
+    });
+  }
+
+  // ── Navegación principal y KPI ────────────────────────────────────────────
+
+  function wireMainNavigation(container) {
     container.querySelectorAll('.reports-nav-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         RS.activeTab = btn.dataset.tab;
@@ -29,52 +81,46 @@
       });
     });
 
-    // ── Botones de Encabezado Global ──────────────────────────────────────
-    container.querySelector('#btn-global-refresh')?.addEventListener('click', () => {
-      window.syncAll?.();
-    });
+    container.querySelector('#btn-global-refresh')?.addEventListener('click', () => window.syncAll?.());
+    container.querySelector('#btn-global-export-csv')?.addEventListener('click', () => window.exportToCsv?.());
+    container.querySelector('#btn-global-new-report')?.addEventListener('click', () => window.openGeneralModal?.());
 
-    container.querySelector('#btn-global-export-csv')?.addEventListener('click', () => {
-      window.exportToCsv?.();
-    });
+    const kpiActions = {
+      analyses: () => {
+        RS.activeTab = 'ai';
+        RS.aiSubView = 'table';
+        RS.aiFilterMode = 'all';
+        RS.aiSearchQuery = '';
+      },
+      ratings: () => {
+        RS.activeTab = 'ai';
+        RS.aiSubView = 'table';
+        RS.aiFilterMode = 'rated';
+      },
+      'ai-pending': () => {
+        RS.activeTab = 'ai';
+        RS.aiSubView = 'errors';
+        RS.aiFilterMode = 'all';
+      },
+      'general-pending': () => {
+        RS.activeTab = 'general';
+        RS.generalStatusFilter = 'pending';
+      },
+    };
 
-    container.querySelector('#btn-global-new-report')?.addEventListener('click', () => {
-      window.openGeneralModal?.();
-    });
-
-    // ── Clic en Tarjetas KPI para Filtrado Rápido ─────────────────────────
     container.querySelectorAll('.stat-card-interactive').forEach((card) => {
       card.addEventListener('click', () => {
-        const target = card.dataset.statTarget;
-        if (target === 'analyses') {
-          RS.activeTab = 'ai';
-          RS.aiSubView = 'table';
-          RS.aiFilterMode = 'all';
-          RS.aiSearchQuery = '';
-          render();
-        } else if (target === 'ratings') {
-          RS.activeTab = 'ai';
-          RS.aiSubView = 'table';
-          RS.aiFilterMode = 'rated';
-          render();
-        } else if (target === 'ai-pending') {
-          RS.activeTab = 'ai';
-          RS.aiSubView = 'errors';
-          RS.aiFilterMode = 'all';
-          render();
-        } else if (target === 'general-pending') {
-          RS.activeTab = 'general';
-          RS.generalStatusFilter = 'pending';
-          render();
-        }
+        const action = kpiActions[card.dataset.statTarget];
+        if (!action) return;
+        action();
+        render();
       });
     });
+  }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // EVENTOS PESTAÑA IA
-    // ═════════════════════════════════════════════════════════════════════════
+  // ── Pestaña IA ────────────────────────────────────────────────────────────
 
-    // Sub-view Switcher (Tabla, Incidencias, Empresas)
+  function wireAiSubviewControls(container) {
     container.querySelectorAll('.subview-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         RS.aiSubView = btn.dataset.subview;
@@ -83,19 +129,10 @@
       });
     });
 
-    // Buscador con debounce en IA
-    const aiSearchInput = container.querySelector('#reports-ai-search');
-    if (aiSearchInput) {
-      let debounceTimer = null;
-      aiSearchInput.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          RS.aiSearchQuery = aiSearchInput.value;
-          RS.aiPage = 1;
-          render();
-        }, 200);
-      });
-    }
+    wireDebouncedSearch(container.querySelector('#reports-ai-search'), (value) => {
+      RS.aiSearchQuery = value;
+      RS.aiPage = 1;
+    });
 
     container.querySelector('#btn-clear-ai-search')?.addEventListener('click', () => {
       RS.aiSearchQuery = '';
@@ -103,7 +140,6 @@
       render();
     });
 
-    // Chips de filtrado rápido
     container.querySelectorAll('[data-filter-mode]').forEach((btn) => {
       btn.addEventListener('click', () => {
         RS.aiFilterMode = btn.dataset.filterMode;
@@ -112,83 +148,52 @@
       });
     });
 
-    // Ordenación por columnas en IA
-    container.querySelectorAll('.th-sortable[data-prefix="ai"]').forEach((th) => {
-      th.addEventListener('click', () => {
-        const field = th.dataset.sort;
-        if (RS.aiSortField === field) {
-          RS.aiSortOrder = RS.aiSortOrder === 'asc' ? 'desc' : 'asc';
-        } else {
-          RS.aiSortField = field;
-          RS.aiSortOrder = 'desc';
-        }
-        render();
-      });
-    });
+    wireSortableHeaders(container, '.th-sortable[data-prefix="ai"]', 'aiSortField', 'aiSortOrder');
+  }
 
-    // Selección masiva en Tabla IA
+  function wireAiSelection(container) {
     const selectAllAi = container.querySelector('#select-all-ai');
     if (selectAllAi) {
       selectAllAi.addEventListener('change', () => {
-        const checkboxes = container.querySelectorAll('.ai-item-checkbox');
-        checkboxes.forEach((cb) => {
-          const id = Number(cb.dataset.analysisId);
-          if (selectAllAi.checked) {
-            RS.selectedAiItems.add(id);
-          } else {
-            RS.selectedAiItems.delete(id);
-          }
+        container.querySelectorAll('.ai-item-checkbox').forEach((checkbox) => {
+          toggleSelection(RS.selectedAiItems, Number(checkbox.dataset.analysisId), selectAllAi.checked);
         });
         render();
       });
     }
 
-    container.querySelectorAll('.ai-item-checkbox').forEach((cb) => {
-      cb.addEventListener('change', (e) => {
+    container.querySelectorAll('.ai-item-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', (e) => {
         e.stopPropagation();
-        const id = Number(cb.dataset.analysisId);
-        if (cb.checked) RS.selectedAiItems.add(id);
-        else RS.selectedAiItems.delete(id);
+        toggleSelection(RS.selectedAiItems, Number(checkbox.dataset.analysisId), checkbox.checked);
         render();
       });
     });
 
-    // Selección masiva en Incidencias IA
-    const selectAllAiErrors = container.querySelector('#select-all-ai-errors');
-    if (selectAllAiErrors) {
-      selectAllAiErrors.addEventListener('change', () => {
-        const checkboxes = container.querySelectorAll('.ai-error-checkbox');
-        checkboxes.forEach((cb) => {
-          const id = Number(cb.dataset.errorId);
-          if (selectAllAiErrors.checked) {
-            RS.selectedAiItems.add(id);
-          } else {
-            RS.selectedAiItems.delete(id);
-          }
+    const selectAllErrors = container.querySelector('#select-all-ai-errors');
+    if (selectAllErrors) {
+      selectAllErrors.addEventListener('change', () => {
+        container.querySelectorAll('.ai-error-checkbox').forEach((checkbox) => {
+          toggleSelection(RS.selectedAiItems, Number(checkbox.dataset.errorId), selectAllErrors.checked);
         });
         render();
       });
     }
 
-    container.querySelectorAll('.ai-error-checkbox').forEach((cb) => {
-      cb.addEventListener('change', (e) => {
+    container.querySelectorAll('.ai-error-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', (e) => {
         e.stopPropagation();
-        const id = Number(cb.dataset.errorId);
-        if (cb.checked) RS.selectedAiItems.add(id);
-        else RS.selectedAiItems.delete(id);
+        toggleSelection(RS.selectedAiItems, Number(checkbox.dataset.errorId), checkbox.checked);
         render();
       });
     });
+  }
 
-    // Acciones de fila en Análisis IA
+  function wireAiAnalysisActions(container) {
     container.querySelectorAll('.btn-view-analysis').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        document.querySelectorAll('.nav-link[data-section]').forEach((item) => {
-          item.classList.toggle('active', item.dataset.section === 'analisis');
-        });
-        window.showSection?.('analisis');
-        history.pushState(null, '', '/analisis');
+        navigateToAnalysis();
         window.AnalysisModule?.runFilingAnalysis(btn.dataset.ticker, btn.dataset.accession);
       });
     });
@@ -199,11 +204,7 @@
         if (RS.isGenerating) return;
         const msg = `Estás a punto de volver a generar el informe de ${btn.dataset.ticker} (${btn.dataset.accession}) consultando SEC EDGAR.\n\n¿Deseas continuar?`;
         if (!confirm(msg)) return;
-        document.querySelectorAll('.nav-link[data-section]').forEach((item) => {
-          item.classList.toggle('active', item.dataset.section === 'analisis');
-        });
-        window.showSection?.('analisis');
-        history.pushState(null, '', '/analisis');
+        navigateToAnalysis();
         window.AnalysisModule?.runFilingAnalysis(btn.dataset.ticker, btn.dataset.accession, { force: true });
       });
     });
@@ -212,26 +213,20 @@
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (!confirm(`¿Eliminar definitivamente el análisis de ${btn.dataset.ticker} (${btn.dataset.period})?`)) return;
-        try {
-          const res = await fetch('/api/admin/reports/ai-analysis/' + btn.dataset.analysisId, { method: 'DELETE' });
-          if (res.ok) {
-            window.showToast?.('Informe de análisis eliminado con éxito.');
-            await fetchAiReports();
-            await fetchStats();
-            render();
-          }
-        } catch {
-          window.showToast?.('Error al eliminar informe.');
-        }
+        await deleteReport({
+          url: '/api/admin/reports/ai-analysis/' + btn.dataset.analysisId,
+          successMessage: 'Informe de análisis eliminado con éxito.',
+          failureMessage: 'Error al eliminar informe.',
+          refresh: fetchAiReports,
+        });
       });
     });
 
-    // Abrir incidencias de un análisis en subview de incidencias
     container.querySelectorAll('.btn-open-analysis-errors').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const analysisId = Number(btn.dataset.analysisId);
-        const item = RS.aiData?.rawList?.find((a) => a.id === analysisId);
+        const item = RS.aiData?.rawList?.find((analysis) => analysis.id === analysisId);
         if (item) {
           RS.aiSearchQuery = item.ticker;
           RS.aiSubView = 'errors';
@@ -240,15 +235,13 @@
       });
     });
 
-    // Selector rápido de estado en incidencias de IA
-    container.querySelectorAll('.res-error-status-select').forEach((sel) => {
-      sel.addEventListener('change', (e) => {
+    container.querySelectorAll('.res-error-status-select').forEach((select) => {
+      select.addEventListener('change', (e) => {
         e.stopPropagation();
-        window.updateAiError(sel.dataset.errorId, { status: sel.value });
+        window.updateAiError(select.dataset.errorId, { status: select.value });
       });
     });
 
-    // Abrir Drawer de Incidencia IA
     container.querySelectorAll('.btn-open-error-drawer').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -257,20 +250,16 @@
         let foundParent = null;
 
         (RS.aiData?.rawList || []).forEach((analysis) => {
-          (analysis.error_reports || []).forEach((err) => {
-            if (err.id === errorId) {
-              foundError = err;
+          (analysis.error_reports || []).forEach((error) => {
+            if (error.id === errorId) {
+              foundError = error;
               foundParent = analysis;
             }
           });
         });
 
         if (foundError) {
-          window.openDrawer({
-            item: foundError,
-            type: 'ai-error',
-            parent: foundParent,
-          });
+          window.openDrawer({ item: foundError, type: 'ai-error', parent: foundParent });
         }
       });
     });
@@ -279,21 +268,17 @@
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (!confirm('¿Eliminar este reporte de incidencia?')) return;
-        try {
-          const res = await fetch('/api/admin/reports/ai/' + btn.dataset.errorId, { method: 'DELETE' });
-          if (res.ok) {
-            window.showToast?.('Incidencia eliminada con éxito.');
-            await fetchAiReports();
-            await fetchStats();
-            render();
-          }
-        } catch {
-          window.showToast?.('Error al eliminar incidencia.');
-        }
+        await deleteReport({
+          url: '/api/admin/reports/ai/' + btn.dataset.errorId,
+          successMessage: 'Incidencia eliminada con éxito.',
+          failureMessage: 'Error al eliminar incidencia.',
+          refresh: fetchAiReports,
+        });
       });
     });
+  }
 
-    // Acordeón de empresas
+  function wireCompanyAccordion(container) {
     container.querySelectorAll('[data-toggle-company]').forEach((header) => {
       header.addEventListener('click', () => {
         const ticker = header.dataset.toggleCompany;
@@ -311,12 +296,18 @@
       if (!RS.allCompaniesExpanded) RS.expandedCompanies.clear();
       render();
     });
+  }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // EVENTOS PESTAÑA GENERAL
-    // ═════════════════════════════════════════════════════════════════════════
+  function wireAiTab(container) {
+    wireAiSubviewControls(container);
+    wireAiSelection(container);
+    wireAiAnalysisActions(container);
+    wireCompanyAccordion(container);
+  }
 
-    // Botones segmentados de estado
+  // ── Pestaña General ───────────────────────────────────────────────────────
+
+  function wireGeneralFilters(container) {
     container.querySelectorAll('.status-tab-pill').forEach((btn) => {
       btn.addEventListener('click', () => {
         RS.generalStatusFilter = btn.dataset.status;
@@ -325,19 +316,10 @@
       });
     });
 
-    // Buscador en reportes generales
-    const genSearchInput = container.querySelector('#reports-general-search');
-    if (genSearchInput) {
-      let debounceTimer = null;
-      genSearchInput.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          RS.generalSearchQuery = genSearchInput.value;
-          RS.generalPage = 1;
-          render();
-        }, 200);
-      });
-    }
+    wireDebouncedSearch(container.querySelector('#reports-general-search'), (value) => {
+      RS.generalSearchQuery = value;
+      RS.generalPage = 1;
+    });
 
     container.querySelector('#btn-clear-gen-search')?.addEventListener('click', () => {
       RS.generalSearchQuery = '';
@@ -351,64 +333,42 @@
       render();
     });
 
-    // Ordenación por columnas en reportes generales
-    container.querySelectorAll('.th-sortable[data-prefix="gen"]').forEach((th) => {
-      th.addEventListener('click', () => {
-        const field = th.dataset.sort;
-        if (RS.generalSortField === field) {
-          RS.generalSortOrder = RS.generalSortOrder === 'asc' ? 'desc' : 'asc';
-        } else {
-          RS.generalSortField = field;
-          RS.generalSortOrder = 'desc';
-        }
-        render();
-      });
-    });
+    wireSortableHeaders(container, '.th-sortable[data-prefix="gen"]', 'generalSortField', 'generalSortOrder');
+  }
 
-    // Selección masiva en Reportes Generales
-    const selectAllGen = container.querySelector('#select-all-general');
-    if (selectAllGen) {
-      selectAllGen.addEventListener('change', () => {
-        const checkboxes = container.querySelectorAll('.general-item-checkbox');
-        checkboxes.forEach((cb) => {
-          const id = Number(cb.dataset.reportId);
-          if (selectAllGen.checked) {
-            RS.selectedGeneralItems.add(id);
-          } else {
-            RS.selectedGeneralItems.delete(id);
-          }
+  function wireGeneralSelection(container) {
+    const selectAllGeneral = container.querySelector('#select-all-general');
+    if (selectAllGeneral) {
+      selectAllGeneral.addEventListener('change', () => {
+        container.querySelectorAll('.general-item-checkbox').forEach((checkbox) => {
+          toggleSelection(RS.selectedGeneralItems, Number(checkbox.dataset.reportId), selectAllGeneral.checked);
         });
         render();
       });
     }
 
-    container.querySelectorAll('.general-item-checkbox').forEach((cb) => {
-      cb.addEventListener('change', (e) => {
+    container.querySelectorAll('.general-item-checkbox').forEach((checkbox) => {
+      checkbox.addEventListener('change', (e) => {
         e.stopPropagation();
-        const id = Number(cb.dataset.reportId);
-        if (cb.checked) RS.selectedGeneralItems.add(id);
-        else RS.selectedGeneralItems.delete(id);
+        toggleSelection(RS.selectedGeneralItems, Number(checkbox.dataset.reportId), checkbox.checked);
         render();
       });
     });
+  }
 
-    // Selector rápido de estado en tabla general
-    container.querySelectorAll('.general-status-select').forEach((sel) => {
-      sel.addEventListener('change', (e) => {
+  function wireGeneralRowActions(container) {
+    container.querySelectorAll('.general-status-select').forEach((select) => {
+      select.addEventListener('change', (e) => {
         e.stopPropagation();
-        window.updateGeneralReport(sel.dataset.reportId, { status: sel.value });
+        window.updateGeneralReport(select.dataset.reportId, { status: select.value });
       });
     });
 
-    // Abrir Drawer desde botón o clic en fila general
     container.querySelectorAll('.btn-open-general-drawer').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const reportId = Number(btn.dataset.reportId);
-        const report = (RS.generalData || []).find((r) => r.id === reportId);
-        if (report) {
-          window.openDrawer({ item: report, type: 'general' });
-        }
+        const report = (RS.generalData || []).find((item) => item.id === Number(btn.dataset.reportId));
+        if (report) window.openDrawer({ item: report, type: 'general' });
       });
     });
 
@@ -416,11 +376,8 @@
       row.addEventListener('click', (e) => {
         // Evitar abrir drawer si el clic fue en un checkbox, select o botón
         if (e.target.closest('input, select, button, a')) return;
-        const reportId = Number(row.dataset.reportId);
-        const report = (RS.generalData || []).find((r) => r.id === reportId);
-        if (report) {
-          window.openDrawer({ item: report, type: 'general' });
-        }
+        const report = (RS.generalData || []).find((item) => item.id === Number(row.dataset.reportId));
+        if (report) window.openDrawer({ item: report, type: 'general' });
       });
     });
 
@@ -428,131 +385,100 @@
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (!confirm('¿Eliminar este reporte general?')) return;
-        try {
-          const res = await fetch('/api/admin/reports/general/' + btn.dataset.reportId, { method: 'DELETE' });
-          if (res.ok) {
-            window.showToast?.('Reporte eliminado con éxito.');
-            await fetchGeneralReports();
-            await fetchStats();
-            render();
-          }
-        } catch {
-          window.showToast?.('Error al eliminar reporte.');
-        }
+        await deleteReport({
+          url: '/api/admin/reports/general/' + btn.dataset.reportId,
+          successMessage: 'Reporte eliminado con éxito.',
+          failureMessage: 'Error al eliminar reporte.',
+          refresh: fetchGeneralReports,
+        });
       });
     });
+  }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // ACCIONES MASIVAS (BULK ACTIONS)
-    // ═════════════════════════════════════════════════════════════════════════
+  function wireGeneralTab(container) {
+    wireGeneralFilters(container);
+    wireGeneralSelection(container);
+    wireGeneralRowActions(container);
+  }
 
-    container.querySelectorAll('.btn-bulk-resolve').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const type = btn.dataset.bulkType;
-        if (type === 'general') {
-          window.batchUpdateGeneralReports(Array.from(RS.selectedGeneralItems), { status: 'resolved' });
-        } else if (type === 'ai-errors') {
-          window.batchUpdateAiErrors(Array.from(RS.selectedAiItems), { status: 'resolved' });
-        }
-      });
+  // ── Acciones masivas (bulk actions) ───────────────────────────────────────
+
+  function resolveBulkTargets(type) {
+    if (type === 'general') {
+      return {
+        items: Array.from(RS.selectedGeneralItems),
+        update: window.batchUpdateGeneralReports,
+        remove: window.batchDeleteGeneralReports,
+      };
+    }
+    return {
+      items: Array.from(RS.selectedAiItems),
+      update: window.batchUpdateAiErrors,
+      remove: window.batchDeleteAiErrors,
+    };
+  }
+
+  function wireBulkButtons(container, selector, onAction) {
+    container.querySelectorAll(selector).forEach((btn) => {
+      btn.addEventListener('click', () => onAction(btn.dataset.bulkType));
     });
+  }
 
-    container.querySelectorAll('.btn-bulk-review').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const type = btn.dataset.bulkType;
-        if (type === 'general') {
-          window.batchUpdateGeneralReports(Array.from(RS.selectedGeneralItems), { status: 'reviewed' });
-        } else if (type === 'ai-errors') {
-          window.batchUpdateAiErrors(Array.from(RS.selectedAiItems), { status: 'reviewed' });
-        }
-      });
+  function wireBulkActions(container) {
+    const updateStatus = (status) => (type) => {
+      const targets = resolveBulkTargets(type);
+      targets.update(targets.items, { status });
+    };
+    const removeItems = (type) => {
+      const targets = resolveBulkTargets(type);
+      targets.remove(targets.items);
+    };
+
+    wireBulkButtons(container, '.btn-bulk-resolve', updateStatus('resolved'));
+    wireBulkButtons(container, '.btn-bulk-review', updateStatus('reviewed'));
+    wireBulkButtons(container, '.btn-bulk-dismiss', updateStatus('dismissed'));
+    wireBulkButtons(container, '.btn-bulk-delete', removeItems);
+    wireBulkButtons(container, '.btn-bulk-clear', () => {
+      RS.selectedGeneralItems.clear();
+      RS.selectedAiItems.clear();
+      render();
     });
+  }
 
-    container.querySelectorAll('.btn-bulk-dismiss').forEach((btn) => {
+  // ── Paginación ────────────────────────────────────────────────────────────
+
+  function wirePagination(container) {
+    container.querySelectorAll('.pagination-btn, .pagination-page-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const type = btn.dataset.bulkType;
-        if (type === 'general') {
-          window.batchUpdateGeneralReports(Array.from(RS.selectedGeneralItems), { status: 'dismissed' });
-        } else if (type === 'ai-errors') {
-          window.batchUpdateAiErrors(Array.from(RS.selectedAiItems), { status: 'dismissed' });
+        const targetPage = Number(btn.dataset.page);
+        if (!targetPage || Number.isNaN(targetPage)) return;
+        if (btn.dataset.prefix === 'ai') {
+          RS.aiPage = targetPage;
+        } else {
+          RS.generalPage = targetPage;
         }
-      });
-    });
-
-    container.querySelectorAll('.btn-bulk-delete').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const type = btn.dataset.bulkType;
-        if (type === 'general') {
-          window.batchDeleteGeneralReports(Array.from(RS.selectedGeneralItems));
-        } else if (type === 'ai-errors') {
-          window.batchDeleteAiErrors(Array.from(RS.selectedAiItems));
-        }
-      });
-    });
-
-    container.querySelectorAll('.btn-bulk-clear').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        RS.selectedGeneralItems.clear();
-        RS.selectedAiItems.clear();
         render();
       });
     });
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // PAGINACIÓN
-    // ═════════════════════════════════════════════════════════════════════════
-
-    container.querySelectorAll('.pagination-btn, .pagination-page-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const prefix = btn.dataset.prefix;
-        const targetPage = Number(btn.dataset.page);
-        if (!targetPage || Number.isNaN(targetPage)) return;
-
-        if (prefix === 'ai') {
-          RS.aiPage = targetPage;
-          render();
-        } else {
-          RS.generalPage = targetPage;
-          render();
-        }
-      });
-    });
-
-    container.querySelectorAll('.pagination-size-select').forEach((sel) => {
-      sel.addEventListener('change', () => {
-        const prefix = sel.dataset.prefix;
-        const newSize = Number(sel.value) || 25;
-        if (prefix === 'ai') {
+    container.querySelectorAll('.pagination-size-select').forEach((select) => {
+      select.addEventListener('change', () => {
+        const newSize = Number(select.value) || 25;
+        if (select.dataset.prefix === 'ai') {
           RS.aiPageSize = newSize;
           RS.aiPage = 1;
-          render();
         } else {
           RS.generalPageSize = newSize;
           RS.generalPage = 1;
-          render();
         }
+        render();
       });
     });
+  }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // SLIDE-OVER DRAWER DE DETALLE
-    // ═════════════════════════════════════════════════════════════════════════
+  // ── Drawer de detalle ─────────────────────────────────────────────────────
 
-    container.querySelector('#btn-close-drawer')?.addEventListener('click', () => {
-      window.closeDrawer?.();
-    });
-
-    container.querySelector('#btn-drawer-cancel')?.addEventListener('click', () => {
-      window.closeDrawer?.();
-    });
-
-    container.querySelector('#reports-drawer-backdrop')?.addEventListener('click', (e) => {
-      if (e.target.id === 'reports-drawer-backdrop') {
-        window.closeDrawer?.();
-      }
-    });
-
-    // Guardar notas y estado desde el Drawer
+  function wireDrawerSave(container) {
     container.querySelector('#btn-save-drawer-notes')?.addEventListener('click', async () => {
       const notesEl = container.querySelector('#drawer-admin-notes');
       const selectedStatusEl = container.querySelector('input[name="drawer-status"]:checked');
@@ -562,7 +488,6 @@
       const status = selectedStatusEl?.value;
       const itemId = RS.drawerItem?.id;
       const isGeneral = RS.drawerType === 'general';
-
       if (!itemId) return;
 
       if (feedbackEl) feedbackEl.textContent = 'Guardando...';
@@ -580,13 +505,13 @@
         }, 2000);
       }
     });
+  }
 
-    // Eliminar desde el Drawer
+  function wireDrawerDelete(container) {
     container.querySelector('#btn-drawer-delete')?.addEventListener('click', async () => {
       const itemId = RS.drawerItem?.id;
       const isGeneral = RS.drawerType === 'general';
       if (!itemId) return;
-
       if (!confirm('¿Eliminar definitivamente este reporte?')) return;
 
       try {
@@ -604,40 +529,123 @@
         window.showToast?.('Error al eliminar.');
       }
     });
+  }
 
-    // Clic en miniaturas del Drawer -> abrir Lightbox
-    container.querySelectorAll('.drawer-image-thumb-wrap').forEach((thumb) => {
-      thumb.addEventListener('click', () => {
-        window.openLightbox?.(thumb.dataset.imgSrc);
-      });
+  function wireDrawer(container) {
+    container.querySelector('#btn-close-drawer')?.addEventListener('click', () => window.closeDrawer?.());
+    container.querySelector('#btn-drawer-cancel')?.addEventListener('click', () => window.closeDrawer?.());
+    container.querySelector('#reports-drawer-backdrop')?.addEventListener('click', (e) => {
+      if (e.target.id === 'reports-drawer-backdrop') window.closeDrawer?.();
     });
 
-    // Abrir análisis desde el Drawer
+    wireDrawerSave(container);
+    wireDrawerDelete(container);
+
+    container.querySelectorAll('.drawer-image-thumb-wrap').forEach((thumb) => {
+      thumb.addEventListener('click', () => window.openLightbox?.(thumb.dataset.imgSrc));
+    });
+
     container.querySelector('.btn-open-analysis-from-drawer')?.addEventListener('click', (e) => {
       const ticker = e.currentTarget.dataset.ticker;
       const accession = e.currentTarget.dataset.accession;
       window.closeDrawer?.();
-      document.querySelectorAll('.nav-link[data-section]').forEach((item) => {
-        item.classList.toggle('active', item.dataset.section === 'analisis');
-      });
-      window.showSection?.('analisis');
-      history.pushState(null, '', '/analisis');
+      navigateToAnalysis();
       window.AnalysisModule?.runFilingAnalysis(ticker, accession);
     });
+  }
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // LIGHTBOX DE IMÁGENES
-    // ═════════════════════════════════════════════════════════════════════════
+  // ── Lightbox de imágenes ──────────────────────────────────────────────────
 
-    container.querySelector('#btn-close-lightbox')?.addEventListener('click', () => {
-      window.closeLightbox?.();
-    });
-
+  function wireLightbox(container) {
+    container.querySelector('#btn-close-lightbox')?.addEventListener('click', () => window.closeLightbox?.());
     container.querySelector('#reports-lightbox-backdrop')?.addEventListener('click', (e) => {
       if (e.target.id === 'reports-lightbox-backdrop' || e.target.classList.contains('reports-lightbox-content')) {
         window.closeLightbox?.();
       }
     });
+  }
+
+  function wireEvents(container) {
+    if (!container) return;
+    wireMainNavigation(container);
+    wireAiTab(container);
+    wireGeneralTab(container);
+    wireBulkActions(container);
+    wirePagination(container);
+    wireDrawer(container);
+    wireLightbox(container);
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  async function loadReportsData() {
+    if (!RS.statsData) await fetchStats();
+    if (RS.activeTab === 'ai' && !RS.aiData) await fetchAiReports();
+    if (RS.activeTab === 'general' && !RS.generalData) await fetchGeneralReports();
+  }
+
+  function buildActiveTabHtml() {
+    if (RS.activeTab === 'ai') {
+      return R().renderAiTab({
+        aiData: RS.aiData,
+        aiSubView: RS.aiSubView,
+        aiFilterMode: RS.aiFilterMode,
+        aiSearchQuery: RS.aiSearchQuery,
+        aiSortField: RS.aiSortField,
+        aiSortOrder: RS.aiSortOrder,
+        aiPage: RS.aiPage,
+        aiPageSize: RS.aiPageSize,
+        selectedAiItems: RS.selectedAiItems,
+        expandedCompanies: RS.expandedCompanies,
+        allCompaniesExpanded: RS.allCompaniesExpanded,
+      });
+    }
+    return R().renderGeneralTab({
+      generalData: RS.generalData,
+      generalTotal: RS.generalTotal,
+      generalStatusFilter: RS.generalStatusFilter,
+      generalCategoryFilter: RS.generalCategoryFilter,
+      generalSearchQuery: RS.generalSearchQuery,
+      generalSortField: RS.generalSortField,
+      generalSortOrder: RS.generalSortOrder,
+      generalPage: RS.generalPage,
+      generalPageSize: RS.generalPageSize,
+      selectedGeneralItems: RS.selectedGeneralItems,
+      statsData: RS.statsData,
+    });
+  }
+
+  function buildReportsHtml() {
+    const drawerHtml = RS.drawerOpen
+      ? R().renderDrawer({ item: RS.drawerItem, type: RS.drawerType, parent: RS.drawerItemParent })
+      : '';
+    const lightboxHtml = RS.lightboxOpen ? R().renderLightbox(RS.lightboxSrc) : '';
+
+    return `
+      <div class="reports-page-wrapper enterprise-dashboard">
+        ${R().renderHeader({
+          statsData: RS.statsData,
+          activeTab: RS.activeTab,
+          lastSyncTime: RS.lastSyncTime,
+          isRefreshing: RS.isRefreshing,
+        })}
+        ${R().renderStatsCards(RS.statsData)}
+        ${buildActiveTabHtml()}
+        ${drawerHtml}
+        ${lightboxHtml}
+      </div>
+    `;
+  }
+
+  function renderUnauthorized(container) {
+    container.innerHTML = `
+      <div class="reports-unauthorized-card">
+        <div class="unauthorized-icon">🔒</div>
+        <h2>Acceso exclusivo a administradores</h2>
+        <p>Esta consola está reservada al equipo de administración y auditoría de Cifra.</p>
+        <button type="button" class="primary-button" onclick="window.AuthModule?.openModal?.('login')">Iniciar sesión como administrador</button>
+      </div>
+    `;
   }
 
   async function render() {
@@ -646,74 +654,14 @@
 
     if (window.AuthModule?.whenReady) await window.AuthModule.whenReady();
     const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || window.currentUser?.isAdmin);
-
     if (!isAdmin) {
-      container.innerHTML = `
-        <div class="reports-unauthorized-card">
-          <div class="unauthorized-icon">🔒</div>
-          <h2>Acceso exclusivo a administradores</h2>
-          <p>Esta consola está reservada al equipo de administración y auditoría de Cifra.</p>
-          <button type="button" class="primary-button" onclick="window.AuthModule?.openModal?.('login')">Iniciar sesión como administrador</button>
-        </div>
-      `;
+      renderUnauthorized(container);
       return;
     }
 
     try {
-      if (!RS.statsData) await fetchStats();
-      if (RS.activeTab === 'ai' && !RS.aiData) await fetchAiReports();
-      if (RS.activeTab === 'general' && !RS.generalData) await fetchGeneralReports();
-
-      const drawerHtml = RS.drawerOpen
-        ? R().renderDrawer({ item: RS.drawerItem, type: RS.drawerType, parent: RS.drawerItemParent })
-        : '';
-
-      const lightboxHtml = RS.lightboxOpen
-        ? R().renderLightbox(RS.lightboxSrc)
-        : '';
-
-      container.innerHTML = `
-        <div class="reports-page-wrapper enterprise-dashboard">
-          ${R().renderHeader({
-            statsData: RS.statsData,
-            activeTab: RS.activeTab,
-            lastSyncTime: RS.lastSyncTime,
-            isRefreshing: RS.isRefreshing,
-          })}
-          ${R().renderStatsCards(RS.statsData)}
-          ${RS.activeTab === 'ai'
-            ? R().renderAiTab({
-                aiData: RS.aiData,
-                aiSubView: RS.aiSubView,
-                aiFilterMode: RS.aiFilterMode,
-                aiSearchQuery: RS.aiSearchQuery,
-                aiSortField: RS.aiSortField,
-                aiSortOrder: RS.aiSortOrder,
-                aiPage: RS.aiPage,
-                aiPageSize: RS.aiPageSize,
-                selectedAiItems: RS.selectedAiItems,
-                expandedCompanies: RS.expandedCompanies,
-                allCompaniesExpanded: RS.allCompaniesExpanded,
-              })
-            : R().renderGeneralTab({
-                generalData: RS.generalData,
-                generalTotal: RS.generalTotal,
-                generalStatusFilter: RS.generalStatusFilter,
-                generalCategoryFilter: RS.generalCategoryFilter,
-                generalSearchQuery: RS.generalSearchQuery,
-                generalSortField: RS.generalSortField,
-                generalSortOrder: RS.generalSortOrder,
-                generalPage: RS.generalPage,
-                generalPageSize: RS.generalPageSize,
-                selectedGeneralItems: RS.selectedGeneralItems,
-                statsData: RS.statsData,
-              })
-          }
-          ${drawerHtml}
-          ${lightboxHtml}
-        </div>
-      `;
-
+      await loadReportsData();
+      container.innerHTML = buildReportsHtml();
       wireEvents(container);
     } catch (err) {
       console.error('[reports] Error al renderizar consola de reportes:', err);
@@ -731,18 +679,17 @@
     RS.generalModal?.addEventListener('click', (e) => e.target === RS.generalModal && closeGeneralModal());
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        if (RS.lightboxOpen) {
-          window.closeLightbox?.();
-          return;
-        }
-        if (RS.drawerOpen) {
-          window.closeDrawer?.();
-          return;
-        }
-        if (RS.generalModal && !RS.generalModal.hidden) {
-          closeGeneralModal();
-        }
+      if (e.key !== 'Escape') return;
+      if (RS.lightboxOpen) {
+        window.closeLightbox?.();
+        return;
+      }
+      if (RS.drawerOpen) {
+        window.closeDrawer?.();
+        return;
+      }
+      if (RS.generalModal && !RS.generalModal.hidden) {
+        closeGeneralModal();
       }
     });
 

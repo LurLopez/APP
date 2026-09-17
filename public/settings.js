@@ -20,6 +20,8 @@ const Settings = (() => {
     portfolioNotifyEarnings: true,
     portfolioNotifyExdiv: true,
     portfolioNotifyPayout: true,
+    dividendWithholdingPct: 20,
+    dividendNetEnabled: false,
   };
 
   let modalBackdrop = null;

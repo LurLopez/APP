@@ -123,7 +123,9 @@
     AS.currentAnalysisId = data.analysisId ?? null;
     AS.currentAnalysisTicker = data.report?.ticker || AS.pendingFiling?.ticker || null;
     AS.currentAnalysisAccession = AS.pendingFiling?.accession || null;
+    AS.currentAnalysisFormType = data.formType || data.report?.formType || null;
     AS.currentAnalysisSlug = data.slug || getAnalysisSlug(data);
+    renderAnalysisSourceLink();
 
     setAnalysisVersionState({
       version: data.version ?? null,

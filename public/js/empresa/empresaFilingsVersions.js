@@ -14,7 +14,7 @@
     if (!dateString) return '—';
     const date = new Date(`${dateString}T00:00:00Z`);
     if (Number.isNaN(date.getTime())) return dateString;
-    return date.toLocaleDateString('es-ES');
+    return date.toLocaleDateString((window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES');
   }
 
   function getActiveTicker() {
@@ -91,7 +91,7 @@
 
   function renderFilingVersionRow(entry) {
     const versionLabel = entry.version ? `v${escapeHtml(entry.version)}` : 'Sin versión';
-    const dateLabel = entry.createdAt ? new Date(entry.createdAt).toLocaleDateString('es-ES') : '';
+    const dateLabel = entry.createdAt ? new Date(entry.createdAt).toLocaleDateString((window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES') : '';
     const base = entry.downloadBase ? String(entry.downloadBase) : '';
     const isReviewed = Boolean(entry.isReviewed ?? entry.is_reviewed);
     const reviewedBadge = isReviewed

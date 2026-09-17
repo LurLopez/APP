@@ -5,6 +5,7 @@
 import config from '../../../config/index.js';
 import { query } from '../../../db/pool.js';
 import { resolveAnalysisVersion, isAnalysisOutdated } from '../../agents/sectorAgent.js';
+import { normalizeLanguage } from '../../utils/i18n.js';
 import { SITE_NAME, reportCache, REPORT_TTL, titleCaseName, escapeHtml, safeHttpUrl, readTemplate, replaceTokens, setMetaTag } from './seoConstants.js';
 import { buildReportJsonLd, safeJsonForScript } from './jsonLd.service.js';
 import { renderReportSsrHtml } from './reportSsrHtml.js';
@@ -90,8 +91,9 @@ export async function getReportSlugById(id) {
 }
 
 async function buildReportPage(row, lang = 'es') {
-  const isEn = lang === 'en';
   const report = row.report ?? {};
+  const contentLang = normalizeLanguage(report.language ?? 'es');
+  const isEnContent = contentLang === 'en';
   const ticker = String(row.ticker ?? report.ticker ?? '').toUpperCase();
   const company = report.company ?? row.company_name ?? ticker;
   const name = titleCaseName(company);
@@ -104,18 +106,24 @@ async function buildReportPage(row, lang = 'es') {
     ? report.periodTitle
     : (isAnnual ? `FY ${report.fiscalYear ?? ''}` : `Q${report.fiscalQuarter ?? ''} ${report.fiscalYear ?? ''}`);
   const slug = buildReportSlug(row);
+  const fiscalYear = report.fiscalYear ?? null;
+  const fiscalQuarter = report.fiscalQuarter ?? null;
+  const rawPeriod = String(report.periodTitle ?? '').replace(/\s*[—–-]\s*[A-Z0-9.\-]{1,10}\s*$/, '').trim();
+  let periodLabel = rawPeriod;
+  if (isAnnual && fiscalYear) periodLabel = `FY ${fiscalYear}`;
+  else if (!isAnnual && fiscalYear && fiscalQuarter) periodLabel = `Q${fiscalQuarter} ${fiscalYear}`;
 
   const esUrl = `${config.siteUrl}/informe/${encodeURIComponent(ticker)}/${slug}`;
   const enUrl = `${config.siteUrl}/en/informe/${encodeURIComponent(ticker)}/${slug}`;
-  const url = isEn ? enUrl : esUrl;
+  const url = isEnContent ? enUrl : esUrl;
 
-  const title = isEn
-    ? `${name} (${ticker}) Form ${formType} report — ${fyLabel} | ${SITE_NAME}`
-    : `Informe ${formType} de ${name} (${ticker}) — ${fyLabel} | ${SITE_NAME}`;
-  const description = isEn
-    ? `${formType} financial results for ${name} (${ticker}) in its ${fyLabel.trim()} report: sales, operating income, free cash flow, dividends, share buybacks, and debt, with Cifra analysis.`
-    : `Resultados de ${name} (${ticker}) en su informe ${formType} ${fyLabel.trim()}: ventas, beneficio operativo, flujo de caja libre, dividendos, recompras y deuda, con el análisis financiero de Cifra.`;
-  const reportHeadingTitle = `${ticker} — ${fyLabel}`;
+  const title = isEnContent
+    ? `${name} (${ticker}) Form ${formType} report — ${periodLabel} | ${SITE_NAME}`
+    : `Informe ${formType} de ${name} (${ticker}) — ${periodLabel} | ${SITE_NAME}`;
+  const description = isEnContent
+    ? `${name} (${ticker}) Form ${formType} results for ${periodLabel}: sales, free cash flow, dividends, buybacks, debt and AI analysis.`
+    : `Resultados de ${name} (${ticker}) en su informe ${formType} ${periodLabel}: ventas, flujo de caja libre, dividendos, recompras, deuda y análisis con IA.`;
+  const reportHeadingTitle = `${ticker} — ${periodLabel}`;
 
   const meta = {
     id: row.id,
@@ -128,17 +136,14 @@ async function buildReportPage(row, lang = 'es') {
     url,
     title,
     description,
+    language: contentLang,
     sourceUrl: safeHttpUrl(row.source_url),
     publishedAt: new Date(row.created_at).toISOString(),
   };
   const jsonLd = buildReportJsonLd(meta, row);
-  if (isEn && jsonLd?.['@graph']) {
-    const webPage = jsonLd['@graph'].find((g) => g['@type'] === 'WebPage');
-    if (webPage) webPage.inLanguage = 'en';
-  }
 
   let out = replaceTokens(readTemplate('index.html'));
-  if (isEn) {
+  if (isEnContent) {
     out = out.replace('<html lang="es">', '<html lang="en">');
   }
   out = setMetaTag(out, /<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`);
@@ -148,15 +153,16 @@ async function buildReportPage(row, lang = 'es') {
   out = setMetaTag(out, /<meta property="og:description" content="[\s\S]*?">/, `<meta property="og:description" content="${escapeHtml(description)}">`);
   out = setMetaTag(out, /<meta property="og:url" content="[\s\S]*?">/, `<meta property="og:url" content="${escapeHtml(url)}">`);
   out = setMetaTag(out, /<meta property="og:type" content="[\s\S]*?">/, '<meta property="og:type" content="article">');
-  out = setMetaTag(out, /<meta property="og:locale" content="[\s\S]*?">/, `<meta property="og:locale" content="${isEn ? 'en_US' : 'es_ES'}">`);
+  out = setMetaTag(out, /<meta property="og:locale" content="[\s\S]*?">/, `<meta property="og:locale" content="${isEnContent ? 'en_US' : 'es_ES'}">`);
   out = setMetaTag(out, /<meta name="twitter:title" content="[\s\S]*?">/, `<meta name="twitter:title" content="${escapeHtml(title)}">`);
   out = setMetaTag(out, /<meta name="twitter:description" content="[\s\S]*?">/, `<meta name="twitter:description" content="${escapeHtml(description)}">`);
 
-  const mdTitle = isEn ? 'Markdown version for AI' : 'Versión Markdown para IA';
+  const mdTitle = isEnContent ? 'Markdown version for AI' : 'Versión Markdown para IA';
   const hreflangs = [
-    `<link rel="alternate" hreflang="es" href="${escapeHtml(esUrl)}">`,
-    `<link rel="alternate" hreflang="en" href="${escapeHtml(enUrl)}">`,
-    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(esUrl)}">`,
+    isEnContent
+      ? `<link rel="alternate" hreflang="en" href="${escapeHtml(enUrl)}">`
+      : `<link rel="alternate" hreflang="es" href="${escapeHtml(esUrl)}">`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}">`,
     `<link rel="alternate" type="text/markdown" href="${escapeHtml(url)}.md" title="${mdTitle}">`,
   ].join('\n  ');
   out = out.replace(/<link rel="alternate" hreflang="es"[^>]*>/, hreflangs);
@@ -164,6 +170,8 @@ async function buildReportPage(row, lang = 'es') {
   const jsonLdScriptTag = `<script type="application/ld+json">\n${safeJsonForScript(jsonLd)}\n</script>`;
   if (/<script type="application\/ld\+json">[\s\S]*?<\/script>/.test(out)) {
     out = out.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/, jsonLdScriptTag);
+  } else {
+    out = out.replace('</head>', `  ${jsonLdScriptTag}\n</head>`);
   }
 
   const versionOptions = {
@@ -196,7 +204,7 @@ async function buildReportPage(row, lang = 'es') {
   };
   const initialScript = `<script id="cifra-initial-report" type="application/json">${safeJsonForScript(initialPayload, 0)}</script>`;
   out = out.replace('</head>', `  ${initialScript}\n</head>`);
-  if (isEn && !out.includes('__CIFRA_LANGUAGE__')) {
+  if (lang === 'en' && !out.includes('__CIFRA_LANGUAGE__')) {
     out = out.replace('</head>', '  <script>window.__CIFRA_LANGUAGE__ = "en";</script>\n</head>');
   }
   out = out.replace('<div class="company-loading" id="company-loading">Consultando EDGAR…</div>', '<div class="company-loading" id="company-loading" hidden>Consultando EDGAR…</div>');
@@ -207,13 +215,13 @@ async function buildReportPage(row, lang = 'es') {
   out = out.replace('<section class="company-section home-analisis-section" id="section-analisis" hidden', '<section class="company-section home-analisis-section" id="section-analisis"');
   out = out.replace('<div class="sec-analysis-entry" id="sec-analysis-entry">', '<div class="sec-analysis-entry" id="sec-analysis-entry" hidden>');
   out = out.replace('<div class="result-preview" id="result-preview" hidden>', '<div class="result-preview" id="result-preview">');
-  out = out.replace('<h3 id="result-title">Informe generado</h3>', `<h3 id="result-title">${escapeHtml(reportHeadingTitle)}</h3>`);
-  out = out.replace('<div class="result-report" id="report-body"></div>', `<div class="result-report" id="report-body">${renderReportSsrHtml(report, isEn ? 'en' : 'es')}</div>`);
+  out = out.replace('<h3 id="result-title">Informe generado</h3>', `<h1 id="result-title">${escapeHtml(reportHeadingTitle)}</h1>`);
+  out = out.replace('<div class="result-report" id="report-body"></div>', `<div class="result-report" id="report-body">${renderReportSsrHtml(report)}</div>`);
 
   return out;
 }
 
-export async function getPublicReportHtmlBySlug(ticker, rawSlug, { lang = 'es' } = {}) {
+export async function getPublicReportHtmlBySlug(ticker, rawSlug, lang = 'es') {
   const isEn = lang === 'en';
   const cleanTicker = String(ticker || '').trim().toUpperCase();
   const normSlug = String(rawSlug || '').trim().toUpperCase().replace(/10-K/, '10K');
@@ -234,8 +242,9 @@ export async function getPublicReportHtmlBySlug(ticker, rawSlug, { lang = 'es' }
   }
 
   const canonicalSlug = buildReportSlug(row);
-  const html = await buildReportPage(row, isEn ? 'en' : 'es');
-  const result = { html, canonicalSlug, ticker: String(row.ticker ?? cleanTicker).toUpperCase() };
+  const contentLang = normalizeLanguage(row.report?.language ?? 'es');
+  const html = await buildReportPage(row, lang);
+  const result = { html, canonicalSlug, ticker: String(row.ticker ?? cleanTicker).toUpperCase(), language: contentLang };
 
   reportCache.set(cacheKey, { data: result, at: Date.now() });
   reportCache.set(`${result.ticker}:${canonicalSlug}:${isEn ? 'en' : 'es'}`, { data: result, at: Date.now() });

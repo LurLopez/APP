@@ -256,6 +256,26 @@ body {
   font-size: .88rem;
 }
 
+.guia-figure {
+  margin: 18px 0;
+}
+
+.guia-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.guia-figure figcaption {
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: .88rem;
+  text-align: center;
+}
+
 .guia-cookie-settings {
   border: 0;
   border-radius: 8px;

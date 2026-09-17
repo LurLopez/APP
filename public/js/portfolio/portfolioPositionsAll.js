@@ -90,7 +90,7 @@
         ? `<span class="pf-status-badge ${held ? 'partial' : 'sold'}">${held ? 'Vendida parcial' : 'Vendida'}</span>`
         : '';
       const chartButtonsHtml = (held && sold)
-        ? `${chartButtonHtml(`ticker:${item.ticker}:buy`)}${chartButtonHtml(`ticker:${item.ticker}:sell`)}`
+        ? chartButtonHtml(`ticker:${item.ticker}:all`)
         : held
           ? chartButtonHtml(`ticker:${item.ticker}:buy`)
           : chartButtonHtml(`ticker:${item.ticker}:sell`);

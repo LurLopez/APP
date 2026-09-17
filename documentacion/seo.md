@@ -21,7 +21,8 @@ Ambas plantillas (`public/index.html`, `public/empresa.html`) y las páginas ser
 
 Los motores generativos y agentes LLM consumen preferentemente Markdown limpio y estructurado sin ruido HTML:
 - **Fichas de empresa en Markdown:** `GET /empresa/<TICKER>.md` o cabecera `Accept: text/markdown` sobre `/empresa/<TICKER>`. Devuelve perfil, CIK, bolsa, resumen ejecutivo, tabla de resultados anuales (5 ejercicios con ingresos, beneficio neto, FCF y EPS), últimos filings enlazados a EDGAR, análisis con IA disponibles y FAQ.
-- **Informes públicos en Markdown:** `GET /informe/<TICKER>/<PERIODO>.md` (ej. `/informe/KHC/2025-Q3.md`) o cabecera `Accept: text/markdown` sobre `/informe/<TICKER>/<PERIODO>`. Devuelve la radiografía completa del informe: cuenta de resultados, flujo de caja normal y ajustado, tabla de asignación de capital, rating y conclusiones. Redirección 301 automática desde las rutas heredadas `/informe/<id>(.md)?`.
+- **Informes públicos en Markdown:** `GET /informe/<TICKER>/<PERIODO>.md` (ej. `/informe/KHC/2025-Q3.md`) o cabecera `Accept: text/markdown` sobre `/informe/<TICKER>/<PERIODO>`. Devuelve la radiografía completa del informe: cuenta de resultados, flujo de caja normal y ajustado, tabla de asignación de capital, rating y conclusiones. Redirección 301 automática desde las rutas heredadas `/informe/<id>(.md)?`. Cada informe se renderiza íntegro en el idioma del análisis (etiquetas, narrativa y URL canónica incluidas): un informe en español se sirve igual desde `/informe/...` y desde `/en/informe/...`, con la URL española como canónica, y lo contrario si el análisis es en inglés.
+- **Informes públicos en HTML:** la página de un informe usa el idioma del análisis para `title`, `description`, `<html lang>`, `og:locale`, `inLanguage` (JSON-LD) y `hreflang`; el idioma de la URL solo determina el idioma de la interfaz. La página de la URL no canónica declara `canonical` hacia la del idioma del informe y no emite `hreflang` para el otro idioma, de modo que Google consolida la versión real. El `sitemap.xml` incluye cada informe una sola vez, en su idioma de contenido, con `hreflang` de ese idioma y `x-default`.
 - **`GET /llms.txt`:** Manifiesto estándar según la especificación llmstxt.org con resumen, ámbito, reglas de citación, guías y directorio de empresas con enlaces directos HTML y Markdown.
 - **`GET /llms-full.txt`:** Manifiesto completo para LLMs que integra la metodología de análisis de Cifra (los dos horizontes y tres pilares), el texto íntegro de las 7 guías educativas, el glosario de términos (10-K, 10-Q, 8-K, FCF, CAPEX, etc.) y el directorio exhaustivo de empresas.
 
@@ -34,7 +35,7 @@ Cifra define un catálogo de referencia con las 28 principales empresas cotizada
 
 ### 4. SSR Enriquecido y Datos Estructurados (Schema.org / JSON-LD)
 
-`src/middleware/seo.middleware.js` y `src/services/seo.service.js` gestionan el renderizado server-side:
+`src/middleware/seoHandlers.js` y los servicios de `src/services/seo/` gestionan el renderizado server-side (los bloques JSON-LD estáticos de las plantillas se eliminaron; cada ruta inyecta su propio grafo localizado):
 - **Ficha de empresa (`/empresa/<TICKER>`):**
   - Sustitución limpia de JSON-LD: elimina la etiqueta estática genérica y genera un `@graph` unificado sin colisiones que incluye `Corporation` (CIK, bolsa, sector, industria, `knowsAbout`, enlaces `sameAs` a SEC EDGAR), `WebPage`, `BreadcrumbList` y `FAQPage` con 3 preguntas/respuestas específicas de la empresa.
   - Bloque accesible `<details id="seo-contenido">`: contiene el **Resumen Financiero Ejecutivo** con ventas, beneficio neto, flujo de caja libre, margen FCF (%) y BPA del último año fiscal, tabla anual de 5 ejercicios, listado de filings con enlace primario a sec.gov, análisis de Cifra, FAQ en HTML y enlace a la versión Markdown.
@@ -43,7 +44,9 @@ Cifra define un catálogo de referencia con las 28 principales empresas cotizada
   - JSON-LD con `CollectionPage` y `ItemList` con cada corporación.
 - **Portada (`/`):**
   - SSR con cómo funciona, FAQ explicativa y listado de empresas con análisis.
-  - JSON-LD con `WebSite` (con `SearchAction`), `Organization` (con `alternateName: "Cifra Research"`), `WebApplication` (con `featureList` y `offers`) e `ItemList`.
+  - JSON-LD con `WebSite` (con `SearchAction`), `Organization` (con `alternateName: "Cifra Research"`), `WebApplication` (con `featureList` y `offers`), `ItemList` y `FAQPage` con las mismas 6 preguntas y respuestas que el bloque visible (fuente única `HOME_FAQS`).
+- **Hub de guías (`/guias`):** JSON-LD `WebPage` + `BreadcrumbList` + `Organization` + `ItemList` con las 9 guías.
+- **Idioma de los datos estructurados:** los grafos del sitio (WebSite/Organization/WebApplication), FAQ, directorio y guías se generan en el idioma de la URL; en informes y fichas de empresa el `inLanguage` es el del contenido (idioma del análisis).
 
 ### 5. Guías Educativas (Contenido Semántico)
 
@@ -55,6 +58,7 @@ Cifra define un catálogo de referencia con las 28 principales empresas cotizada
   5. `que-es-el-flujo-de-caja-libre`: Fórmula, cálculo y relevancia frente al beneficio contable.
   6. `que-es-la-asignacion-de-capital`: Dividendos, recompras de acciones, deuda y adquisiciones.
   7. `como-analizar-una-empresa-de-consumo-defensivo`: Rutina fundamental de análisis de productos básicos.
+- El hub `/guias` (y `/en/guias`) sirve SSR con el contenido íntegro de la pestaña «Guías» de la aplicación (apartados Aviso y Proyecto, Datos Financieros y Análisis con IA, con sus sub-pestañas), reutilizando la misma fuente que la interfaz (`public/js/guias/guiasContent.js`) para que buscadores y LLMs lean exactamente lo que ve el usuario. Metadatos propios por idioma y bloque accesible `<details id="seo-contenido">`; los ids y estados `hidden` se limpian para no duplicar la SPA.
 - Cada guía cuenta con `Article` estructurado, `BreadcrumbList`, `FAQPage` en HTML y JSON-LD, interlinking y estilos de marca en `public/guia.css`.
 
 ### 6. Rastreo y Control de Indexación
@@ -84,4 +88,6 @@ Cifra define un catálogo de referencia con las 28 principales empresas cotizada
 | Enrutamiento y negociación de contenido SEO/GEO | `src/middleware/seo.middleware.js` |
 | Textos y metadatos de la landing | `public/index.html` + `getHomeBotContent` |
 | Textos y metadatos del directorio | `public/empresa.html` + `getCompaniesBotContent` |
+| Contenido de la pestaña Guías (ES/EN) | `public/js/guias/guiasContent.js` |
+| SSR de `/guias` para buscadores y LLMs | `src/services/seo/guidesSeo.service.js` |
 | Guías educativas | `src/content/guias/*.html` |

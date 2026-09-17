@@ -9,6 +9,14 @@
   function wireCalendarCompanyFilters(scope, ctx) {
     const { renderCalendarView, onNavigate, getData, hasPosition, refresh } = ctx;
     const rerender = ctx.rerender;
+    scope.querySelectorAll('[data-cal-toggle-companies]').forEach((btn) => {
+          btn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            CS.calendarCompaniesHidden = !CS.calendarCompaniesHidden;
+            saveCalendarCompaniesHidden(CS.calendarCompaniesHidden);
+            rerender();
+          });
+        });
     scope.querySelectorAll('[data-cal-edit-company]').forEach((btn) => {
           btn.addEventListener('click', (ev) => {
             ev.stopPropagation();

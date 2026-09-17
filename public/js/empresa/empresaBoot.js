@@ -4,10 +4,14 @@
 
 (function (window) {
 
-function bootEmpresa() {
+function exposeCompanyState() {
 window.companyTicker = companyTicker;
 window.companyData = companyData;
-window.chartPoints = chartPoints;
+Object.defineProperty(window, 'chartPoints', {
+  get: () => chartPoints,
+  set: (v) => { chartPoints = v; },
+  configurable: true,
+});
 Object.defineProperty(window, 'screenerYearMin', {
   get: () => screenerYearMin,
   set: (v) => { screenerYearMin = v; },
@@ -39,6 +43,9 @@ Object.defineProperty(window, 'companyAuthenticated', {
   configurable: true,
 });
 window.valPeAdjusted = valPeAdjusted;
+}
+
+function wireValuationChartControls() {
 document.querySelector('#val-pe-adjusted-toggle')?.addEventListener('change', (e) => setPeAdjusted(e.target.checked));
 document.querySelector('#val-chart-adjusted-checkbox')?.addEventListener('change', (e) => setPeAdjusted(e.target.checked));
 document.querySelector('#val-payout-adjusted-toggle')?.addEventListener('change', (e) => setPeAdjusted(e.target.checked));
@@ -60,6 +67,9 @@ document.querySelectorAll('.val-chart-ranges button').forEach((button) => {
   });
 });
 wireValuationChartInteractions();
+}
+
+function wireChartKeyboardShortcuts() {
 document.addEventListener('keydown', (event) => {
   if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
   if (event.key === 'f' || event.key === 'F') {
@@ -82,6 +92,9 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
+}
+
+function wireFullscreenRefresh() {
 document.addEventListener('fullscreenchange', () => {
   requestAnimationFrame(() => {
     renderPriceChart();
@@ -103,6 +116,9 @@ window.addEventListener('resize', () => {
     renderValuationChart();
   }, 100);
 });
+}
+
+function wirePriceChartControls() {
 document.querySelectorAll('.chart-ranges button').forEach((button) => {
   button.addEventListener('click', () => {
     document.querySelectorAll('.chart-ranges button').forEach((item) => item.classList.toggle('active', item === button));
@@ -110,6 +126,9 @@ document.querySelectorAll('.chart-ranges button').forEach((button) => {
   });
 });
 wireCompanyChartInteractions();
+}
+
+function wireScreenerControls() {
 document.querySelector('#screener-range-min').addEventListener('input', (event) => {
   const minInput = event.currentTarget;
   const maxInput = document.querySelector('#screener-range-max');
@@ -156,6 +175,9 @@ document.querySelectorAll('[data-precision]').forEach((button) => {
 document.querySelector('[data-table-action="transpose"]').addEventListener('click', () => {
   document.querySelector('#screener-statement-table').classList.toggle('table-compact');
 });
+}
+
+function wireWatchlists() {
 screenerFilings = window.EmpresaFilings?.getFilings?.() || null;
 window.addEventListener('watchlists:change', () => {
   renderCompanyWatchState();
@@ -164,6 +186,9 @@ Watchlists.mountSection(document.querySelector('#watchlists-section'), {
   countEl: document.querySelector('#favorites-count'),
   onNavigate: goToCompany,
 });
+}
+
+function wireNavigation() {
 document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
   link.addEventListener('click', (event) => {
     event.preventDefault();
@@ -197,6 +222,9 @@ document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
     }
   });
 });
+}
+
+function wireCompanyActions() {
 document.querySelector('#company-watch').addEventListener('click', (event) => {
   event.stopPropagation();
   Watchlists.open(event.currentTarget, companyTicker, companyData?.company?.name);
@@ -210,6 +238,9 @@ document.querySelector('#company-filings-shortcut').addEventListener('click', ()
   document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'informes'));
   showSection('informes');
 });
+}
+
+function wireSidebarToggle() {
 menuToggle.addEventListener('click', () => {
   if (window.matchMedia('(max-width: 900px)').matches) {
     const isOpen = sidebar.classList.toggle('open');
@@ -222,6 +253,9 @@ menuToggle.addEventListener('click', () => {
   menuToggle.setAttribute('aria-expanded', String(!isCollapsed));
 });
 backdrop.addEventListener('click', closeSidebar);
+}
+
+function wireTickerSearch() {
 tickerSearch.addEventListener('input', (event) => renderSearchResults(event.target.value));
 tickerSearch.addEventListener('keydown', async (event) => {
   if (event.key === 'Escape') {
@@ -248,9 +282,15 @@ tickerSearch.addEventListener('keydown', async (event) => {
 document.addEventListener('click', (event) => {
   if (!event.target.closest('.search-wrap')) searchResults.hidden = true;
 });
+}
+
+function wireAuthSync() {
 window.addEventListener('auth:change', (event) => {
   syncAuthDependencies(Boolean(event.detail?.user));
 });
+}
+
+function wireBrandHomeLinks() {
 document.querySelector('.brand-lockup, .brand')?.addEventListener('click', (event) => {
   event.preventDefault();
   document.querySelectorAll('.nav-link[data-section]').forEach((item) => item.classList.toggle('active', item.dataset.section === 'perfil'));
@@ -262,6 +302,9 @@ document.querySelector('#sidebar-company-head')?.addEventListener('click', () =>
   showSection('perfil');
   history.pushState(null, '', `/empresa/${encodeURIComponent(companyTicker)}`);
 });
+}
+
+function wireHistoryNavigation() {
 window.addEventListener('popstate', () => {
   const targetSection = resolveInitialSection();
   document.querySelectorAll('.nav-link[data-section]').forEach((item) => {
@@ -269,6 +312,9 @@ window.addEventListener('popstate', () => {
   });
   showSection(targetSection);
 });
+}
+
+function initializeView() {
 window.AnalysisModule?.init();
 document.querySelectorAll('.nav-link[data-section]').forEach((item) => {
   item.classList.toggle('active', item.dataset.section === currentInitialSection);
@@ -285,12 +331,34 @@ window.addEventListener('auth:change', () => {
     window.ReportsModule?.render();
   }
 });
+}
+
+function exposeShellReferences() {
   window.sidebar = sidebar;
   window.menuToggle = menuToggle;
   window.backdrop = backdrop;
   window.searchResults = searchResults;
   window.companyLoading = companyLoading;
   window.companyError = companyError;
+}
+
+function bootEmpresa() {
+  exposeCompanyState();
+  wireValuationChartControls();
+  wireChartKeyboardShortcuts();
+  wireFullscreenRefresh();
+  wirePriceChartControls();
+  wireScreenerControls();
+  wireWatchlists();
+  wireNavigation();
+  wireCompanyActions();
+  wireSidebarToggle();
+  wireTickerSearch();
+  wireAuthSync();
+  wireBrandHomeLinks();
+  wireHistoryNavigation();
+  initializeView();
+  exposeShellReferences();
 }
 window.bootEmpresa = bootEmpresa;
 

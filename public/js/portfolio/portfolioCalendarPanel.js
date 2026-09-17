@@ -180,8 +180,9 @@
         });
     scope.querySelectorAll('[data-cal-today]').forEach((btn) => {
           btn.addEventListener('click', () => {
-            CS.calendarYear = 2026;
-            CS.calendarMonth = 7;
+            const now = new Date();
+            CS.calendarYear = now.getFullYear();
+            CS.calendarMonth = now.getMonth();
             rerender();
           });
         });

@@ -3,7 +3,7 @@
  */
 
 (function (window) {
-  const PS = window.PortfolioState; const { escapeHtml, formatNumber, maxDecimals, fmtMoney, fmtSigned, fmtPct, fmtSignedPct, fmtShares, fmtPrice, fmtDate, fmtEur, fmtEurInt, changeClass, cell } = window.PortfolioFormatting;
+  const PS = window.PortfolioState; const { escapeHtml, formatNumber, maxDecimals, fmtMoney, fmtSigned, fmtPct, fmtSignedPct, fmtShares, fmtPrice, fmtDate, fmtEur, fmtEurInt, changeClass, cell, netDividends } = window.PortfolioFormatting;
 
   function historyWidgetHtml() {
     return window.PortfolioHistory.historyWidgetHtml(PS.data?.transactions ?? []);
@@ -20,20 +20,21 @@
   function renderSummaryCards() {
     const s = PS.data?.summary ?? {};
     const returnClass = Number(s.totalReturnPct) < 0 ? 'negative' : 'positive';
+    const prefs = PS.data?.userPreferences ?? {};
+    const netEnabled = Boolean(prefs.dividendNetEnabled);
+    const withholdingPct = Number.isFinite(Number(prefs.dividendWithholdingPct)) ? Number(prefs.dividendWithholdingPct) : 20;
+    const grossDividends = Number(s.projectedAnnualDividends) || 0;
+    const netValue = netEnabled ? netDividends(grossDividends, withholdingPct) : grossDividends;
     return `
       <div class="pf-metric-strip">
-        <article class="pf-metric-card">
+        <article class="pf-metric-card pf-metric-card-interactive" data-pf-value-chart-toggle role="button" tabindex="0" title="Ver la evolución del valor de la cartera y aportaciones a pantalla completa" aria-label="Ver la evolución del valor de la cartera y aportaciones a pantalla completa">
           <div class="pf-metric-label">
             <span>Valor de la cartera <i title="Valor actual de todas tus posiciones">i</i></span>
-            <select class="pf-period-select" aria-label="Periodo de la cartera">
-              <option>MAX</option><option>1A</option><option>YTD</option>
-            </select>
           </div>
           <div class="pf-metric-value-row">
             <strong>${fmtMoney(s.totalValue)}</strong>
             <span class="pf-metric-trend ${returnClass}">${trendPct(s.totalReturnPct)}</span>
           </div>
-          <span class="pf-metric-action" aria-hidden="true">⇄</span>
         </article>
         <article class="pf-metric-card">
           <div class="pf-metric-label"><span>Rentabilidad por dividendo de la cartera <i title="Dividendos anuales previstos divididos por el valor actual">i</i></span></div>
@@ -41,8 +42,24 @@
           <span class="pf-metric-action" aria-hidden="true">⇄</span>
         </article>
         <article class="pf-metric-card">
-          <div class="pf-metric-label"><span>Dividendos anuales brutos previstos</span><label class="pf-net-toggle"><span>Neto</span><button class="pf-switch" type="button" disabled title="El cálculo neto estará disponible próximamente"><span></span></button></label></div>
-          <div class="pf-metric-value-row"><strong>${fmtMoney(s.projectedAnnualDividends)}</strong></div>
+          <div class="pf-metric-label">
+            <span>Dividendos anuales ${netEnabled ? 'netos' : 'brutos'} previstos <i title="${netEnabled ? `Después de aplicar una retención del ${withholdingPct} %` : 'Antes de impuestos y retenciones'}">i</i></span>
+            <div class="pf-net-controls">
+              <label class="pf-net-toggle" title="Calcular los dividendos después de la retención">
+                <span>Neto</span>
+                <button class="pf-switch ${netEnabled ? 'on' : ''}" type="button" role="switch" aria-checked="${netEnabled}" aria-label="Mostrar dividendos netos" data-pf-net-toggle><span></span></button>
+              </label>
+              <label class="pf-net-pct ${netEnabled ? '' : 'is-hidden'}" title="Porcentaje de retención aplicado al calcular el neto">
+                <span class="pf-net-pct-sign">−</span>
+                <input class="pf-net-pct-input" type="number" min="0" max="100" step="0.5" inputmode="decimal" value="${withholdingPct}" data-pf-net-pct aria-label="Porcentaje de retención de dividendos" />
+                <span class="pf-net-pct-sign">%</span>
+              </label>
+            </div>
+          </div>
+          <div class="pf-metric-value-row">
+            <strong>${fmtMoney(netValue)}</strong>
+            ${netEnabled ? `<span class="pf-metric-net-note" title="Importe bruto antes de retención">bruto ${fmtMoney(grossDividends)}</span>` : ''}
+          </div>
         </article>
       </div>`;
   }

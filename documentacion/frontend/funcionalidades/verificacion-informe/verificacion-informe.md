@@ -13,7 +13,7 @@ Ofrecer la interfaz del **análisis con IA** de un informe 10-Q / 10-K: subir un
 **Incluido:**
 - Dropzone de PDF (arrastrar/soltar, click, validación PDF ≤ 25 MB, preview con quitar).
 - Panel de procesamiento: estados de los 3 agentes (En espera → Procesando → Completado/Error), barra de progreso y **cronómetro mm:ss** con avisos progresivos (45 s: "suele tardar entre 1 y 4 minutos"; 240 s si sigue).
-- Resultado: informe real con bloques Ventas / Cash Flow / Asignación de Capital, botón "Descargar PDF del análisis" y "Analizar otro informe".
+- Resultado: informe real con bloques Ventas / Cash Flow / Asignación de Capital, botón "Descargar PDF del análisis" y "Analizar otro informe"; en los análisis de un filing de la SEC se añade el enlace **"Ver 10-Q/10-K original ↗"** que abre el documento del filing en una pestaña nueva.
 - Errores: caja roja con mensaje + código del servidor y botón Reintentar.
 - Ejecución automática desde `/?analizar=TICKER&accession=...` (botón de Empresa), con limpieza de la URL (`history.replaceState`) y scroll a la sección.
 - Guardado automático con sesión: toast "Análisis guardado en tu histórico".
@@ -54,6 +54,7 @@ Desde Empresa ("Analizar con IA" de un filing):
 | Dropzone | `#upload-dropzone`: arrastrar/soltar, click, validación, preview + quitar |
 | Panel de proceso | `#processing-panel`: título dinámico ("Leyendo tu informe..."/"Verificando..."), cronómetro `#processing-time`, estados de agentes, barra de progreso |
 | Resultado | `#result-preview`: `#report-body` con los 3 bloques, `#report-download` (descarga con nombre `<ticker>-analisis-cifra.pdf`), `#new-analysis` |
+| Enlace al informe original | `#analysis-source-link`: solo visible cuando el análisis es de un filing (hay `ticker` + `accession`); abre `GET /api/screener/company/:ticker/filings/:accession/document` en pestaña nueva. Se oculta en subidas manuales y al pulsar "Analizar otro informe". |
 | Error | Caja roja con mensaje + Reintentar |
 | Metodología | Panel "Qué ocurre después" (mini-pipeline de 3 pasos) |
 
@@ -83,6 +84,7 @@ Desde Empresa ("Analizar con IA" de un filing):
 - Botón "Analizar con IA" (TAP): navega a `/`, consume parámetros, ejecuta el pipeline (200 en 22,8 s con DeepSeek), guardado con sesión.
 - Cronómetro mm:ss correcto (antes `00:99` se rompía); avisos a 45 s y 240 s.
 - Fallo del analista: origen y sector quedan "Completado" (fix).
+- Enlace "Ver 10-Q/10-K original": aparece en el análisis de un filing (TAP 10-Q), oculto en subidas manuales y tras "Analizar otro informe"; normaliza accessions de 18 dígitos a formato con guiones.
 
 ## 9. Relación con otros módulos
 

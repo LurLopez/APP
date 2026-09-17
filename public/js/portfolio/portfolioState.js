@@ -17,6 +17,7 @@ window.PortfolioState = {
   portfolioTab: 'cartera',
   allocationGroup: 'company',
   allocationBasis: 'value',
+  positionsTab: 'valores',
   positionsView: 'current',
   sortKey: null,
   sortDir: 'desc',
@@ -44,6 +45,9 @@ window.PortfolioState = {
   chartSliceEnd: null,
   chartCachedData: null,
   chartRedrawRaf: null,
+  valueChartOpen: false,
+  valueChartRange: '1y',
+  valueChartData: null,
 };
 
 })(window);

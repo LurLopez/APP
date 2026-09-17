@@ -110,6 +110,7 @@ function renderScreenerTables() {
   const title = document.querySelector('#screener-table-title');
   const statementNames = {
     valuation: window.I18n ? window.I18n.t('Valoración') : 'Valoración',
+    ratios: window.I18n ? window.I18n.t('Ratios') : 'Ratios',
     favorites: window.I18n ? window.I18n.t('Favoritos') : 'Favoritos',
     income: window.I18n ? window.I18n.t('Cuenta de resultados') : 'Cuenta de resultados',
     balance: window.I18n ? window.I18n.t('Balance de situación') : 'Balance de situación',
@@ -155,7 +156,8 @@ function renderScreenerTables() {
   if (marginsBar) screenerStatement === 'income' ? (marginsBar.hidden = false) : (marginsBar.hidden = true);
 
   if (isValuation) {
-    renderMetricsChart();
+    const metricsBlock = document.querySelector('#metrics-chart-block');
+    if (metricsBlock) metricsBlock.hidden = true;
     return;
   }
 

@@ -66,7 +66,7 @@
     const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
     if (Number.isNaN(date.getTime())) return '—';
     if (window.I18n?.formatDate) return window.I18n.formatDate(date);
-    return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+    return new Intl.DateTimeFormat(activeLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
   }
 
   function fmtEur(value) {
@@ -81,6 +81,21 @@
 
   function changeClass(value) {
     return Number(value) > 0 ? 'positive' : Number(value) < 0 ? 'negative' : '';
+  }
+
+  /**
+   * Aplica una retención porcentual (0-100) a un importe bruto de dividendos.
+   * @param {number} gross - Importe bruto.
+   * @param {number} withholdingPct - Porcentaje de retención.
+   * @param {number} [defaultPct=20] - Porcentaje usado si el valor no es válido.
+   * @returns {number} Importe neto resultante.
+   */
+  function netDividends(gross, withholdingPct, defaultPct = 20) {
+    const amount = Number(gross);
+    const hasPct = withholdingPct !== null && withholdingPct !== undefined && withholdingPct !== '';
+    const raw = hasPct ? Number(withholdingPct) : NaN;
+    const pct = Number.isFinite(raw) ? Math.min(100, Math.max(0, raw)) : defaultPct;
+    return (Number.isFinite(amount) ? amount : 0) * (1 - pct / 100);
   }
 
   function cell(value, { signed = false, pct = false } = {}) {
@@ -104,7 +119,8 @@
     fmtEur,
     fmtEurInt,
     changeClass,
-    cell
+    cell,
+    netDividends
   };
 
   window.PortfolioFormatting = PortfolioFormatting;

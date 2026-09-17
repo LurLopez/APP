@@ -42,6 +42,7 @@ function cleanup(now) {
  * @param {number} [options.max=10] - Número máximo de peticiones permitidas por ventana.
  * @param {string} [options.message='Demasiadas solicitudes. Inténtalo de nuevo más tarde.'] - Mensaje de error 429.
  * @param {string} [options.scope='global'] - Identificador del ámbito de limitación.
+ * @param {function(import('express').Request): boolean} [options.skip] - Devuelve true para no contar ni limitar la petición (ej. respuestas ya cacheadas que no consumen recursos pesados).
  * @returns {import('express').RequestHandler} Middleware configurado.
  */
 export function rateLimit({
@@ -49,8 +50,20 @@ export function rateLimit({
   max = 10,
   message = 'Demasiadas solicitudes. Inténtalo de nuevo más tarde.',
   scope = 'global',
+  skip = null,
 } = {}) {
   return function rateLimitMiddleware(req, res, next) {
+    if (typeof skip === 'function') {
+      try {
+        if (skip(req)) {
+          next();
+          return;
+        }
+      } catch {
+        // Si la comprobación falla, se aplica el límite por seguridad.
+      }
+    }
+
     const now = Date.now();
     cleanup(now);
 

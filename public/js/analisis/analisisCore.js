@@ -105,7 +105,7 @@
     const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
     if (Number.isNaN(date.getTime())) return '—';
     if (window.I18n?.formatDate) return window.I18n.formatDate(date);
-    return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+    return new Intl.DateTimeFormat((window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
   }
 
   function showToast(message) {

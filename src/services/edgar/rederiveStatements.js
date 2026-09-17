@@ -119,7 +119,7 @@ export function rederiveCashValues(annual, quarterly) {
         const capex = Number(values.capex);
         values.freeCashFlow = Math.round((Number(values.cfo) + (capex < 0 ? capex : -capex)) * 1e6) / 1e6;
       }
-      if (values.cashFlowPerShare === undefined && Number.isFinite(Number(values.freeCashFlow))) {
+      if (Number.isFinite(Number(values.freeCashFlow))) {
         const sh = Number(values.weightedSharesDiluted || values.sharesOutstanding);
         if (sh > 0) {
           values.cashFlowPerShare = Math.round((Number(values.freeCashFlow) / sh) * 1000) / 1000;

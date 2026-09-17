@@ -25,7 +25,7 @@ export function secDocumentUrl(cik, accession, primaryDocument) {
 
 export async function loadPublicReportsForTicker(ticker) {
   const rows = await query(
-    `SELECT id, company_name, ticker, period_end, pdf_url, created_at,
+    `SELECT id, company_name, ticker, period_end, pdf_url, created_at, language,
             report->>'periodTitle' AS period_title,
             report->>'formType' AS form_type,
             report->>'fiscalYear' AS fiscal_year,
@@ -47,6 +47,7 @@ export async function loadPublicReportsForTicker(ticker) {
     periodEnd: row.period_end,
     pdfUrl: row.pdf_url,
     createdAt: row.created_at,
+    language: row.language,
     slug: buildReportSlug(row),
   }));
 }
@@ -116,7 +117,7 @@ const BOT_CONTENT_STYLE = `#seo-contenido{max-width:920px;margin:0 auto;padding:
 export function botContentWrap(inner, lang = 'es') {
   const isEn = lang === 'en';
   const summary = isEn ? 'Public summary and sources from Cifra' : 'Resumen público y fuentes de Cifra';
-  return `<style>${BOT_CONTENT_STYLE}</style>\n<details id="seo-contenido">\n<summary>${summary}</summary>\n<div class="seo-content-body">\n${inner}\n</div>\n</details>`;
+  return `<style>${BOT_CONTENT_STYLE}</style>\n<details id="seo-contenido" data-i18n-skip>\n<summary>${summary}</summary>\n<div class="seo-content-body">\n${inner}\n</div>\n</details>`;
 }
 
 export function guideListLinks(lang = 'es') {
@@ -229,9 +230,8 @@ export async function getCompanyBotContent(meta, lang = 'es') {
       const label = isEn
         ? `Form ${formType} report ${report.periodTitle ? `— ${report.periodTitle}` : ''}`.trim()
         : `Informe ${formType} ${report.periodTitle ? `— ${report.periodTitle}` : ''}`.trim();
-      const repUrl = isEn
-        ? `${config.siteUrl}/en/informe/${encodeURIComponent(report.ticker)}/${slug}`
-        : `${config.siteUrl}/informe/${encodeURIComponent(report.ticker)}/${slug}`;
+      const repUrl = (String(report.language ?? 'es') === 'en' ? `${config.siteUrl}/en` : config.siteUrl)
+        + `/informe/${encodeURIComponent(report.ticker)}/${slug}`;
       parts.push(`<li><a href="${repUrl}">${escapeHtml(label)}</a> (<a href="${repUrl}.md">Markdown</a>)</li>`);
     }
     parts.push('</ul>');
@@ -268,6 +268,87 @@ export async function getCompanyBotContent(meta, lang = 'es') {
   return botContentWrap(parts.join('\n'), isEn ? 'en' : 'es');
 }
 
+/**
+ * Preguntas frecuentes de la portada. Se usan tanto en el bloque SSR visible
+ * como en el JSON-LD (FAQPage) para que el marcado coincida con el contenido.
+ */
+export const HOME_FAQS = {
+  es: [
+    {
+      q: '¿Qué es un informe 10-Q?',
+      a: 'El 10-Q es el informe financiero trimestral que las empresas cotizadas de Estados Unidos presentan ante la SEC, con la cuenta de resultados, el balance y el flujo de caja del trimestre.',
+      guide: { slug: 'que-es-un-informe-10-q', label: 'qué es un informe 10-Q y cómo leerlo' },
+    },
+    {
+      q: '¿Qué es un informe 10-K?',
+      a: 'El 10-K es el informe anual auditado de las empresas de Estados Unidos, la fuente primaria del análisis fundamental.',
+      guide: { slug: 'que-es-un-informe-10-k', label: 'qué es un informe 10-K' },
+    },
+    {
+      q: '¿Qué es un informe 8-K y por qué es clave?',
+      a: 'El 8-K es el informe de hechos relevantes de la SEC donde las empresas registran sus notas de prensa y presentaciones a inversores con el guidance.',
+      guide: { slug: 'que-es-un-informe-8-k', label: 'qué es un informe 8-K' },
+    },
+    {
+      q: '¿Cómo analiza Cifra un informe financiero?',
+      a: 'En tres pasos: verificación de origen y sector, extracción de datos clave e integración de presentaciones de resultados, y redacción de un análisis estructurado en dos horizontes con bloques de ventas, cash flow y asignación de capital, con PDF descargable.',
+    },
+    {
+      q: '¿Qué empresas puedo analizar?',
+      a: 'Durante la beta, empresas de Estados Unidos del sector consumo defensivo: alimentos y bebidas, productos de consumo cotidiano, tabaco, supermercados y distribución.',
+    },
+    {
+      q: '¿De dónde salen los datos?',
+      a: 'De SEC EDGAR, el sistema oficial de la SEC, complementado con datos de mercado. Cifra no es asesor financiero: organiza y explica la información para que el inversor decida.',
+    },
+  ],
+  en: [
+    {
+      q: 'What is a 10-Q report?',
+      a: 'The 10-Q is the quarterly financial report that U.S. listed companies file with the SEC, featuring the income statement, balance sheet, and cash flow for the quarter.',
+      guide: { slug: 'que-es-un-informe-10-q', label: 'what is a 10-Q report and how to read it' },
+    },
+    {
+      q: 'What is a 10-K report?',
+      a: 'The 10-K is the audited annual report of U.S. public companies, the primary source for fundamental analysis.',
+      guide: { slug: 'que-es-un-informe-10-k', label: 'what is a 10-K report' },
+    },
+    {
+      q: 'What is an 8-K report and why is it key?',
+      a: 'The 8-K reports material corporate events where companies disclose press releases and investor presentations with management guidance.',
+      guide: { slug: 'que-es-un-informe-8-k', label: 'what is an 8-K report' },
+    },
+    {
+      q: 'How does Cifra analyze a financial report?',
+      a: 'In three steps: verification of origin and sector, extraction of key financial figures with earnings presentations, and drafting of a structured analysis across two time horizons with sales, cash flow, and capital allocation blocks.',
+    },
+    {
+      q: 'Which companies can I analyze?',
+      a: 'During the beta, U.S. companies in the consumer staples sector: food and beverage, household products, tobacco, supermarkets, and distribution.',
+    },
+    {
+      q: 'Where does the data come from?',
+      a: 'Directly from SEC EDGAR, complemented by market data. Cifra is not a financial advisor: it structures information for investors.',
+    },
+  ],
+};
+
+/**
+ * Renderiza la FAQ de portada como HTML para el bloque SSR.
+ * @param {string} [lang] - Idioma ('es' | 'en').
+ * @returns {string}
+ */
+export function renderHomeFaqHtml(lang = 'es') {
+  const isEn = lang === 'en';
+  const base = isEn ? `${config.siteUrl}/en/guias` : `${config.siteUrl}/guias`;
+  return HOME_FAQS[isEn ? 'en' : 'es']
+    .map(({ q, a, guide }) => {
+      const link = guide ? ` ${isEn ? 'Read more in our guide' : 'Puedes ampliarlo en la guía'} <a href="${base}/${guide.slug}">${guide.label}</a>.` : '';
+      return `<h3>${escapeHtml(q)}</h3><p>${escapeHtml(a)}${link}</p>`;
+    })
+    .join('\n');
+}
+
 export async function getHomeBotContent(lang = 'es') {
   const isEn = lang === 'en';
   const site = isEn ? `${config.siteUrl}/en` : config.siteUrl;
@@ -285,12 +366,7 @@ export async function getHomeBotContent(lang = 'es') {
     parts.push('<h2>How does Cifra work?</h2>');
     parts.push('<ol><li>Upload the PDF of the 10-Q or 10-K report, or search for a company by ticker.</li><li>The AI verifies that the report belongs to a U.S. company in the consumer staples sector.</li><li>It extracts key financial data: sales, margins, operating income, cash flow, CAPEX, dividends, buybacks, and debt, incorporating guidance from the 8-K.</li><li>It drafts the analysis across two time horizons and generates a downloadable PDF report.</li></ol>');
     parts.push('<h2>Frequently asked questions</h2>');
-    parts.push(`<h3>What is a 10-Q report?</h3><p>The 10-Q is the quarterly financial report that U.S. listed companies file with the SEC, featuring the income statement, balance sheet, and cash flow for the quarter. Read more in our guide <a href="${config.siteUrl}/en/guias/que-es-un-informe-10-q">what is a 10-Q report and how to read it</a>.</p>`);
-    parts.push(`<h3>What is a 10-K report?</h3><p>The 10-K is the audited annual report of U.S. public companies, the primary source for fundamental analysis. Details in the guide <a href="${config.siteUrl}/en/guias/que-es-un-informe-10-k">what is a 10-K report</a>.</p>`);
-    parts.push(`<h3>What is an 8-K report and why is it key?</h3><p>The 8-K reports material corporate events where companies disclose press releases and investor presentations with management guidance. Details in the guide <a href="${config.siteUrl}/en/guias/que-es-un-informe-8-k">what is an 8-K report</a>.</p>`);
-    parts.push('<h3>How does Cifra analyze a financial report?</h3><p>In three steps: verification of origin and sector, extraction of key financial figures with earnings presentations, and drafting of a structured analysis across two time horizons with sales, cash flow, and capital allocation blocks.</p>');
-    parts.push('<h3>Which companies can I analyze?</h3><p>During the beta, U.S. companies in the consumer staples sector: food and beverage, household products, tobacco, supermarkets, and distribution.</p>');
-    parts.push('<h3>Where does the data come from?</h3><p>Directly from SEC EDGAR, complemented by market data. Cifra is not a financial advisor: it structures information for investors.</p>');
+    parts.push(renderHomeFaqHtml('en'));
     parts.push('<h2>Educational guides</h2>');
     parts.push(`<ul>\n${guideListLinks('en')}\n</ul>`);
     if (companies.length) {
@@ -308,12 +384,7 @@ export async function getHomeBotContent(lang = 'es') {
     parts.push('<h2>¿Cómo funciona Cifra?</h2>');
     parts.push('<ol><li>Sube el PDF del informe 10-Q o 10-K, o elige una empresa por su ticker en el buscador.</li><li>La IA verifica que el informe sea de una empresa de EE. UU. del sector consumo defensivo.</li><li>Extrae los datos clave: ventas, márgenes, beneficio operativo, cash flow, CAPEX, dividendos, recompras y deuda, integrando el guidance de la presentación del 8-K.</li><li>Redacta el análisis en dos horizontes (trimestre y año, o últimos 12 meses) y genera un informe estructurado en PDF.</li></ol>');
     parts.push('<h2>Preguntas frecuentes</h2>');
-    parts.push(`<h3>¿Qué es un informe 10-Q?</h3><p>El 10-Q es el informe financiero trimestral que las empresas cotizadas de Estados Unidos presentan ante la SEC, con la cuenta de resultados, el balance y el flujo de caja del trimestre. Puedes ampliarlo en la guía <a href="${config.siteUrl}/guias/que-es-un-informe-10-q">qué es un informe 10-Q y cómo leerlo</a>.</p>`);
-    parts.push(`<h3>¿Qué es un informe 10-K?</h3><p>El 10-K es el informe anual auditado de las empresas de Estados Unidos, la fuente primaria del análisis fundamental. Detalles en la guía <a href="${config.siteUrl}/guias/que-es-un-informe-10-k">qué es un informe 10-K</a>.</p>`);
-    parts.push(`<h3>¿Qué es un informe 8-K y por qué es clave?</h3><p>El 8-K es el informe de hechos relevantes de la SEC donde las empresas registran sus notas de prensa y presentaciones a inversores con el guidance anual. Detalles en la guía <a href="${config.siteUrl}/guias/que-es-un-informe-8-k">qué es un informe 8-K</a>.</p>`);
-    parts.push('<h3>¿Cómo analiza Cifra un informe financiero?</h3><p>En tres pasos: verificación de origen y sector, extracción de datos clave e integración de presentaciones de resultados, y redacción de un análisis estructurado en dos horizontes con bloques de ventas, cash flow y asignación de capital, con PDF descargable.</p>');
-    parts.push('<h3>¿Qué empresas puedo analizar?</h3><p>Durante la beta, empresas de Estados Unidos del sector consumo defensivo: alimentos y bebidas, productos de consumo cotidiano, tabaco, supermercados y distribución.</p>');
-    parts.push('<h3>¿De dónde salen los datos?</h3><p>De SEC EDGAR, el sistema oficial de la SEC, complementado con datos de mercado. Cifra no es asesor financiero: organiza y explica la información para que el inversor decida.</p>');
+    parts.push(renderHomeFaqHtml('es'));
     parts.push('<h2>Guías educativas</h2>');
     parts.push(`<ul>\n${guideListLinks('es')}\n</ul>`);
     if (companies.length) {

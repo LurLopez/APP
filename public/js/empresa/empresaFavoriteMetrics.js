@@ -8,12 +8,14 @@
   'use strict';
 
   const STORAGE_KEY = 'cifra_favorite_metrics_v1';
-  const STATEMENT_ORDER = ['income', 'balance', 'cashflow'];
+  const STATEMENT_ORDER = ['income', 'balance', 'cashflow', 'ratios'];
   const STATEMENT_LABELS = {
     income: 'Cuenta de resultados',
     balance: 'Balance de situación',
     cashflow: 'Estado de Flujo de Efectivo',
+    ratios: 'Ratios',
   };
+  const CANONICAL_STATEMENTS = ['income', 'cashflow', 'balance'];
   const LABEL_MAX_LENGTH = 160;
 
   const favorites = new Map(); // `${statement}:${key}` -> { statement, key, label }
@@ -31,6 +33,21 @@
 
   function favoriteId(statement, key) {
     return `${statement}:${key}`;
+  }
+
+  /**
+   * Resuelve el estado financiero canónico de una métrica: si la clave ya existe
+   * en uno de los estados clásicos (p. ej. los márgenes de Ratios, que son los
+   * mismos de Cuenta de resultados), el favorito se guarda allí para que el
+   * corazón y los valores coincidan en ambas pestañas.
+   * @param {string} key - Clave de la métrica.
+   * @param {string} statement - Pestaña desde la que se marca.
+   * @returns {string} Estado financiero donde se persiste el favorito.
+   */
+  function resolveFavoriteStatement(key, statement) {
+    if (!key || CANONICAL_STATEMENTS.includes(statement)) return statement;
+    const statements = window.companyData?.statements ?? {};
+    return CANONICAL_STATEMENTS.find((candidate) => (statements[candidate] ?? []).some((item) => item.key === key)) ?? statement;
   }
 
   function normalizeFavorite(raw) {
@@ -142,10 +159,12 @@
   }
 
   function favoriteButtonHtml(item, statement) {
+    if (!STATEMENT_ORDER.includes(statement)) return '';
     const key = item?.key ?? '';
-    const isFavorite = hasFavorite(statement, key);
+    const favoriteStatement = resolveFavoriteStatement(key, statement);
+    const isFavorite = hasFavorite(favoriteStatement, key);
     const label = escapeHtml(item?.label || key);
-    return `<button type="button" class="metric-favorite-btn${isFavorite ? ' is-favorite' : ''}" data-favorite-statement="${escapeHtml(statement)}" data-favorite-key="${escapeHtml(key)}" aria-pressed="${isFavorite}" aria-label="${isFavorite ? 'Quitar' : 'Añadir'} ${label} ${isFavorite ? 'de' : 'a'} favoritos" title="${isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}">${HEART_SVG}</button>`;
+    return `<button type="button" class="metric-favorite-btn${isFavorite ? ' is-favorite' : ''}" data-favorite-statement="${escapeHtml(favoriteStatement)}" data-favorite-key="${escapeHtml(key)}" aria-pressed="${isFavorite}" aria-label="${isFavorite ? 'Quitar' : 'Añadir'} ${label} ${isFavorite ? 'de' : 'a'} favoritos" title="${isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}">${HEART_SVG}</button>`;
   }
 
   function updateHeartButtons() {
@@ -243,11 +262,13 @@
    */
   async function toggleFavorite(item, statement) {
     const key = item?.key;
-    if (!key || !STATEMENT_ORDER.includes(statement)) return;
-    const id = favoriteId(statement, key);
+    if (!key) return;
+    const targetStatement = resolveFavoriteStatement(key, statement);
+    if (!STATEMENT_ORDER.includes(targetStatement)) return;
+    const id = favoriteId(targetStatement, key);
     const wasFavorite = favorites.has(id);
     const favorite = {
-      statement,
+      statement: targetStatement,
       key,
       label: String(item?.label ?? key).trim().slice(0, LABEL_MAX_LENGTH) || key,
     };

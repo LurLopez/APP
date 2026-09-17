@@ -20,7 +20,7 @@
     const year = parts[0];
     const mIdx = parseInt(parts[1], 10) - 1;
     const day = parts[2];
-    const m = SPANISH_MONTHS[mIdx] || parts[1];
+    const m = (window.I18n && window.I18n.shortMonth && window.I18n.shortMonth(mIdx)) || SPANISH_MONTHS[mIdx] || parts[1];
     return `${day} ${m} ${year}`;
   }
 
@@ -65,7 +65,8 @@
     const sym = formatCurrencySymbol(curr);
     const num = Number(val);
     const decimals = Math.abs(num) < 10 ? 2 : (Math.abs(num) < 1000 ? 2 : 1);
-    return `${sym}${num.toLocaleString('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+    const locale = (window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES';
+    return `${sym}${num.toLocaleString(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
   }
 
   /**
@@ -81,7 +82,8 @@
     const prefix = num > 0 ? '+' : (num < 0 ? '-' : '');
     const absNum = Math.abs(num);
     const decimals = absNum < 10 ? 2 : (absNum < 1000 ? 2 : 1);
-    return `${prefix}${sym}${absNum.toLocaleString('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+    const locale = (window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES';
+    return `${prefix}${sym}${absNum.toLocaleString(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
   }
 
   /**
@@ -93,7 +95,8 @@
     if (!Number.isFinite(Number(val))) return '—';
     const num = Number(val);
     const prefix = num > 0 ? '+' : (num < 0 ? '-' : '');
-    return `${prefix}${Math.abs(num).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
+    const locale = (window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES';
+    return `${prefix}${Math.abs(num).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
   }
 
   /**

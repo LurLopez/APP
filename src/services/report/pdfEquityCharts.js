@@ -4,7 +4,7 @@
  */
 
 import { sanitize } from './pdfStyles.js';
-import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { t, normalizeLanguage, formatFixed } from '../../utils/i18n.js';
 
 export function drawSharesChart(doc, chart, y) {
   if (!chart || !Array.isArray(chart.points) || chart.points.length < 2) return y;
@@ -49,8 +49,9 @@ export function drawSharesChart(doc, chart, y) {
     doc.font('Helvetica-Bold').fontSize(7).fillColor('#334155').text(String(p.year), cx - slotW / 2, plotTop + plotH + 5, { width: slotW, align: 'center', lineBreak: false });
   });
 
-  const fmtP = (v) => `${v < 0 ? '' : '-'}${v.toFixed(1).replace('.', ',')} %`;
-  const fmtB = (v) => `+${v.toFixed(1).replace('.', ',')} %`;
+  const eqLang = normalizeLanguage(chart.language);
+  const fmtP = (v) => `${v < 0 ? '' : '-'}${formatFixed(v, 1, eqLang)} %`;
+  const fmtB = (v) => `+${formatFixed(v, 1, eqLang)} %`;
   const mets = Array.isArray(chart.metrics) ? chart.metrics : [];
   const drawDashed = (x1, y1, x2, y2, color) => {
     doc.moveTo(x1, y1).lineTo(x2, y2).lineWidth(1.2).dash(5, 4).strokeColor(color).stroke();
@@ -71,7 +72,7 @@ export function drawSharesChart(doc, chart, y) {
     const y0 = yFor(chart.points[0].shares);
     const yN = yFor(chart.points[n - 1].shares);
     drawDashed(x0, y0, xN, yN, '#1f2937');
-    drawLabelBox(`CAGR: ${fmtP(mets[0].pct)} · BPA ${fmtB(mets[0].bpa)}`, (x0 + xN) / 2, (y0 + yN) / 2 - 20, '#1f2937');
+    drawLabelBox(`CAGR: ${fmtP(mets[0].pct)} · ${eqLang === 'en' ? 'EPS' : 'BPA'} ${fmtB(mets[0].bpa)}`, (x0 + xN) / 2, (y0 + yN) / 2 - 20, '#1f2937');
     if (mets[1]) {
       const xPrev = plotX + slotW * (n - 1.5);
       const yPrev = yFor(chart.points[n - 2].shares);
@@ -101,17 +102,17 @@ export function drawDividendChart(doc, chart, y) {
   doc.rect(margin, y, pageWidth, boxH).fill('#f8fafc');
   doc.rect(margin, y, pageWidth, boxH).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
 
-  const chartTitle = `EVOLUCIÓN DEL DIVIDENDO Y PAYOUT (${chart.points[0].year}–${chart.points[chart.points.length - 1].year})`;
+  const eqLang = normalizeLanguage(chart.language);
+  const chartTitle = t('EVOLUCIÓN DEL DIVIDENDO Y PAYOUT ({from}–{to})', { from: chart.points[0].year, to: chart.points[chart.points.length - 1].year }, eqLang);
   doc.font('Helvetica-Bold').fontSize(8).fillColor('#475569').text(sanitize(chartTitle), margin + 8, y + 6, { width: 320 });
   const cagrParts = [];
-  if (chart.totalCagr != null) cagrParts.push(`importe ${chart.totalCagr >= 0 ? '+' : ''}${chart.totalCagr.toFixed(1).replace('.', ',')} %`);
-  if (chart.dpsCagr != null) cagrParts.push(`por acción ${chart.dpsCagr >= 0 ? '+' : ''}${chart.dpsCagr.toFixed(1).replace('.', ',')} %`);
+  if (chart.totalCagr != null) cagrParts.push(`${eqLang === 'en' ? 'amount' : 'importe'} ${chart.totalCagr >= 0 ? '+' : ''}${formatFixed(chart.totalCagr, 1, eqLang)} %`);
+  if (chart.dpsCagr != null) cagrParts.push(`${eqLang === 'en' ? 'per share' : 'por acción'} ${chart.dpsCagr >= 0 ? '+' : ''}${formatFixed(chart.dpsCagr, 1, eqLang)} %`);
   if (cagrParts.length) {
     doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#64748b').text(sanitize(`CAGR ${chart.points[0].year}–${chart.points[chart.points.length - 1].year}: ${cagrParts.join(' · ')}`), margin + 8, y + 17, { width: 320 });
   }
 
   const legX = margin + pageWidth - 200;
-  const eqLang = normalizeLanguage(chart.language);
   doc.rect(legX, y + 6, 8, 8).fill('#f59e0b');
   doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text(t('Dividendo por acción', null, eqLang), legX + 11, y + 6.5);
   doc.moveTo(legX + 84, y + 10).lineTo(legX + 98, y + 10).lineWidth(1.6).strokeColor('#0f766e').stroke();
@@ -133,7 +134,7 @@ export function drawDividendChart(doc, chart, y) {
     const v = (niceDps * (3 - g)) / 3;
     const gy = yDps(v);
     doc.moveTo(plotX, gy).lineTo(plotX + plotW, gy).lineWidth(0.5).strokeColor(g === 3 ? '#cbd5e1' : '#e2e8f0').stroke();
-    doc.font('Helvetica').fontSize(6.5).fillColor('#64748b').text(`$${v.toFixed(1).replace('.', ',')}`, margin + 2, gy - 3.5, { width: padL - 8, align: 'right', lineBreak: false });
+    doc.font('Helvetica').fontSize(6.5).fillColor('#64748b').text(`$${formatFixed(v, 1, eqLang)}`, margin + 2, gy - 3.5, { width: padL - 8, align: 'right', lineBreak: false });
     doc.font('Helvetica').fontSize(6.5).fillColor('#0f766e').text(`${Math.round((nicePayout * (3 - g)) / 3)}%`, margin + pageWidth - padR + 4, gy - 3.5, { width: padR - 4, align: 'left', lineBreak: false });
   }
 
@@ -147,7 +148,7 @@ export function drawDividendChart(doc, chart, y) {
     if (Number.isFinite(p.dps)) {
       const top = yDps(p.dps);
       doc.rect(cx - barW / 2, top, barW, plotTop + plotH - top).fill('#f59e0b');
-      doc.font('Helvetica-Bold').fontSize(6).fillColor('#b45309').text(`${Number(p.dps).toFixed(2).replace('.', ',')} $`, cx - slotW / 2, top - 7, { width: slotW, align: 'center', lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(6).fillColor('#b45309').text(`${formatFixed(p.dps, 2, eqLang)} $`, cx - slotW / 2, top - 7, { width: slotW, align: 'center', lineBreak: false });
     }
     doc.font('Helvetica-Bold').fontSize(7).fillColor('#334155').text(String(p.year), cx - slotW / 2, plotTop + plotH + 5, { width: slotW, align: 'center', lineBreak: false });
     if (Number.isFinite(p.payoutPct)) linePts.push({ x: cx, y: yPayout(p.payoutPct), pct: p.payoutPct, barTop: Number.isFinite(p.dps) ? yDps(p.dps) : null });
@@ -162,7 +163,7 @@ export function drawDividendChart(doc, chart, y) {
   }
   linePts.forEach((point) => {
     doc.circle(point.x, point.y, 2.4).fill('#0f766e');
-    const pctLabel = `${point.pct.toFixed(1).replace('.', ',')}%`;
+    const pctLabel = `${formatFixed(point.pct, 1, eqLang)}%`;
     const overlaps = point.barTop != null && Math.abs(point.barTop - point.y) < 18;
     if (overlaps) {
       doc.font('Helvetica-Bold').fontSize(6).fillColor('#0f766e').text(pctLabel, point.x + 5, point.y - 4, { width: 40, align: 'left', lineBreak: false });

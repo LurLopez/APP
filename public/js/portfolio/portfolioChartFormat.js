@@ -29,6 +29,10 @@
     return fmtMod().fmtSigned ? fmtMod().fmtSigned(value) : String(value ?? '');
   }
 
+  function fmtMoney(value) {
+    return fmtMod().fmtMoney ? fmtMod().fmtMoney(value) : String(value ?? '');
+  }
+
   function fmtPct(value) {
     return fmtMod().fmtPct ? fmtMod().fmtPct(value) : `${value} %`;
   }
@@ -57,6 +61,7 @@ window.formatNumber = formatNumber;
 window.fmtShares = fmtShares;
 window.fmtPrice = fmtPrice;
 window.fmtDate = fmtDate;
+window.fmtMoney = fmtMoney;
 window.fmtSigned = fmtSigned;
 window.fmtPct = fmtPct;
 window.fmtSignedPct = fmtSignedPct;

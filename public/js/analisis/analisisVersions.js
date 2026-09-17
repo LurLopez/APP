@@ -39,7 +39,7 @@
         ? '<span class="analysis-reviewed-mini-badge" title="Revisado por un humano">✓ Revisado</span>'
         : '';
       const versionLabel = entry.version ? `v${escapeHtml(entry.version)}` : 'Sin versión';
-      const dateLabel = entry.createdAt ? new Date(entry.createdAt).toLocaleDateString('es-ES') : '';
+      const dateLabel = entry.createdAt ? new Date(entry.createdAt).toLocaleDateString((window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES') : '';
       const base = entry.downloadBase ? String(entry.downloadBase) : '';
       return `
         <div class="analysis-version-item${isActive ? ' active' : ''}" data-version-id="${escapeHtml(entry.id)}">

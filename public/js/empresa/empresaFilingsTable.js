@@ -92,6 +92,12 @@
     table.querySelectorAll('button[data-action="preview"]').forEach((button) => {
       button.addEventListener('click', () => openFilingsPreview(button.dataset.doc, button.dataset.name));
     });
+    table.querySelectorAll('a.filing-action-download').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        downloadFilingDocument(link);
+      });
+    });
     table.querySelectorAll('button[data-action="analyze"]').forEach((button) => {
       button.addEventListener('click', () => {
         const t = button.dataset.ticker;
@@ -126,6 +132,30 @@
         }
       });
     });
+  }
+
+  async function downloadFilingDocument(link) {
+    try {
+      const response = await fetch(link.href);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        toast(data.error || 'No se pudo descargar el documento. Inténtalo de nuevo más tarde.');
+        return;
+      }
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const tempLink = document.createElement('a');
+      tempLink.href = objectUrl;
+      tempLink.download = match ? match[1] : 'informe.pdf';
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      toast('No se pudo conectar con el servidor. Comprueba la conexión.');
+    }
   }
 
   function updatePresentationsStatus(isLoading) {

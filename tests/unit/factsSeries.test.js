@@ -47,3 +47,38 @@ test('buildSeries resuelve hechos dei (acciones en circulación)', () => {
   const { annual } = buildSeries(facts);
   assert.equal(annual[0].values.sharesOutstanding, 500);
 });
+
+test('buildSeries normaliza acciones en millones usando el dato absoluto de dei', () => {
+  const facts = factsFixture();
+  facts.facts['us-gaap'].WeightedAverageNumberOfDilutedSharesOutstanding = {
+    units: { shares: [{ start: '2023-01-01', end: '2023-12-31', val: 711.1, frame: 'CY2023', fp: 'FY', form: '10-K', filed: '2024-02-01', tag: 'WeightedAverageNumberOfDilutedSharesOutstanding' }] },
+  };
+  facts.facts.dei = {
+    EntityCommonStockSharesOutstanding: {
+      units: { shares: [{ end: '2023-12-31', val: 707641531, frame: 'CY2023Q4I', fp: 'FY', form: '10-K', filed: '2024-02-01', tag: 'EntityCommonStockSharesOutstanding' }] },
+    },
+  };
+  const { annual } = buildSeries(facts);
+  assert.equal(annual[0].values.weightedSharesDiluted, 711100000);
+  assert.equal(annual[0].values.sharesOutstanding, 707641531);
+});
+
+test('buildSeries deriva el EBT desde el beneficio neto y el impuesto cuando no hay etiqueta de EBT', () => {
+  const facts = factsFixture();
+  facts.facts['us-gaap'].IncomeTaxExpenseBenefit = {
+    units: { USD: [annualEntry('IncomeTaxExpenseBenefit', 21)] },
+  };
+  const { annual } = buildSeries(facts);
+  assert.equal(annual[0].values.incomeTax, -21);
+  assert.equal(annual[0].values.ebtIncludingUnusual, 121);
+  assert.equal(annual[0].values.pretaxIncome, 121);
+});
+
+test('buildSeries ignora hechos acumulados de más de un ejercicio al crear filas anuales', () => {
+  const facts = factsFixture();
+  facts.facts['us-gaap'].RestructuringAndRelatedCostIncurredCost = {
+    units: { USD: [{ start: '2023-01-01', end: '2025-12-31', val: 697000000, fp: 'FY', form: '10-K', filed: '2026-02-01', tag: 'RestructuringAndRelatedCostIncurredCost' }] },
+  };
+  const { annual } = buildSeries(facts);
+  assert.equal(annual.some((row) => row.periodEnd === '2025-12-31'), false);
+});

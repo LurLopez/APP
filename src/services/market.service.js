@@ -22,8 +22,9 @@ import {
 } from './market/marketMath.service.js';
 import { getCompanyHolders } from './market/companyHolders.service.js';
 import { getCompanyIrSites } from './market/irWebsites.service.js';
+import { getCompanyCalendar } from './market/companyCalendar.service.js';
 
-export { getCompanyHolders, getCompanyIrSites };
+export { getCompanyHolders, getCompanyIrSites, getCompanyCalendar };
 
 const DIVIDEND_TTL = 24 * 60 * 60 * 1000;
 const DIVIDEND_CHUNK_MS = 5 * 365 * 24 * 60 * 60 * 1000;

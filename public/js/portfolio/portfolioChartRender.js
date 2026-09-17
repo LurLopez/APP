@@ -213,6 +213,9 @@
           PCS.selectedIds = PCS.selectedIds.filter((id) => id !== removeId);
           if (PCS.selectedIdsCallback) PCS.selectedIdsCallback(PCS.selectedIds);
           syncPickerChecked(panel);
+          if (typeof window.syncChartTriggerButtons === 'function') {
+            window.syncChartTriggerButtons(document);
+          }
           loadPortfolioChart(panel);
         });
       });

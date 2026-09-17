@@ -5,6 +5,10 @@
 (function (window) {
   const PCS = window.PortfolioChartState;
 
+  function monthShort(idx) {
+    return (window.I18n && window.I18n.shortMonth && window.I18n.shortMonth(idx)) || SPANISH_MONTHS[idx] || '';
+  }
+
   function formatTradingViewHoverDate(isoDate) {
     if (!isoDate) return '';
     const parts = String(isoDate).split('-');
@@ -12,7 +16,7 @@
     const year = parts[0];
     const mIdx = parseInt(parts[1], 10) - 1;
     const day = parts[2];
-    const m = SPANISH_MONTHS[mIdx] || parts[1];
+    const m = monthShort(mIdx) || parts[1];
     return `${day} ${m} ${year}`;
   }
 
@@ -88,7 +92,7 @@
         if (isNewMonth) {
           if (monthDiff - lastMonthDiff >= monthStep || pt.month === 0) {
             const isYearStart = pt.month === 0 || (prevYear !== null && pt.year !== prevYear);
-            const label = isYearStart ? String(pt.year) : SPANISH_MONTHS[pt.month];
+            const label = isYearStart ? String(pt.year) : monthShort(pt.month);
             ticks.push({
               index: pt.index,
               x: xFunc(pt.index),
@@ -109,7 +113,7 @@
         const isNewMonth = i === 0 || pt.month !== parsed[i - 1].month;
         if (isNewMonth) {
           const isYearStart = pt.month === 0;
-          const label = isYearStart ? String(pt.year) : SPANISH_MONTHS[pt.month];
+          const label = isYearStart ? String(pt.year) : monthShort(pt.month);
           ticks.push({
             index: pt.index,
             x: xFunc(pt.index),
@@ -121,7 +125,7 @@
           ticks.push({
             index: pt.index,
             x: xFunc(pt.index),
-            label: totalDays > 120 ? '15' : `15 ${SPANISH_MONTHS[pt.month]}`,
+            label: totalDays > 120 ? '15' : `15 ${monthShort(pt.month)}`,
             isMajor: false,
             date: pt.date,
           });
@@ -137,7 +141,7 @@
           ticks.push({
             index: pt.index,
             x: xFunc(pt.index),
-            label: SPANISH_MONTHS[pt.month],
+            label: monthShort(pt.month),
             isMajor: true,
             date: pt.date,
           });
@@ -146,7 +150,7 @@
           ticks.push({
             index: pt.index,
             x: xFunc(pt.index),
-            label: `${pt.day} ${SPANISH_MONTHS[pt.month]}`,
+            label: `${pt.day} ${monthShort(pt.month)}`,
             isMajor: false,
             date: pt.date,
           });
@@ -162,7 +166,7 @@
           ticks.push({
             index: pt.index,
             x: xFunc(pt.index),
-            label: `${pt.day} ${SPANISH_MONTHS[pt.month]}`,
+            label: `${pt.day} ${monthShort(pt.month)}`,
             isMajor: isNewMonth,
             date: pt.date,
           });
@@ -177,7 +181,7 @@
         ticks.push({
           index: pt.index,
           x: xFunc(pt.index),
-          label: `${pt.day} ${SPANISH_MONTHS[pt.month]}`,
+          label: `${pt.day} ${monthShort(pt.month)}`,
           isMajor: i === 0,
           date: pt.date,
         });
@@ -187,7 +191,7 @@
         ticks.push({
           index: pt.index,
           x: xFunc(pt.index),
-          label: `${pt.day} ${SPANISH_MONTHS[pt.month]}`,
+          label: `${pt.day} ${monthShort(pt.month)}`,
           isMajor: false,
           date: pt.date,
         });

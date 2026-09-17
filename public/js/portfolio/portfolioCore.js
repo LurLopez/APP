@@ -36,6 +36,7 @@
     PS.editingTabId = null;
     PS.chartSelectedIds = [];
     PS.chartOpen = true;
+    PS.valueChartData = null;
     window.PortfolioChart?.reset?.();
     closeGroupPopover();
     emitChange();
@@ -54,6 +55,7 @@
       if (!response.ok) throw new Error('No se pudieron cargar los datos de la cartera.');
       const payload = await response.json().catch(() => null);
       PS.data = payload?.portfolio ?? null;
+      PS.valueChartData = null;
       if (PS.data) {
         const validChartIds = new Set(chartChoices().map((item) => item.id));
         PS.chartSelectedIds = PS.chartSelectedIds.filter((id) => validChartIds.has(id));

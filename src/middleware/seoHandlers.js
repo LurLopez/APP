@@ -24,11 +24,15 @@ import {
   getHomeBotContent,
   getCompaniesBotContent,
   getHomeJsonLd,
+  getHomeFaqJsonLd,
   getCompaniesJsonLd,
+  getGuidesJsonLd,
   getLlmsTxt,
   getLlmsFullTxt,
   jsonLdScript,
 } from '../services/seo.service.js';
+import { getGuidesSeoContent, getGuidesSeoMeta } from '../services/seo/guidesSeo.service.js';
+import { getPageMeta } from '../services/seo/pageMeta.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
@@ -117,17 +121,34 @@ export function handleGuideAndLegalRoutes(pathname, res) {
   const cleanPathname = isEn ? (pathname.replace(/^\/en/, '') || '/') : pathname;
   const lang = isEn ? 'en' : 'es';
   const prefix = isEn ? '/en' : '';
+  let decodedPathname = cleanPathname;
+  if (cleanPathname.includes('%')) {
+    try {
+      decodedPathname = decodeURIComponent(cleanPathname);
+    } catch {
+      decodedPathname = cleanPathname;
+    }
+  }
 
   if (cleanPathname === '/guias') {
-    serveHtml(res, HTML_FILE, { pathname, lang, noIndex: false });
+    const meta = getGuidesSeoMeta(lang);
+    serveHtml(res, HTML_FILE, {
+      pathname,
+      lang,
+      noIndex: false,
+      title: meta.title,
+      description: meta.description,
+      botContent: getGuidesSeoContent(lang),
+      headExtras: jsonLdScript(getGuidesJsonLd(lang)),
+    });
     return true;
   }
-  if (cleanPathname === '/guías') {
+  if (decodedPathname === '/guías') {
     res.redirect(301, `${prefix}/guias`);
     return true;
   }
-  if (cleanPathname.startsWith('/guías/')) {
-    res.redirect(301, `${prefix}/guias/${cleanPathname.slice('/guías/'.length)}`);
+  if (decodedPathname.startsWith('/guías/')) {
+    res.redirect(301, `${prefix}/guias/${decodedPathname.slice('/guías/'.length)}`);
     return true;
   }
   if (cleanPathname.startsWith('/guias/')) {
@@ -185,10 +206,11 @@ export async function handlePublicReportRoutes(pathname, req, res) {
   if (reportSlugMdMatch || (reportSlugMatch && req.headers.accept?.includes('text/markdown'))) {
     const rawTicker = reportSlugMdMatch ? reportSlugMdMatch[1] : reportSlugMatch[1];
     const rawSlug = reportSlugMdMatch ? reportSlugMdMatch[2] : reportSlugMatch[2];
-    const resObj = await getPublicReportMarkdownBySlug(rawTicker, rawSlug, lang).catch(() => null);
+    const resObj = await getPublicReportMarkdownBySlug(rawTicker, rawSlug).catch(() => null);
     if (resObj) {
       if (resObj.canonicalSlug && resObj.canonicalSlug !== rawSlug.toUpperCase()) {
-        res.redirect(301, `${prefix}/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}.md`);
+        const mdPrefix = resObj.language === 'en' ? '/en' : '';
+        res.redirect(301, `${mdPrefix}/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}.md`);
         return true;
       }
       res.set('Content-Type', 'text/markdown; charset=utf-8').set('Cache-Control', 'public, max-age=1800').send(resObj.markdown);
@@ -204,10 +226,18 @@ export async function handlePublicReportRoutes(pathname, req, res) {
     const resObj = await getPublicReportHtmlBySlug(rawTicker, rawSlug, lang).catch(() => null);
     if (resObj) {
       if (resObj.canonicalSlug && resObj.canonicalSlug !== rawSlug.toUpperCase()) {
-        res.redirect(301, `${prefix}/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}`);
+        const htmlPrefix = resObj.language === 'en' ? '/en' : '';
+        res.redirect(301, `${htmlPrefix}/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}`);
         return true;
       }
-      serveStandalone(res, resObj.html, { lang, pathname });
+      const contentLang = resObj.language === 'en' ? 'en' : 'es';
+      serveStandalone(res, resObj.html, {
+        lang,
+        pathname,
+        contentLang,
+        hreflangLangs: [contentLang],
+        xDefaultContent: true,
+      });
     } else {
       serve404Page(res, { lang });
     }
@@ -286,21 +316,24 @@ export async function handleHomeAndIndexRoutes(pathname, parsed, res) {
   const lang = isEn ? 'en' : 'es';
 
   if (cleanPathname === '/') {
+    const meta = getPageMeta('home', lang);
+    const faqJsonLd = jsonLdScript(getHomeFaqJsonLd(lang));
     try {
-      const [botContent, jsonLd] = await Promise.all([getHomeBotContent(lang), getHomeJsonLd(lang)]);
-      serveHtml(res, INDEX_FILE, { pathname, lang, botContent, headExtras: jsonLdScript(jsonLd) });
+      const [botContent, homeJsonLd] = await Promise.all([getHomeBotContent(lang), getHomeJsonLd(lang)]);
+      serveHtml(res, INDEX_FILE, { pathname, lang, botContent, headExtras: `${jsonLdScript(homeJsonLd)}\n${faqJsonLd}`, title: meta.title, description: meta.description });
     } catch {
-      serveHtml(res, INDEX_FILE, { pathname, lang });
+      serveHtml(res, INDEX_FILE, { pathname, lang, headExtras: faqJsonLd, title: meta.title, description: meta.description });
     }
     return true;
   }
 
   if (cleanPathname === '/empresa' && !parsed.searchParams.has('ticker')) {
+    const meta = getPageMeta('companies', lang);
     try {
       const [botContent, jsonLd] = await Promise.all([getCompaniesBotContent(lang), getCompaniesJsonLd(lang)]);
-      serveHtml(res, HTML_FILE, { pathname, lang, botContent, headExtras: jsonLdScript(jsonLd) });
+      serveHtml(res, HTML_FILE, { pathname, lang, botContent, headExtras: jsonLdScript(jsonLd), title: meta.title, description: meta.description });
     } catch {
-      serveHtml(res, HTML_FILE, { pathname, lang });
+      serveHtml(res, HTML_FILE, { pathname, lang, title: meta.title, description: meta.description });
     }
     return true;
   }

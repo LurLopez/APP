@@ -4,7 +4,7 @@
  */
 
 import { sanitize, drawPdfFormattedText } from './pdfStyles.js';
-import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { t, normalizeLanguage, formatFixed } from '../../utils/i18n.js';
 
 export function drawDebtMaturityChart(doc, chart, y) {
   if (!chart || !Array.isArray(chart.years) || !chart.years.length) return y;
@@ -44,10 +44,8 @@ export function drawDebtMaturityChart(doc, chart, y) {
   const n = chart.years.length;
   const slotW = plotW / n;
   const barW = Math.min(46, slotW * 0.65);
-  const fmtMillions = (value) => {
-    const [int, dec] = Number(value).toFixed(1).split('.');
-    return `$${int.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${dec}M`;
-  };
+  const creditLang = normalizeLanguage(chart.language);
+  const fmtMillions = (value) => `$${formatFixed(value, 1, creditLang)}M`;
 
   chart.years.forEach((yr, i) => {
     const cx = plotX + slotW * (i + 0.5);
@@ -60,7 +58,7 @@ export function drawDebtMaturityChart(doc, chart, y) {
         const blockH = Math.max(2, (Number(it.amount) / niceMax) * plotH);
         const top = baseline - blockH;
         doc.rect(cx - barW / 2, top, barW, blockH).fill(it.color || '#f59e0b');
-        const rateText = it.interestRate != null ? `${it.estimated ? '~' : ''}${Number(it.interestRate).toFixed(2).replace('.', ',')}%` : null;
+        const rateText = it.interestRate != null ? `${it.estimated ? '~' : ''}${formatFixed(it.interestRate, 2, creditLang)}%` : null;
         if (multiSegment && blockH >= 16 && barW >= 26) {
           const amountText = fmtMillions(it.amount);
           const textTop = top + (blockH - 14) / 2;
@@ -84,14 +82,13 @@ export function drawDebtMaturityChart(doc, chart, y) {
 
   const bannerY = y + boxH - footerH - 4;
   doc.rect(margin + 6, bannerY, pageWidth - 12, footerH).fill('#1e293b');
-  const creditLang = normalizeLanguage(chart.language);
   const afterText = chart.afterYearFive != null ? `   |   ${t('Después del año 5: {amount}', { amount: fmtMillions(chart.afterYearFive) }, creditLang)}` : '';
   const rateLabel = chart.totalAverageRateEstimated
     ? t('Tipo de interés medio estimado de la deuda', null, creditLang)
     : t('Tipo de interés medio total de la deuda', null, creditLang);
   const ratePrefix = chart.totalAverageRateEstimated ? '~' : '';
   const bannerText = chart.totalAverageRate != null
-    ? `${rateLabel}: ${ratePrefix}${chart.totalAverageRate.toFixed(2).replace('.', ',')} %   |   ${t('Deuda a amortizar: {amount}', { amount: fmtMillions(chart.totalAmount) }, creditLang)}${afterText}`
+    ? `${rateLabel}: ${ratePrefix}${formatFixed(chart.totalAverageRate, 2, creditLang)} %   |   ${t('Deuda a amortizar: {amount}', { amount: fmtMillions(chart.totalAmount) }, creditLang)}${afterText}`
     : `${t('Deuda a amortizar en los próximos 5 años: {amount}', { amount: fmtMillions(chart.totalAmount) }, creditLang)}${afterText}`;
   doc.font('Helvetica-Bold').fontSize(7).fillColor('#ffffff').text(sanitize(bannerText), margin + 8, bannerY + 7, { width: pageWidth - 16, align: 'center', lineBreak: false });
 
@@ -118,17 +115,20 @@ export function drawDebtHistoryChart(doc, chart, y) {
   doc.font('Helvetica-Bold').fontSize(8).fillColor('#475569').text(sanitize(chart.title), margin + 8, y + 6, { width: 300 });
 
   const cagrParts = [];
-  if (chart.cagrTotalDebt != null) cagrParts.push(`deuda normal ${chart.cagrTotalDebt >= 0 ? '+' : ''}${chart.cagrTotalDebt.toFixed(1).replace('.', ',')} %`);
-  if (chart.cagrNetDebt != null) cagrParts.push(`deuda neta ${chart.cagrNetDebt >= 0 ? '+' : ''}${chart.cagrNetDebt.toFixed(1).replace('.', ',')} %`);
+  const histLang = normalizeLanguage(chart.language);
+  const netLabel = histLang === 'en' ? 'net' : 'neta';
+  if (chart.cagrTotalDebt != null) cagrParts.push(`normal ${chart.cagrTotalDebt >= 0 ? '+' : ''}${formatFixed(chart.cagrTotalDebt, 1, histLang)} %`);
+  if (chart.cagrNetDebt != null) cagrParts.push(`${netLabel} ${chart.cagrNetDebt >= 0 ? '+' : ''}${formatFixed(chart.cagrNetDebt, 1, histLang)} %`);
   if (cagrParts.length) {
-    doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#64748b').text(sanitize(`CAGR del periodo (${chart.points[0].year}–${chart.points[chart.points.length - 1].year}): ${cagrParts.join(' · ')}`), margin + 8, y + 17, { width: 320 });
+    const periodLabel = histLang === 'en' ? 'CAGR for the period' : 'CAGR del periodo';
+    doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#64748b').text(sanitize(`${periodLabel} (${chart.points[0].year}–${chart.points[chart.points.length - 1].year}): ${cagrParts.join(' · ')}`), margin + 8, y + 17, { width: 320 });
   }
 
   const legX = margin + pageWidth - 190;
   doc.rect(legX, y + 6, 8, 8).fill('#1e40af');
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text(t('Deuda Normal', null, normalizeLanguage(chart.language)), legX + 11, y + 6.5);
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text(t('Deuda Normal', null, histLang), legX + 11, y + 6.5);
   doc.rect(legX + 85, y + 6, 8, 8).fill('#d97706');
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text(t('Deuda Neta', null, normalizeLanguage(chart.language)), legX + 96, y + 6.5);
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text(t('Deuda Neta', null, histLang), legX + 96, y + 6.5);
 
   const plotX = margin + padL;
   const plotW = pageWidth - padL - padR;

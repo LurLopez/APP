@@ -111,7 +111,7 @@ function wirePortfolioChartMeasure(panel, canvasInner) {
         let badgeStr = '';
         if (PCS.metric === 'gainPct' || PCS.metric === 'gainWithDividendsPct') {
           badgeStr = `${fmtSignedPct(deltaVal)} · ${diffDays}d`;
-        } else if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount') {
+        } else if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount' || PCS.metric === 'portfolioValue') {
           badgeStr = `${fmtSigned(deltaVal)} · ${diffDays}d`;
         } else {
           badgeStr = `${fmtSignedPct(deltaVal)} · ${diffDays}d`;
@@ -140,7 +140,7 @@ function wirePortfolioChartMeasure(panel, canvasInner) {
       const valClass = deltaVal > 0 ? 'positive' : deltaVal < 0 ? 'negative' : '';
       let deltaFormatted = '';
       if (PCS.metric === 'gainPct' || PCS.metric === 'gainWithDividendsPct') deltaFormatted = fmtSignedPct(deltaVal);
-      else if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount') deltaFormatted = fmtSigned(deltaVal);
+      else if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount' || PCS.metric === 'portfolioValue') deltaFormatted = fmtSigned(deltaVal);
       else deltaFormatted = fmtSignedPct(deltaVal);
 
       tip.innerHTML = `

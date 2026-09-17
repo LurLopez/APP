@@ -21,7 +21,9 @@
 
     if (e.type === 'earnings') {
       modalTitle = `Resultados Empresariales · ${e.name} (${e.ticker})`;
-      modalDesc = `Presentación oficial del informe de resultados correspondiente al ${e.periodLabel}.`;
+      modalDesc = e.accession
+        ? `Presentación oficial del informe de resultados correspondiente al ${e.periodLabel}.`
+        : `Presentación de resultados anunciada por el mercado. El informe oficial (10-Q / 10-K) todavía no está disponible en la SEC.`;
       metricRowsHtml = `
         <div class="pf-cal-modal-row">
           <span>Período fiscal</span>
@@ -33,7 +35,7 @@
         </div>
         <div class="pf-cal-modal-row">
           <span>Tipo de documento</span>
-          <strong>Formulario SEC ${escapeHtml(e.typeBadge || '10-Q')}</strong>
+          <strong>${e.accession ? `Formulario SEC ${escapeHtml(e.typeBadge || '10-Q')}` : 'Pendiente de publicación en la SEC'}</strong>
         </div>
         <div class="pf-cal-modal-row">
           <span>Estado</span>
@@ -45,7 +47,17 @@
         </div>
       `;
 
-      if (CS.calendarAiLoading) {
+      if (!e.accession && !e.documentUrl) {
+        aiSectionHtml = `
+          <div class="pf-cal-ai-callout-box">
+            <div class="pf-cal-ai-callout-header">
+              <span class="pf-cal-ai-sparkle">📅</span>
+              <strong>Informe aún no publicado en la SEC</strong>
+            </div>
+            <p>El análisis con IA estará disponible cuando la compañía presente el informe oficial (10-Q / 10-K) en la SEC. La fecha mostrada es la anunciada por el mercado y puede variar.</p>
+          </div>
+        `;
+      } else if (CS.calendarAiLoading) {
         aiSectionHtml = `
           <div class="pf-cal-ai-loading-box">
             <div class="pf-cal-spinner"></div>

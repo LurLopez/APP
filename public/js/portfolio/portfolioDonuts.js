@@ -87,7 +87,7 @@
       const d = describeAnnularSector(cx, cy, rInner, rOuter, curAngle, endAngle);
       curAngle = endAngle;
       return `
-        <path class="pf-donut-slice" d="${d}" fill="${item.color}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"
+        <path class="pf-donut-slice" d="${d}" fill="${item.color}" stroke="var(--surface, #ffffff)" stroke-width="0.75" stroke-linejoin="round"
           data-label="${escapeHtml(item.label || '')}" data-label-key="${escapeHtml(item.labelKey || item.label || '')}"
           data-pct="${escapeHtml(fmtPct(fraction * 100))}" data-amount="${escapeHtml(fmtMoney(item.amount ?? item.value))}">
         </path>`;

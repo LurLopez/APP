@@ -43,6 +43,18 @@
 
     const activeHoldings = userPositions.map((p) => getHoldingInfo(p.ticker));
     const events = [];
+    const today = new Date();
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+    const todayDay = today.getDate();
+
+    const isPastDate = (y, m, d) => {
+      if (y < todayYear) return true;
+      if (y > todayYear) return false;
+      if (m < todayMonth) return true;
+      if (m > todayMonth) return false;
+      return d <= todayDay;
+    };
 
     if (targetYear === 2026) {
       activeHoldings.forEach((h) => {
@@ -50,7 +62,7 @@
         schedule.forEach((entry) => {
           if (entry.m === targetMonth) {
             const timing = entry.d % 2 === 0 ? 'Antes de la apertura (BMO)' : 'Tras el cierre (AMC)';
-            const isPast = targetMonth < 7 || (targetMonth === 7 && entry.d <= 30);
+            const isPast = isPastDate(targetYear, targetMonth, entry.d);
             events.push({
               id: `earn-${h.ticker}-${targetYear}-${entry.m}-${entry.d}`,
               type: 'earnings',
@@ -86,7 +98,7 @@
       validPayments.forEach((p, idx) => {
         const h = getHoldingInfo(p.ticker);
         const day = ((idx * 7 + 5) % 28) + 1;
-        const isPast = targetMonth < 7 || (targetMonth === 7 && day <= 30);
+        const isPast = isPastDate(targetYear, targetMonth, day);
         const totalAmount = Number(p.amount) || (h.shares * 0.45);
         const perShare = h.shares > 0 ? (totalAmount / h.shares) : 0.45;
 
@@ -112,7 +124,7 @@
 
         if (day > 14) {
           const exDay = day - 14;
-          const isExPast = targetMonth < 7 || (targetMonth === 7 && exDay <= 30);
+          const isExPast = isPastDate(targetYear, targetMonth, exDay);
           events.push({
             id: `exdiv-${h.ticker}-${targetYear}-${targetMonth}-${exDay}`,
             type: 'exdiv',
@@ -171,9 +183,10 @@
     const companies = getCalendarCompanies(data);
     const portfolioCount = companies.filter((c) => c.isPortfolio).length;
     const trackingCount = companies.filter((c) => !c.isPortfolio).length;
+    const collapsed = Boolean(CS.calendarCompaniesHidden);
 
     return `
-      <div class="pf-cal-companies-card">
+      <div class="pf-cal-companies-card ${collapsed ? 'is-collapsed' : ''}">
         <div class="pf-cal-companies-head">
           <div class="pf-cal-companies-title-col">
             <div class="pf-cal-companies-title-row">
@@ -193,44 +206,61 @@
             </p>
           </div>
 
-          <div class="pf-cal-add-company-wrap">
-            <div class="pf-cal-add-search-box">
-              <svg class="pf-cal-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-              <input type="search" class="pf-cal-add-input" placeholder="Añadir empresa (ej. KO, AAPL, MSFT)..." autocomplete="off" aria-label="Añadir empresa al calendario">
-              <div class="pf-cal-add-results" hidden></div>
-            </div>
+          <div class="pf-cal-companies-head-actions">
+            ${collapsed ? '' : `
+              <div class="pf-cal-add-company-wrap">
+                <div class="pf-cal-add-search-box">
+                  <svg class="pf-cal-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <input type="search" class="pf-cal-add-input" placeholder="Añadir empresa (ej. KO, AAPL, MSFT)..." autocomplete="off" aria-label="Añadir empresa al calendario">
+                  <div class="pf-cal-add-results" hidden></div>
+                </div>
+              </div>
+            `}
+            <button class="pf-cal-companies-collapse-btn" type="button" data-cal-toggle-companies aria-expanded="${collapsed ? 'false' : 'true'}" title="${collapsed ? 'Mostrar la lista de empresas del calendario' : 'Ocultar la lista de empresas del calendario'}">
+              <span>${collapsed ? 'Mostrar' : 'Ocultar'}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+            </button>
           </div>
         </div>
 
-        <div class="pf-cal-companies-body">
-          ${companies.length === 0 ? `
-            <div class="pf-cal-companies-empty">
-              <p>No estás siguiendo ninguna empresa en el calendario. Añade acciones con el buscador de arriba o regístralas en tu cartera para ver automáticamente sus resultados y dividendos.</p>
-            </div>
-          ` : `
-            <div class="pf-cal-companies-chips">
-              ${companies.map((c) => {
-                const isCustomComp = hasCustomCompanyFilters(c.ticker, data);
-                return `
-                <div class="pf-cal-company-chip ${c.isPortfolio ? 'chip-portfolio' : 'chip-tracking'}" data-cal-chip-ticker="${escapeHtml(c.ticker)}" title="${escapeHtml(c.name)} (${c.isPortfolio ? 'En Cartera' : 'En Seguimiento'})">
-                  <img class="pf-cal-chip-logo" src="https://companiesmarketcap.com/img/company-logos/64/${encodeURIComponent(c.ticker)}.webp" alt="" loading="lazy" data-letter="${escapeHtml((c.name || c.ticker || '?').slice(0, 1).toUpperCase())}">
-                  <div class="pf-cal-chip-text">
-                    <strong class="pf-cal-chip-sym">${escapeHtml(c.ticker)}</strong>
-                    <span class="pf-cal-chip-comp-name">${escapeHtml(c.name || c.ticker)}</span>
-                  </div>
-                  <div class="pf-cal-chip-actions">
-                    <button class="pf-cal-chip-btn edit ${isCustomComp ? 'has-custom' : ''}" type="button" data-cal-edit-company="${escapeHtml(c.ticker)}" title="${isCustomComp ? 'Configuración personalizada activa (clic para editar)' : 'Configurar eventos que muestra esta empresa'}">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                    </button>
-                    ${!c.isPortfolio ? `
-                      <button class="pf-cal-chip-btn remove" type="button" data-cal-remove-ticker="${escapeHtml(c.ticker)}" title="Dejar de seguir esta empresa en el calendario">×</button>
-                    ` : ''}
-                  </div>
-                </div>`;
-              }).join('')}
-            </div>
-          `}
-        </div>
+        ${collapsed ? '' : `
+          <div class="pf-cal-companies-body">
+            ${companies.length === 0 ? `
+              <div class="pf-cal-companies-empty">
+                <p>No estás siguiendo ninguna empresa en el calendario. Añade acciones con el buscador de arriba o regístralas en tu cartera para ver automáticamente sus resultados y dividendos.</p>
+              </div>
+            ` : `
+              <div class="pf-cal-companies-chips">
+                ${companies.map((c) => {
+                  const isCustomComp = hasCustomCompanyFilters(c.ticker, data);
+                  return `
+                  <div class="pf-cal-company-chip ${c.isPortfolio ? 'chip-portfolio' : 'chip-tracking'}" data-cal-chip-ticker="${escapeHtml(c.ticker)}" title="${escapeHtml(c.name)} (${c.isPortfolio ? 'En Cartera' : 'En Seguimiento'})">
+                    <img class="pf-cal-chip-logo" src="https://companiesmarketcap.com/img/company-logos/64/${encodeURIComponent(c.ticker)}.webp" alt="" loading="lazy" data-letter="${escapeHtml((c.name || c.ticker || '?').slice(0, 1).toUpperCase())}">
+                    <div class="pf-cal-chip-text">
+                      <strong class="pf-cal-chip-sym">${escapeHtml(c.ticker)}</strong>
+                      <span class="pf-cal-chip-comp-name">${escapeHtml(c.name || c.ticker)}</span>
+                    </div>
+                    <div class="pf-cal-chip-actions">
+                      <button class="pf-cal-chip-edit-btn ${isCustomComp ? 'is-custom' : ''}" type="button" data-cal-edit-company="${escapeHtml(c.ticker)}" title="${isCustomComp ? 'Configuración personalizada activa (clic para editar)' : 'Configurar qué eventos muestra esta empresa'}">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                        ${isCustomComp ? '<span class="pf-cal-chip-custom-dot" title="Configuración personalizada activa"></span>' : ''}
+                      </button>
+                      ${!c.isPortfolio ? `
+                        <button class="pf-cal-chip-delete-btn" type="button" data-cal-remove-ticker="${escapeHtml(c.ticker)}" title="Dejar de seguir esta empresa en el calendario">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                        </button>
+                      ` : `
+                        <span class="pf-cal-chip-lock" title="En cartera: incluida permanentemente en el calendario">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                        </span>
+                      `}
+                    </div>
+                  </div>`;
+                }).join('')}
+              </div>
+            `}
+          </div>
+        `}
       </div>`;
   }
 

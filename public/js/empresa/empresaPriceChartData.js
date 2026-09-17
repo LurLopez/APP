@@ -74,6 +74,23 @@ async function loadChart(range) {
   }
 }
 
+/**
+ * Descarga el histórico completo de cotizaciones para calcular los múltiplos de
+ * valoración de todos los periodos de la tabla (el gráfico solo carga su rango visible).
+ * Al terminar, vuelve a pintar la tabla si ya estaba renderizada.
+ */
+async function loadStatementsPriceHistory() {
+  try {
+    const response = await fetch(`/api/screener/company/${encodeURIComponent(companyTicker)}/chart?range=all`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !Array.isArray(data.points) || !data.points.length) return;
+    window.statementsPricePoints = data.points.map((pt) => ({ t: pt.t, v: pt.v }));
+    if (typeof window.renderScreenerTables === 'function') window.renderScreenerTables();
+  } catch {
+    // Sin histórico largo la tabla sigue usando las cotizaciones del gráfico.
+  }
+}
+
 function updateTimelineSliderUi() {
   const track = document.querySelector('#chart-timeline-track');
   const win = document.querySelector('#chart-timeline-window');
@@ -159,6 +176,7 @@ function zoomChartByStep(direction, centerFraction = 0.5) {
   renderPriceChart();
 }
 window.loadChart = loadChart;
+window.loadStatementsPriceHistory = loadStatementsPriceHistory;
 window.updateTimelineSliderUi = updateTimelineSliderUi;
 window.zoomChartByStep = zoomChartByStep;
 

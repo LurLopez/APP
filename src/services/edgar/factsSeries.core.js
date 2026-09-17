@@ -6,6 +6,7 @@ import { CONCEPTS, FLOW_KEYS, INSTANT_KEYS, NON_ADDITIVE_KEYS, normalizeConceptV
 import { calculateUnusualTotal, calculateNormalizedNetIncomeAndEps } from './rederiveStatements.js';
 import { createPeriodTracker, applyFrameEntries, applyNonFrameEntries, deriveMissingQuarters, fillCashBeginning } from './factsSeriesRows.js';
 import { deriveRowMetrics } from './factsSeriesDerive.js';
+import { normalizeShareUnits } from './sharesHarmonizer.js';
 
 
 export function combineConceptData(namespaceFacts, tags, unit) {
@@ -115,6 +116,7 @@ export function buildSeries(facts) {
   const annual = all.filter((row) => row.series === 'annual');
   const quarterly = all.filter((row) => row.series === 'quarterly');
 
+  normalizeShareUnits(annual, quarterly);
   deriveRowMetrics(all);
   fillCashBeginning(all);
   all.forEach((row) => {

@@ -209,11 +209,18 @@
   }
 
   function downloadReport(format, baseUrl = AS.currentDownloadBase, name = AS.currentDownloadName) {
-    if (!baseUrl || !['pdf', 'docx', 'odt', 'html'].includes(format)) return;
+    if (!baseUrl || !['pdf', 'docx', 'odt', 'html'].includes(format)) {
+      if (!baseUrl && typeof showToast === 'function') {
+        showToast('El archivo descargable de este informe no está disponible.');
+      }
+      return;
+    }
+    const cleanBase = String(baseUrl).replace(/\.(pdf|docx|odt|html)$/i, '');
+    const cleanName = String(name || 'analisis-cifra').replace(/\.(pdf|docx|odt|html)$/i, '');
+    const safeName = encodeURIComponent(cleanName);
     const link = document.createElement('a');
-    const safeName = encodeURIComponent(name || 'analisis-cifra');
-    link.href = `${baseUrl}.${format}?download=1&name=${safeName}`;
-    link.download = `${name}.${format}`;
+    link.href = `${cleanBase}.${format}?download=1&name=${safeName}`;
+    link.download = `${cleanName}.${format}`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -233,7 +240,7 @@
         ? `<span class="analysis-reviewed-mini-badge" title="Este análisis ha sido revisado por un humano" aria-label="Este análisis ha sido revisado por un humano"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg> Revisado</span>`
         : '';
       const versionLabel = entry.version ? `v${escapeHtml(entry.version)}` : 'Sin versión';
-      const dateLabel = entry.createdAt ? new Date(entry.createdAt).toLocaleDateString('es-ES') : '';
+      const dateLabel = entry.createdAt ? new Date(entry.createdAt).toLocaleDateString((window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES') : '';
       const base = entry.downloadBase ? String(entry.downloadBase) : '';
       return `<div class="analysis-version-item${isActive ? ' active' : ''}" data-version-id="${escapeHtml(entry.id)}">
         <div class="analysis-version-item-data">

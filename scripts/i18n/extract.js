@@ -49,7 +49,8 @@ const SPANISH_WORDS = [
   'días', 'hoy', 'ayer', 'mañana', 'precio', 'valor', 'mercado', 'cartera', 'lista', 'listas',
   'seguimiento', 'comunidad', 'foro', 'gratis', 'próximamente', 'atención', 'importante', 'ejemplo',
   'nota', 'notas', 'periodo', 'métrica', 'ajustado', 'ajustada', 'normal', 'libre', 'deuda', 'efectivo',
-  'restringido', 'pasivo', 'patrimonio', 'margen', 'crecimiento', 'riesgo', 'resumen', 'detalle',
+  'restringido', 'pasivo', 'patrimonio', 'patrimonial', 'patrimoniales', 'margen',
+  'crecimiento', 'riesgo', 'resumen', 'detalle', 'reintentar',
   'mostrar', 'ocultar', 'activar', 'desactivar', 'confirmar', 'enviar', 'copiar', 'compartir',
   'volver', 'continuar', 'cerrar', 'abrir', 'seleccionar', 'introducir', 'escribe', 'elige',
 ];
@@ -119,12 +120,13 @@ function looksSpanish(text) {
   if (clean.length < 2 || clean.length > 4000) return false;
   if (!/[a-záéíóúüñ]/i.test(clean)) return false;
   if (/[\n\r\t]/.test(clean)) return false;
-  if (/[<>]|\\n|\\t|\\u|=>|===|!==|\$\{|^[\w./-]+@[\w./-]+$/.test(clean)) return false;
-  if (/^[#./]/.test(clean)) return false;
-  if (/^[\^/]|\|.*\||\(\?:|\\[bdsw]/.test(clean)) return false;
+  if (/[<>]|\\n|\\t|\\u|=>|===|!==|\$\{|\.\*|\b(?:return|function|null|undefined|Number|String|item)\b|\}\s*\)|\)\s*\}/.test(clean)) return false;
+  // Descarta rutas y selectores (`.clase`, `/ruta/fichero.png`) pero no frases que empiezan por punto.
+  if (/^[#./][\w./-]*$/.test(clean)) return false;
+  if (/^[\^/]|\(\?:|\\[bdsw]/.test(clean)) return false;
   if (SPANISH_CHARS.test(clean)) return true;
   if (SPANISH_WORD_RE.test(clean)) return true;
-  if (/\b[a-záéíóúüñ]{6,}(?:ado|ada|ados|adas|ido|ida|idos|idas|ción|ciones|mente|dad|dades|eza|ífico|ífica|ario|aria|ería|ista|istas|ible|ables|ación)\b/i.test(clean)) return true;
+  if (/\b[a-záéíóúüñ]{4,}(?:ado|ada|ados|adas|ido|ida|idos|idas|ción|ciones|mente|dad|dades|eza|ífico|ífica|ario|aria|ería|ista|istas|ación|ando|iendo|miento|mientos|anza|anzas|ivo|iva|ivos|ivas|oso|osa|osos|osas|iza|izan|izar)\b/i.test(clean)) return true;
   if (hasSpanishWord(clean)) return true;
   // Descartar claves técnicas una vez comprobado que no parecen español
   if (CODEY_RE.test(clean)) return false;
@@ -145,65 +147,98 @@ function loadSeeds() {
   }
 }
 
+const REGEX_PRECEDING_CHARS = new Set([
+  '(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '^', '~', '<', '>',
+]);
+const REGEX_PRECEDING_KEYWORDS = new Set([
+  'return', 'typeof', 'case', 'in', 'of', 'do', 'else', 'throw', 'new', 'delete', 'void', 'yield',
+  'await', 'instanceof',
+]);
+
 /**
- * Elimina comentarios de un fichero JS conservando cadenas.
+ * ¿La barra en `slashIndex` inicia un literal de expresión regular (y no una división)?
+ * Se decide mirando el token significativo anterior, como haría un tokenizador real.
  * @param {string} source
- * @returns {string}
+ * @param {number} slashIndex
+ * @returns {boolean}
  */
-function stripComments(source) {
-  let out = '';
-  let quote = null;
-  let i = 0;
-  while (i < source.length) {
-    const ch = source[i];
-    const next = source[i + 1];
-    if (quote) {
-      out += ch;
-      if (ch === '\\') { out += next ?? ''; i += 2; continue; }
-      if (ch === quote) quote = null;
-      i += 1;
-      continue;
-    }
-    if (ch === '/' && next === '/') {
-      while (i < source.length && source[i] !== '\n') i += 1;
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      i += 2;
-      while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i += 1;
-      i += 2;
-      continue;
-    }
-    if (ch === '"' || ch === "'" || ch === '`') {
-      quote = ch;
-      out += ch;
-      i += 1;
-      continue;
-    }
-    out += ch;
-    i += 1;
+function canStartRegex(source, slashIndex) {
+  let j = slashIndex - 1;
+  while (j >= 0 && /\s/.test(source[j])) j -= 1;
+  if (j < 0) return true;
+  const previous = source[j];
+  if (/[\w$]/.test(previous)) {
+    let k = j;
+    while (k >= 0 && /[\w$]/.test(source[k])) k -= 1;
+    return REGEX_PRECEDING_KEYWORDS.has(source.slice(k + 1, j + 1));
   }
-  return out;
+  return REGEX_PRECEDING_CHARS.has(previous);
 }
 
 /**
- * Recorre una fuente JS y ejecuta un callback por cada plantilla backtick,
- * saltando correctamente las expresiones `${...}` (incluidas las anidadas).
+ * Lee una cadena entrecomillada y devuelve su contenido y el índice siguiente.
  * @param {string} source
- * @param {(content: string) => void} onTemplate
+ * @param {number} start
+ * @param {string} quote
+ * @returns {{ text: string, end: number }}
  */
-function scanTemplates(source, onTemplate) {
-  let i = 0;
+function readQuoted(source, start, quote) {
+  let i = start + 1;
+  let text = '';
   while (i < source.length) {
-    if (source[i] !== '`') {
-      i += 1;
+    const ch = source[i];
+    if (ch === '\\') {
+      text += ch + (source[i + 1] ?? '');
+      i += 2;
       continue;
     }
-    let j = i + 1;
-    let depth = 0;
-    let dirty = false;
+    if (ch === quote) return { text, end: i + 1 };
+    text += ch;
+    i += 1;
+  }
+  return { text, end: i };
+}
+
+/**
+ * Salta un literal de expresión regular y devuelve el índice siguiente.
+ * @param {string} source
+ * @param {number} start
+ * @returns {number}
+ */
+function readRegex(source, start) {
+  let i = start + 1;
+  let inClass = false;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === '\\') { i += 2; continue; }
+    if (ch === '[') { inClass = true; i += 1; continue; }
+    if (ch === ']') { inClass = false; i += 1; continue; }
+    if (ch === '\n') return i;
+    if (ch === '/' && !inClass) {
+      i += 1;
+      while (i < source.length && /[a-z]/i.test(source[i])) i += 1;
+      return i;
+    }
+    i += 1;
+  }
+  return i;
+}
+
+/**
+ * Recorre una fuente JS con una máquina de estados (código, cadenas, plantillas,
+ * regex y comentarios) y entrega cada cadena encontrada a `sink`, resolviendo
+ * correctamente las comillas dentro de expresiones regulares.
+ * @param {string} source
+ * @param {(text: string, isDynamic: boolean) => void} sink
+ */
+function scanJsStrings(source, sink) {
+  let i = 0;
+  const length = source.length;
+
+  const scanTemplate = (start) => {
+    let j = start + 1;
     let content = '';
-    while (j < source.length) {
+    while (j < length) {
       const ch = source[j];
       if (ch === '\\') {
         content += ch + (source[j + 1] ?? '');
@@ -211,48 +246,82 @@ function scanTemplates(source, onTemplate) {
         continue;
       }
       if (ch === '`') {
-        if (depth === 0) break;
-        // Plantilla anidada dentro de una expresión: clave no fiable, se descarta.
-        dirty = true;
-        content += ch;
-        j += 1;
-        continue;
+        sink(content, content.includes('${'));
+        return j + 1;
       }
       if (ch === '$' && source[j + 1] === '{') {
-        depth += 1;
-        content += '${';
-        j += 2;
-        continue;
-      }
-      if (ch === '}' && depth > 0) {
-        depth -= 1;
-        content += '}';
-        j += 1;
+        const expressionEnd = scanExpression(j + 2);
+        content += `\${${source.slice(j + 2, expressionEnd - 1)}}`;
+        j = expressionEnd;
         continue;
       }
       content += ch;
       j += 1;
     }
-    if (!dirty) onTemplate(content);
-    i = j + 1;
+    sink(content, content.includes('${'));
+    return j;
+  };
+
+  const scanExpression = (start) => {
+    let j = start;
+    let depth = 0;
+    while (j < length) {
+      const ch = source[j];
+      if (ch === '{') { depth += 1; j += 1; continue; }
+      if (ch === '}') {
+        if (depth === 0) return j + 1;
+        depth -= 1;
+        j += 1;
+        continue;
+      }
+      if (ch === "'" || ch === '"') {
+        const { text, end } = readQuoted(source, j, ch);
+        sink(text, text.includes('${'));
+        j = end;
+        continue;
+      }
+      if (ch === '`') { j = scanTemplate(j); continue; }
+      if (ch === '/' && source[j + 1] === '/') { while (j < length && source[j] !== '\n') j += 1; continue; }
+      if (ch === '/' && source[j + 1] === '*') {
+        j += 2;
+        while (j < length && !(source[j] === '*' && source[j + 1] === '/')) j += 1;
+        j += 2;
+        continue;
+      }
+      if (ch === '/' && canStartRegex(source, j)) { j = readRegex(source, j); continue; }
+      j += 1;
+    }
+    return j;
+  };
+
+  while (i < length) {
+    const ch = source[i];
+    if (ch === '/' && source[i + 1] === '/') {
+      while (i < length && source[i] !== '\n') i += 1;
+      continue;
+    }
+    if (ch === '/' && source[i + 1] === '*') {
+      i += 2;
+      while (i < length && !(source[i] === '*' && source[i + 1] === '/')) i += 1;
+      i += 2;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      const { text, end } = readQuoted(source, i, ch);
+      sink(text, text.includes('${'));
+      i = end;
+      continue;
+    }
+    if (ch === '`') { i = scanTemplate(i); continue; }
+    if (ch === '/' && canStartRegex(source, i)) { i = readRegex(source, i); continue; }
+    i += 1;
   }
 }
 
 function collectJsStrings(source, { dynamic }) {
-  const clean = stripComments(source);
   const results = [];
-  // Comillas simples y dobles (también anidadas dentro de plantillas).
-  const quotedRe = /(['"])((?:\\.|(?!\1)[\s\S])*?)\1/g;
-  let match;
-  while ((match = quotedRe.exec(clean)) !== null) {
-    const raw = match[2];
-    const hasInterpolation = raw.includes('${');
-    if (hasInterpolation === dynamic) results.push(raw);
-  }
-  // Plantillas backtick.
-  scanTemplates(clean, (content) => {
-    const hasInterpolation = content.includes('${');
-    if (hasInterpolation === dynamic) results.push(content);
+  scanJsStrings(source, (text, isDynamic) => {
+    if (isDynamic === dynamic) results.push(text);
   });
   return results;
 }
@@ -277,26 +346,49 @@ function isUsableKey(key) {
   if (!clean || clean.length < 2 || clean.length > 4000) return false;
   if (/^\{\w*\}$/.test(clean)) return false;
   if (/`|\$\{/.test(clean)) return false;
-  if (/^\{\d+\}/.test(clean)) return false;
+  if (/^(?:\{\d+\})+$/.test(clean)) return false;
   return true;
+}
+
+/**
+ * Convierte las entidades HTML en su carácter real, para que las claves del
+ * diccionario coincidan con el texto que finalmente se renderiza en el DOM.
+ * @param {string} text
+ * @returns {string}
+ */
+function decodeHtmlEntities(text) {
+  const named = {
+    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+    rarr: '→', larr: '←', uarr: '↑', darr: '↓', hellip: '…', mdash: '—',
+    ndash: '–', laquo: '«', raquo: '»', times: '×', minus: '−', le: '≤', ge: '≥',
+    middot: '·', bull: '•', check: '✓', euro: '€', deg: '°', copy: '©', reg: '®', trade: '™',
+  };
+  return String(text)
+    .replace(/&#(\d+);/g, (match, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&([a-z]+);/gi, (match, name) => named[name.toLowerCase()] ?? match);
 }
 
 function collectHtmlStrings(source, { dynamic }) {
   if (dynamic) return [];
   const results = [];
+  const push = (candidate) => {
+    if (isUsableKey(candidate) && looksSpanish(candidate.replace(/\{\d+\}/g, ' '))) {
+      results.push(decodeHtmlEntities(candidate));
+    }
+  };
   const textRe = />([^<>]+)</g;
   let match;
   while ((match = textRe.exec(source)) !== null) {
     const raw = match[1].replace(/\s+/g, ' ').trim();
     if (!raw) continue;
-    const candidate = raw.includes('${') ? normalizeTemplate(raw) : raw;
-    if (isUsableKey(candidate) && looksSpanish(candidate.replace(/\{\d+\}/g, ' '))) results.push(candidate);
+    push(raw.includes('${') ? normalizeTemplate(raw) : raw);
   }
   const attrRe = /(?:placeholder|aria-label|title|alt)="([^"]+)"/g;
   while ((match = attrRe.exec(source)) !== null) {
     const raw = match[1].trim();
-    const candidate = raw.includes('${') ? normalizeTemplate(raw) : raw;
-    if (isUsableKey(candidate) && looksSpanish(candidate.replace(/\{\d+\}/g, ' '))) results.push(candidate);
+    if (!raw) continue;
+    push(raw.includes('${') ? normalizeTemplate(raw) : raw);
   }
   return results;
 }

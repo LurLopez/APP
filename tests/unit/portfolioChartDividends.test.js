@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lotDividendsReceived, chartSeriesValue } from '../../src/services/portfolio/portfolioChart.service.js';
+import { lotDividendsReceived, chartSeriesValue, calculateContributionsTimeline } from '../../src/services/portfolio/portfolioChart.service.js';
 
 test('lotDividendsReceived devuelve 0 si no hay dividendos o la fecha del lote es posterior', () => {
   const lot = { date: '2024-01-01', shares: 100, price: 50 };
@@ -107,3 +107,122 @@ test('chartSeriesValue para serie de compra vs serie de venta', () => {
   const soldValAfter = chartSeriesValue('gainPct', [{ item: pos, lot: soldLot }], priceMaps, dividendMap, '2024-09-01', 0, frequencyMap);
   assert.equal(Math.round(soldValAfter * 100) / 100, 20);
 });
+
+test('chartSeriesValue para posición parcialmente vendida calcula el total exacto (no realizada + realizada) y peso ponderado', () => {
+  // Escenario del usuario:
+  // Lote 1: 100 acciones compradas el 2020-01-01 a $100
+  // Lote 2: 200 acciones compradas el 2021-01-01 a $100
+  // Venta en 2023-01-01 de 100 acciones a $150 (consumió Lote 1 vía FIFO)
+  const pos = { ticker: 'ABC', companyName: 'ABC Corp' };
+  const lot1 = {
+    id: 1,
+    date: '2020-01-01',
+    shares: 100,
+    price: 100,
+    remaining: 0,
+    soldPortions: [
+      { sellDate: '2023-01-01', shares: 100, sellPrice: 150 },
+    ],
+  };
+  const lot2 = {
+    id: 2,
+    date: '2021-01-01',
+    shares: 200,
+    price: 100,
+    remaining: 200,
+    soldPortions: [],
+  };
+
+  const selectedLots = [
+    { item: pos, lot: lot1 },
+    { item: pos, lot: lot2 },
+  ];
+
+  const priceMaps = new Map([
+    ['ABC', new Map([
+      ['2022-06-01', 120], // En 2022 todavía tiene 300 acciones. Coste 30.000$, valor 36.000$ -> +20%
+      ['2024-06-01', 200], // En 2024: 200 acciones en cartera a $200 (ganancia $20.000) + 100 vendidas a $150 (ganancia realizada $5.000) = $25.000 total sobre $30.000 coste -> +83.33%
+    ])],
+  ]);
+  const dividendMap = new Map([['ABC', []]]);
+  const frequencyMap = new Map([['ABC', 4]]);
+
+  // 1. En 2022 (antes de la venta de 2023):
+  // Peso calculado sobre las 300 acciones (valor = 300 * 120 = 36.000, portfolioValue = 100.000 -> 36%)
+  const weight2022 = chartSeriesValue('weight', selectedLots, priceMaps, dividendMap, '2022-06-01', 100000, frequencyMap);
+  assert.equal(weight2022, 36);
+
+  // Ganancia en 2022: unrealized 6.000 sobre coste 30.000 = +20%
+  const gainPct2022 = chartSeriesValue('gainPct', selectedLots, priceMaps, dividendMap, '2022-06-01', 100000, frequencyMap);
+  assert.equal(gainPct2022, 20);
+
+  // 2. En 2024 (después de la venta de 2023):
+  // Peso calculado sobre las 200 acciones restantes (valor = 200 * 200 = 40.000, portfolioValue = 100.000 -> 40%)
+  const weight2024 = chartSeriesValue('weight', selectedLots, priceMaps, dividendMap, '2024-06-01', 100000, frequencyMap);
+  assert.equal(weight2024, 40);
+
+  // Ganancia en 2024: 20.000 no realizada + 5.000 realizada = 25.000$
+  const gainAmount2024 = chartSeriesValue('gainAmount', selectedLots, priceMaps, dividendMap, '2024-06-01', 100000, frequencyMap);
+  assert.equal(gainAmount2024, 25000);
+
+  // Ganancia % en 2024: 25.000$ / (20.000$ coste vivo + 10.000$ coste realizado = 30.000$) = 83.333%
+  const gainPct2024 = chartSeriesValue('gainPct', selectedLots, priceMaps, dividendMap, '2024-06-01', 100000, frequencyMap);
+  assert.equal(Math.round(gainPct2024 * 100) / 100, 83.33);
+});
+
+test('calculateContributionsTimeline: compras sucesivas sin liquidez previa computan como aportaciones', () => {
+  const transactions = [
+    { id: 1, type: 'buy', ticker: 'AAPL', shares: 10, price: 100, tradeDate: '2020-01-01' },
+    { id: 2, type: 'buy', ticker: 'MSFT', shares: 5, price: 200, tradeDate: '2021-01-01' },
+  ];
+
+  const contribAt = calculateContributionsTimeline(transactions);
+  assert.equal(contribAt('2019-12-31'), 0);
+  assert.equal(contribAt('2020-01-01'), 1000);
+  assert.equal(contribAt('2020-06-01'), 1000);
+  assert.equal(contribAt('2021-01-01'), 2000);
+  assert.equal(contribAt('2022-01-01'), 2000);
+});
+
+test('calculateContributionsTimeline: compras financiadas por dividendos no incrementan aportaciones', () => {
+  // 1. Compra 100 acciones de AAPL a $10 ($1000) el 2020-01-01 -> Aportaciones = 1000, Liquidez = 0
+  // 2. Cobra dividendo de $1/acc ($100) el 2020-06-01 -> Liquidez = 100, Aportaciones = 1000
+  // 3. Compra 2 acciones de MSFT a $40 ($80) el 2020-07-01 -> Cubierto por liquidez. Liquidez = 20, Aportaciones = 1000
+  // 4. Compra 1 acción de GOOG a $50 el 2020-08-01 -> Liquidez cubre 20, faltan 30 de bolsillo -> Aportaciones = 1030, Liquidez = 0
+  const transactions = [
+    { id: 1, type: 'buy', ticker: 'AAPL', shares: 100, price: 10, tradeDate: '2020-01-01' },
+    { id: 2, type: 'buy', ticker: 'MSFT', shares: 2, price: 40, tradeDate: '2020-07-01' },
+    { id: 3, type: 'buy', ticker: 'GOOG', shares: 1, price: 50, tradeDate: '2020-08-01' },
+  ];
+  const tickerDividends = new Map([
+    ['AAPL', [{ date: '2020-06-01', amount: 1.0 }]],
+    ['MSFT', []],
+    ['GOOG', []],
+  ]);
+
+  const contribAt = calculateContributionsTimeline(transactions, null, tickerDividends);
+  assert.equal(contribAt('2020-01-01'), 1000);
+  assert.equal(contribAt('2020-06-01'), 1000);
+  assert.equal(contribAt('2020-07-01'), 1000); // 80 financiado por dividendos
+  assert.equal(contribAt('2020-08-01'), 1030); // 20 liquidez remanente + 30 aportados
+});
+
+test('calculateContributionsTimeline: compras financiadas por ventas de acciones no incrementan aportaciones', () => {
+  // 1. Compra 100 acc AAPL @ $10 ($1000) el 2020-01-01 -> Aportaciones = 1000
+  // 2. Venta de 100 acc AAPL @ $15 ($1500) el 2021-01-01 -> Liquidez = 1500
+  // 3. Compra de 10 acc MSFT @ $120 ($1200) el 2021-02-01 -> Financiada 100% por venta. Liquidez = 300, Aportaciones = 1000
+  // 4. Compra de 5 acc NVDA @ $100 ($500) el 2021-03-01 -> Liquidez cubre 300, faltan 200 de bolsillo -> Aportaciones = 1200
+  const transactions = [
+    { id: 1, type: 'buy', ticker: 'AAPL', shares: 100, price: 10, tradeDate: '2020-01-01' },
+    { id: 2, type: 'sell', ticker: 'AAPL', shares: 100, price: 15, tradeDate: '2021-01-01' },
+    { id: 3, type: 'buy', ticker: 'MSFT', shares: 10, price: 120, tradeDate: '2021-02-01' },
+    { id: 4, type: 'buy', ticker: 'NVDA', shares: 5, price: 100, tradeDate: '2021-03-01' },
+  ];
+
+  const contribAt = calculateContributionsTimeline(transactions);
+  assert.equal(contribAt('2020-01-01'), 1000);
+  assert.equal(contribAt('2021-01-01'), 1000);
+  assert.equal(contribAt('2021-02-01'), 1000);
+  assert.equal(contribAt('2021-03-01'), 1200);
+});
+

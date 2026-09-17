@@ -39,6 +39,138 @@
   // PESTAÑA 1: ANÁLISIS E INCIDENCIAS DE IA
   // ═════════════════════════════════════════════════════════════════════════
 
+  function collectAiErrors(rawList) {
+    const allErrorsList = [];
+    rawList.forEach((item) => {
+      const errors = Array.isArray(item.error_reports) ? item.error_reports : [];
+      errors.forEach((error) => {
+        allErrorsList.push({ ...error, parentAnalysis: item });
+      });
+    });
+    return {
+      allErrorsList,
+      pendingErrorsCount: allErrorsList.filter((error) => error.status === 'pending').length,
+    };
+  }
+
+  function filterAiList(rawList, { searchQuery, filterMode }) {
+    let filteredList = [...rawList];
+    const query = (searchQuery || '').trim().toLowerCase();
+
+    if (query) {
+      filteredList = filteredList.filter((item) => {
+        const tickerMatch = (item.ticker || '').toLowerCase().includes(query);
+        const nameMatch = (item.company_name || '').toLowerCase().includes(query);
+        const accMatch = (item.accession || '').toLowerCase().includes(query);
+        const modelMatch = (item.model_used || '').toLowerCase().includes(query);
+        const periodMatch = (item.period_title || item.period_label || '').toLowerCase().includes(query);
+        return tickerMatch || nameMatch || accMatch || modelMatch || periodMatch;
+      });
+    }
+
+    const modeFilters = {
+      errors: (item) => Number(item.error_reports_count || 0) > 0,
+      rated: (item) => Number(item.rating_count || 0) > 0,
+      clean: (item) => Number(item.error_reports_count || 0) === 0,
+      '10-k': (item) => (item.form_type || '').toUpperCase() === '10-K',
+      '10-q': (item) => (item.form_type || '').toUpperCase() === '10-Q',
+    };
+    const modeFilter = modeFilters[filterMode];
+    return modeFilter ? filteredList.filter(modeFilter) : filteredList;
+  }
+
+  function sortAiList(list, { sortField, sortOrder }) {
+    return list.sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      if (sortField === 'created_at' || sortField === 'period_end') {
+        valA = new Date(valA || 0).getTime();
+        valB = new Date(valB || 0).getTime();
+      } else if (sortField === 'rating') {
+        valA = Number(a.rating_average || 0);
+        valB = Number(b.rating_average || 0);
+      } else if (sortField === 'errors') {
+        valA = Number(a.error_reports_count || 0);
+        valB = Number(b.error_reports_count || 0);
+      } else if (typeof valA === 'string') {
+        valA = valA.toLowerCase();
+        valB = (valB || '').toLowerCase();
+        return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+
+      if (sortOrder === 'asc') return (valA > valB ? 1 : -1);
+      return (valA < valB ? 1 : -1);
+    });
+  }
+
+  function buildAiSubView(subView, data) {
+    if (subView === 'table') {
+      return renderAiTableSubView({
+        list: data.paginatedList,
+        total: data.totalFiltered,
+        selectedAiItems: data.selectedAiItems,
+        aiSortField: data.aiSortField,
+        aiSortOrder: data.aiSortOrder,
+      });
+    }
+    if (subView === 'errors') {
+      return renderAiErrorsSubView({
+        allErrors: data.allErrorsList,
+        searchQuery: data.searchQuery,
+        selectedAiItems: data.selectedAiItems,
+        page: data.page,
+        pageSize: data.pageSize,
+      });
+    }
+    if (subView === 'companies') {
+      return renderAiCompaniesSubView({
+        companies: data.companies,
+        searchQuery: data.searchQuery,
+        filterMode: data.filterMode,
+        expandedCompanies: data.expandedCompanies,
+        allCompaniesExpanded: data.allCompaniesExpanded,
+      });
+    }
+    return '';
+  }
+
+  function buildAiToolbar({ rawCount, companiesCount, errorsCount, pendingErrorsCount, subView, searchQuery, filterMode }) {
+    return `<!-- Sub-View Switcher y Herramientas -->
+        <div class="reports-toolbar enterprise-toolbar">
+          <div class="reports-subview-selector">
+            <button type="button" class="subview-btn ${subView === 'table' ? 'active' : ''}" data-subview="table" title="Tabla completa de análisis generados con IA">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18"/></svg>
+              <span>Tabla Global (${rawCount})</span>
+            </button>
+            <button type="button" class="subview-btn ${subView === 'errors' ? 'active' : ''}" data-subview="errors" title="Incidencias y errores reportados por usuarios">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>Incidencias Reportadas</span>
+              ${pendingErrorsCount > 0 ? `<span class="subview-badge badge-red">${pendingErrorsCount}</span>` : `<span class="subview-badge">${errorsCount}</span>`}
+            </button>
+            <button type="button" class="subview-btn ${subView === 'companies' ? 'active' : ''}" data-subview="companies" title="Agrupación por empresas monitorizadas">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="22" x2="9" y2="22.01"/><line x1="15" y1="22" x2="15" y2="22.01"/><line x1="9" y1="6" x2="9" y2="6.01"/><line x1="15" y1="6" x2="15" y2="6.01"/><line x1="9" y1="10" x2="9" y2="10.01"/><line x1="15" y1="10" x2="15" y2="10.01"/><line x1="9" y1="14" x2="9" y2="14.01"/><line x1="15" y1="14" x2="15" y2="14.01"/><line x1="9" y1="18" x2="9" y2="18.01"/><line x1="15" y1="18" x2="15" y2="18.01"/></svg>
+              <span>Por Empresa (${companiesCount})</span>
+            </button>
+          </div>
+
+          <div class="reports-search-wrap">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="search" id="reports-ai-search" class="reports-search-input" placeholder="Buscar ticker, empresa, accession, modelo..." value="${escapeHtml(searchQuery)}">
+            ${searchQuery ? '<button type="button" class="search-clear-btn" id="btn-clear-ai-search">✕</button>' : ''}
+          </div>
+
+          <div class="reports-filter-chips">
+            <button type="button" class="report-chip ${filterMode === 'all' ? 'active' : ''}" data-filter-mode="all">Todos</button>
+            <button type="button" class="report-chip ${filterMode === 'errors' ? 'active' : ''}" data-filter-mode="errors">⚠️ Con incidencias</button>
+            <button type="button" class="report-chip ${filterMode === 'rated' ? 'active' : ''}" data-filter-mode="rated">★ Con valoraciones</button>
+            <button type="button" class="report-chip ${filterMode === 'clean' ? 'active' : ''}" data-filter-mode="clean">✓ Sin incidencias</button>
+            <button type="button" class="report-chip ${filterMode === '10-k' ? 'active' : ''}" data-filter-mode="10-k">10-K Anual</button>
+            <button type="button" class="report-chip ${filterMode === '10-q' ? 'active' : ''}" data-filter-mode="10-q">10-Q Trimestral</button>
+          </div>
+        </div>`;
+  }
+
   function renderAiTab({
     aiData,
     aiSubView = 'table',
@@ -55,109 +187,34 @@
     const rawList = Array.isArray(aiData?.rawList) ? aiData.rawList : [];
     const companies = Array.isArray(aiData?.companies) ? aiData.companies : [];
 
-    // Extraer todas las incidencias de IA planas para la vista Foco
-    const allErrorsList = [];
-    rawList.forEach((item) => {
-      const errs = Array.isArray(item.error_reports) ? item.error_reports : [];
-      errs.forEach((e) => {
-        allErrorsList.push({
-          ...e,
-          parentAnalysis: item,
-        });
-      });
-    });
-
-    const pendingErrorsCount = allErrorsList.filter((e) => e.status === 'pending').length;
-
-    // ── Filtrado y Búsqueda de Análisis ──────────────────────────────────────
-    let filteredList = [...rawList];
-    const q = (aiSearchQuery || '').trim().toLowerCase();
-
-    if (q) {
-      filteredList = filteredList.filter((item) => {
-        const tickerMatch = (item.ticker || '').toLowerCase().includes(q);
-        const nameMatch = (item.company_name || '').toLowerCase().includes(q);
-        const accMatch = (item.accession || '').toLowerCase().includes(q);
-        const modelMatch = (item.model_used || '').toLowerCase().includes(q);
-        const periodMatch = (item.period_title || item.period_label || '').toLowerCase().includes(q);
-        return tickerMatch || nameMatch || accMatch || modelMatch || periodMatch;
-      });
-    }
-
-    if (aiFilterMode === 'errors') {
-      filteredList = filteredList.filter((item) => Number(item.error_reports_count || 0) > 0);
-    } else if (aiFilterMode === 'rated') {
-      filteredList = filteredList.filter((item) => Number(item.rating_count || 0) > 0);
-    } else if (aiFilterMode === 'clean') {
-      filteredList = filteredList.filter((item) => Number(item.error_reports_count || 0) === 0);
-    } else if (aiFilterMode === '10-k') {
-      filteredList = filteredList.filter((item) => (item.form_type || '').toUpperCase() === '10-K');
-    } else if (aiFilterMode === '10-q') {
-      filteredList = filteredList.filter((item) => (item.form_type || '').toUpperCase() === '10-Q');
-    }
-
-    // ── Ordenación ────────────────────────────────────────────────────────────
-    filteredList.sort((a, b) => {
-      let valA = a[aiSortField];
-      let valB = b[aiSortField];
-
-      if (aiSortField === 'created_at' || aiSortField === 'period_end') {
-        valA = new Date(valA || 0).getTime();
-        valB = new Date(valB || 0).getTime();
-      } else if (aiSortField === 'rating') {
-        valA = Number(a.rating_average || 0);
-        valB = Number(b.rating_average || 0);
-      } else if (aiSortField === 'errors') {
-        valA = Number(a.error_reports_count || 0);
-        valB = Number(b.error_reports_count || 0);
-      } else if (typeof valA === 'string') {
-        valA = valA.toLowerCase();
-        valB = (valB || '').toLowerCase();
-        return aiSortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-      }
-
-      if (aiSortOrder === 'asc') return (valA > valB ? 1 : -1);
-      return (valA < valB ? 1 : -1);
-    });
-
+    const { allErrorsList, pendingErrorsCount } = collectAiErrors(rawList);
+    const filteredList = sortAiList(
+      filterAiList(rawList, { searchQuery: aiSearchQuery, filterMode: aiFilterMode }),
+      { sortField: aiSortField, sortOrder: aiSortOrder }
+    );
     const totalFiltered = filteredList.length;
     const startIndex = (aiPage - 1) * aiPageSize;
     const paginatedList = filteredList.slice(startIndex, startIndex + aiPageSize);
 
-    // ── Render de la barra superior y sub-vistas ──────────────────────────────
     const bulkBarHtml = window.renderBulkActionBar({
       count: selectedAiItems.size,
       type: aiSubView === 'errors' ? 'ai-errors' : 'ai-analyses',
     });
-
-    let subViewContent = '';
-
-    if (aiSubView === 'table') {
-      subViewContent = renderAiTableSubView({
-        list: paginatedList,
-        total: totalFiltered,
-        selectedAiItems,
-        aiSortField,
-        aiSortOrder,
-      });
-    } else if (aiSubView === 'errors') {
-      subViewContent = renderAiErrorsSubView({
-        allErrors: allErrorsList,
-        searchQuery: aiSearchQuery,
-        selectedAiItems,
-        page: aiPage,
-        pageSize: aiPageSize,
-      });
-    } else if (aiSubView === 'companies') {
-      subViewContent = renderAiCompaniesSubView({
-        companies,
-        searchQuery: aiSearchQuery,
-        filterMode: aiFilterMode,
-        expandedCompanies,
-        allCompaniesExpanded,
-      });
-    }
-
+    const subViewContent = buildAiSubView(aiSubView, {
+      paginatedList,
+      totalFiltered,
+      allErrorsList,
+      companies,
+      selectedAiItems,
+      searchQuery: aiSearchQuery,
+      filterMode: aiFilterMode,
+      page: aiPage,
+      pageSize: aiPageSize,
+      expandedCompanies,
+      allCompaniesExpanded,
+      aiSortField,
+      aiSortOrder,
+    });
     const paginationHtml = aiSubView !== 'companies'
       ? window.renderPagination({
           total: aiSubView === 'errors' ? allErrorsList.length : totalFiltered,
@@ -169,39 +226,15 @@
 
     return `
       <div class="reports-tab-content">
-        <!-- Sub-View Switcher y Herramientas -->
-        <div class="reports-toolbar enterprise-toolbar">
-          <div class="reports-subview-selector">
-            <button type="button" class="subview-btn ${aiSubView === 'table' ? 'active' : ''}" data-subview="table" title="Tabla completa de análisis generados con IA">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18"/></svg>
-              <span>Tabla Global (${rawList.length})</span>
-            </button>
-            <button type="button" class="subview-btn ${aiSubView === 'errors' ? 'active' : ''}" data-subview="errors" title="Incidencias y errores reportados por usuarios">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <span>Incidencias Reportadas</span>
-              ${pendingErrorsCount > 0 ? `<span class="subview-badge badge-red">${pendingErrorsCount}</span>` : `<span class="subview-badge">${allErrorsList.length}</span>`}
-            </button>
-            <button type="button" class="subview-btn ${aiSubView === 'companies' ? 'active' : ''}" data-subview="companies" title="Agrupación por empresas monitorizadas">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="22" x2="9" y2="22.01"/><line x1="15" y1="22" x2="15" y2="22.01"/><line x1="9" y1="6" x2="9" y2="6.01"/><line x1="15" y1="6" x2="15" y2="6.01"/><line x1="9" y1="10" x2="9" y2="10.01"/><line x1="15" y1="10" x2="15" y2="10.01"/><line x1="9" y1="14" x2="9" y2="14.01"/><line x1="15" y1="14" x2="15" y2="14.01"/><line x1="9" y1="18" x2="9" y2="18.01"/><line x1="15" y1="18" x2="15" y2="18.01"/></svg>
-              <span>Por Empresa (${companies.length})</span>
-            </button>
-          </div>
-
-          <div class="reports-search-wrap">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="search" id="reports-ai-search" class="reports-search-input" placeholder="Buscar ticker, empresa, accession, modelo..." value="${escapeHtml(aiSearchQuery)}">
-            ${aiSearchQuery ? '<button type="button" class="search-clear-btn" id="btn-clear-ai-search">✕</button>' : ''}
-          </div>
-
-          <div class="reports-filter-chips">
-            <button type="button" class="report-chip ${aiFilterMode === 'all' ? 'active' : ''}" data-filter-mode="all">Todos</button>
-            <button type="button" class="report-chip ${aiFilterMode === 'errors' ? 'active' : ''}" data-filter-mode="errors">⚠️ Con incidencias</button>
-            <button type="button" class="report-chip ${aiFilterMode === 'rated' ? 'active' : ''}" data-filter-mode="rated">★ Con valoraciones</button>
-            <button type="button" class="report-chip ${aiFilterMode === 'clean' ? 'active' : ''}" data-filter-mode="clean">✓ Sin incidencias</button>
-            <button type="button" class="report-chip ${aiFilterMode === '10-k' ? 'active' : ''}" data-filter-mode="10-k">10-K Anual</button>
-            <button type="button" class="report-chip ${aiFilterMode === '10-q' ? 'active' : ''}" data-filter-mode="10-q">10-Q Trimestral</button>
-          </div>
-        </div>
+        ${buildAiToolbar({
+          rawCount: rawList.length,
+          companiesCount: companies.length,
+          errorsCount: allErrorsList.length,
+          pendingErrorsCount,
+          subView: aiSubView,
+          searchQuery: aiSearchQuery,
+          filterMode: aiFilterMode,
+        })}
 
         ${bulkBarHtml}
 
@@ -214,6 +247,7 @@
       </div>
     `;
   }
+
 
   // Sub-vista A: Tabla Global de Análisis IA
   function renderAiTableSubView({ list, total, selectedAiItems, aiSortField, aiSortOrder }) {
@@ -548,6 +582,166 @@
   // PESTAÑA 2: REPORTES GENERALES DE PLATAFORMA (BUGS, SOPORTE)
   // ═════════════════════════════════════════════════════════════════════════
 
+  function countGeneralStatus(reports, statsData) {
+    return {
+      pendingCount: statsData?.generalReports?.pending_general_reports ?? reports.filter((r) => r.status === 'pending').length,
+      reviewedCount: reports.filter((r) => r.status === 'reviewed').length,
+      resolvedCount: statsData?.generalReports?.resolved_general_reports ?? reports.filter((r) => r.status === 'resolved').length,
+      dismissedCount: reports.filter((r) => r.status === 'dismissed').length,
+    };
+  }
+
+  function filterGeneralList(reports, { searchQuery, statusFilter, categoryFilter }) {
+    let displayList = [...reports];
+    const query = (searchQuery || '').trim().toLowerCase();
+
+    if (query) {
+      displayList = displayList.filter((report) => {
+        const idMatch = String(report.id).includes(query);
+        const titleMatch = (report.title || '').toLowerCase().includes(query);
+        const descMatch = (report.description || '').toLowerCase().includes(query);
+        const userMatch = (report.user_email || '').toLowerCase().includes(query);
+        const catMatch = (getCategoryLabel(report.category) || '').toLowerCase().includes(query);
+        return idMatch || titleMatch || descMatch || userMatch || catMatch;
+      });
+    }
+
+    if (statusFilter !== 'all') {
+      displayList = displayList.filter((report) => report.status === statusFilter);
+    }
+    if (categoryFilter !== 'all') {
+      displayList = displayList.filter((report) => report.category === categoryFilter);
+    }
+    return displayList;
+  }
+
+  function sortGeneralList(list, { sortField, sortOrder }) {
+    return list.sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      if (sortField === 'created_at') {
+        valA = new Date(valA || 0).getTime();
+        valB = new Date(valB || 0).getTime();
+      } else if (typeof valA === 'string') {
+        valA = valA.toLowerCase();
+        valB = (valB || '').toLowerCase();
+        return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+
+      if (sortOrder === 'asc') return (valA > valB ? 1 : -1);
+      return (valA < valB ? 1 : -1);
+    });
+  }
+
+  function buildGeneralRow(report, selectedItems) {
+    const isSelected = selectedItems.has(Number(report.id));
+    const rawImages = Array.isArray(report.images) ? report.images : [];
+    const hasImages = rawImages.length > 0;
+
+    return `
+          <tr class="enterprise-row ${isSelected ? 'row-selected' : ''}" data-report-id="${report.id}">
+            <td class="col-checkbox">
+              <input type="checkbox" class="general-item-checkbox" data-report-id="${report.id}" ${isSelected ? 'checked' : ''} aria-label="Seleccionar reporte">
+            </td>
+            <td class="col-id"><strong class="mono-font">#${report.id}</strong></td>
+            <td class="col-date">
+              <div class="date-meta-stack">
+                <span class="date-rel">${formatRelativeDate(report.created_at)}</span>
+                <span class="date-full text-muted">${formatShortDate(report.created_at)}</span>
+              </div>
+            </td>
+            <td class="col-category">${getCategoryTagHtml(report.category)}</td>
+            <td class="col-details">
+              <div class="report-title-row">
+                <strong class="general-report-title text-truncate" title="${escapeHtml(report.title)}">${escapeHtml(report.title)}</strong>
+                ${hasImages ? `<span class="attachment-badge" title="${rawImages.length} capturas adjuntas">📎 ${rawImages.length}</span>` : ''}
+              </div>
+              <p class="general-report-desc">${escapeHtml(report.description)}</p>
+              ${report.admin_notes ? `<div class="error-admin-notes-hint">📝 <em>${escapeHtml(report.admin_notes)}</em></div>` : ''}
+            </td>
+            <td class="col-user">
+              <div class="user-meta-stack">
+                <span class="user-email-text">${report.user_email ? `👤 ${escapeHtml(report.user_email)}` : '<span class="text-muted">Anónimo</span>'}</span>
+                ${report.username ? `<span class="user-name-sub">@${escapeHtml(report.username)}</span>` : ''}
+              </div>
+            </td>
+            <td class="col-status">
+              <select class="general-status-select reports-quick-select" data-report-id="${report.id}">
+                <option value="pending" ${report.status === 'pending' ? 'selected' : ''}>Pendiente</option>
+                <option value="reviewed" ${report.status === 'reviewed' ? 'selected' : ''}>En revisión</option>
+                <option value="resolved" ${report.status === 'resolved' ? 'selected' : ''}>Resuelto</option>
+                <option value="dismissed" ${report.status === 'dismissed' ? 'selected' : ''}>Descartado</option>
+              </select>
+            </td>
+            <td class="col-actions">
+              <div class="table-actions-group">
+                <button type="button" class="btn-open-general-drawer secondary-button btn-xs" data-report-id="${report.id}" title="Inspeccionar detalle completo">
+                  Detalle
+                </button>
+                <button type="button" class="btn-delete-general danger-button btn-xs" data-report-id="${report.id}" title="Eliminar reporte">
+                  🗑️
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+  }
+
+  function buildGeneralTableRows({ list, selectedItems, searchQuery }) {
+    if (!list.length) {
+      return `
+        <tr>
+          <td colspan="8" class="reports-table-empty">
+            <div class="empty-icon-circle green-circle">✓</div>
+            <h3>No se encontraron reportes generales</h3>
+            <p>${searchQuery ? 'No hay resultados que coincidan con la búsqueda.' : 'No se han registrado incidencias con los filtros aplicados.'}</p>
+          </td>
+        </tr>
+      `;
+    }
+    return list.map((report) => buildGeneralRow(report, selectedItems)).join('');
+  }
+
+  function renderGeneralStatusTabs({ statusFilter, totalCount, pendingCount, reviewedCount, resolvedCount, dismissedCount }) {
+    const tabs = [
+      { key: 'all', label: 'Todos', count: totalCount, className: '' },
+      { key: 'pending', label: 'Pendientes', count: pendingCount, className: 'pill-pending ', countClass: 'badge-red', withDot: true },
+      { key: 'reviewed', label: 'En revisión', count: reviewedCount, className: 'pill-reviewed ', withDot: true },
+      { key: 'resolved', label: 'Resueltos', count: resolvedCount, className: 'pill-resolved ', countClass: 'badge-green', withDot: true },
+      { key: 'dismissed', label: 'Descartados', count: dismissedCount, className: 'pill-dismissed ', withDot: true },
+    ];
+    return tabs.map((tab) => `<button type="button" class="status-tab-pill ${tab.className}${statusFilter === tab.key ? 'active' : ''}" data-status="${tab.key}">
+            ${tab.withDot ? '<span class="status-dot"></span>\n            ' : ''}<span>${tab.label}</span>
+            <span class="status-tab-count${tab.countClass ? ' ' + tab.countClass : ''}">${tab.count}</span>
+          </button>`).join('\n          ');
+  }
+
+  function buildGeneralToolbar({ searchQuery, categoryFilter }) {
+    return `<!-- Barra de Herramientas y Filtros -->
+        <div class="reports-toolbar enterprise-toolbar">
+          <div class="reports-search-wrap">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="search" id="reports-general-search" class="reports-search-input" placeholder="Buscar por título, usuario, email, contenido o ID..." value="${escapeHtml(searchQuery)}">
+            ${searchQuery ? '<button type="button" class="search-clear-btn" id="btn-clear-gen-search">✕</button>' : ''}
+          </div>
+
+          <div class="reports-filters-group">
+            <select id="general-filter-category" class="reports-select" aria-label="Filtrar por categoría">
+              <option value="all" ${categoryFilter === 'all' ? 'selected' : ''}>Todas las categorías</option>
+              <option value="bug" ${categoryFilter === 'bug' ? 'selected' : ''}>Bug / Error web</option>
+              <option value="market_data" ${categoryFilter === 'market_data' ? 'selected' : ''}>Datos de mercado</option>
+              <option value="screener" ${categoryFilter === 'screener' ? 'selected' : ''}>Screener</option>
+              <option value="portfolio" ${categoryFilter === 'portfolio' ? 'selected' : ''}>Cartera</option>
+              <option value="suggestion" ${categoryFilter === 'suggestion' ? 'selected' : ''}>Sugerencias</option>
+              <option value="account" ${categoryFilter === 'account' ? 'selected' : ''}>Cuenta y acceso</option>
+              <option value="general" ${categoryFilter === 'general' ? 'selected' : ''}>General</option>
+              <option value="other" ${categoryFilter === 'other' ? 'selected' : ''}>Otros</option>
+            </select>
+          </div>
+        </div>`;
+  }
+
   function renderGeneralTab({
     generalData = [],
     generalTotal = 0,
@@ -563,55 +757,17 @@
   }) {
     const reports = Array.isArray(generalData) ? generalData : [];
     const totalCount = generalTotal || reports.length;
+    const statusCounts = countGeneralStatus(reports, statsData);
 
-    // Conteo por estado para los botones segmentados
-    const pendingCount = statsData?.generalReports?.pending_general_reports ?? reports.filter((r) => r.status === 'pending').length;
-    const reviewedCount = reports.filter((r) => r.status === 'reviewed').length;
-    const resolvedCount = statsData?.generalReports?.resolved_general_reports ?? reports.filter((r) => r.status === 'resolved').length;
-    const dismissedCount = reports.filter((r) => r.status === 'dismissed').length;
+    const displayList = sortGeneralList(
+      filterGeneralList(reports, {
+        searchQuery: generalSearchQuery,
+        statusFilter: generalStatusFilter,
+        categoryFilter: generalCategoryFilter,
+      }),
+      { sortField: generalSortField, sortOrder: generalSortOrder }
+    );
 
-    // Filtrado en cliente (adicional al filtro en servidor)
-    let displayList = [...reports];
-    const q = (generalSearchQuery || '').trim().toLowerCase();
-
-    if (q) {
-      displayList = displayList.filter((r) => {
-        const idMatch = String(r.id).includes(q);
-        const titleMatch = (r.title || '').toLowerCase().includes(q);
-        const descMatch = (r.description || '').toLowerCase().includes(q);
-        const userMatch = (r.user_email || '').toLowerCase().includes(q);
-        const catMatch = (getCategoryLabel(r.category) || '').toLowerCase().includes(q);
-        return idMatch || titleMatch || descMatch || userMatch || catMatch;
-      });
-    }
-
-    if (generalStatusFilter !== 'all') {
-      displayList = displayList.filter((r) => r.status === generalStatusFilter);
-    }
-
-    if (generalCategoryFilter !== 'all') {
-      displayList = displayList.filter((r) => r.category === generalCategoryFilter);
-    }
-
-    // Ordenación en cliente
-    displayList.sort((a, b) => {
-      let valA = a[generalSortField];
-      let valB = b[generalSortField];
-
-      if (generalSortField === 'created_at') {
-        valA = new Date(valA || 0).getTime();
-        valB = new Date(valB || 0).getTime();
-      } else if (typeof valA === 'string') {
-        valA = valA.toLowerCase();
-        valB = (valB || '').toLowerCase();
-        return generalSortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-      }
-
-      if (generalSortOrder === 'asc') return (valA > valB ? 1 : -1);
-      return (valA < valB ? 1 : -1);
-    });
-
-    // Paginación en cliente sobre el conjunto devuelto
     const startIndex = (generalPage - 1) * generalPageSize;
     const paginatedList = displayList.slice(startIndex, startIndex + generalPageSize);
 
@@ -625,72 +781,11 @@
       return generalSortOrder === 'asc' ? '<span class="sort-icon active">↑</span>' : '<span class="sort-icon active">↓</span>';
     };
 
-    let tableRows = '';
-    if (!paginatedList.length) {
-      tableRows = `
-        <tr>
-          <td colspan="8" class="reports-table-empty">
-            <div class="empty-icon-circle green-circle">✓</div>
-            <h3>No se encontraron reportes generales</h3>
-            <p>${generalSearchQuery ? 'No hay resultados que coincidan con la búsqueda.' : 'No se han registrado incidencias con los filtros aplicados.'}</p>
-          </td>
-        </tr>
-      `;
-    } else {
-      tableRows = paginatedList.map((r) => {
-        const isSelected = selectedGeneralItems.has(Number(r.id));
-        const rawImages = Array.isArray(r.images) ? r.images : [];
-        const hasImages = rawImages.length > 0;
-
-        return `
-          <tr class="enterprise-row ${isSelected ? 'row-selected' : ''}" data-report-id="${r.id}">
-            <td class="col-checkbox">
-              <input type="checkbox" class="general-item-checkbox" data-report-id="${r.id}" ${isSelected ? 'checked' : ''} aria-label="Seleccionar reporte">
-            </td>
-            <td class="col-id"><strong class="mono-font">#${r.id}</strong></td>
-            <td class="col-date">
-              <div class="date-meta-stack">
-                <span class="date-rel">${formatRelativeDate(r.created_at)}</span>
-                <span class="date-full text-muted">${formatShortDate(r.created_at)}</span>
-              </div>
-            </td>
-            <td class="col-category">${getCategoryTagHtml(r.category)}</td>
-            <td class="col-details">
-              <div class="report-title-row">
-                <strong class="general-report-title text-truncate" title="${escapeHtml(r.title)}">${escapeHtml(r.title)}</strong>
-                ${hasImages ? `<span class="attachment-badge" title="${rawImages.length} capturas adjuntas">📎 ${rawImages.length}</span>` : ''}
-              </div>
-              <p class="general-report-desc">${escapeHtml(r.description)}</p>
-              ${r.admin_notes ? `<div class="error-admin-notes-hint">📝 <em>${escapeHtml(r.admin_notes)}</em></div>` : ''}
-            </td>
-            <td class="col-user">
-              <div class="user-meta-stack">
-                <span class="user-email-text">${r.user_email ? `👤 ${escapeHtml(r.user_email)}` : '<span class="text-muted">Anónimo</span>'}</span>
-                ${r.username ? `<span class="user-name-sub">@${escapeHtml(r.username)}</span>` : ''}
-              </div>
-            </td>
-            <td class="col-status">
-              <select class="general-status-select reports-quick-select" data-report-id="${r.id}">
-                <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>Pendiente</option>
-                <option value="reviewed" ${r.status === 'reviewed' ? 'selected' : ''}>En revisión</option>
-                <option value="resolved" ${r.status === 'resolved' ? 'selected' : ''}>Resuelto</option>
-                <option value="dismissed" ${r.status === 'dismissed' ? 'selected' : ''}>Descartado</option>
-              </select>
-            </td>
-            <td class="col-actions">
-              <div class="table-actions-group">
-                <button type="button" class="btn-open-general-drawer secondary-button btn-xs" data-report-id="${r.id}" title="Inspeccionar detalle completo">
-                  Detalle
-                </button>
-                <button type="button" class="btn-delete-general danger-button btn-xs" data-report-id="${r.id}" title="Eliminar reporte">
-                  🗑️
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
+    const tableRows = buildGeneralTableRows({
+      list: paginatedList,
+      selectedItems: selectedGeneralItems,
+      searchQuery: generalSearchQuery,
+    });
 
     const paginationHtml = window.renderPagination({
       total: displayList.length,
@@ -703,54 +798,14 @@
       <div class="reports-tab-content">
         <!-- Pestañas de Estado Segmentadas estilo Linear/GitHub -->
         <div class="reports-status-tabs-row">
-          <button type="button" class="status-tab-pill ${generalStatusFilter === 'all' ? 'active' : ''}" data-status="all">
-            <span>Todos</span>
-            <span class="status-tab-count">${totalCount}</span>
-          </button>
-          <button type="button" class="status-tab-pill pill-pending ${generalStatusFilter === 'pending' ? 'active' : ''}" data-status="pending">
-            <span class="status-dot"></span>
-            <span>Pendientes</span>
-            <span class="status-tab-count badge-red">${pendingCount}</span>
-          </button>
-          <button type="button" class="status-tab-pill pill-reviewed ${generalStatusFilter === 'reviewed' ? 'active' : ''}" data-status="reviewed">
-            <span class="status-dot"></span>
-            <span>En revisión</span>
-            <span class="status-tab-count">${reviewedCount}</span>
-          </button>
-          <button type="button" class="status-tab-pill pill-resolved ${generalStatusFilter === 'resolved' ? 'active' : ''}" data-status="resolved">
-            <span class="status-dot"></span>
-            <span>Resueltos</span>
-            <span class="status-tab-count badge-green">${resolvedCount}</span>
-          </button>
-          <button type="button" class="status-tab-pill pill-dismissed ${generalStatusFilter === 'dismissed' ? 'active' : ''}" data-status="dismissed">
-            <span class="status-dot"></span>
-            <span>Descartados</span>
-            <span class="status-tab-count">${dismissedCount}</span>
-          </button>
+          ${renderGeneralStatusTabs({
+            statusFilter: generalStatusFilter,
+            totalCount,
+            ...statusCounts,
+          })}
         </div>
 
-        <!-- Barra de Herramientas y Filtros -->
-        <div class="reports-toolbar enterprise-toolbar">
-          <div class="reports-search-wrap">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="search" id="reports-general-search" class="reports-search-input" placeholder="Buscar por título, usuario, email, contenido o ID..." value="${escapeHtml(generalSearchQuery)}">
-            ${generalSearchQuery ? '<button type="button" class="search-clear-btn" id="btn-clear-gen-search">✕</button>' : ''}
-          </div>
-
-          <div class="reports-filters-group">
-            <select id="general-filter-category" class="reports-select" aria-label="Filtrar por categoría">
-              <option value="all" ${generalCategoryFilter === 'all' ? 'selected' : ''}>Todas las categorías</option>
-              <option value="bug" ${generalCategoryFilter === 'bug' ? 'selected' : ''}>Bug / Error web</option>
-              <option value="market_data" ${generalCategoryFilter === 'market_data' ? 'selected' : ''}>Datos de mercado</option>
-              <option value="screener" ${generalCategoryFilter === 'screener' ? 'selected' : ''}>Screener</option>
-              <option value="portfolio" ${generalCategoryFilter === 'portfolio' ? 'selected' : ''}>Cartera</option>
-              <option value="suggestion" ${generalCategoryFilter === 'suggestion' ? 'selected' : ''}>Sugerencias</option>
-              <option value="account" ${generalCategoryFilter === 'account' ? 'selected' : ''}>Cuenta y acceso</option>
-              <option value="general" ${generalCategoryFilter === 'general' ? 'selected' : ''}>General</option>
-              <option value="other" ${generalCategoryFilter === 'other' ? 'selected' : ''}>Otros</option>
-            </select>
-          </div>
-        </div>
+        ${buildGeneralToolbar({ searchQuery: generalSearchQuery, categoryFilter: generalCategoryFilter })}
 
         ${bulkBarHtml}
 
@@ -791,6 +846,7 @@
       </div>
     `;
   }
+
 
   window.renderAiTab = renderAiTab;
   window.renderGeneralTab = renderGeneralTab;

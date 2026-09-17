@@ -27,15 +27,9 @@ export function buildCompanyDescription(profile, name, lang = 'es') {
   const sectorPart = sector
     ? (isEn ? ` in the ${sector} sector` : ` del sector ${sector}`)
     : '';
-  const exchangePart = profile.exchange
-    ? (isEn ? ` Listed on ${profile.exchange}.` : ` Cotiza en ${profile.exchange}.`)
-    : '';
-  const filingPart = profile.lastFiling?.form
-    ? (isEn ? ` View its ${profile.lastFiling.form} filings submitted to the SEC.` : ` Consulta sus informes ${profile.lastFiling.form} presentados ante la SEC.`)
-    : '';
   return isEn
-    ? `Profile and analysis of ${name}${sectorPart}: results from its 10-Q and 10-K SEC filings, featuring AI analysis of sales, free cash flow, and capital allocation.${exchangePart}${filingPart}`
-    : `Perfil y análisis de ${name}${sectorPart}: resultados de sus informes 10-Q y 10-K ante la SEC, con análisis con IA de ventas, flujo de caja libre y asignación de capital.${exchangePart}${filingPart}`;
+    ? `Profile and analysis of ${name}${sectorPart}: 10-Q and 10-K results, quote and AI analysis of sales, free cash flow and capital allocation.`
+    : `Perfil y análisis de ${name}${sectorPart}: resultados 10-Q y 10-K, cotización y análisis con IA de ventas, FCF y asignación de capital.`;
 }
 
 export async function buildCompanyMeta(ticker, lang = 'es') {

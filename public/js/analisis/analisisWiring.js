@@ -91,27 +91,6 @@
       }
       if (!AS.lastAnalysisFailed) clearFile();
     });
-
-    const downloadsToggle = document.querySelector('#analysis-downloads-toggle');
-    downloadsToggle?.addEventListener('click', (event) => {
-      event.stopPropagation();
-      const menu = document.querySelector('#analysis-downloads-menu');
-      if (!menu) return;
-      const willOpen = menu.hidden;
-      menu.hidden = !willOpen;
-      downloadsToggle.setAttribute('aria-expanded', String(willOpen));
-    });
-
-    document.querySelectorAll('.result-actions [data-format]').forEach((button) => {
-      button.addEventListener('click', () => {
-        downloadReport(button.dataset.format);
-        const menu = document.querySelector('#analysis-downloads-menu');
-        if (menu && !menu.hidden) {
-          menu.hidden = true;
-          document.querySelector('#analysis-downloads-toggle')?.setAttribute('aria-expanded', 'false');
-        }
-      });
-    });
   }
 
   function wireAnalisisResults() {
@@ -132,6 +111,26 @@
       } catch {
         prompt('Enlace permanente de este informe:', canonicalUrl);
       }
+    });
+
+    const downloadsToggle = document.querySelector('#analysis-downloads-toggle');
+    const downloadsMenu = document.querySelector('#analysis-downloads-menu');
+
+    downloadsToggle?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const menu = document.querySelector('#analysis-downloads-menu');
+      if (!menu) return;
+      const willOpen = menu.hidden;
+      menu.hidden = !willOpen;
+      downloadsToggle.setAttribute('aria-expanded', String(willOpen));
+    });
+
+    downloadsMenu?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-format]');
+      if (!button) return;
+      downloadReport(button.dataset.format);
+      downloadsMenu.hidden = true;
+      downloadsToggle?.setAttribute('aria-expanded', 'false');
     });
 
     const versionsToggle = document.querySelector('#analysis-versions-toggle');
@@ -173,6 +172,16 @@
       }
       if (!event.target.closest('#analysis-version-box')) closeAnalysisVersionsMenu();
       if (!event.target.closest('.analysis-downloads-wrap')) {
+        const menu = document.querySelector('#analysis-downloads-menu');
+        if (menu && !menu.hidden) {
+          menu.hidden = true;
+          document.querySelector('#analysis-downloads-toggle')?.setAttribute('aria-expanded', 'false');
+        }
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
         const menu = document.querySelector('#analysis-downloads-menu');
         if (menu && !menu.hidden) {
           menu.hidden = true;

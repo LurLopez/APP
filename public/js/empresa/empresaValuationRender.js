@@ -47,7 +47,7 @@
     if (peEl) peEl.textContent = activePe !== null && activePe > 0 ? formatMult(activePe) : '—';
     if (pePriceEl) pePriceEl.textContent = formatPrice(v.price);
     if (epsEl) epsEl.textContent = activeEps !== null ? formatPrice(activeEps) : '—';
-    if (epsLabelEl) epsLabelEl.textContent = valPeAdjusted ? 'BPA ajustado' : 'BPA normal';
+    if (epsLabelEl) epsLabelEl.textContent = window.I18n?.t?.(valPeAdjusted ? 'BPA ajustado' : 'BPA normal') ?? (valPeAdjusted ? 'BPA ajustado' : 'BPA normal');
 
     // Tarjeta 3: Deuda Neta / EBITDA
     const ndEbitdaEl = document.querySelector('#val-netdebt-ebitda');
@@ -86,7 +86,7 @@
     if (payoutEl) payoutEl.textContent = activePayout !== null && activePayout >= 0 ? formatPct(activePayout) : '—';
     if (payoutDpsEl) payoutDpsEl.textContent = formatPrice(v.dividendPerShare);
     if (payoutEpsEl) payoutEpsEl.textContent = activeEps !== null ? formatPrice(activeEps) : '—';
-    if (payoutEpsLabelEl) payoutEpsLabelEl.textContent = valPeAdjusted ? 'BPA ajustado' : 'BPA normal';
+    if (payoutEpsLabelEl) payoutEpsLabelEl.textContent = window.I18n?.t?.(valPeAdjusted ? 'BPA ajustado' : 'BPA normal') ?? (valPeAdjusted ? 'BPA ajustado' : 'BPA normal');
 
     // Tarjeta 6: P / FCF
     const pfcfEl = document.querySelector('#val-pfcf');

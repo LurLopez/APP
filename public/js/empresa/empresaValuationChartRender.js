@@ -117,7 +117,7 @@ function renderValuationChart() {
   const avgY = y(avgVal);
   const avgLine = Number.isFinite(avgVal) ? `
     <line x1="${pad.left}" y1="${avgY.toFixed(1)}" x2="${(width - pad.right).toFixed(1)}" y2="${avgY.toFixed(1)}" stroke="#64748b" stroke-dasharray="4,4" stroke-width="1.2" opacity="0.6"/>
-    <text x="${(width - pad.right - 8).toFixed(1)}" y="${(avgY - 5).toFixed(1)}" text-anchor="end" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="600">Media: ${formatValChartAxis(avgVal, metricKey)}</text>
+    <text x="${(width - pad.right - 8).toFixed(1)}" y="${(avgY - 5).toFixed(1)}" text-anchor="end" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10.5" font-weight="600">${(window.I18n && window.I18n.t && window.I18n.t('Media')) || 'Media'}: ${formatValChartAxis(avgVal, metricKey)}</text>
   ` : '';
 
   let lineSegments = [];

@@ -105,14 +105,14 @@ function updateValuationChartHover(event) {
     if (Number.isFinite(Number(point?.ebitdaTtm))) extraInfo += `<span style="color:#cbd5e1;font-size:11px;">EBITDA (TTM): ${formatProfileCompactUsd(point.ebitdaTtm)}</span>`;
   } else if (metricKey === 'peRatio') {
     const epsVal = valPeAdjusted ? point?.epsNormalizedTtm : point?.epsTtm;
-    if (Number.isFinite(Number(epsVal))) extraInfo += `<span style="color:#cbd5e1;font-size:11px;">${valPeAdjusted ? 'BPA ajustado' : 'BPA normal'}: ${formatProfilePrice(epsVal)}</span>`;
+    if (Number.isFinite(Number(epsVal))) extraInfo += `<span style="color:#cbd5e1;font-size:11px;">${window.I18n?.t?.(valPeAdjusted ? 'BPA ajustado' : 'BPA normal') ?? (valPeAdjusted ? 'BPA ajustado' : 'BPA normal')}: ${formatProfilePrice(epsVal)}</span>`;
   } else if (metricKey === 'priceToFcf') {
     if (Number.isFinite(Number(point?.fcfPerShareTtm))) extraInfo += `<span style="color:#cbd5e1;font-size:11px;">FCF / acción (TTM): ${formatProfilePrice(point.fcfPerShareTtm)}</span>`;
     else if (Number.isFinite(Number(point?.fcfTtm))) extraInfo += `<span style="color:#cbd5e1;font-size:11px;">FCF (TTM): ${formatProfileCompactUsd(point.fcfTtm)}</span>`;
   } else if (metricKey === 'payoutRatio') {
     if (Number.isFinite(Number(point?.dpsTtm))) extraInfo += `<span style="color:#cbd5e1;font-size:11px;">Dividendo / acción (TTM): ${formatProfilePrice(point.dpsTtm)}</span>`;
     const epsVal = valPeAdjusted ? point?.epsNormalizedTtm : point?.epsTtm;
-    if (Number.isFinite(Number(epsVal))) extraInfo += `<span style="color:#cbd5e1;font-size:11px;">${valPeAdjusted ? 'BPA ajustado' : 'BPA normal'}: ${formatProfilePrice(epsVal)}</span>`;
+    if (Number.isFinite(Number(epsVal))) extraInfo += `<span style="color:#cbd5e1;font-size:11px;">${window.I18n?.t?.(valPeAdjusted ? 'BPA ajustado' : 'BPA normal') ?? (valPeAdjusted ? 'BPA ajustado' : 'BPA normal')}: ${formatProfilePrice(epsVal)}</span>`;
   }
   tooltip.innerHTML = `<strong>${escapeHtml(formatValChartDate(point?.date))}</strong>
     <span style="color:#94a3b8;font-size:11px;">${escapeHtml(label)}</span>

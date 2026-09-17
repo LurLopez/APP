@@ -26,6 +26,7 @@ window.AnalisisState = {
   currentAnalysisId: null,
   currentAnalysisTicker: null,
   currentAnalysisAccession: null,
+  currentAnalysisFormType: null,
   currentAnalysisSlug: null,
   currentAnalysisVersion: null,
   currentAnalysisSubsector: null,

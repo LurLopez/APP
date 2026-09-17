@@ -60,9 +60,17 @@
       PCS.sliceEnd = null;
       PCS.cachedData = null;
       PCS.redrawRaf = null;
+      if (typeof window.syncChartTriggerButtons === 'function') {
+        window.syncChartTriggerButtons(document);
+      }
     },
     get selectedIds() { return PCS.selectedIds; },
-    set selectedIds(ids) { PCS.selectedIds = Array.isArray(ids) ? ids : []; },
+    set selectedIds(ids) {
+      PCS.selectedIds = Array.isArray(ids) ? ids : [];
+      if (typeof window.syncChartTriggerButtons === 'function') {
+        window.syncChartTriggerButtons(document);
+      }
+    },
     get open() { return PCS.open; },
     set open(v) { PCS.open = Boolean(v); },
     get metric() { return PCS.metric; },

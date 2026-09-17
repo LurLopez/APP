@@ -230,16 +230,36 @@ export async function getSitemapXml() {
     if (seenReportSlugs.has(key)) continue;
     seenReportSlugs.add(key);
 
+    const reportLang = String(report.language ?? report.report?.language ?? 'es') === 'en' ? 'en' : 'es';
+    const esLoc = `${config.siteUrl}/informe/${encodeURIComponent(ticker)}/${slug}`;
     urls.push({
-      loc: `${config.siteUrl}/informe/${encodeURIComponent(ticker)}/${slug}`,
+      loc: reportLang === 'en' ? `${config.siteUrl}/en/informe/${encodeURIComponent(ticker)}/${slug}` : esLoc,
       priority: '0.7',
       changefreq: 'monthly',
       lastmod: report.created_at ? new Date(report.created_at).toISOString() : null,
+      singleLang: reportLang,
     });
   }
 
   const xmlEntries = [];
   for (const url of urls) {
+    if (url.singleLang) {
+      const links = [
+        `    <xhtml:link rel="alternate" hreflang="${url.singleLang}" href="${escapeXml(url.loc)}" />`,
+        `    <xhtml:link rel="alternate" hreflang="x-default" href="${escapeXml(url.loc)}" />`,
+      ].join('\n');
+      xmlEntries.push([
+        '  <url>',
+        `    <loc>${escapeXml(url.loc)}</loc>`,
+        url.lastmod ? `    <lastmod>${url.lastmod}</lastmod>` : null,
+        `    <changefreq>${url.changefreq}</changefreq>`,
+        `    <priority>${url.priority}</priority>`,
+        links,
+        '  </url>',
+      ].filter(Boolean).join('\n'));
+      continue;
+    }
+
     const esLoc = url.loc;
     const enLoc = esLoc === `${config.siteUrl}/`
       ? `${config.siteUrl}/en`

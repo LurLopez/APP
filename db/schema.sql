@@ -166,12 +166,27 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_items_ticker ON watchlist_items (ticker
 CREATE TABLE IF NOT EXISTS user_metric_favorites (
     id         SERIAL PRIMARY KEY,
     user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    statement  TEXT NOT NULL CHECK (statement IN ('income', 'balance', 'cashflow')),
+    statement  TEXT NOT NULL CHECK (statement IN ('income', 'balance', 'cashflow', 'ratios')),
     metric_key TEXT NOT NULL,
     label      TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (user_id, statement, metric_key)
 );
+
+-- Migración idempotente: bases de datos creadas antes de la pestaña Ratios
+-- mantienen el CHECK antiguo; se sustituye por el que admite 'ratios'.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'user_metric_favorites_statement_check'
+      AND position('ratios' IN pg_get_constraintdef(oid)) = 0
+  ) THEN
+    ALTER TABLE user_metric_favorites DROP CONSTRAINT user_metric_favorites_statement_check;
+    ALTER TABLE user_metric_favorites ADD CONSTRAINT user_metric_favorites_statement_check
+      CHECK (statement IN ('income', 'balance', 'cashflow', 'ratios'));
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_user_metric_favorites_user ON user_metric_favorites (user_id);
 
@@ -258,6 +273,8 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     portfolio_notify_earnings BOOLEAN NOT NULL DEFAULT true,
     portfolio_notify_exdiv    BOOLEAN NOT NULL DEFAULT true,
     portfolio_notify_payout   BOOLEAN NOT NULL DEFAULT true,
+    dividend_withholding_pct  NUMERIC(5,2) NOT NULL DEFAULT 20,
+    dividend_net_enabled      BOOLEAN NOT NULL DEFAULT false,
     created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -266,6 +283,8 @@ ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEF
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS analysis_language TEXT NOT NULL DEFAULT 'es';
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'indigo';
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS dividend_withholding_pct NUMERIC(5,2) NOT NULL DEFAULT 20;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS dividend_net_enabled BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS portfolio_transactions (
     id           SERIAL PRIMARY KEY,

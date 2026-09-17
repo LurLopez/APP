@@ -28,7 +28,7 @@
       .then((data) => {
         clearTimeout(FS.previewLoadTimeout);
         if (!data || data.ok !== true || !data.pages) {
-          loading.textContent = 'No se pudo generar la vista previa. Abre el documento en una pestaña nueva.';
+          loading.textContent = data?.error || 'No se pudo generar la vista previa. Abre el documento en una pestaña nueva.';
           return;
         }
         loading.hidden = true;

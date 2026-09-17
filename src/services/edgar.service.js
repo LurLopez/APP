@@ -25,6 +25,8 @@ export {
   getFilingDocumentStream,
   getFilingContentBuffer,
   getFilingPreview,
+  isFilingDocumentCached,
+  isFilingPreviewCached,
 } from './edgar/filingDocuments.js';
 
 export {
@@ -41,8 +43,11 @@ export {
 
 export {
   getCompanyResults,
-  getPreviousQuarterCashFlow,
 } from './edgar/companyResults.js';
+
+export {
+  getPreviousQuarterCashFlow,
+} from './edgar/previousQuarterCashFlow.js';
 
 export {
   getValuationSeries,

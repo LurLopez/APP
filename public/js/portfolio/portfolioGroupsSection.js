@@ -46,15 +46,24 @@
     return [];
   }
 
-  function gruposSectionHtml() {
-    const options = gruposTabOptions();
-    const selected = selectedTabValue();
+  function activeTabDescription() {
+    if (!PS.activeTab) return window.I18n ? window.I18n.t('Elige una pestaña arriba para ver sus grupos.') : 'Elige una pestaña arriba para ver sus grupos.';
     const isCustom = PS.activeTab?.type === 'custom';
     const tab = isCustom ? tabById(PS.activeTab.id) : null;
     const activeTabLabel = PS.activeTab?.type === 'predefined'
       ? (PORTFOLIO_PREDEFINED_TABS.find(([key]) => key === PS.activeTab.key)?.[1] ?? PS.activeTab.key)
       : (tab?.name ?? '');
     const activeTabTranslated = window.I18n ? window.I18n.t(activeTabLabel) : activeTabLabel;
+    return window.I18n
+      ? window.I18n.t('Pestaña «{0}» — pulsa un grupo para ver sus sublíneas.', { 0: activeTabTranslated })
+      : `Pestaña «${escapeHtml(activeTabLabel)}» — pulsa un grupo para ver sus sublíneas.`;
+  }
+
+  function gruposSectionHtml() {
+    const options = gruposTabOptions();
+    const selected = selectedTabValue();
+    const isCustom = PS.activeTab?.type === 'custom';
+    const tab = isCustom ? tabById(PS.activeTab.id) : null;
     const tabsHtml = options.map((opt) => {
       const value = tabOptionValue(opt);
       const active = selected === value;
@@ -65,44 +74,17 @@
           ${color ? `<span class="pf-g-dot" style="background:${escapeHtml(color)}"></span>` : ''}${escapeHtml(window.I18n ? window.I18n.t(opt.label) : opt.label)}
         </button>`;
     }).join('');
-    const viewsHtml = ['current', 'sold', 'all'].map((key) => {
-      const label = key === 'current'
-        ? (window.I18n ? window.I18n.t('Actual') : 'Actual')
-        : key === 'sold'
-          ? (window.I18n ? window.I18n.t('Vendido') : 'Vendido')
-          : (window.I18n ? window.I18n.t('Todo') : 'Todo');
-      return `
-        <button class="pf-view-button ${PS.groupsView === key ? 'active' : ''}" type="button"
-          data-pf-groups-view="${key}" aria-pressed="${PS.groupsView === key}">${label}</button>`;
-    }).join('');
+
     return `
       <div class="pf-groups-section">
-        <div class="pf-card-head">
-          <div>
-            <h4>${window.I18n ? window.I18n.t('Grupos') : 'Grupos'}</h4>
-            <p>${PS.activeTab
-              ? (window.I18n
-                  ? window.I18n.t('Pestaña «{0}» — pulsa un grupo para ver sus sublíneas.', { 0: activeTabTranslated })
-                  : `Pestaña «${escapeHtml(activeTabLabel)}» — pulsa un grupo para ver sus sublíneas.`)
-              : (window.I18n ? window.I18n.t('Elige una pestaña arriba para ver sus grupos.') : 'Elige una pestaña arriba para ver sus grupos.')}</p>
-          </div>
-          <div class="pf-groups-head-actions">
-            <button class="pf-outline-button pf-show-all-btn" type="button" data-pf-chart-show-all="grupos" title="${window.I18n ? window.I18n.t('Mostrar todos los grupos principales de esta pestaña en el gráfico') : 'Mostrar todos los grupos principales de esta pestaña en el gráfico'}">
-              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg>
-              <span>${window.I18n ? window.I18n.t('Mostrar todo') : 'Mostrar todo'}</span>
-            </button>
-            <div class="pf-positions-views" role="group" aria-label="Vista de grupos">${viewsHtml}</div>
-            ${isCustom ? `
-              <div class="pf-groups-controls">
-                <button class="pf-outline-button" type="button" data-pf-tab-edit title="Renombrar o cambiar color">✎</button>
-                <button class="pf-outline-button" type="button" data-pf-tab-delete title="Eliminar pestaña">×</button>
-              </div>` : ''}
-          </div>
-        </div>
         <div class="pf-groups-tabs" role="tablist" aria-label="Pestañas de grupos">
           <div class="pf-groups-tab-list">${tabsHtml}</div>
           <div class="pf-groups-tab-actions">
-            ${isCustom ? `<button class="pf-outline-button" type="button" data-pf-group-create>${PS.groupFormOpen ? 'Cerrar' : '＋ Crear grupo'}</button>` : ''}
+            ${isCustom ? `
+              <button class="pf-outline-button" type="button" data-pf-tab-edit title="Renombrar o cambiar color">✎</button>
+              <button class="pf-outline-button" type="button" data-pf-tab-delete title="Eliminar pestaña">×</button>
+              <button class="pf-outline-button" type="button" data-pf-group-create>${PS.groupFormOpen ? 'Cerrar' : '＋ Crear grupo'}</button>
+            ` : ''}
             <button class="pf-outline-button" type="button" data-pf-tab-create>${PS.tabFormOpen ? 'Cerrar' : '＋ Nueva pestaña'}</button>
           </div>
         </div>
@@ -295,6 +277,7 @@ window.gruposTabOptions = gruposTabOptions;
 window.tabOptionValue = tabOptionValue;
 window.selectedTabValue = selectedTabValue;
 window.groupPillsForActiveTab = groupPillsForActiveTab;
+window.activeTabDescription = activeTabDescription;
 window.gruposSectionHtml = gruposSectionHtml;
 window.gruposTableHtml = gruposTableHtml;
 window.groupRowsTableHtml = groupRowsTableHtml;

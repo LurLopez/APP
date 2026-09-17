@@ -125,7 +125,7 @@ function renderAnnualNetDebtEbitdaChart() {
   const avgY = y(avgVal);
   const avgLine = `
     <line x1="${margin.left}" y1="${avgY.toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${avgY.toFixed(1)}" stroke="#64748b" stroke-dasharray="4,4" stroke-width="1.2" opacity="0.7"/>
-    <text x="${(width - margin.right).toFixed(1)}" y="${(avgY - 6).toFixed(1)}" text-anchor="end" fill="#64748b" font-size="10.5" font-weight="600">Media: ${avgVal.toFixed(2)}x</text>
+    <text x="${(width - margin.right).toFixed(1)}" y="${(avgY - 6).toFixed(1)}" text-anchor="end" fill="#64748b" font-size="10.5" font-weight="600">${(window.I18n && window.I18n.t && window.I18n.t('Media')) || 'Media'}: ${avgVal.toFixed(2)}x</text>
   `;
 
   const N = items.length;

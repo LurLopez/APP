@@ -4,7 +4,7 @@
 
 (function (window) {
   const EMS = window.EmpresaMetricsState;
-    const metricsChartNumFormat = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 });
+    const metricsChartNumFormat = new Intl.NumberFormat((window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES', { maximumFractionDigits: 2 });
 
   function removeComparisonCompany(ticker) {
     comparisonCompanies.delete(ticker);
@@ -157,6 +157,18 @@
     const legend = document.querySelector('#metrics-chart-legend');
     const clearButton = document.querySelector('#metrics-chart-clear');
     if (!block || !svg || !wrap || !legend) return null;
+
+    if (window.screenerStatement === 'valuation') {
+      exitMetricsChartFullscreen(block);
+      block.hidden = true;
+      svg.innerHTML = '';
+      legend.innerHTML = '';
+      wrap.querySelectorAll('.metrics-chart-placeholder').forEach((el) => el.remove());
+      wrap.querySelectorAll('.metric-cagr-label').forEach((el) => el.remove());
+      EMS.metricsChartState = null;
+      return null;
+    }
+
     EMS.metricsChartState = null;
 
     renderComparisonChips();

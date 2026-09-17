@@ -83,7 +83,9 @@ export function applyNonFrameEntries(facts, tracker, annualRows, quarterlyRows) 
         if (entry.frame) continue;
         const days = durationDays(entry.start, entry.end);
   
-        if (entry.fp === 'FY' || (days !== null && days >= 300)) {
+        // Un hecho de más de ~13 meses (p. ej. "costes incurridos desde el inicio del plan") no es
+        // un ejercicio anual: no debe crear filas anuales ni contaminar las existentes.
+        if ((entry.fp === 'FY' || (days !== null && days >= 300)) && (days === null || days <= 400)) {
           const target = annualRows.find((row) => row.periodEnd === entry.end)
             ?? annualRows.find((row) => row.periodStart === entry.start && row.periodEnd === null)
             ?? null;

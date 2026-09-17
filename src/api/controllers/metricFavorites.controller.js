@@ -9,7 +9,7 @@ import {
   removeMetricFavorite,
 } from '../../../db/repositories/metricFavoriteRepository.js';
 
-const VALID_STATEMENTS = new Set(['income', 'balance', 'cashflow']);
+const VALID_STATEMENTS = new Set(['income', 'balance', 'cashflow', 'ratios']);
 
 // Las claves de métrica son identificadores camelCase generados por el servidor.
 const METRIC_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]{0,79}$/;

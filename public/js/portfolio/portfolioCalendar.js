@@ -7,6 +7,7 @@
   const CS = window.PortfolioCalendarState;
   CS.calendarVisibility = loadCalendarVisibility();
   CS.calendarCompanyVisibility = loadCalendarCompanyVisibility();
+  CS.calendarCompaniesHidden = loadCalendarCompaniesHidden();
   'use strict';
 
   const MONTH_NAMES_ES = [

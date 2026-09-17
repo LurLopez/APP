@@ -35,46 +35,92 @@
   }
 
   function positionsPanelHtml() {
+    const isGrupos = PS.positionsTab === 'grupos';
     const views = [
       ['current', 'Actual'],
       ['sold', 'Vendido'],
       ['all', 'Todo'],
     ];
+    const currentView = isGrupos ? (PS.groupsView ?? 'current') : (PS.positionsView ?? 'current');
+    const positions = positionsForView(currentView);
+    const valoresCount = positions.length;
+    const groupsCount = (typeof groupPillsForActiveTab === 'function') ? groupPillsForActiveTab().length : 0;
+    const subText = isGrupos
+      ? ((typeof activeTabDescription === 'function') ? activeTabDescription() : 'Detalle de grupos de la cartera.')
+      : (window.I18n ? window.I18n.t('Detalle de tus posiciones y de los dividendos previstos.') : 'Detalle de tus posiciones y de los dividendos previstos.');
+
+    const showAllTitle = isGrupos
+      ? (window.I18n ? window.I18n.t('Mostrar todos los grupos principales de esta pestaña en el gráfico') : 'Mostrar todos los grupos principales de esta pestaña en el gráfico')
+      : (window.I18n ? window.I18n.t('Mostrar todas las acciones principales en el gráfico') : 'Mostrar todas las acciones principales en el gráfico');
+
+    const contentHtml = isGrupos
+      ? gruposSectionHtml()
+      : positionsTableHtml(currentView);
+
     return `
       <div class="pf-broker-panel">
-        <div class="pf-card-head">
-          <div><h4>Valores</h4><p>Detalle de tus posiciones y de los dividendos previstos.</p></div>
+        <div class="pf-card-head pf-table-card-head">
+          <div class="pf-table-head-left">
+            <div class="pf-table-main-tabs" role="tablist" aria-label="Pestañas de la cartera">
+              <button type="button" class="pf-table-main-tab ${!isGrupos ? 'active' : ''}" data-pf-table-tab="valores" role="tab" aria-selected="${!isGrupos}">
+                <span>${window.I18n ? window.I18n.t('Valores') : 'Valores'}</span>
+                <span class="pf-table-tab-pill">${valoresCount}</span>
+              </button>
+              <button type="button" class="pf-table-main-tab ${isGrupos ? 'active' : ''}" data-pf-table-tab="grupos" role="tab" aria-selected="${isGrupos}">
+                <span>${window.I18n ? window.I18n.t('Grupos') : 'Grupos'}</span>
+                <span class="pf-table-tab-pill">${groupsCount}</span>
+              </button>
+            </div>
+            <p class="pf-table-head-desc">${subText}</p>
+          </div>
           <div class="pf-positions-head-actions">
-            <button class="pf-outline-button pf-show-all-btn" type="button" data-pf-chart-show-all="valores" title="Mostrar todas las acciones principales en el gráfico">
+            <button class="pf-outline-button pf-show-all-btn" type="button" data-pf-chart-show-all="${isGrupos ? 'grupos' : 'valores'}" title="${showAllTitle}">
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg>
-              <span>Mostrar todo</span>
+              <span>${window.I18n ? window.I18n.t('Mostrar todo') : 'Mostrar todo'}</span>
             </button>
-            <button class="pf-outline-button pf-toggle-chart-btn" type="button" data-pf-chart-toggle title="${PS.chartOpen ? 'Ocultar gráfico comparativo' : 'Mostrar gráfico comparativo'}">
+            <button class="pf-outline-button pf-toggle-chart-btn" type="button" data-pf-chart-toggle title="${PS.chartOpen ? (window.I18n ? window.I18n.t('Ocultar gráfico comparativo') : 'Ocultar gráfico comparativo') : (window.I18n ? window.I18n.t('Mostrar gráfico comparativo') : 'Mostrar gráfico comparativo')}">
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg>
-              <span>${PS.chartOpen ? 'Ocultar gráfico' : 'Mostrar gráfico'}</span>
+              <span>${PS.chartOpen ? (window.I18n ? window.I18n.t('Ocultar gráfico') : 'Ocultar gráfico') : (window.I18n ? window.I18n.t('Mostrar gráfico') : 'Mostrar gráfico')}</span>
             </button>
             <div class="pf-positions-views" role="group" aria-label="Vista de posiciones">
               ${views.map(([key, label]) => `
-                <button class="pf-positions-view-btn ${PS.positionsView === key ? 'active' : ''}" type="button"
-                  data-pf-view="${key}" aria-pressed="${PS.positionsView === key}">
-                  ${label}
+                <button class="pf-positions-view-btn ${currentView === key ? 'active' : ''}" type="button"
+                  data-pf-view="${key}" aria-pressed="${currentView === key}">
+                  ${window.I18n ? window.I18n.t(label) : label}
                 </button>`).join('')}
             </div>
           </div>
         </div>
-        ${positionsTableHtml(PS.positionsView)}
-        ${gruposSectionHtml()}
+        ${contentHtml}
         <div class="pf-card-footer">
           <button class="pf-footer-link" type="button" data-pf-export>${window.I18n ? window.I18n.t('⇩ Exportar CSV') : '⇩ Exportar CSV'}</button>
         </div>
       </div>`;
   }
 
+  async function savePortfolioPreferences(patch) {
+    try {
+      const payload = await api('/api/watchlists/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (PS.data) {
+        PS.data.userPreferences = { ...(PS.data.userPreferences ?? {}), ...(payload?.preferences ?? patch) };
+      }
+      window.showToast?.('Preferencia guardada.');
+      rerenderKeepingScroll();
+    } catch (error) {
+      window.showToast?.(error.message || 'No se pudo guardar la preferencia.');
+    }
+  }
+
   function portfolioContentHtml() {
-    if (PS.portfolioTab === 'cartera') return `${allocationPanelHtml()}${PS.chartOpen ? chartPanelHtml() : ''}${positionsPanelHtml()}`;
+    const valueChartHtml = PS.valueChartOpen ? (window.PortfolioValueChart?.valueChartPanelHtml?.() ?? '') : '';
+    if (PS.portfolioTab === 'cartera') return `${allocationPanelHtml()}${valueChartHtml}${PS.chartOpen ? chartPanelHtml() : ''}${positionsPanelHtml()}`;
     if (PS.portfolioTab === 'dividendos') return dividendPanelHtml();
     if (PS.portfolioTab === 'operaciones') return operationsPanelHtml();
-    return `${allocationPanelHtml()}${PS.chartOpen ? chartPanelHtml() : ''}${positionsPanelHtml()}`;
+    return `${allocationPanelHtml()}${valueChartHtml}${PS.chartOpen ? chartPanelHtml() : ''}${positionsPanelHtml()}`;
   }
 
   function wirePortfolioDashboard(scope) {
@@ -106,9 +152,18 @@
         renderSection();
       });
     });
+    scope.querySelectorAll('[data-pf-table-tab]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const tab = button.dataset.pfTableTab;
+        if (tab === PS.positionsTab) return;
+        PS.positionsTab = tab;
+        rerenderKeepingScroll();
+      });
+    });
     scope.querySelectorAll('[data-pf-view]').forEach((button) => {
       button.addEventListener('click', () => {
         PS.positionsView = button.dataset.pfView;
+        PS.groupsView = button.dataset.pfView;
         rerenderKeepingScroll();
       });
     });
@@ -175,6 +230,53 @@
       return false;
     }
 
+    scope.querySelectorAll('[data-pf-value-chart-toggle]').forEach((el) => {
+      const activate = (event) => {
+        if (event.type === 'keydown') {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+        }
+        event.stopPropagation();
+        const chartModule = window.PortfolioValueChart;
+        const existing = PS.sectionRoot?.querySelector('[data-pf-value-chart]');
+        if (existing && chartModule?.isValueFullscreen?.(existing)) {
+          chartModule.toggleValueChartFullscreen(existing);
+          return;
+        }
+        PS.valueChartOpen = true;
+        PS.portfolioTab = 'cartera';
+        if (!existing) rerenderKeepingScroll();
+        const panel = PS.sectionRoot?.querySelector('[data-pf-value-chart]');
+        chartModule?.toggleValueChartFullscreen?.(panel);
+      };
+      el.addEventListener('click', activate);
+      el.addEventListener('keydown', activate);
+    });
+
+    scope.querySelectorAll('[data-pf-net-toggle]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const prefs = PS.data?.userPreferences ?? {};
+        savePortfolioPreferences({ dividendNetEnabled: !Boolean(prefs.dividendNetEnabled) });
+      });
+    });
+    scope.querySelectorAll('[data-pf-net-pct]').forEach((input) => {
+      input.addEventListener('click', (event) => event.stopPropagation());
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          input.blur();
+        }
+      });
+      input.addEventListener('change', () => {
+        const raw = Number(input.value);
+        const fallback = Number(PS.data?.userPreferences?.dividendWithholdingPct);
+        const value = Number.isFinite(raw) ? Math.min(100, Math.max(0, raw)) : (Number.isFinite(fallback) ? fallback : 20);
+        input.value = value;
+        savePortfolioPreferences({ dividendWithholdingPct: value });
+      });
+    });
+
     scope.querySelectorAll('[data-pf-chart-toggle]').forEach((button) => {
       button.addEventListener('click', () => {
         PS.chartOpen = !PS.chartOpen;
@@ -197,7 +299,21 @@
           } else if (PS.positionsView === 'current') {
             PS.chartSelectedIds = tickerChoices.filter((c) => c.id.endsWith(':buy')).slice(0, 20).map((c) => c.id);
           } else {
-            PS.chartSelectedIds = tickerChoices.slice(0, 20).map((c) => c.id);
+            const chosen = [];
+            const seenTickers = new Set();
+            for (const c of tickerChoices) {
+              if (c.id.endsWith(':all') && c.ticker && !seenTickers.has(c.ticker)) {
+                chosen.push(c.id);
+                seenTickers.add(c.ticker);
+              }
+            }
+            for (const c of tickerChoices) {
+              if (c.ticker && !seenTickers.has(c.ticker)) {
+                chosen.push(c.id);
+                seenTickers.add(c.ticker);
+              }
+            }
+            PS.chartSelectedIds = chosen.slice(0, 20);
           }
         } else if (mode === 'grupos') {
           const isCustom = PS.activeTab?.type === 'custom';
@@ -237,6 +353,7 @@
     wireAllocationHover(scope);
     wireGroupFeatures(scope);
     wirePortfolioChart(scope);
+    window.PortfolioValueChart?.wireValueChart?.(scope);
     wireDividendDashboard(scope);
     wireCalendarDashboard(scope);
   }

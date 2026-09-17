@@ -33,6 +33,7 @@ async function loadCompany() {
     renderCompanyWatchState();
     renderPriceChart();
     loadChart(chartRange);
+    window.loadStatementsPriceHistory?.();
     const portfolioRoot = document.querySelector('#portfolio-company-section');
     if (portfolioRoot?.dataset.ticker) {
       portfolioRoot.dataset.name = data.company?.name ?? companyTicker;

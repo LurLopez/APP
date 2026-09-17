@@ -22,6 +22,10 @@
       PCS.includeDividends = true;
     }
     if (options.range) PCS.range = options.range;
+    if (PCS.metric === 'portfolioValue') {
+      PCS.metric = 'gainPct';
+      PCS.selectedIds = PCS.selectedIds.filter((id) => !String(id).startsWith('portfolio:'));
+    }
 
     const panel = scope.querySelector('.pf-chart-panel');
     if (!panel) return;
@@ -73,6 +77,9 @@
           PCS.selectedIds = ids.slice(0, 20);
         }
         syncPickerChecked(panel);
+        if (typeof window.syncChartTriggerButtons === 'function') {
+          window.syncChartTriggerButtons(document);
+        }
         if (PCS.selectedIdsCallback) PCS.selectedIdsCallback(PCS.selectedIds);
         loadPortfolioChart(panel);
       });
@@ -87,10 +94,26 @@
         return;
       }
       PCS.selectedIds = checked.map((item) => item.value);
+
       input.closest('.pf-chart-choice')?.classList.toggle('selected', input.checked);
       syncPickerChecked(panel);
+      if (typeof window.syncChartTriggerButtons === 'function') {
+        window.syncChartTriggerButtons(document);
+      }
       if (PCS.selectedIdsCallback) PCS.selectedIdsCallback(PCS.selectedIds);
       loadPortfolioChart(panel);
+    });
+
+    panel.querySelectorAll('[data-pf-chart-clear]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        PCS.selectedIds = [];
+        syncPickerChecked(panel);
+        if (typeof window.syncChartTriggerButtons === 'function') {
+          window.syncChartTriggerButtons(document);
+        }
+        if (PCS.selectedIdsCallback) PCS.selectedIdsCallback([]);
+        loadPortfolioChart(panel);
+      });
     });
 
     panel.querySelector('[data-pf-chart-close]')?.addEventListener('click', () => {
@@ -125,7 +148,12 @@
       const selectedBase = event.target.value;
       syncCheckboxUi(selectedBase);
       PCS.metric = computeEffectiveMetric(selectedBase, PCS.includeDividends);
+      syncPickerChecked(panel);
+      if (typeof window.syncChartTriggerButtons === 'function') {
+        window.syncChartTriggerButtons(document);
+      }
       if (PCS.metricCallback) PCS.metricCallback(PCS.metric);
+      if (PCS.selectedIdsCallback) PCS.selectedIdsCallback(PCS.selectedIds);
       loadPortfolioChart(panel);
     });
 

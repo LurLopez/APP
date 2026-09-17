@@ -87,6 +87,12 @@
     const status = panel.querySelector('[data-pf-chart-status]');
     if (!status) return;
     if (!PCS.selectedIds.length) {
+      if (typeof window.syncChartTriggerButtons === 'function') {
+        window.syncChartTriggerButtons(document);
+      }
+      panel.querySelectorAll('[data-pf-chart-clear]').forEach((btn) => {
+        btn.style.display = 'none';
+      });
       status.textContent = 'Sin elementos seleccionados';
       const root = panel.querySelector('[data-pf-chart]');
       const legend = panel.querySelector('[data-pf-chart-legend]');
@@ -110,6 +116,9 @@
       PCS.sliceStart = start;
       PCS.sliceEnd = end;
       drawPortfolioChart(panel, payload.chart);
+      panel.querySelectorAll('[data-pf-chart-clear]').forEach((btn) => {
+        btn.style.display = '';
+      });
       status.textContent = `Yahoo Finance · ${payload.chart.points.length} sesiones`;
     } catch (error) {
       if (requestId === PCS.requestId) status.textContent = error.message || 'No se pudo cargar el histórico.';

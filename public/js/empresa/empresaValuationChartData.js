@@ -8,8 +8,9 @@ function formatValChartAxis(value, metricKey) {
   const number = Number(value);
   if (!Number.isFinite(number)) return '—';
   const metric = VAL_CHART_METRICS[metricKey] ?? VAL_CHART_METRICS.evEbitda;
-  if (metric.format === 'ratio') return `${number.toLocaleString('es-ES', { maximumFractionDigits: 2 })} %`;
-  return `${number.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`;
+  const locale = (window.I18n && window.I18n.localeFor && window.I18n.localeFor()) || 'es-ES';
+  if (metric.format === 'ratio') return `${number.toLocaleString(locale, { maximumFractionDigits: 2 })} %`;
+  return `${number.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`;
 }
 
 function formatValChartDate(dateString) {

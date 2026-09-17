@@ -158,8 +158,73 @@
       <h2>Por qué es importante para el inversor</h2>
       <p>El 10-Q es la primera mirada oficial a cómo evoluciona la empresa entre dos informes anuales. Para empresas de <a href="{{SITE_URL}}/guias/como-analizar-una-empresa-de-consumo-defensivo">consumo defensivo</a> —alimentos, bebidas, tabaco, productos del hogar— el patrón que interesa es la estabilidad: ingresos recurrentes, márgenes sostenibles y flujo de caja que financie dividendos y recompras de forma consistente. La guía de <a href="{{SITE_URL}}/guias/que-es-el-flujo-de-caja-libre">flujo de caja libre</a> explica cómo se calcula.</p>
 
-      <h2>El 10-Q en dos minutos con Cifra</h2>
-      <p>Cifra analiza el 10-Q con IA y extrae directamente lo importante: la variación de ventas y márgenes, el flujo de caja ajustado y lo que la empresa hace con el dinero en el bloque de <a href="{{SITE_URL}}/guias/que-es-la-asignacion-de-capital">asignación de capital</a>. Puedes ver ejemplos reales en las empresas con análisis disponibles o <a href="{{SITE_URL}}/">subir un informe en PDF</a>.</p>
+      <h2>Cómo analiza la IA de Cifra un informe 10-Q</h2>
+      <p>Cifra procesa los informes trimestrales 10-Q presentados ante la SEC mediante un sistema multi-agente especializado que extrae los datos XBRL oficiales y audita la salud de la compañía eliminando el ruido contable en tres fases estructuradas:</p>
+
+      <h3>1. Dos horizontes temporales obligatorios (en Q2 y Q3)</h3>
+      <p>Para neutralizar la estacionalidad propia del consumo y detectar a tiempo pérdidas de margen o frenazos comerciales, la IA divide el análisis en dos perspectivas independientes:</p>
+      <ul>
+        <li><strong>ÚLTIMOS 3 MESES:</strong> Aísla exclusivamente el rendimiento del trimestre fiscal cerrado, permitiendo detectar aceleración reciente o deterioro operativo en las últimas 13 semanas.</li>
+        <li><strong>EN TODO EL AÑO (Acumulado YTD):</strong> Evalúa el acumulado del año (6 meses en Q2, 9 meses en Q3) para comprobar si la empresa se mantiene en trayectoria de cumplir su guidance anual. En Q1 se analiza un único horizonte de 3 meses.</li>
+      </ul>
+
+      <h3>2. Los tres bloques cuantitativos del análisis</h3>
+      <ol>
+        <li><strong>Ventas y Rentabilidad (Cuenta de Resultados Normalizada):</strong> Tabla canónica de 6 columnas que audita ventas, beneficio bruto, beneficio operativo (EBIT), EBT y beneficio neto, junto con acciones vivas y BPA. Aplica reglas estrictas de normalización:
+          <ul>
+            <li><em>Reversión de deterioros (Impairments):</em> Se suman de vuelta al Beneficio Operativo y EBT las depreciaciones no monetarias de marcas o fondos de comercio para comparar la rentabilidad operativa limpia (*peras con peras*) frente al año anterior.</li>
+            <li><em>Normalización fiscal al 23%:</em> Si la tasa impositiva reportada se desvía más de ±20% del estándar por créditos extraordinarios o regularizaciones, se recalculan los impuestos al 23% sobre el EBT ajustado (<code>Beneficio Neto Ajustado = EBT Ajustado × 0,77</code>).</li>
+            <li><em>Herencia en Anterior Ajustado:</em> Si el año anterior no tuvo ajustes, toma forzosamente el valor reportado para calcular la variación porcentual real.</li>
+          </ul>
+        </li>
+        <li><strong>Cash Flow y Flujo de Caja Libre (Deducción Trimestral & Circulante):</strong> Evalúa la conversión del beneficio en liquidez real en 6 métricas (Cash Flow, CAPEX, FCF, FCF/Acción, Dividendos y Capital Libre). En la columna ajustada se corrigen tres cosas principalmente: el circulante, la compensación en stock options y los impuestos.
+          <ul>
+            <li><em>Deducción matemática trimestral:</em> Dado que la SEC solo exige publicar el acumulado en el 10-Q, la IA deduce el flujo exclusivo de los 3 meses restando el acumulado previo: <code>Flujo 3M = Flujo YTD(Qn) - Flujo YTD(Qn-1)</code>.</li>
+            <li><em>Normalización del circulante:</em> Compara el circulante reportado con el que el negocio debería haber necesitado según la fórmula de estimación <code>WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen)</code> y descuenta la diferencia. No es una ciencia cierta: es una aproximación propia para medir cuánto debería haber consumido o liberado el circulante.</li>
+            <li><em>Stock options (SBC):</em> La empresa suma de vuelta la compensación en acciones porque no sale caja, pero diluye al accionista y se concede con descuento. Por eso se descuenta un 120 % del valor de esa línea (el 100 % del apunte no monetario más un 20 % conservador por la dilución).</li>
+            <li><em>Conciliación fiscal de caja:</em> Se extraen los impuestos realmente pagados del estado de flujos y se comparan con el 23 % del EBT ajustado: si pagó de menos, la diferencia se descuenta del flujo de operaciones. Ejemplo real (TAP, 10-K 2025): debería haber pagado 322,6M y solo pagó 131,4M, así que se le restan 191,2M al Cash Flow ajustado.</li>
+          </ul>
+        </li>
+        <li><strong>Asignación de Capital (Cuadre Riguroso de Fuentes y Usos):</strong> Responde a de dónde salió el dinero en el trimestre y en qué se gastó:
+          <ul>
+            <li>Parte de la fila <strong>Libre</strong> (<code>FCF - Dividendos</code>) y reconcilia las variaciones del balance: Caja (con signo invertido), Deuda Balance (largo plazo + corto plazo financiero), Recompras de acciones, Inversiones a corto plazo, Adquisiciones (M&A) y Desinversiones (filtro ≥ 50M).</li>
+            <li>Calcula la suma <code>En total</code> y emite un veredicto objetivo: <em>cuadre razonable</em> o alerta de <em>descuadre significativo</em> que requiere análisis a fondo.</li>
+            <li>Incluye notas obligatorias con la comparativa exacta de deuda balance, deuda neta y saldos de caja.</li>
+          </ul>
+        </li>
+      </ol>
+
+      <h3>3. Ejemplo real: Kraft Heinz (KHC), Q2 2026</h3>
+      <p>Un informe de Cifra se divide en <strong>dos partes independientes</strong>: una con <strong>los últimos 3 meses</strong> y otra con <strong>todo lo que va de año</strong> (6 meses acumulados en un Q2). Cada parte contiene los tres bloques en el mismo orden, y la primera empieza por la cuenta de resultados:</p>
+
+      <figure class="guia-figure">
+        <img src="/imagenes/guias/khc-2026-q2-cuenta-3m.png?v=2" alt="Bloque 1 Ventas de los últimos 3 meses del informe real de Kraft Heinz Q2 2026, con las columnas Ajustado y Normal y las notas de deterioros e impuestos" width="1969" height="833">
+        <figcaption>Bloque «1. Ventas» de los últimos 3 meses del informe real de Kraft Heinz (Q2 2026).</figcaption>
+      </figure>
+
+      <p>La tabla compara el trimestre con el mismo del año anterior, pero la columna decisiva es <strong>«Ajustado»</strong>, porque en la cifra reportada («Normal») hay partidas que no reflejan la normalidad del negocio. Los dos ajustes principales de este informe son:</p>
+      <ul>
+        <li><strong>Deterioros de fondo de comercio (<em>goodwill</em>):</strong> el fondo de comercio es el sobreprecio pagado al comprar otra empresa por encima del valor de sus activos. Cuando ese negocio no rinde lo esperado, la empresa «deteriora» ese sobreprecio y la pérdida hunde el beneficio contable, aunque <em>no es un gasto real ni una salida de caja</em>: solo corrige un pago excesivo del pasado. Por eso se suma de vuelta (<code>Beneficio Operativo Ajustado = Normal + Deterioros</code>).</li>
+        <li><strong>Impuestos anómalos:</strong> algunos trimestres los impuestos pueden salir <strong>negativos</strong> (devoluciones o créditos fiscales), algo que no refleja la realidad: lo habitual es tributar entre el <strong>20 % y el 25 %</strong> del beneficio antes de impuestos. Cuando la desviación es alta, se normaliza al <strong>23 % del EBT Ajustado</strong> (<code>Beneficio Neto Ajustado = EBT Ajustado × 0,77</code>).</li>
+      </ul>
+      <p><strong>En el ejemplo:</strong> Kraft Heinz registró 7352M de deterioros en el trimestre (2441M de fondo de comercio y 4911M de intangibles), de modo que su beneficio operativo reportado fue -6431M y el ajustado 921M. En el mismo trimestre del año anterior hubo 9266M de deterioros, que también se suman en «Anterior Aj.» (-7974M + 9266M = 1292M) para comparar peras con peras: la caída real es del -28,72 %. En impuestos, el dato reportado fue -916M (desviación -508,1 %), así que se recalcula el 23 % sobre el EBT ajustado (976M × 0,23 = 224M) y el beneficio neto ajustado queda en 752M (-11,13 %).</p>
+
+      <figure class="guia-figure">
+        <img src="/imagenes/guias/khc-2026-q2-cashflow-3m.png?v=2" alt="Bloque 2 Cash Flow de los últimos 3 meses del informe KHC 2026 Q2, comparando la columna Normal y la Ajustada por circulante" width="1968" height="519">
+        <figcaption>Bloque «2. Cash Flow»: el beneficio convertido en caja real durante los 3 meses.</figcaption>
+      </figure>
+
+      <figure class="guia-figure">
+        <img src="/imagenes/guias/khc-2026-q2-asignacion-3m.png?v=2" alt="Bloque 3 Asignación de capital de los últimos 3 meses del informe KHC 2026 Q2, con fuentes y usos de caja y el veredicto de cuadre" width="1968" height="513">
+        <figcaption>Bloque «3. Asignación de Capital»: de dónde salió el dinero y en qué se gastó.</figcaption>
+      </figure>
+
+      <figure class="guia-figure">
+        <img src="/imagenes/guias/khc-2026-q2-cuenta-anual.png?v=2" alt="Bloque 1 Ventas del acumulado del año, 6 meses, del informe KHC 2026 Q2" width="1968" height="613">
+        <figcaption>La segunda parte repite la estructura con todo lo que va de año (6 meses).</figcaption>
+      </figure>
+
+      <p>Puedes ver el informe completo en el <a href="{{SITE_URL}}/informe/KHC/2026-Q2">análisis público de KHC 2026 Q2</a>, consultar la metodología completa y ejemplos interactivos en el apartado de <a href="{{SITE_URL}}/guias#analisis-ia/trimestral">Análisis con IA en las Guías de Cifra</a> o explorar análisis trimestrales reales en las <a href="{{SITE_URL}}/empresa">fichas de empresa</a>.</p>
 
       <section class="guia-faq">
         <h2>Preguntas frecuentes sobre el 10-Q</h2>

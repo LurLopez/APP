@@ -75,11 +75,28 @@ export const DEFAULT_USER_PREFERENCES = {
   portfolioNotifyEarnings: true,
   portfolioNotifyExdiv: true,
   portfolioNotifyPayout: true,
+  dividendWithholdingPct: 20,
+  dividendNetEnabled: false,
 };
 
 const ALLOWED_LANGUAGES = ['es', 'en'];
 
 const ALLOWED_THEMES = ['indigo', 'naranja'];
+
+export const DEFAULT_DIVIDEND_WITHHOLDING_PCT = 20;
+
+/**
+ * Normaliza el porcentaje de retención de dividendos al rango 0-100.
+ * @param {*} value - Valor recibido (número o texto).
+ * @returns {number} Porcentaje válido con dos decimales.
+ */
+export function normalizeWithholdingPct(value) {
+  if (value === null || value === undefined || value === '') return DEFAULT_DIVIDEND_WITHHOLDING_PCT;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return DEFAULT_DIVIDEND_WITHHOLDING_PCT;
+  const clamped = Math.min(100, Math.max(0, num));
+  return Math.round(clamped * 100) / 100;
+}
 
 function normalizeAppearancePrefs(prefs = {}) {
   const p = {};
@@ -102,7 +119,8 @@ export async function getUserPreferences(userId) {
   const { rows } = await query(
     `SELECT language, analysis_language, theme, dark_mode,
             watchlist_auto_calendar, watchlist_auto_notify, watchlist_notify_earnings, watchlist_notify_exdiv, watchlist_notify_payout,
-            portfolio_auto_notify, portfolio_notify_earnings, portfolio_notify_exdiv, portfolio_notify_payout
+            portfolio_auto_notify, portfolio_notify_earnings, portfolio_notify_exdiv, portfolio_notify_payout,
+            dividend_withholding_pct, dividend_net_enabled
      FROM user_preferences
      WHERE user_id = $1`,
     [userId],
@@ -123,6 +141,8 @@ export async function getUserPreferences(userId) {
     portfolioNotifyEarnings: Boolean(r.portfolio_notify_earnings),
     portfolioNotifyExdiv: Boolean(r.portfolio_notify_exdiv),
     portfolioNotifyPayout: Boolean(r.portfolio_notify_payout),
+    dividendWithholdingPct: normalizeWithholdingPct(r.dividend_withholding_pct),
+    dividendNetEnabled: Boolean(r.dividend_net_enabled),
   };
 }
 
@@ -136,9 +156,10 @@ export async function updateUserPreferences(userId, prefs = {}) {
        language, analysis_language, theme, dark_mode,
        watchlist_auto_calendar, watchlist_auto_notify, watchlist_notify_earnings, watchlist_notify_exdiv, watchlist_notify_payout,
        portfolio_auto_notify, portfolio_notify_earnings, portfolio_notify_exdiv, portfolio_notify_payout,
+       dividend_withholding_pct, dividend_net_enabled,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now())
      ON CONFLICT (user_id) DO UPDATE SET
        language = EXCLUDED.language,
        analysis_language = EXCLUDED.analysis_language,
@@ -153,6 +174,8 @@ export async function updateUserPreferences(userId, prefs = {}) {
        portfolio_notify_earnings = EXCLUDED.portfolio_notify_earnings,
        portfolio_notify_exdiv = EXCLUDED.portfolio_notify_exdiv,
        portfolio_notify_payout = EXCLUDED.portfolio_notify_payout,
+       dividend_withholding_pct = EXCLUDED.dividend_withholding_pct,
+       dividend_net_enabled = EXCLUDED.dividend_net_enabled,
        updated_at = now()
      RETURNING language, analysis_language AS "analysisLanguage", theme, dark_mode AS "darkMode",
                watchlist_auto_calendar AS "watchlistAutoCalendar",
@@ -163,7 +186,9 @@ export async function updateUserPreferences(userId, prefs = {}) {
                portfolio_auto_notify AS "portfolioAutoNotify",
                portfolio_notify_earnings AS "portfolioNotifyEarnings",
                portfolio_notify_exdiv AS "portfolioNotifyExdiv",
-               portfolio_notify_payout AS "portfolioNotifyPayout"`,
+               portfolio_notify_payout AS "portfolioNotifyPayout",
+               dividend_withholding_pct AS "dividendWithholdingPct",
+               dividend_net_enabled AS "dividendNetEnabled"`,
     [
       userId,
       appearance.language ?? 'es',
@@ -179,9 +204,16 @@ export async function updateUserPreferences(userId, prefs = {}) {
       Boolean(p.portfolioNotifyEarnings),
       Boolean(p.portfolioNotifyExdiv),
       Boolean(p.portfolioNotifyPayout),
+      normalizeWithholdingPct(p.dividendWithholdingPct),
+      Boolean(p.dividendNetEnabled),
     ],
   );
-  return rows[0] ?? { ...DEFAULT_USER_PREFERENCES };
+  if (!rows[0]) return { ...DEFAULT_USER_PREFERENCES };
+  return {
+    ...rows[0],
+    dividendWithholdingPct: normalizeWithholdingPct(rows[0].dividendWithholdingPct),
+    dividendNetEnabled: Boolean(rows[0].dividendNetEnabled),
+  };
 }
 
 export async function applyWatchlistAddDefaults(userId, ticker, companyName) {

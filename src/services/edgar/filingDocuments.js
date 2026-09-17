@@ -47,6 +47,54 @@ export async function ensureFilingsDir() {
 }
 
 /**
+ * Índice memoizado de los PDFs de filings ya generados/descargados en disco.
+ * Evita un `readdirSync` por petición en los limitadores de tasa.
+ */
+const CACHED_PDF_INDEX_TTL = 10 * 1000;
+let cachedPdfIndex = { names: null, at: 0 };
+
+function filingPdfIndex() {
+  const now = Date.now();
+  if (cachedPdfIndex.names && now - cachedPdfIndex.at <= CACHED_PDF_INDEX_TTL) {
+    return cachedPdfIndex.names;
+  }
+  let names = [];
+  try {
+    names = fs.readdirSync(FILINGS_DIR);
+  } catch {
+    names = [];
+  }
+  cachedPdfIndex = { names, at: now };
+  return names;
+}
+
+/**
+ * Indica si el PDF de un filing ya está en caché local (sirve sin invocar Chrome ni la SEC).
+ * @param {unknown} accession - Accession number (con o sin guiones).
+ * @returns {boolean} True si el PDF existe en disco.
+ */
+export function isFilingDocumentCached(accession) {
+  const acc = String(accession ?? '').replace(/[^\d]/g, '');
+  if (!acc) return false;
+  return filingPdfIndex().some((name) => name.endsWith(`-${acc}.pdf`));
+}
+
+/**
+ * Indica si las imágenes de vista previa de un filing ya están generadas en caché local.
+ * @param {unknown} accession - Accession number (con o sin guiones).
+ * @returns {boolean} True si hay al menos un PNG de preview en disco.
+ */
+export function isFilingPreviewCached(accession) {
+  const acc = String(accession ?? '').replace(/[^\d]/g, '');
+  if (!acc) return false;
+  try {
+    return fs.readdirSync(`${PREVIEWS_DIR}${acc}/`).some((name) => name.endsWith('.png'));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Genera el nombre de archivo amigable para el PDF de un filing.
  * @param {object} filing - Objeto filing.
  * @returns {string} Nombre del archivo.

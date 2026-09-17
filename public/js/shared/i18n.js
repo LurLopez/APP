@@ -14,8 +14,8 @@
   const SUPPORTED_LANGUAGES = ['es', 'en'];
   const LANGUAGE_STORAGE_KEY = 'cifra_language';
   const ANALYSIS_LANGUAGE_STORAGE_KEY = 'cifra_analysis_language';
-  const DICTIONARY_VERSION = '2';
-  const SKIP_SELECTOR = '[data-i18n-skip],script,style,noscript,textarea,code,pre,[contenteditable="true"]';
+  const DICTIONARY_VERSION = '8';
+  const SKIP_SELECTOR = '[data-i18n-skip],script,style,noscript,textarea,pre,code[data-i18n-skip],[contenteditable="true"]';
   const TRANSLATABLE_ATTRIBUTES = ['placeholder', 'title', 'aria-label', 'alt'];
 
   const SPANISH_OFFICIAL_COUNTRIES = [
@@ -509,7 +509,8 @@
 
   /**
    * Traduce un nodo de texto si su contenido exacto existe en el diccionario,
-   * o si coincide con una plantilla interpolada conocida.
+   * o si coincide con una plantilla interpolada conocida. Los nodos multilínea
+   * se buscan con los espacios internos colapsados, igual que el extractor.
    * @param {Text} node
    */
   function translateTextNode(node) {
@@ -519,16 +520,20 @@
     if (!trimmed) return;
     if (trimmed.toLowerCase() === 'cifra') return;
     const override = renderLanguageFor(node);
-    const translated = translateNodeText(trimmed, override);
-    if (translated !== trimmed) {
+    const collapsed = trimmed.replace(/\s+/g, ' ');
+    let translated = translateNodeText(collapsed, override);
+    if (translated === collapsed && collapsed !== trimmed) translated = translateNodeText(trimmed, override);
+    if (translated !== collapsed) {
       node.nodeValue = raw.replace(trimmed, translated);
       return;
     }
     // Fragmentos con prefijo de viñeta o símbolos («— texto», «• texto», «✓ texto», «⇩ texto», etc.)
     const bullet = trimmed.match(/^([—–\-·•✓✔⇩↓↑→←▲▼⚠️ℹ️🔍≥≤]\s*)(.+)$/);
     if (bullet) {
-      const inner = translateNodeText(bullet[2], override);
-      if (inner !== bullet[2]) {
+      const innerText = bullet[2].replace(/\s+/g, ' ');
+      let inner = translateNodeText(innerText, override);
+      if (inner === innerText) inner = translateNodeText(bullet[2], override);
+      if (inner !== innerText) {
         node.nodeValue = raw.replace(trimmed, bullet[1] + inner);
       }
     }
@@ -670,6 +675,21 @@
   }
 
   /**
+   * Devuelve el nombre corto del mes localizado («Ene»/«Jan») para los ejes de gráficos.
+   * @param {number} monthIndex - Mes 0-11.
+   * @param {string} [lang] - Idioma opcional.
+   * @returns {string}
+   */
+  function shortMonth(monthIndex, lang) {
+    const idx = Number(monthIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx > 11) return '';
+    const label = new Intl.DateTimeFormat(localeFor(lang || language), { month: 'short' })
+      .format(new Date(Date.UTC(2021, idx, 15)))
+      .replace('.', '');
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+
+  /**
    * Formatea un número con la configuración regional del idioma activo.
    * @param {number} value
    * @param {Intl.NumberFormatOptions} [options]
@@ -793,6 +813,8 @@
     getAnalysisLanguage,
     setAnalysisLanguage,
     normalizeLanguage,
+    localeFor,
+    shortMonth,
     formatNumber,
     formatPercent,
     formatDate,

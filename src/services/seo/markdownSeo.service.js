@@ -96,7 +96,8 @@ export async function getCompanyMarkdown(ticker, lang = 'es') {
       if (!formType) {
         formType = /annual|full year|10-?k/i.test(r.periodTitle || '') ? '10-K' : '10-Q';
       }
-      const repPrefix = isEn ? `${site}/en/informe` : `${site}/informe`;
+      const repLang = normalizeLanguage(r.language);
+      const repPrefix = repLang === 'en' ? `${site}/en/informe` : `${site}/informe`;
       const repUrl = `${repPrefix}/${encodeURIComponent(r.ticker)}/${slug}`;
       const reportTitle = isEn ? `Report ${formType} ${r.periodTitle ?? ''}` : `Informe ${formType} ${r.periodTitle ?? ''}`;
       lines.push(`- [${reportTitle}](${repUrl}) ([Markdown](${repUrl}.md))`);
@@ -147,10 +148,12 @@ export function buildReportMarkdown(row) {
     : (isAnnual ? `FY ${report.fiscalYear ?? ''}` : `Q${report.fiscalQuarter ?? ''} ${report.fiscalYear ?? ''}`);
   const site = config.siteUrl;
   const slug = buildReportSlug(row);
-  const canonicalUrl = `${site}/informe/${encodeURIComponent(ticker)}/${slug}`;
 
   const lines = [];
   const lang = normalizeLanguage(report.language);
+  const canonicalUrl = lang === 'en'
+    ? `${site}/en/informe/${encodeURIComponent(ticker)}/${slug}`
+    : `${site}/informe/${encodeURIComponent(ticker)}/${slug}`;
   lines.push(`# ${t('Informe {form} de {name} ({ticker}) — {period}', { form: formType, name, ticker, period: fyLabel }, lang)}`);
   lines.push('');
   lines.push(`> ${t('Empresa', null, lang)}: ${name} (${ticker})`);
@@ -291,7 +294,7 @@ export async function getPublicReportMarkdown(id) {
   return buildReportMarkdown(row);
 }
 
-export async function getPublicReportMarkdownBySlug(ticker, rawSlug, lang = 'es') {
+export async function getPublicReportMarkdownBySlug(ticker, rawSlug) {
   const cleanTicker = String(ticker || '').trim().toUpperCase();
   const normSlug = String(rawSlug || '').trim().toUpperCase().replace(/10-K/, '10K');
   let row = null;
@@ -302,11 +305,12 @@ export async function getPublicReportMarkdownBySlug(ticker, rawSlug, lang = 'es'
   }
   if (!row) return null;
 
-  if (row.report && lang) {
-    row.report = { ...row.report, language: lang };
-  }
-
   const canonicalSlug = buildReportSlug(row);
   const markdown = buildReportMarkdown(row);
-  return { markdown, canonicalSlug, ticker: String(row.ticker ?? cleanTicker).toUpperCase() };
+  return {
+    markdown,
+    canonicalSlug,
+    ticker: String(row.ticker ?? cleanTicker).toUpperCase(),
+    language: normalizeLanguage(row.report?.language ?? 'es'),
+  };
 }

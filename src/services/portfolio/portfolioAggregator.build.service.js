@@ -4,7 +4,7 @@
 
 import * as portfolioRepository from '../../../db/repositories/portfolioRepository.js';
 import { listCalendarTickers, getUserPreferences } from '../../../db/repositories/watchlistRepository.js';
-import { getMarketQuote, getDividendHistory } from '../market.service.js';
+import { getMarketQuote, getDividendHistory, getCompanyCalendar } from '../market.service.js';
 import { getCompanyOrigin, getCompanyFilings } from '../edgar.service.js';
 import { buildState, round } from './portfolioFifo.service.js';
 import { buildPortfolioDividends } from './portfolioDividends.service.js';
@@ -57,7 +57,7 @@ export async function getPortfolio(userId) {
     if (!current || date < current) minBuyDate.set(transaction.ticker, date);
   }
 
-  const [dividendMap, originMap, quoteMap, filingsMap] = await Promise.all([
+  const [dividendMap, originMap, quoteMap, filingsMap, calendarMap] = await Promise.all([
     Promise.all(tickers.map(async (ticker) => {
       try {
         const from = minBuyDate.get(ticker);
@@ -86,6 +86,13 @@ export async function getPortfolio(userId) {
         return [ticker, res?.filings ?? []];
       } catch {
         return [ticker, []];
+      }
+    })).then((entries) => new Map(entries)),
+    Promise.all(tickers.map(async (ticker) => {
+      try {
+        return [ticker, await getCompanyCalendar(ticker)];
+      } catch {
+        return [ticker, null];
       }
     })).then((entries) => new Map(entries)),
   ]);
@@ -248,7 +255,7 @@ export async function getPortfolio(userId) {
   }
 
   const dividendDashboardData = buildPortfolioDividends(positions, state, dividendMap, ttmFrom, now);
-  const { events: calendarEvents, companies: calendarCompanies } = buildPortfolioCalendarEvents(positions, calendarItems, dividendMap, filingsMap, quoteMap);
+  const { events: calendarEvents, companies: calendarCompanies } = buildPortfolioCalendarEvents(positions, calendarItems, dividendMap, filingsMap, quoteMap, calendarMap);
 
   return {
     summary: {

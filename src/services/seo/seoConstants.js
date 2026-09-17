@@ -60,8 +60,8 @@ export const GUIDES = [
   },
   {
     slug: 'que-es-un-informe-8-k',
-    title: '¿Qué es un informe 8-K y por qué es clave en los resultados trimestrales?',
-    titleEn: 'What is an 8-K report and why is it key in quarterly earnings?',
+    title: '¿Qué es un informe 8-K y por qué es clave?',
+    titleEn: 'What is an 8-K report and why is it key?',
     description: 'El 8-K es el informe de hechos relevantes de la SEC: qué contiene el Item 2.02, por qué incluye la presentación de resultados y cómo interpretarlo.',
     descriptionEn: 'The 8-K reports material corporate events to the SEC: what Item 2.02 contains, why it includes earnings presentations, and how to interpret it.',
   },
