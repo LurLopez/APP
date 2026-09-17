@@ -22,6 +22,7 @@
       window.PortfolioChart.selectedIds = PS.chartSelectedIds;
       window.PortfolioChart.open = PS.chartOpen;
       window.PortfolioChart.metric = PS.chartMetric;
+      window.PortfolioChart.includeDividends = PS.chartIncludeDividends;
       window.PortfolioChart.range = PS.chartRange;
     }
     return chartMod().wirePortfolioChart?.(scope, {
@@ -41,6 +42,7 @@
       },
       onMetricChange: (m) => {
         PS.chartMetric = m;
+        PS.chartIncludeDividends = m === 'gainWithDividendsPct' || m === 'gainWithDividendsAmount';
       }
     });
   }

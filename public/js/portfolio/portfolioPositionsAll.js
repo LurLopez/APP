@@ -54,6 +54,8 @@
         }
         return amount;
       },
+      peso: (item) => (item.value === null || item.value === undefined ? null : Number(item.value)),
+      grupos: (item) => (item.groups || []).map((g) => g.name).join(', ').toLowerCase(),
     };
     const positions = sortPositions(positionsForView('all'), sortGetters);
     const summary = PS.data?.summary ?? {};
@@ -87,6 +89,12 @@
       const statusBadge = sold
         ? `<span class="pf-status-badge ${held ? 'partial' : 'sold'}">${held ? 'Vendida parcial' : 'Vendida'}</span>`
         : '';
+      const chartButtonsHtml = (held && sold)
+        ? `${chartButtonHtml(`ticker:${item.ticker}:buy`)}${chartButtonHtml(`ticker:${item.ticker}:sell`)}`
+        : held
+          ? chartButtonHtml(`ticker:${item.ticker}:buy`)
+          : chartButtonHtml(`ticker:${item.ticker}:sell`);
+
       const companyCell = `
         <td class="pf-broker-company">
           ${portfolioLogoHtml(item)}
@@ -94,7 +102,7 @@
              <strong>${escapeHtml(item.companyName || item.ticker)}</strong>
              <small>${escapeHtml(item.ticker)}</small>
            </span>
-           ${chartButtonHtml(`ticker:${item.ticker}`)}
+           ${chartButtonsHtml}
            ${statusBadge}
         </td>`;
 
@@ -108,7 +116,7 @@
           rowsArr.push(`
             <tr class="pf-lot-row" hidden>
               <td class="pf-expand-cell"></td>
-              ${lotSoldDateCell(lot.date, sale.date, `lot:${lot.id}`)}
+              ${lotSoldDateCell(lot.date, sale.date, `lot:${lot.id}:sell:${sale.date}`)}
               <td>${fmtShares(sale.shares)}</td>
               ${costeCellHtml(cost, lot.price, 'coste')}
               <td>—</td><td>—</td>
@@ -125,7 +133,7 @@
           rowsArr.push(`
             <tr class="pf-lot-row" hidden>
               <td class="pf-expand-cell"></td>
-              ${lotDateCell(lot.date, 'En cartera', `lot:${lot.id}`)}
+              ${lotDateCell(lot.date, 'En cartera', `lot:${lot.id}:buy`)}
               <td>${fmtShares(lot.remaining)}</td>
               ${costeCellHtml(lot.heldCost, lot.price, 'coste')}
               ${toggleCellHtml('ganancia', lotGainPct, lotUnrealized, fmtSigned)}

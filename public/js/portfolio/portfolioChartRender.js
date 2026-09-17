@@ -23,7 +23,7 @@
       return;
     }
 
-    const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount';
+    const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsPct' || PCS.metric === 'gainWithDividendsAmount';
     const { isFs, width, height, pad, innerWidth, innerHeight } = getActiveChartGeometry(panel);
     const { min, max, ticks } = computeChartScale(values, isCenteredMetric, PCS.metric);
 

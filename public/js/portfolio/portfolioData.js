@@ -125,11 +125,14 @@
     return [...items].sort((a, b) => {
       const va = getter(a);
       const vb = getter(b);
-      const aNull = va === null || va === undefined || Number.isNaN(Number(va));
-      const bNull = vb === null || vb === undefined || Number.isNaN(Number(vb));
+      const aNull = va === null || va === undefined || (typeof va === 'number' && !Number.isFinite(va));
+      const bNull = vb === null || vb === undefined || (typeof vb === 'number' && !Number.isFinite(vb));
       if (aNull && bNull) return 0;
       if (aNull) return 1;
       if (bNull) return -1;
+      if (typeof va === 'string' && typeof vb === 'string') {
+        return va.localeCompare(vb, undefined, { sensitivity: 'base' }) * factor;
+      }
       if (va < vb) return -1 * factor;
       if (va > vb) return 1 * factor;
       return 0;

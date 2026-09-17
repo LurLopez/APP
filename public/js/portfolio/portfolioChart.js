@@ -53,6 +53,7 @@
       PCS.selectedIds = [];
       PCS.open = true;
       PCS.metric = 'gainPct';
+      PCS.includeDividends = false;
       PCS.range = '1y';
       PCS.requestId = 0;
       PCS.sliceStart = 0;
@@ -66,6 +67,8 @@
     set open(v) { PCS.open = Boolean(v); },
     get metric() { return PCS.metric; },
     set metric(v) { PCS.metric = v; },
+    get includeDividends() { return PCS.includeDividends; },
+    set includeDividends(v) { PCS.includeDividends = Boolean(v); },
     get range() { return PCS.range; },
     set range(v) { PCS.range = v; },
     get cachedData() { return PCS.cachedData; },

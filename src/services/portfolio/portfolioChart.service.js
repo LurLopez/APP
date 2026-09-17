@@ -9,7 +9,7 @@ import { getCompanyOrigin } from '../edgar.service.js';
 import { buildState, PortfolioError } from './portfolioFifo.service.js';
 import { regionForCountry, instrumentTypeLabel } from './portfolioAggregator.service.js';
 
-const CHART_METRICS = new Set(['gainAmount', 'gainPct', 'dividendYield', 'dividendYoc', 'weight']);
+const CHART_METRICS = new Set(['gainAmount', 'gainPct', 'gainWithDividendsAmount', 'gainWithDividendsPct', 'dividendYield', 'dividendYoc', 'weight']);
 const CHART_RANGES = new Set(['1m', '3m', '6m', '1y', '2y', '3y', '5y', 'all']);
 const RANGE_DAYS = { '1m': 31, '3m': 93, '6m': 186, '1y': 365, '2y': 730, '3y': 1095, '5y': 1825 };
 
@@ -20,19 +20,69 @@ function chartStartDate(range) {
   return date.toISOString().slice(0, 10);
 }
 
-function ttmDividendPerShare(dividends, fromDate, toDate) {
-  let perShare = 0;
-  for (const dividend of dividends) {
-    if (dividend.date >= fromDate && dividend.date <= toDate) perShare += dividend.amount;
+export function detectDividendFrequency(dividends) {
+  if (!dividends || dividends.length < 2) return 4;
+  const intervals = [];
+  for (let i = 1; i < dividends.length; i++) {
+    const days = (Date.parse(dividends[i].date) - Date.parse(dividends[i - 1].date)) / (1000 * 86400);
+    if (days >= 15) intervals.push(days);
   }
-  return perShare;
+  if (!intervals.length) return 4;
+  intervals.sort((a, b) => a - b);
+  const median = intervals[Math.floor(intervals.length / 2)];
+  if (median <= 45) return 12;
+  if (median <= 135) return 4;
+  if (median <= 250) return 2;
+  return 1;
 }
 
-function chartSeriesValue(metric, selectedLots, priceMaps, dividendMap, date, portfolioValue) {
+export function annualDividendRateAtDate(dividends, date, frequency = 4) {
+  if (!dividends || !dividends.length) return 0;
+  const past = dividends.filter((d) => d.date <= date);
+  if (!past.length) {
+    const first = dividends[0];
+    const diffDays = (Date.parse(first.date) - Date.parse(date)) / (1000 * 86400);
+    if (diffDays <= 365) return first.amount * frequency;
+    return 0;
+  }
+  const last = past[past.length - 1];
+  const daysSinceLast = (Date.parse(date) - Date.parse(last.date)) / (1000 * 86400);
+  if (daysSinceLast > 500) return 0;
+
+  let regularAmount = last.amount;
+  if (past.length >= 2) {
+    const prev = past[past.length - 2];
+    if (last.amount > prev.amount * 2.5) {
+      regularAmount = prev.amount;
+    }
+  }
+  return regularAmount * frequency;
+}
+
+export function lotDividendsReceived(dividends, lot, date) {
+  if (!dividends || !dividends.length || lot.date > date) return 0;
+  let total = 0;
+  for (const div of dividends) {
+    if (div.date < lot.date || div.date > date) continue;
+    let sharesOnDivDate = lot.shares;
+    for (const sale of lot.soldPortions ?? []) {
+      if (sale.sellDate <= div.date) {
+        sharesOnDivDate -= sale.shares;
+      }
+    }
+    if (sharesOnDivDate > 0) {
+      total += div.amount * sharesOnDivDate;
+    }
+  }
+  return total;
+}
+
+export function chartSeriesValue(metric, selectedLots, priceMaps, dividendMap, date, portfolioValue, frequencyMap) {
   let shares = 0;
   let cost = 0;
   let gain = 0;
   let annualDividends = 0;
+  let collectedDividends = 0;
   let frozen = false;
   let frozenValue = 0;
   let frozenGain = 0;
@@ -42,6 +92,8 @@ function chartSeriesValue(metric, selectedLots, priceMaps, dividendMap, date, po
   let pricedShares = 0;
   let realizedGain = 0;
   let realizedCost = 0;
+
+  const isDivGainMetric = metric === 'gainWithDividendsAmount' || metric === 'gainWithDividendsPct';
 
   for (const selected of selectedLots) {
     const { item, lot } = selected;
@@ -59,10 +111,13 @@ function chartSeriesValue(metric, selectedLots, priceMaps, dividendMap, date, po
     }
 
     const heldCost = lotShares * lot.price;
-    const dateObj = new Date(`${date}T00:00:00Z`);
-    dateObj.setUTCDate(dateObj.getUTCDate() - 365);
     const dividends = dividendMap.get(item.ticker) ?? [];
-    const divPerShare = ttmDividendPerShare(dividends, dateObj.toISOString().slice(0, 10), date);
+    const freq = frequencyMap?.get(item.ticker) ?? 4;
+    const divPerShare = annualDividendRateAtDate(dividends, date, freq);
+
+    if (isDivGainMetric) {
+      collectedDividends += lotDividendsReceived(dividends, lot, date);
+    }
 
     if (lotShares > 0) {
       shares += lotShares;
@@ -81,9 +136,7 @@ function chartSeriesValue(metric, selectedLots, priceMaps, dividendMap, date, po
         frozenCost += sale.shares * lot.price;
         frozenValue += sale.shares * sale.sellPrice;
         frozenGain += sale.shares * (sale.sellPrice - lot.price);
-        const saleDate = new Date(`${sale.sellDate}T00:00:00Z`);
-        saleDate.setUTCDate(saleDate.getUTCDate() - 365);
-        const saleDiv = ttmDividendPerShare(dividends, saleDate.toISOString().slice(0, 10), sale.sellDate);
+        const saleDiv = annualDividendRateAtDate(dividends, sale.sellDate, freq);
         frozenAnnual += saleDiv * sale.shares;
       }
     }
@@ -93,12 +146,16 @@ function chartSeriesValue(metric, selectedLots, priceMaps, dividendMap, date, po
     if (metric === 'weight') return 0;
     if (metric === 'gainAmount') return frozenGain;
     if (metric === 'gainPct') return frozenCost > 0 ? (frozenGain / frozenCost) * 100 : null;
+    if (metric === 'gainWithDividendsAmount') return frozenGain + collectedDividends;
+    if (metric === 'gainWithDividendsPct') return frozenCost > 0 ? ((frozenGain + collectedDividends) / frozenCost) * 100 : null;
     if (metric === 'dividendYield') return frozenValue > 0 ? (frozenAnnual / frozenValue) * 100 : null;
     if (metric === 'dividendYoc') return frozenCost > 0 ? (frozenAnnual / frozenCost) * 100 : null;
   }
 
   if (metric === 'gainAmount') return shares > 0 && pricedShares > 0 ? gain + realizedGain : null;
   if (metric === 'gainPct') return cost + realizedCost > 0 && pricedShares > 0 ? ((gain + realizedGain) / (cost + realizedCost)) * 100 : null;
+  if (metric === 'gainWithDividendsAmount') return shares > 0 && pricedShares > 0 ? gain + realizedGain + collectedDividends : null;
+  if (metric === 'gainWithDividendsPct') return cost + realizedCost > 0 && pricedShares > 0 ? ((gain + realizedGain + collectedDividends) / (cost + realizedCost)) * 100 : null;
   if (metric === 'dividendYield') return value > 0 ? (annualDividends / value) * 100 : null;
   if (metric === 'dividendYoc') return cost > 0 ? (annualDividends / cost) * 100 : null;
   return portfolioValue > 0 ? (value / portfolioValue) * 100 : 0;
@@ -169,11 +226,77 @@ export async function getPortfolioChart(userId, { ids, metric = 'gainPct', range
     if (!id) return null;
 
     if (id.startsWith('ticker:')) {
-      const ticker = id.slice(7).trim().toUpperCase();
+      const rest = id.slice(7).trim();
+      const parts = rest.split(':');
+      const ticker = parts[0].trim().toUpperCase();
+      const mode = parts[1]?.trim().toLowerCase(); // 'buy' or 'sell'
+
       const pos = state.find((item) => item.ticker.toUpperCase() === ticker);
       if (!pos) return null;
+
+      const hasHeld = (pos.heldShares ?? 0) > 0;
+      const hasSold = (pos.sharesSold ?? 0) > 0;
+
+      let effMode = mode;
+      if (!effMode) {
+        effMode = hasHeld && !hasSold ? 'buy' : (!hasHeld && hasSold ? 'sell' : 'buy');
+      }
+
+      if (effMode === 'buy' || effMode === 'held') {
+        const buyLots = pos.lots
+          .filter((l) => (l.remaining ?? 0) > 0)
+          .map((l) => ({
+            item: pos,
+            lot: {
+              id: l.id,
+              date: l.date,
+              price: l.price,
+              shares: l.remaining,
+              remaining: l.remaining,
+              soldPortions: [],
+            },
+          }));
+
+        if (!buyLots.length) return null;
+
+        return {
+          id: rawId,
+          label: `${pos.companyName || pos.ticker} (Compra)`,
+          sub: `${pos.ticker} · Compra (${pos.heldShares} acc)`,
+          color: null,
+          kind: 'ticker',
+          lots: buyLots,
+        };
+      }
+
+      if (effMode === 'sell' || effMode === 'sold') {
+        const sellLots = pos.lots
+          .flatMap((l) => (l.soldPortions ?? []).map((p, idx) => ({
+            item: pos,
+            lot: {
+              id: `${l.id}_sell_${idx}`,
+              date: l.date,
+              price: l.price,
+              shares: p.shares,
+              remaining: 0,
+              soldPortions: [p],
+            },
+          })));
+
+        if (!sellLots.length) return null;
+
+        return {
+          id: rawId,
+          label: `${pos.companyName || pos.ticker} (Venta)`,
+          sub: `${pos.ticker} · Venta (${pos.sharesSold} acc vendidas)`,
+          color: null,
+          kind: 'ticker',
+          lots: sellLots,
+        };
+      }
+
       return {
-        id: `ticker:${pos.ticker}`,
+        id: rawId,
         label: pos.companyName || pos.ticker,
         sub: pos.ticker,
         color: null,
@@ -183,18 +306,62 @@ export async function getPortfolioChart(userId, { ids, metric = 'gainPct', range
     }
 
     if (id.startsWith('lot:')) {
-      const lotId = id.slice(4).trim();
+      const rest = id.slice(4).trim();
+      const parts = rest.split(':');
+      const lotId = parts[0].trim();
+      const lotMode = parts[1]?.trim().toLowerCase(); // 'buy' or 'sell'
+      const saleDate = parts[2]?.trim();
+
       for (const pos of state) {
         const lot = pos.lots.find((l) => String(l.id) === lotId);
         if (lot) {
-          return {
-            id: `lot:${lot.id}`,
-            label: `${pos.companyName || pos.ticker} · Compra ${lot.date}`,
-            sub: `${pos.ticker} · ${lot.shares} acc @ $${lot.price}`,
-            color: null,
-            kind: 'lot',
-            lots: [{ item: pos, lot }],
-          };
+          if (lotMode === 'sell' || lotMode === 'sold') {
+            const portions = saleDate
+              ? (lot.soldPortions ?? []).filter((p) => p.sellDate === saleDate)
+              : (lot.soldPortions ?? []);
+            if (!portions.length) return null;
+            const sellLots = portions.map((p, idx) => ({
+              item: pos,
+              lot: {
+                id: `${lot.id}_sell_${idx}`,
+                date: lot.date,
+                price: lot.price,
+                shares: p.shares,
+                remaining: 0,
+                soldPortions: [p],
+              },
+            }));
+            const totalSoldShares = portions.reduce((s, p) => s + p.shares, 0);
+            const saleDateStr = saleDate || portions[0].sellDate;
+            return {
+              id: rawId,
+              label: `${pos.companyName || pos.ticker} (Venta) · Venta ${saleDateStr}`,
+              sub: `${pos.ticker} · ${totalSoldShares} acc @ $${portions[0].sellPrice}`,
+              color: null,
+              kind: 'lot',
+              lots: sellLots,
+            };
+          } else {
+            const heldShares = (lot.remaining ?? 0) > 0 ? lot.remaining : lot.shares;
+            return {
+              id: rawId,
+              label: `${pos.companyName || pos.ticker} (Compra) · Compra ${lot.date}`,
+              sub: `${pos.ticker} · ${heldShares} acc @ $${lot.price}`,
+              color: null,
+              kind: 'lot',
+              lots: [{
+                item: pos,
+                lot: {
+                  id: lot.id,
+                  date: lot.date,
+                  price: lot.price,
+                  shares: heldShares,
+                  remaining: heldShares,
+                  soldPortions: [],
+                },
+              }],
+            };
+          }
         }
       }
       return null;
@@ -271,6 +438,11 @@ export async function getPortfolioChart(userId, { ids, metric = 'gainPct', range
     priceMaps.set(ticker, filledMap);
   }
 
+  const frequencyMap = new Map();
+  for (const [ticker, divs] of tickerDividends) {
+    frequencyMap.set(ticker, detectDividendFrequency(divs));
+  }
+
   const dates = allHistoricalDates.filter((date) => !start || date >= start).slice(-4000);
   const valueForDate = (date) => state.reduce((sum, item) => {
     const price = priceMaps.get(item.ticker)?.get(date);
@@ -282,7 +454,7 @@ export async function getPortfolioChart(userId, { ids, metric = 'gainPct', range
     const portfolioVal = valueForDate(date);
     return {
       date,
-      series: resolved.map(({ lots }) => chartSeriesValue(metric, lots, priceMaps, tickerDividends, date, portfolioVal)),
+      series: resolved.map(({ lots }) => chartSeriesValue(metric, lots, priceMaps, tickerDividends, date, portfolioVal, frequencyMap)),
     };
   });
 

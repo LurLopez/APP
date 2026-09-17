@@ -35,6 +35,7 @@ window.PortfolioState = {
   groupPopover: null,
   groupPopoverContext: null,
   chartMetric: 'gainPct',
+  chartIncludeDividends: false,
   chartRange: '1y',
   chartSelectedIds: [],
   chartRequestId: 0,

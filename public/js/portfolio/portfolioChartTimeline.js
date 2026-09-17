@@ -78,7 +78,7 @@
     const validVals = vals.filter((v) => v !== null);
     if (!validVals.length) return;
 
-    const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount';
+    const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsPct' || PCS.metric === 'gainWithDividendsAmount';
     let min;
     let max;
 

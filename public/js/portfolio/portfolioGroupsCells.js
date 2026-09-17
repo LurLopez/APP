@@ -50,7 +50,7 @@
       entry.units.push(unit);
       byTicker.set(ticker, entry);
     }
-    return [...byTicker.values()].map(({ item, units }) => ({ item, totals: aggregateUnits(units) }));
+    return [...byTicker.values()].map(({ item, units }) => ({ item, totals: aggregateUnits(units), units }));
   }
 window.groupsModeToggleHtml = groupsModeToggleHtml;
 window.groupsCostCellHtml = groupsCostCellHtml;

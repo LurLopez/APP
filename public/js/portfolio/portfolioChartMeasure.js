@@ -41,7 +41,7 @@ function wirePortfolioChartMeasure(panel, canvasInner) {
       }
 
       const values = points.flatMap((p) => p.series).filter((v) => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
-      const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount';
+      const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsPct' || PCS.metric === 'gainWithDividendsAmount';
       const { min, max } = computeChartScale(values, isCenteredMetric, PCS.metric);
 
       const x1 = PCIS.measureStartSvgX;
@@ -109,9 +109,9 @@ function wirePortfolioChartMeasure(panel, canvasInner) {
       // Badge on SVG
       if (badge && badgeBg && badgeText) {
         let badgeStr = '';
-        if (PCS.metric === 'gainPct') {
+        if (PCS.metric === 'gainPct' || PCS.metric === 'gainWithDividendsPct') {
           badgeStr = `${fmtSignedPct(deltaVal)} · ${diffDays}d`;
-        } else if (PCS.metric === 'gainAmount') {
+        } else if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount') {
           badgeStr = `${fmtSigned(deltaVal)} · ${diffDays}d`;
         } else {
           badgeStr = `${fmtSignedPct(deltaVal)} · ${diffDays}d`;
@@ -139,8 +139,8 @@ function wirePortfolioChartMeasure(panel, canvasInner) {
 
       const valClass = deltaVal > 0 ? 'positive' : deltaVal < 0 ? 'negative' : '';
       let deltaFormatted = '';
-      if (PCS.metric === 'gainPct') deltaFormatted = fmtSignedPct(deltaVal);
-      else if (PCS.metric === 'gainAmount') deltaFormatted = fmtSigned(deltaVal);
+      if (PCS.metric === 'gainPct' || PCS.metric === 'gainWithDividendsPct') deltaFormatted = fmtSignedPct(deltaVal);
+      else if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount') deltaFormatted = fmtSigned(deltaVal);
       else deltaFormatted = fmtSignedPct(deltaVal);
 
       tip.innerHTML = `

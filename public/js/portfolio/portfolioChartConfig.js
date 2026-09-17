@@ -21,15 +21,41 @@
 
     // 1. Tickers (Valores)
     for (const item of positions) {
-      choices.push({
-        id: `ticker:${item.ticker}`,
-        label: item.companyName || item.ticker,
-        sub: `${item.ticker} · ${fmtShares(item.shares)} acc`,
-        ticker: item.ticker,
-        kind: 'ticker',
-        category: 'valores',
-        categoryLabel: 'Valores',
-      });
+      const held = (Number(item.shares) || 0) > 0;
+      const sold = (Number(item.sharesSold) || 0) > 0;
+      if (held) {
+        choices.push({
+          id: `ticker:${item.ticker}:buy`,
+          label: `${item.companyName || item.ticker} (Compra)`,
+          sub: `${item.ticker} · Compra (${fmtShares(item.shares)} acc)`,
+          ticker: item.ticker,
+          kind: 'ticker',
+          category: 'valores',
+          categoryLabel: 'Valores',
+        });
+      }
+      if (sold) {
+        choices.push({
+          id: `ticker:${item.ticker}:sell`,
+          label: `${item.companyName || item.ticker} (Venta)`,
+          sub: `${item.ticker} · Venta (${fmtShares(item.sharesSold)} acc vendidas)`,
+          ticker: item.ticker,
+          kind: 'ticker',
+          category: 'valores',
+          categoryLabel: 'Valores',
+        });
+      }
+      if (!held && !sold) {
+        choices.push({
+          id: `ticker:${item.ticker}`,
+          label: item.companyName || item.ticker,
+          sub: item.ticker,
+          ticker: item.ticker,
+          kind: 'ticker',
+          category: 'valores',
+          categoryLabel: 'Valores',
+        });
+      }
     }
 
     // 2. Grupos personalizados
@@ -73,18 +99,31 @@
       }
     }
 
-    // 4. Lotes de compra
+    // 4. Lotes de compra y venta
     for (const item of positions) {
       for (const lot of item.lots ?? []) {
-        choices.push({
-          id: `lot:${lot.id}`,
-          label: `${item.companyName || item.ticker} · Compra ${fmtDate(lot.date)}`,
-          sub: `${item.ticker} · ${fmtShares(lot.shares)} acc @ ${fmtPrice(lot.price)}`,
-          ticker: item.ticker,
-          kind: 'lot',
-          category: 'lotes',
-          categoryLabel: 'Lotes de compra',
-        });
+        if ((lot.remaining ?? 0) > 0) {
+          choices.push({
+            id: `lot:${lot.id}:buy`,
+            label: `${item.companyName || item.ticker} (Compra) · Compra ${fmtDate(lot.date)}`,
+            sub: `${item.ticker} · ${fmtShares(lot.remaining)} acc @ ${fmtPrice(lot.price)}`,
+            ticker: item.ticker,
+            kind: 'lot',
+            category: 'lotes',
+            categoryLabel: 'Lotes de compra',
+          });
+        }
+        for (const sale of lot.sales ?? []) {
+          choices.push({
+            id: `lot:${lot.id}:sell:${sale.date}`,
+            label: `${item.companyName || item.ticker} (Venta) · Venta ${fmtDate(sale.date)}`,
+            sub: `${item.ticker} · ${fmtShares(sale.shares)} acc @ ${fmtPrice(sale.price)}`,
+            ticker: item.ticker,
+            kind: 'lot',
+            category: 'lotes',
+            categoryLabel: 'Lotes vendidos',
+          });
+        }
       }
     }
 
@@ -94,13 +133,18 @@
   function chartButtonHtml(id) {
     const isGroup = String(id).startsWith('group:');
     const isLot = String(id).startsWith('lot:');
-    const label = isGroup ? 'grupo' : isLot ? 'lote' : 'valor';
+    const isBuy = String(id).includes(':buy');
+    const isSell = String(id).includes(':sell');
+    let label = isGroup ? 'grupo' : isLot ? 'lote' : 'valor';
+    if (isBuy) label += ' (compra)';
+    else if (isSell) label += ' (venta)';
     const isSelected = PCS.selectedIds.includes(String(id));
     const title = isSelected ? `Quitar ${label} del gráfico` : `Mostrar ${label} en el gráfico`;
     const iconSvg = isSelected
       ? `<svg viewBox="0 0 20 20" aria-hidden="true" class="pf-icon-remove"><path d="M5 5l10 10M15 5L5 15"/></svg>`
       : `<svg viewBox="0 0 20 20" aria-hidden="true" class="pf-icon-add"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg>`;
-    return `<button class="pf-chart-trigger ${isSelected ? 'active' : ''}" type="button" data-pf-chart-trigger="${escapeHtml(id)}" aria-pressed="${isSelected}" aria-label="${title}" title="${title}">${iconSvg}</button>`;
+    const extraClass = isBuy ? 'pf-chart-trigger-buy' : isSell ? 'pf-chart-trigger-sell' : '';
+    return `<button class="pf-chart-trigger ${extraClass} ${isSelected ? 'active' : ''}" type="button" data-pf-chart-trigger="${escapeHtml(id)}" aria-pressed="${isSelected}" aria-label="${title}" title="${title}">${iconSvg}</button>`;
   }
 
   function syncChartTriggerButtons(scope = document) {
@@ -112,7 +156,11 @@
       const isSelected = selectedSet.has(id);
       const isGroup = id.startsWith('group:');
       const isLot = id.startsWith('lot:');
-      const label = isGroup ? 'grupo' : isLot ? 'lote' : 'valor';
+      const isBuy = id.includes(':buy');
+      const isSell = id.includes(':sell');
+      let label = isGroup ? 'grupo' : isLot ? 'lote' : 'valor';
+      if (isBuy) label += ' (compra)';
+      else if (isSell) label += ' (venta)';
       const title = isSelected ? `Quitar ${label} del gráfico` : `Mostrar ${label} en el gráfico`;
 
       button.classList.toggle('active', isSelected);
@@ -140,7 +188,12 @@
     const choicesHtml = choices.map((choice) => {
       const isChecked = selected.has(choice.id);
       const dotColor = choice.color || (choice.kind === 'ticker' ? '#2563eb' : '#64748b');
-      const badgeText = choice.category === 'valores' ? 'Valor' : choice.category === 'grupos' ? 'Grupo' : 'Lote';
+      let badgeText = choice.category === 'valores' ? 'Valor' : choice.category === 'grupos' ? 'Grupo' : 'Lote';
+      if (choice.id.endsWith(':buy') || choice.id.includes(':buy')) {
+        badgeText += ' (Compra)';
+      } else if (choice.id.endsWith(':sell') || choice.id.includes(':sell')) {
+        badgeText += ' (Venta)';
+      }
       return `
         <label class="pf-chart-choice ${isChecked ? 'selected' : ''}" data-choice-category="${choice.category}" data-choice-search="${escapeHtml((choice.label + ' ' + (choice.sub || '')).toLowerCase())}">
           <input type="checkbox" value="${escapeHtml(choice.id)}" ${isChecked ? 'checked' : ''}>
@@ -153,6 +206,14 @@
         </label>`;
     }).join('');
 
+    const baseMetric = (PCS.metric === 'gainWithDividendsPct' || PCS.metric === 'gainPct')
+      ? 'gainPct'
+      : (PCS.metric === 'gainWithDividendsAmount' || PCS.metric === 'gainAmount')
+        ? 'gainAmount'
+        : PCS.metric;
+    const isGainMetric = baseMetric === 'gainPct' || baseMetric === 'gainAmount';
+    const isDividendsIncluded = Boolean(PCS.includeDividends || PCS.metric === 'gainWithDividendsPct' || PCS.metric === 'gainWithDividendsAmount');
+
     return `<div class="pf-chart-panel">
       <div class="pf-card-head pf-chart-head">
         <div class="pf-chart-title-wrap">
@@ -162,9 +223,13 @@
         <div class="pf-chart-controls">
           <div class="pf-metric-wrap">
             <select class="pf-select pf-chart-metric-select" data-pf-chart-metric aria-label="Métrica del gráfico">
-              ${CHART_METRICS.map(([key, label]) => `<option value="${key}" ${PCS.metric === key ? 'selected' : ''}>${label}</option>`).join('')}
+              ${CHART_METRICS.map(([key, label]) => `<option value="${key}" ${baseMetric === key ? 'selected' : ''}>${label}</option>`).join('')}
             </select>
           </div>
+          <label class="pf-chart-checkbox ${isDividendsIncluded ? 'checked' : ''}" data-pf-include-dividends-wrap title="Incluir dividendos cobrados en la rentabilidad" style="${isGainMetric ? '' : 'display:none;'}">
+            <input type="checkbox" data-pf-include-dividends ${isDividendsIncluded ? 'checked' : ''}>
+            <span>Incluir dividendos</span>
+          </label>
           <div class="pf-range-pills" role="group" aria-label="Rango temporal">
             ${rangePillsHtml}
           </div>

@@ -47,7 +47,7 @@
         }
         return amount;
       },
-      peso: (item) => Number(item.value),
+      peso: (item) => (item.value === null || item.value === undefined ? null : Number(item.value)),
       divpct: (item) => {
         const annual = Number(item.projectedAnnualDividends) || 0;
         if (!modeIsPct('divpct')) return annual;
@@ -65,6 +65,7 @@
         const shares = Number(item.shares) || 0;
         return (PS.displayMode.divcobrados ?? 'total') === 'total' ? total : (shares > 0 ? total / shares : 0);
       },
+      grupos: (item) => (item.groups || []).map((g) => g.name).join(', ').toLowerCase(),
     };
     const positions = sortPositions(positionsForView('current'), sortGetters);
     const summary = PS.data?.summary ?? {};
@@ -101,7 +102,7 @@
           return `
             <tr class="pf-lot-row" hidden data-buy-id="${escapeHtml(lot.id)}">
               <td class="pf-expand-cell"></td>
-              ${lotDateCell(lot.date, null, `lot:${lot.id}`)}
+              ${lotDateCell(lot.date, null, `lot:${lot.id}:buy`)}
               <td>${fmtShares(lot.remaining)}</td>
               ${costeCellHtml(lot.heldCost, lot.price)}
               ${toggleCellHtml('ganancia', lotGainPct, lot.heldUnrealized, fmtSigned)}
@@ -117,7 +118,7 @@
       return `
         <tr data-ticker="${escapeHtml(item.ticker)}" tabindex="0">
           ${positionExpandCell(item)}
-          ${positionCompanyCell(item)}
+          ${positionCompanyCell(item, 'current')}
           <td>${fmtShares(item.shares)}</td>
           ${costeCellHtml(item.costBasis, item.avgCost)}
           ${toggleCellHtml('ganancia', gainPercent, item.unrealizedGross, fmtSigned)}
@@ -190,6 +191,8 @@
         const sold = Number(item.sharesSold) || 0;
         return (PS.displayMode.divcobrados ?? 'total') === 'total' ? total : (sold > 0 ? total / sold : 0);
       },
+      peso: (item) => (Number(item.soldProceeds) || 0),
+      grupos: (item) => (item.groups || []).map((g) => g.name).join(', ').toLowerCase(),
     };
     const positions = sortPositions(positionsForView('sold'), sortGetters);
     const totals = positions.reduce((acc, item) => {
@@ -215,7 +218,7 @@
         return `
           <tr class="pf-lot-row" hidden>
             <td class="pf-expand-cell"></td>
-            ${lotSoldDateCell(lot.date, sale.date, `lot:${lot.id}`)}
+            ${lotSoldDateCell(lot.date, sale.date, `lot:${lot.id}:sell:${sale.date}`)}
             <td>${fmtShares(sale.shares)}</td>
             ${costeCellHtml(cost, lot.price)}
             ${costeCellHtml(sale.proceeds, sale.price, 'ingresos')}
@@ -227,7 +230,7 @@
       return `
         <tr data-ticker="${escapeHtml(item.ticker)}" tabindex="0">
           ${positionExpandCell(item)}
-          ${positionCompanyCell(item)}
+          ${positionCompanyCell(item, 'sold')}
           <td>${fmtShares(item.sharesSold)}</td>
           ${costeCellHtml(soldCost, soldAvgCostOf(item))}
           ${costeCellHtml(item.soldProceeds, (Number(item.sharesSold) || 0) > 0 ? Number(item.soldProceeds) / (Number(item.sharesSold) || 0) : null, 'ingresos')}

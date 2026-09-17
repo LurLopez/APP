@@ -34,7 +34,7 @@ function wirePortfolioChartComparison(panel, canvasInner) {
 
       const { width, height, pad, innerWidth, innerHeight } = getActiveChartGeometry(panel);
       const values = points.flatMap((p) => p.series).filter((v) => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
-      const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount';
+      const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsPct' || PCS.metric === 'gainWithDividendsAmount';
       const { min, max } = computeChartScale(values, isCenteredMetric, PCS.metric);
 
       const x = (idx) => pad.left + (idx / Math.max(1, points.length - 1)) * innerWidth;

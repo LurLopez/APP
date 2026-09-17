@@ -29,7 +29,7 @@
     });
     scope.querySelectorAll('.pf-g-groups-table th[data-sort-key]').forEach((th) => {
       th.addEventListener('click', () => {
-        const key = th.dataset.PS.sortKey;
+        const key = th.dataset.sortKey;
         if (PS.groupsSortKey === key) {
           PS.groupsSortDir = PS.groupsSortDir === 'desc' ? 'asc' : 'desc';
         } else {

@@ -6,6 +6,7 @@
 
 window.PortfolioChartState = {
   metric: 'gainPct',
+  includeDividends: false,
   range: '1y',
   selectedIds: [],
   requestId: 0,

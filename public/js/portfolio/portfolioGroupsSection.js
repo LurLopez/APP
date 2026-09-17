@@ -250,13 +250,24 @@
     const key = String(group.id);
     const actions = groupSublineActions(PS.activeTab, group, PS.groupsView);
     const totalValue = Number(PS.data?.summary?.totalValue) || 0;
-    return actions.map(({ item, totals }) => {
+    return actions.map(({ item, totals, units }) => {
       const gainPercent = totals.cost > 0 ? (totals.gain / totals.cost) * 100 : null;
       const gainWithDividends = totals.gain + totals.dividends;
       const gainWithDividendsPct = totals.cost > 0 ? (gainWithDividends / totals.cost) * 100 : null;
       const weight = totalValue > 0 ? (totals.value / totalValue) * 100 : null;
       const dividendYield = totals.value > 0 ? (totals.annual / totals.value) * 100 : null;
       const dividendYoc = totals.cost > 0 ? (totals.annual / totals.cost) * 100 : null;
+      const hasHeld = (units ?? []).some((u) => u.kind === 'held');
+      const hasSold = (units ?? []).some((u) => u.kind === 'sold');
+      const chartButtonsHtml = (PS.groupsView === 'sold')
+        ? chartButtonHtml(`ticker:${item.ticker}:sell`)
+        : (PS.groupsView === 'current')
+          ? chartButtonHtml(`ticker:${item.ticker}:buy`)
+          : (hasHeld && hasSold)
+            ? `${chartButtonHtml(`ticker:${item.ticker}:buy`)}${chartButtonHtml(`ticker:${item.ticker}:sell`)}`
+            : hasSold
+              ? chartButtonHtml(`ticker:${item.ticker}:sell`)
+              : chartButtonHtml(`ticker:${item.ticker}:buy`);
       return `
         <tr class="pf-lot-row pf-group-subline" data-pf-group-subline="${escapeHtml(key)}" data-ticker="${escapeHtml(item.ticker)}" ${expanded ? '' : 'hidden'}>
           <td class="pf-expand-cell"></td>
@@ -266,7 +277,7 @@
              <strong>${escapeHtml(item.companyName || item.ticker)}</strong>
              <small>${escapeHtml(item.ticker)}</small>
            </span>
-           ${chartButtonHtml(`ticker:${item.ticker}`)}
+           ${chartButtonsHtml}
          </td>
           <td>${fmtShares(totals.shares)}</td>
           ${groupsCostCellHtml(totals.cost)}

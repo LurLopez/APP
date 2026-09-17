@@ -114,7 +114,7 @@
     });
     scope.querySelectorAll('.pf-broker-table:not(.pf-g-members-table):not(.pf-g-groups-table) th[data-sort-key]').forEach((th) => {
       th.addEventListener('click', () => {
-        const key = th.dataset.PS.sortKey;
+        const key = th.dataset.sortKey;
         if (PS.sortKey === key) {
           PS.sortDir = PS.sortDir === 'desc' ? 'asc' : 'desc';
         } else {
@@ -191,7 +191,14 @@
         const mode = button.dataset.pfChartShowAll;
         const allChoices = chartChoices();
         if (mode === 'valores') {
-          PS.chartSelectedIds = allChoices.filter((c) => c.kind === 'ticker').slice(0, 20).map((c) => c.id);
+          const tickerChoices = allChoices.filter((c) => c.kind === 'ticker');
+          if (PS.positionsView === 'sold') {
+            PS.chartSelectedIds = tickerChoices.filter((c) => c.id.endsWith(':sell')).slice(0, 20).map((c) => c.id);
+          } else if (PS.positionsView === 'current') {
+            PS.chartSelectedIds = tickerChoices.filter((c) => c.id.endsWith(':buy')).slice(0, 20).map((c) => c.id);
+          } else {
+            PS.chartSelectedIds = tickerChoices.slice(0, 20).map((c) => c.id);
+          }
         } else if (mode === 'grupos') {
           const isCustom = PS.activeTab?.type === 'custom';
           const isPredefined = PS.activeTab?.type === 'predefined';

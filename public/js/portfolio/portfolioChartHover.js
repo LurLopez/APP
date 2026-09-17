@@ -43,7 +43,7 @@ function wirePortfolioChartHover(panel, canvasInner) {
       if (!point) return;
 
       const values = points.flatMap((p) => p.series).filter((v) => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
-      const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount';
+      const isCenteredMetric = PCS.metric === 'gainPct' || PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsPct' || PCS.metric === 'gainWithDividendsAmount';
       const { min, max } = computeChartScale(values, isCenteredMetric, PCS.metric);
 
       const x = (idx) => pad.left + (idx / Math.max(1, points.length - 1)) * innerWidth;

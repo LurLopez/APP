@@ -27,7 +27,7 @@
       const maxVal = Math.max(...values, 0);
       const span = Math.max(maxVal - minVal, 0.001);
       if (span <= 0.001) {
-        const bound = metric === 'gainAmount' ? 50 : 5;
+        const bound = (metric === 'gainAmount' || metric === 'gainWithDividendsAmount') ? 50 : 5;
         return { min: -bound, max: bound, ticks: [-bound, -bound / 2, 0, bound / 2, bound], step: bound / 2 };
       }
       const targetStep = (span * 1.08) / 5;
@@ -79,8 +79,8 @@
 
   function chartFormat(value) {
     if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
-    if (PCS.metric === 'gainPct') return fmtSignedPct(value);
-    if (PCS.metric === 'gainAmount') return fmtSigned(value);
+    if (PCS.metric === 'gainPct' || PCS.metric === 'gainWithDividendsPct') return fmtSignedPct(value);
+    if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount') return fmtSigned(value);
     return fmtPct(value);
   }
 
@@ -88,12 +88,12 @@
     if (!Number.isFinite(Number(value))) return '—';
     const num = Math.abs(value) < 1e-9 ? 0 : Number(value);
     const formatted = formatNumber(Math.abs(num), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-    if (PCS.metric === 'gainAmount') {
+    if (PCS.metric === 'gainAmount' || PCS.metric === 'gainWithDividendsAmount') {
       if (num > 0) return `+$${formatted}`;
       if (num < 0) return `-$${formatted}`;
       return `$${formatted}`;
     }
-    if (PCS.metric === 'gainPct') {
+    if (PCS.metric === 'gainPct' || PCS.metric === 'gainWithDividendsPct') {
       if (num > 0) return `+${formatted} %`;
       if (num < 0) return `-${formatted} %`;
       return `${formatted} %`;

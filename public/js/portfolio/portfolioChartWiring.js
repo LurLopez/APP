@@ -16,7 +16,11 @@
     if (options.onMetricChange) PCS.metricCallback = options.onMetricChange;
     if (Array.isArray(options.selectedIds)) PCS.selectedIds = options.selectedIds;
     if (options.open !== undefined) PCS.open = Boolean(options.open);
+    if (options.includeDividends !== undefined) PCS.includeDividends = Boolean(options.includeDividends);
     if (options.metric) PCS.metric = options.metric;
+    if (PCS.metric === 'gainWithDividendsPct' || PCS.metric === 'gainWithDividendsAmount') {
+      PCS.includeDividends = true;
+    }
     if (options.range) PCS.range = options.range;
 
     const panel = scope.querySelector('.pf-chart-panel');
@@ -97,8 +101,39 @@
       }
     });
 
-    panel.querySelector('[data-pf-chart-metric]')?.addEventListener('change', (event) => {
-      PCS.metric = event.target.value;
+    const metricSelect = panel.querySelector('[data-pf-chart-metric]');
+    const divWrap = panel.querySelector('[data-pf-include-dividends-wrap]');
+    const divCheckbox = panel.querySelector('[data-pf-include-dividends]');
+
+    const computeEffectiveMetric = (base, includeDivs) => {
+      if (base === 'gainPct') return includeDivs ? 'gainWithDividendsPct' : 'gainPct';
+      if (base === 'gainAmount') return includeDivs ? 'gainWithDividendsAmount' : 'gainAmount';
+      return base;
+    };
+
+    const syncCheckboxUi = (base) => {
+      const isGain = base === 'gainPct' || base === 'gainAmount';
+      if (divWrap) {
+        divWrap.style.display = isGain ? 'inline-flex' : 'none';
+        const isChecked = Boolean(PCS.includeDividends);
+        divWrap.classList.toggle('checked', isChecked);
+        if (divCheckbox) divCheckbox.checked = isChecked;
+      }
+    };
+
+    metricSelect?.addEventListener('change', (event) => {
+      const selectedBase = event.target.value;
+      syncCheckboxUi(selectedBase);
+      PCS.metric = computeEffectiveMetric(selectedBase, PCS.includeDividends);
+      if (PCS.metricCallback) PCS.metricCallback(PCS.metric);
+      loadPortfolioChart(panel);
+    });
+
+    divCheckbox?.addEventListener('change', (event) => {
+      PCS.includeDividends = event.target.checked;
+      divWrap?.classList.toggle('checked', PCS.includeDividends);
+      const currentBase = metricSelect?.value || 'gainPct';
+      PCS.metric = computeEffectiveMetric(currentBase, PCS.includeDividends);
       if (PCS.metricCallback) PCS.metricCallback(PCS.metric);
       loadPortfolioChart(panel);
     });
