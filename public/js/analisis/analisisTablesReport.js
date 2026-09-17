@@ -24,8 +24,8 @@
     return `
       <div class="sec-extract-card">
         <div class="sec-extract-head">
-          <span class="sec-extract-tag">EXTRACTO OFICIAL SEC</span>
-          <strong class="sec-extract-title">${escapeHtml(snippet.title || 'Información Oficial SEC')}</strong>
+          <span class="sec-extract-tag">${tr('EXTRACTO OFICIAL SEC')}</span>
+          <strong class="sec-extract-title">${escapeHtml(snippet.title || tr('Información Oficial SEC'))}</strong>
         </div>
         <div class="sec-table-wrap"><table class="sec-table">${thead}<tbody>${tbody}</tbody></table></div>
       </div>
@@ -80,19 +80,27 @@
     return null;
   }
 
+  function tr(text, params) {
+    const i18n = window.I18n;
+    if (!i18n) return text;
+    const reportLanguage = window.AnalisisState?.currentReportLanguage;
+    if (i18n.tIn) return i18n.tIn(text, params, reportLanguage);
+    return i18n.t ? i18n.t(text, params) : text;
+  }
+
   function renderExecutiveChangeBody(change) {
     const roleLabel = String(change.role || 'Directivo').toUpperCase();
     const blocks = [
-      renderCeoPersonBlock(`ANTIGUO ${roleLabel}`, change.oldExecutive),
-      renderCeoPersonBlock(`NUEVO ${roleLabel}`, change.newExecutive),
+      renderCeoPersonBlock(tr('ANTIGUO {role}', { role: roleLabel }), change.oldExecutive),
+      renderCeoPersonBlock(tr('NUEVO {role}', { role: roleLabel }), change.newExecutive),
     ].filter(Boolean).join('');
 
     return `
       ${change.text ? `<p class="annual-card-text">${formatAnnualRichText(change.text)}</p>` : ''}
       ${(change.announcementDate || change.effectiveDate || change.reason) ? `<div class="ceo-meta">${[
-        change.announcementDate ? `<span class="annual-badge">Anuncio: <strong>${escapeHtml(String(change.announcementDate))}</strong></span>` : '',
-        change.effectiveDate ? `<span class="annual-badge">Efectivo: <strong>${escapeHtml(String(change.effectiveDate))}</strong></span>` : '',
-        change.reason ? `<span class="annual-badge">Motivo: <strong>${escapeHtml(String(change.reason))}</strong></span>` : '',
+        change.announcementDate ? `<span class="annual-badge">${tr('Anuncio:')} <strong>${escapeHtml(String(change.announcementDate))}</strong></span>` : '',
+        change.effectiveDate ? `<span class="annual-badge">${tr('Efectivo:')} <strong>${escapeHtml(String(change.effectiveDate))}</strong></span>` : '',
+        change.reason ? `<span class="annual-badge">${tr('Motivo:')} <strong>${escapeHtml(String(change.reason))}</strong></span>` : '',
       ].filter(Boolean).join('')}</div>` : ''}
       ${blocks ? `<div class="ceo-grid">${blocks}</div>` : ''}
     `;
@@ -136,22 +144,30 @@
     };
     const acquisitions = readValue(['adquisic', 'acquisit']);
     const divestitures = readValue(['desinvers', 'divestit']);
-    const text = String(conclusion?.acquisitions?.text ?? '');
-    const saysNone = /no se realizaron|no hubo|no material|sin adquisiciones|no acquisitions|no se produjeron|none/i.test(text);
+    const section = conclusion?.acquisitions;
+    const text = String(section?.text ?? '');
+    const saysNone = /no se realizaron|no hubo|no material|sin adquisiciones|no acquisitions|no se produjeron|el ejercicio no registró|none/i.test(text);
+    const hasOtherCorporateEvents = section?.hasDivestitures === true || section?.hasSpinOffs === true || section?.hasRestructurings === true;
     return (Number.isFinite(acquisitions) && Math.abs(acquisitions) >= 50)
       || (Number.isFinite(divestitures) && Math.abs(divestitures) >= 50)
+      || hasOtherCorporateEvents
       || (text.trim().length > 0 && !saysNone);
   }
 
   function renderAnnualConclusion(conclusion, report) {
     if (!conclusion) return '';
-    let html = `<div class="annual-conclusion-section"><div class="annual-conclusion-header"><h4>PARTE II: INDAGACIÓN A FONDO Y CONCLUSIÓN</h4></div>`;
+    let html = `<div class="annual-conclusion-section"><div class="annual-conclusion-header"><h4>${tr('PARTE II: INDAGACIÓN A FONDO Y CONCLUSIÓN')}</h4></div>`;
 
     const rep = conclusion.repurchases;
     if (rep) {
+      const buybackValue = rep.buybackPctOfShares != null
+        ? (window.AnalisisState?.currentReportLanguage === 'en'
+          ? String(rep.buybackPctOfShares)
+          : String(rep.buybackPctOfShares).replace('.', ','))
+        : null;
       const repBadges = [
-        rep.programChanges ? `Programa: ${rep.programChanges}` : null,
-        rep.buybackPctOfShares != null ? `Peso en el capital: ${rep.buybackPctOfSharesEstimated ? '≈' : ''}${String(rep.buybackPctOfShares).replace('.', ',')} % de las acciones en el año` : null,
+        rep.programChanges ? tr('Programa: {value}', { value: rep.programChanges }) : null,
+        buybackValue != null ? tr('Peso en el capital: {prefix}{value} % de las acciones en el año', { prefix: rep.buybackPctOfSharesEstimated ? '≈' : '', value: buybackValue }) : null,
       ].filter(Boolean);
       html += `
         <div class="annual-deepdive-card">
@@ -202,7 +218,7 @@
     if (acq && hasMaterialAcquisitions(report, conclusion)) {
       html += `
         <div class="annual-deepdive-card">
-          <h5 class="annual-card-title">${escapeHtml(acq.title || '5: Adquisiciones')}</h5>
+          <h5 class="annual-card-title">${escapeHtml(acq.title || 'Operaciones corporativas')}</h5>
           ${acq.text ? `<p class="annual-card-text">${formatAnnualRichText(acq.text)}</p>` : ''}
         </div>
       `;
@@ -242,14 +258,22 @@
   function renderReport(report) {
     const horizons = Array.isArray(report.horizons) ? report.horizons : [];
     const titleParts = [report.ticker, report.periodTitle].filter(Boolean);
+    const reportLanguage = report.language
+      ? (window.I18n?.normalizeLanguage?.(report.language) || 'es')
+      : 'es';
+    if (window.AnalisisState) window.AnalisisState.currentReportLanguage = reportLanguage;
     const resultTitle = document.querySelector('#result-title');
     const reportBody = document.querySelector('#report-body');
-    if (resultTitle) resultTitle.textContent = titleParts.length ? titleParts.join(' — ') : 'Informe generado';
+    if (resultTitle) resultTitle.textContent = titleParts.length ? titleParts.join(' — ') : tr('Informe generado');
     if (reportBody) {
+      reportBody.setAttribute('data-report-language', reportLanguage);
       let html = horizons.map(renderHorizon).join('');
       if (report.conclusion) html += renderAnnualConclusion(report.conclusion, report);
       if (report.rating) html += renderAnnualRating(report.rating);
       reportBody.innerHTML = html;
+      if (!window.I18n?.hasLanguage?.(reportLanguage)) {
+        window.I18n?.ensureLanguage?.(reportLanguage).then(() => window.I18n?.apply?.(reportBody));
+      }
     }
   }
 

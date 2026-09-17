@@ -140,7 +140,7 @@
         <div class="watch-popover-row ${checked ? 'checked' : ''}" data-list-id="${list.id}" role="button" tabindex="0" aria-pressed="${checked}">
           <span class="watch-popover-check" aria-hidden="true">${checked ? '<svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>' : ''}</span>
           <span class="watch-popover-name">${escapeHtml(list.name)}</span>
-          <span class="watch-popover-count">${list.count} ${list.count === 1 ? 'acción' : 'acciones'}</span>
+          <span class="watch-popover-count">${window.I18n ? window.I18n.tp(list.count, '{n} acción', '{n} acciones') : `${list.count} ${list.count === 1 ? 'acción' : 'acciones'}`}</span>
           ${deleteButton}
         </div>`;
     }).join('');

@@ -12,6 +12,7 @@ import {
   incrementCodeAttempts,
   deleteVerificationCodesForUser,
 } from '../../../db/repositories/userRepository.js';
+import { getUserPreferences } from '../../../db/repositories/watchlistRepositoryPrefs.js';
 import { sendVerificationCode, sendPasswordResetCode } from '../email.service.js';
 
 const CODE_TTL_MS = 15 * 60 * 1000;
@@ -65,7 +66,8 @@ export async function issueVerificationCode(user) {
     codeHash: hashVerificationCode(code),
     expiresAt,
   });
-  await sendVerificationCode({ to: user.email, code });
+  const prefs = await getUserPreferences(user.id).catch(() => null);
+  await sendVerificationCode({ to: user.email, code, language: prefs?.language || 'es' });
 }
 
 /**
@@ -83,7 +85,8 @@ export async function issuePasswordResetCode(user) {
     codeHash: hashVerificationCode(code),
     expiresAt,
   });
-  await sendPasswordResetCode({ to: user.email, code });
+  const prefs = await getUserPreferences(user.id).catch(() => null);
+  await sendPasswordResetCode({ to: user.email, code, language: prefs?.language || 'es' });
 }
 
 /**

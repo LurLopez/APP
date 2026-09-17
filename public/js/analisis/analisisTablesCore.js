@@ -32,8 +32,15 @@
   }
 
   function renderTable(headers, rows, metaRows = [], options = {}) {
-    const thead = headers.map((header) => {
-      const isBoldCol = header === 'Ajustado' || header === 'Normal' || header.startsWith('Ajustado') || header.startsWith('Normal');
+    const boldColumns = Array.isArray(options.boldColumns) ? options.boldColumns : [];
+    const percentColumns = Array.isArray(options.percentColumns) ? options.percentColumns : [];
+    const valueColumn = Number.isInteger(options.valueColumn) ? options.valueColumn : null;
+    const isSalesTable = options.isSales === true;
+    const isCashFlowTable = options.isCashFlow === true;
+    const isCapitalTable = options.isCapital === true;
+
+    const thead = headers.map((header, colIdx) => {
+      const isBoldCol = boldColumns.includes(colIdx);
       let content = escapeHtml(header);
       const noteMatch = String(header).match(/\*(\d+)/);
       if (noteMatch) {
@@ -43,10 +50,6 @@
       const cls = isBoldCol ? ' class="cell-bold"' : '';
       return `<th${cls}>${content}</th>`;
     }).join('');
-
-    const isSalesTable = headers.length === 7 && headers[1] === 'Ajustado' && headers[4] === 'Normal';
-    const isCashFlowTable = headers.length === 3 && headers[0] === 'Métrica';
-    const isCapitalTable = options.isCapital || (headers.length === 2 && headers[0] === 'Métrica' && headers[1] === 'Valor');
 
     const tbody = rows
       .map((row, rowIdx) => {
@@ -58,14 +61,13 @@
         const colorCls = getHighlightClass(noteNum);
 
         const cells = row.map((cell, colIdx) => {
-          const header = headers[colIdx];
-          const isBoldCol = header === 'Ajustado' || header === 'Normal' || header.startsWith('Ajustado') || header.startsWith('Normal');
-          const isPctCol = header === '% Aj.' || header === '% N.' || header === '%';
+          const isBoldCol = boldColumns.includes(colIdx);
+          const isPctCol = percentColumns.includes(colIdx);
           const isAdjustedCell = isSalesTable && colIdx === 1 && isRowAdjusted;
           const isTaxAdjustedCell = isCashFlowTable && colIdx === 2 && meta.cashFlowAdjustedNote;
-          const isCapitalValCell = isCapitalTable && colIdx === 1;
+          const isCapitalValCell = isCapitalTable && valueColumn != null && colIdx === valueColumn;
 
-          let classes = [];
+          const classes = [];
           if (isBoldCol) classes.push('cell-bold');
 
           if (isPctCol && cell) {
@@ -104,38 +106,48 @@
     return `<div class="table-wrap"><table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
   }
 
+  function tr(text, params) {
+    const i18n = window.I18n;
+    if (!i18n) return text;
+    const reportLanguage = window.AnalisisState?.currentReportLanguage;
+    if (i18n.tIn) return i18n.tIn(text, params, reportLanguage);
+    return i18n.t ? i18n.t(text, params) : text;
+  }
+
   function renderHorizon(horizon) {
-    const label = escapeHtml(horizon.label ?? 'Periodo');
+    const label = escapeHtml(horizon.label ?? tr('Periodo'));
     let html = `<div class="report-block"><h5>${label}</h5>`;
 
     const sales = horizon.sales ?? {};
     if (Array.isArray(sales.rows) && sales.rows.length) {
-      html += `<p class="report-extras">1. VENTAS</p>`;
+      html += `<p class="report-extras">${tr('1. VENTAS')}</p>`;
       html += renderTable(
-        ['Métrica', 'Ajustado', 'Anterior Aj.', '% Aj.', 'Normal', 'Anterior N.', '% N.'],
+        [tr('Métrica'), tr('Ajustado'), tr('Anterior Aj.'), tr('% Aj.'), tr('Normal'), tr('Anterior N.'), tr('% N.')],
         sales.rows.map((row) => [row.name, row.adjusted, row.prevAdjusted, row.pctAdjusted, row.normal, row.prevNormal, row.pctNormal]),
-        sales.rows
+        sales.rows,
+        { isSales: true, boldColumns: [1, 4], percentColumns: [3, 6] }
       );
       const extras = [];
-      if (sales.shares) extras.push(`ACCIONES: ${escapeHtml(sales.shares)}`);
-      if (sales.eps) extras.push(`BPA: ${escapeHtml(sales.eps)}`);
+      if (sales.shares) extras.push(`${tr('ACCIONES')}: ${escapeHtml(sales.shares)}`);
+      if (sales.eps) extras.push(`${tr('BPA')}: ${escapeHtml(sales.eps)}`);
       if (extras.length) html += `<p class="report-extras">${extras.join(' · ')}</p>`;
       html += renderNotes(sales.notes);
     }
 
     const cashFlow = horizon.cashFlow ?? {};
     if (Array.isArray(cashFlow.rows) && cashFlow.rows.length) {
-      html += `<p class="report-extras">2. CASH FLOW</p>`;
-      let scenarios = Array.isArray(cashFlow.scenarios) && cashFlow.scenarios.length ? [...cashFlow.scenarios] : ['Normal', 'Ajustado'];
-      if (scenarios.length === 1) scenarios = [scenarios[0], 'Ajustado'];
+      html += `<p class="report-extras">${tr('2. CASH FLOW')}</p>`;
+      let scenarios = Array.isArray(cashFlow.scenarios) && cashFlow.scenarios.length ? [...cashFlow.scenarios] : [tr('Normal'), tr('Ajustado')];
+      if (scenarios.length === 1) scenarios = [scenarios[0], tr('Ajustado')];
       html += renderTable(
-        ['Métrica', ...scenarios],
+        [tr('Métrica'), ...scenarios],
         cashFlow.rows.map((row) => {
           let vals = Array.isArray(row.values) && row.values.length ? [...row.values] : [row.value];
           if (vals.length === 1 && scenarios.length === 2) vals.push(vals[0]);
           return [row.name, ...vals];
         }),
-        cashFlow.rows
+        cashFlow.rows,
+        { isCashFlow: true, boldColumns: [1, 2] }
       );
       const cfNotes = (Array.isArray(cashFlow.notes) ? cashFlow.notes : []).filter((n) => {
         const lower = String(n || '').toLowerCase();
@@ -146,8 +158,8 @@
 
     const capital = horizon.capital ?? {};
     if (Array.isArray(capital.rows) && capital.rows.length) {
-      html += `<p class="report-extras">3. ASIGNACIÓN DE CAPITAL</p>`;
-      html += renderTable(['Métrica', 'Valor'], capital.rows.map((r) => [r.name, r.value]), [], { isCapital: true });
+      html += `<p class="report-extras">${tr('3. ASIGNACIÓN DE CAPITAL')}</p>`;
+      html += renderTable([tr('Métrica'), tr('Valor')], capital.rows.map((r) => [r.name, r.value]), [], { isCapital: true, valueColumn: 1 });
       if (capital.verification) html += `<p class="report-extras">${escapeHtml(capital.verification)}</p>`;
       html += renderNotes(capital.notes);
     }

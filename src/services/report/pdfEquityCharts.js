@@ -4,6 +4,7 @@
  */
 
 import { sanitize } from './pdfStyles.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 export function drawSharesChart(doc, chart, y) {
   if (!chart || !Array.isArray(chart.points) || chart.points.length < 2) return y;
@@ -75,7 +76,7 @@ export function drawSharesChart(doc, chart, y) {
       const xPrev = plotX + slotW * (n - 1.5);
       const yPrev = yFor(chart.points[n - 2].shares);
       drawDashed(xPrev, yPrev, xN, yN, '#dc2626');
-      drawLabelBox(`Últ. año: ${fmtP(mets[1].pct)} · BPA ${fmtB(mets[1].bpa)}`, (xPrev + xN) / 2, (yPrev + yN) / 2 - 34, '#dc2626');
+      drawLabelBox(t('Últ. año: {pct} · BPA {bpa}', { pct: fmtP(mets[1].pct), bpa: fmtB(mets[1].bpa) }, normalizeLanguage(chart.language)), (xPrev + xN) / 2, (yPrev + yN) / 2 - 34, '#dc2626');
     }
   }
   return y + boxH + 6;
@@ -110,11 +111,12 @@ export function drawDividendChart(doc, chart, y) {
   }
 
   const legX = margin + pageWidth - 200;
+  const eqLang = normalizeLanguage(chart.language);
   doc.rect(legX, y + 6, 8, 8).fill('#f59e0b');
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text('Dividendo por acción', legX + 11, y + 6.5);
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text(t('Dividendo por acción', null, eqLang), legX + 11, y + 6.5);
   doc.moveTo(legX + 84, y + 10).lineTo(legX + 98, y + 10).lineWidth(1.6).strokeColor('#0f766e').stroke();
   doc.circle(legX + 91, y + 10, 2.2).fill('#0f766e');
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#0f766e').text('Payout s/ BPA ajustado', legX + 102, y + 6.5);
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#0f766e').text(t('Payout s/ BPA ajustado', null, eqLang), legX + 102, y + 6.5);
 
   const plotX = margin + padL;
   const plotW = pageWidth - padL - padR;
@@ -170,7 +172,7 @@ export function drawDividendChart(doc, chart, y) {
   });
 
   if (chart.hasReportedFallback) {
-    doc.font('Helvetica').fontSize(5.5).fillColor('#94a3b8').text('* Años con BPA reportado (sin ajustado disponible).', margin + 8, y + boxH - 10, { width: pageWidth - 16 });
+    doc.font('Helvetica').fontSize(5.5).fillColor('#94a3b8').text(t('* Años con BPA reportado (sin ajustado disponible).', null, normalizeLanguage(chart.language)), margin + 8, y + boxH - 10, { width: pageWidth - 16 });
   }
 
   return y + boxH + 8;

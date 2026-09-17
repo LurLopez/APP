@@ -45,9 +45,11 @@ export async function getActivePendingPriceAlerts() {
     `SELECT a.id, a.user_id AS "userId", u.email, a.ticker,
             a.company_name AS "companyName",
             a.target_price::float AS "targetPrice",
-            a.condition, a.status
+            a.condition, a.status,
+            COALESCE(p.language, 'es') AS language
      FROM user_price_alerts a
      JOIN users u ON u.id = a.user_id
+     LEFT JOIN user_preferences p ON p.user_id = a.user_id
      WHERE a.status = 'pending'
      ORDER BY a.created_at ASC`,
   );

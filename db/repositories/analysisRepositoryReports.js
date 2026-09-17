@@ -46,3 +46,43 @@ export async function deleteAnalysisErrorReport(id) {
   );
   return rows[0] ?? null;
 }
+
+export async function batchUpdateAnalysisErrorReports(ids, { status, adminNotes }) {
+  if (!Array.isArray(ids) || !ids.length) return 0;
+  const allowed = ['pending', 'reviewed', 'resolved', 'dismissed'];
+  const validStatus = allowed.includes(status) ? status : undefined;
+  const sets = [];
+  const params = [ids];
+
+  if (validStatus) {
+    params.push(validStatus);
+    sets.push(`status = $${params.length}`);
+    if (validStatus === 'resolved' || validStatus === 'dismissed') {
+      sets.push(`resolved_at = now()`);
+    } else {
+      sets.push(`resolved_at = NULL`);
+    }
+  }
+
+  if (typeof adminNotes === 'string' && adminNotes.trim()) {
+    params.push(adminNotes.trim());
+    sets.push(`admin_notes = $${params.length}`);
+  }
+
+  if (!sets.length) return 0;
+
+  const { rowCount } = await query(
+    `UPDATE analysis_error_reports SET ${sets.join(', ')} WHERE id = ANY($1::int[])`,
+    params,
+  );
+  return rowCount ?? 0;
+}
+
+export async function batchDeleteAnalysisErrorReports(ids) {
+  if (!Array.isArray(ids) || !ids.length) return 0;
+  const { rowCount } = await query(
+    `DELETE FROM analysis_error_reports WHERE id = ANY($1::int[])`,
+    [ids],
+  );
+  return rowCount ?? 0;
+}

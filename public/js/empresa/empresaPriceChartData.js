@@ -105,7 +105,10 @@ function updateTimelineSliderUi() {
     const d1 = new Date(`${ptStart.date}T00:00:00Z`);
     const d2 = new Date(`${ptEnd.date}T00:00:00Z`);
     const diffDays = Math.round(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24));
-    spanEl.textContent = `${diffDays} días seleccionados (${chartSliceEnd - chartSliceStart + 1} sesiones)`;
+    const sessions = chartSliceEnd - chartSliceStart + 1;
+    spanEl.textContent = window.I18n
+      ? window.I18n.t('{0} días seleccionados ({1} sesiones)', { '0': diffDays, '1': sessions })
+      : `${diffDays} días seleccionados (${sessions} sesiones)`;
   }
 
   // Draw sparkline once

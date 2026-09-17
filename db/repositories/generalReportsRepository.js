@@ -26,7 +26,8 @@ export async function listGeneralReports({
   status = null,
   category = null,
   search = null,
-  limit = 100,
+  limit = 250,
+  offset = 0,
 } = {}) {
   const conditions = [];
   const params = [];
@@ -48,8 +49,19 @@ export async function listGeneralReports({
     );
   }
 
-  params.push(Math.min(limit, 200));
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const countParams = [...params];
+  const { rows: countRows } = await query(
+    `SELECT COUNT(*)::int AS total FROM general_reports r LEFT JOIN users u ON u.id = r.user_id ${where}`,
+    countParams,
+  );
+  const total = countRows[0]?.total ?? 0;
+
+  params.push(Math.min(limit, 1000));
+  const limitPlaceholder = `$${params.length}`;
+  params.push(Math.max(offset, 0));
+  const offsetPlaceholder = `$${params.length}`;
 
   const { rows } = await query(
     `SELECT
@@ -71,10 +83,10 @@ export async function listGeneralReports({
      ORDER BY
        CASE WHEN r.status = 'pending' THEN 0 WHEN r.status = 'reviewed' THEN 1 ELSE 2 END,
        r.created_at DESC
-     LIMIT $${params.length}`,
+     LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
     params,
   );
-  return rows;
+  return { reports: rows, total };
 }
 
 export async function getGeneralReportById(id) {
@@ -141,6 +153,46 @@ export async function deleteGeneralReport(id) {
     [id],
   );
   return rows[0] ?? null;
+}
+
+export async function batchUpdateGeneralReports(ids, { status, adminNotes }) {
+  if (!Array.isArray(ids) || !ids.length) return 0;
+  const allowed = ["pending", "reviewed", "resolved", "dismissed"];
+  const validStatus = allowed.includes(status) ? status : undefined;
+  const sets = [];
+  const params = [ids];
+
+  if (validStatus) {
+    params.push(validStatus);
+    sets.push(`status = $${params.length}`);
+    if (validStatus === "resolved" || validStatus === "dismissed") {
+      sets.push("resolved_at = now()");
+    } else {
+      sets.push("resolved_at = NULL");
+    }
+  }
+
+  if (typeof adminNotes === "string" && adminNotes.trim()) {
+    params.push(adminNotes.trim());
+    sets.push(`admin_notes = $${params.length}`);
+  }
+
+  if (!sets.length) return 0;
+
+  const { rowCount } = await query(
+    `UPDATE general_reports SET ${sets.join(", ")} WHERE id = ANY($1::int[])`,
+    params,
+  );
+  return rowCount ?? 0;
+}
+
+export async function batchDeleteGeneralReports(ids) {
+  if (!Array.isArray(ids) || !ids.length) return 0;
+  const { rowCount } = await query(
+    `DELETE FROM general_reports WHERE id = ANY($1::int[])`,
+    [ids],
+  );
+  return rowCount ?? 0;
 }
 
 export async function getReportsStats() {

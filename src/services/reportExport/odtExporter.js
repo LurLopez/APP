@@ -9,8 +9,10 @@ import { buildDebtRefinancingBadges } from './debtHistoryRefinancingModel.js';
 import { buildSharesChartTable } from './sharesModel.js';
 import { buildDebtMaturityTable } from './debtMaturityModel.js';
 import { buildDebtHistoryTable } from './debtHistoryRefinancingModel.js';
-import { buildReportChartImages } from './chartImages.js';
 import { buildReportModel } from './reportModel.js';
+import { buildReportChartImages } from './chartImages.js';
+import { getExecutiveFieldLabels } from './executiveChanges.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 function createOdtStyleRegistry() {
   const textStyles = new Map();
@@ -72,51 +74,48 @@ function createOdtStyleRegistry() {
   return { textStyleFor, cellStyleFor, columnStyleFor, frameStyle, automaticStyles };
 }
 
-function odtExecutiveChangeBlock(ctx, change) {
+function odtExecutiveChangeBlock(ctx, change, language = 'es') {
+  const lang = normalizeLanguage(language);
   if (!change || typeof change !== 'object') return;
-  const roleLabel = String(change.role || 'Directivo').toUpperCase();
+  const roleLabel = String(change.role || t('Directivo', null, lang)).toUpperCase();
   if (change.text) ctx.richParagraph(change.text, { color: COLORS.ink, size: 9 });
   const meta = [
-    change.announcementDate ? `Anuncio: ${change.announcementDate}` : null,
-    change.effectiveDate ? `Efectivo: ${change.effectiveDate}` : null,
-    change.reason ? `Motivo: ${change.reason}` : null,
+    change.announcementDate ? `${t('Anuncio', null, lang)}: ${change.announcementDate}` : null,
+    change.effectiveDate ? `${t('Efectivo', null, lang)}: ${change.effectiveDate}` : null,
+    change.reason ? `${t('Motivo', null, lang)}: ${change.reason}` : null,
   ].filter(Boolean);
   if (meta.length) ctx.paragraph(`• ${meta.join('   ·   ')}`, { bold: true, color: '#854d0e', size: 8 });
 
   const personBlock = (label, person) => {
     if (!person) return;
-    const fields = [
-      ['Inicio en el cargo', person.tenureStart],
-      ['Ventas durante su mandato', person.salesDuringTenure],
-      ['A dónde pasa', person.whereTheyGo],
-      ['Políticas de su etapa', person.policies],
-      ['De dónde viene', person.origin],
-      ['Trayectoria previa', person.trackRecord],
-      ['Qué ha anunciado', person.commitments],
-    ].filter(([, value]) => value);
+    const fields = getExecutiveFieldLabels(lang)
+      .map(([fieldLabel, key]) => [fieldLabel, person[key]])
+      .filter(([, value]) => value);
     if (!person.name && !fields.length) return;
     ctx.paragraph(label, { bold: true, color: '#4f46e5', size: 7.5 });
     if (person.name) ctx.paragraph(`${person.name}${person.role ? ` — ${person.role}` : ''}`, { bold: true, color: '#0f172a', size: 8.5 });
     fields.forEach(([fieldLabel, value]) => ctx.richParagraph(`**${fieldLabel}:** ${value}`, { color: '#374151', boldColor: '#334155', size: 8.5 }));
   };
-  personBlock(`ANTIGUO ${roleLabel}`, change.oldExecutive);
-  personBlock(`NUEVO ${roleLabel}`, change.newExecutive);
+  personBlock(t('ANTIGUO {role}', { role: roleLabel }, lang), change.oldExecutive);
+  personBlock(t('NUEVO {role}', { role: roleLabel }, lang), change.newExecutive);
 }
 
-function odtExecutiveChangesBlock(ctx, section) {
+function odtExecutiveChangesBlock(ctx, section, language = 'es') {
+  const lang = normalizeLanguage(language);
   const changes = Array.isArray(section?.changes) ? section.changes : [];
   changes.forEach((change, index) => {
-    if (changes.length > 1) ctx.paragraph(String(change.role || 'Directivo').toUpperCase(), { bold: true, color: '#4f46e5', size: 7.5 });
-    odtExecutiveChangeBlock(ctx, change);
+    if (changes.length > 1) ctx.paragraph(String(change.role || t('Directivo', null, lang)).toUpperCase(), { bold: true, color: '#4f46e5', size: 7.5 });
+    odtExecutiveChangeBlock(ctx, change, lang);
   });
   if (section?.disclaimer) ctx.paragraph(section.disclaimer, { italic: true, color: '#94a3b8', size: 7 });
 }
 
-function appendCardsToOdt(body, cards, images, styles, ctx) {
+function appendCardsToOdt(body, cards, images, styles, ctx, language = 'es') {
+  const lang = normalizeLanguage(language);
   cards.forEach((card, cardIndex) => {
     ctx.paragraph(card.title, { bold: true, color: COLORS.ink, size: 11, pageBreakBefore: cardIndex > 0 });
     if (card.text) ctx.richParagraph(card.text, { color: COLORS.ink, size: 8.5 });
-    if (card.executiveChanges) odtExecutiveChangesBlock(ctx, card.executiveChanges);
+    if (card.executiveChanges) odtExecutiveChangesBlock(ctx, card.executiveChanges, lang);
     if (card.badges?.length) card.badges.forEach((b) => ctx.richParagraph(`• ${b}`, { color: '#854d0e', boldColor: '#7c2d12', size: 8 }));
     if (card.chart) {
       ctx.paragraph(card.chart.title, { bold: true, color: '#475569', size: 8 });
@@ -133,12 +132,12 @@ function appendCardsToOdt(body, cards, images, styles, ctx) {
     if (card.refinancing) ctx.refinancingBox(card.refinancing);
     if (card.dividendChart) {
       ctx.image('dividend');
-      if (card.dividendChart.hasReportedFallback) ctx.paragraph('* Años con BPA reportado (sin ajustado disponible).', { italic: true, color: COLORS.soft, size: 7 });
+      if (card.dividendChart.hasReportedFallback) ctx.paragraph(t('* Años con BPA reportado (sin ajustado disponible).', null, lang), { italic: true, color: COLORS.soft, size: 7 });
     }
     if (card.isWatchlist && card.items?.length) card.items.forEach((it) => ctx.richParagraph(`OK  ${it}`, { color: COLORS.ink, size: 8 }));
     if (card.table) {
       if (card.table.title) {
-        ctx.paragraph('EXTRACTO OFICIAL SEC (FORM 10-K)', { bold: true, color: '#475569', size: 8, bg: '#f1f5f9' });
+        ctx.paragraph(t('EXTRACTO OFICIAL SEC (FORM 10-K)', null, lang), { bold: true, color: '#475569', size: 8, bg: '#f1f5f9' });
         ctx.paragraph(card.table.title, { bold: true, color: '#0f172a', size: 9 });
       }
       if (card.table.summary) ctx.paragraph(card.table.summary, { italic: true, color: '#64748b', size: 7.5 });
@@ -147,7 +146,8 @@ function appendCardsToOdt(body, cards, images, styles, ctx) {
   });
 }
 
-function buildOdtContent(model, images = {}) {
+function buildOdtContent(model, images = {}, language = 'es') {
+  const lang = normalizeLanguage(language);
   const styles = createOdtStyleRegistry();
   const body = [];
   let tableCount = 0;
@@ -221,7 +221,7 @@ function buildOdtContent(model, images = {}) {
     const innerTable = `<table:table table:name="RefinBadges${tableCount}" table:style-name="TBox">${innerCols}<table:table-row>${tiles}</table:table-row></table:table>`;
     const titleStyle = styles.textStyleFor({ bold: true, color: '#9a3412', size: 8.5 });
     const bodyContent = [
-      `<text:p text:style-name="PBody"><text:span text:style-name="${titleStyle}">Refinanciación de deuda e impacto en BPA:</text:span></text:p>`,
+      `<text:p text:style-name="PBody"><text:span text:style-name="${titleStyle}">${esc(t('Refinanciación de deuda e impacto en BPA:', null, normalizeLanguage(refinancing.language)))}</text:span></text:p>`,
       innerTable,
       refinancing.explanation ? richParagraphXml(refinancing.explanation, { color: '#431407', size: 8 }) : '',
       refinancing.impactExplanation ? richParagraphXml(refinancing.impactExplanation, { color: '#c2410c', size: 8, boldColor: '#c2410c' }) : '',
@@ -248,7 +248,7 @@ function buildOdtContent(model, images = {}) {
   if (model.conclusion) {
     paragraph(model.conclusion.title, { bold: true, color: COLORS.ink, size: 14, pageBreakBefore: true });
     if (model.conclusion.subtitle) paragraph(model.conclusion.subtitle, { italic: true, color: COLORS.muted, size: 9 });
-    appendCardsToOdt(body, model.conclusion.cards, images, styles, ctx);
+    appendCardsToOdt(body, model.conclusion.cards, images, styles, ctx, lang);
   }
 
   if (model.rating) {
@@ -264,6 +264,7 @@ function buildOdtContent(model, images = {}) {
 
 export async function buildReportOdt(report) {
   const model = buildReportModel(report);
+  const lang = normalizeLanguage(report?.language);
   const images = buildReportChartImages(model);
   const mediaFiles = Object.entries(CHART_IMAGE_SLOTS)
     .filter(([key]) => images[key])
@@ -277,6 +278,6 @@ export async function buildReportOdt(report) {
   zip.file('styles.xml', '<?xml version="1.0" encoding="UTF-8"?>\n<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" office:version="1.2"><office:styles><style:default-style style:family="paragraph"><style:text-properties fo:font-size="10pt" style:font-name="Helvetica"/></style:default-style></office:styles><office:automatic-styles><style:page-layout style:name="pm1"><style:page-layout-properties fo:page-width="8.27in" fo:page-height="11.69in" fo:margin-top="0.79in" fo:margin-bottom="0.79in" fo:margin-left="0.79in" fo:margin-right="0.79in" style:print-orientation="portrait"/></style:page-layout></office:automatic-styles><office:master-styles><style:master-page style:name="Standard" style:page-layout-name="pm1"/></office:master-styles></office:document-styles>');
   const pictures = zip.folder('Pictures');
   mediaFiles.forEach((file) => pictures.file(file.file, file.data));
-  zip.file('content.xml', buildOdtContent(model, images));
+  zip.file('content.xml', buildOdtContent(model, images, lang));
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }

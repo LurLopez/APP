@@ -1,6 +1,6 @@
 # Plan de multi-idioma (i18n): interfaz y análisis en español e inglés
 
-> Versión: 1.0 · Fecha: 2026-09-15 · Estado: 📋 Planificado (sin implementar)
+> Versión: 1.0 · Fecha: 2026-09-15 · Estado: ✅ **Implementado el núcleo (ES/EN)** — ver «Estado de implementación» al final
 
 Plan específico para que Cifra funcione en **español e inglés** con dos preferencias independientes: el **idioma de la interfaz** y el **idioma de los análisis**. La arquitectura queda preparada para añadir más idiomas en el futuro.
 
@@ -109,8 +109,9 @@ Para que el render y los exportadores no dependan del texto en español se añad
 - `analyses.language` (`'es'`/`'en'`); `findLatestDoneAnalysis({ ticker, accession, language, userId })` filtra por idioma.
 - Flujo del botón "Analizar" sobre un filing:
   1. ¿Hay variante en el idioma pedido? → se sirve (gratis).
-  2. ¿Solo hay variante en el otro idioma? → respuesta `needsLanguageVariant` con `availableLanguages` y `requestedLanguage`; la UI avisa: *"Este análisis ya existe en español. Generarlo en inglés tarda ~25 s y consume 1 análisis de tu cupo diario"*. Si el usuario confirma, se genera la variante (con cupo) y queda cacheada y pública para todos.
+  2. ¿Solo hay variante en el otro idioma? → respuesta `LANGUAGE_VARIANT_REQUIRED` con `availableLanguages` y `requestedLanguage`; la UI avisa: *"Este análisis ya existe en español. Se traducirá al inglés en unos segundos, con las mismas cifras, y consume 1 análisis de tu cupo diario"*. Si el usuario confirma, **se traduce el informe ya existente** (no se reanaliza el filing): etiquetas y tablas por diccionario/código, narrativa por IA con validación anti-cambio de cifras, PDF/DOCX/ODT regenerados en el idioma destino y variante cacheada y pública para todos. Si la traducción falla, se cae al flujo de generación completa.
   3. No hay ninguna variante → flujo actual (cupo y generación).
+- Implementación de la traducción en `src/services/translation/` (`reportTranslator.service.js` orquesta; `reportLabels.js` diccionario; `reportNumbers.js` formato numérico; `reportTextFields.js` inventario de campos 10-Q/10-K; `analysisTranslation.service.js` guarda la variante). Coste medido en pruebas: ~3.700 tokens de entrada / ~3.000 de salida (~0,002 $ con tarifas DeepSeek) frente a ~100.000 tokens de un reanálisis completo.
 - La subida manual no consulta caché (como ahora): se genera directamente en el idioma preferido.
 - El administrador puede forzar la regeneración en cualquier idioma desde la administración.
 
@@ -119,6 +120,12 @@ Para que el render y los exportadores no dependan del texto en español se añad
 - Backend y frontend usan `Intl` según el idioma del informe (números) y de la interfaz (fechas de la app).
 - El LLM recibe la instrucción de formato correcta; el render no "corrige" sus cifras.
 - Ojo: los prompts actuales exigen coma decimal (`analystSystemPrompt.js:124`); la directiva EN lo invierte.
+
+### 3.7 bis. Idioma de la vista del informe
+
+- Las etiquetas de la vista del informe (cabeceras de tablas, títulos de sección, gráficos, badges, extractos SEC) se pintan en el **idioma del informe**, no en el de la interfaz: el contenedor `#report-body` lleva `data-report-language` y el motor i18n de cliente (`I18n.tIn`, `I18n.ensureLanguage`) traduce sus nodos a ese idioma. El resto de la web (botones, menús, avisos) sigue en el idioma de interfaz.
+- Consecuencia: un informe EN se lee íntegro en inglés aunque la interfaz esté en español, y viceversa.
+- El traductor de servidor desambigua etiquetas financieras frente a las de interfaz con una lista prioritaria («Free» → «Libre», «Total» → «En total», «Cash» → «Caja»).
 
 ### 3.8. Mensajes del servidor y correos
 
@@ -260,3 +267,26 @@ Reglas por área: traducir solo lo visible; no tocar lógica; actualizar `?v=N` 
 | Backend (errores, correos, fallbacks) | `src/api/controllers/*`, `src/services/**`, `src/agents/analyst/*` | 160 ficheros con texto ES (mayoría mensajes de error) |
 | Exportadores | `src/services/report/*`, `src/services/reportExport/*` | ~2.700 líneas |
 | Contenido | `src/content/guias/*`, `src/content/legal/*` | 11 HTML |
+
+---
+
+## 11. Estado de implementación (2026-09-15)
+
+Implementado el **núcleo ES/EN** con las siguientes desviaciones y concreciones respecto al plan original:
+
+| Pieza | Implementación real |
+|---|---|
+| Diccionarios | El **texto español es la clave** (estilo gettext) en `public/locales/en.json` (2.710 entradas). El inventario vive en `public/locales/_sources.json` (2.662 textos) y `_sources-dynamic.json` (154 plantillas). No hay `es.json`: el idioma fuente es el propio código. |
+| Traducción | Scripts reanudables: `scripts/i18n/extract.js` (extrae también texto interno de literales HTML), `scripts/i18n/translate.js` (traduce por lotes con DeepSeek y glosario financiero) y `scripts/i18n/audit.js` (audita páginas reales con Chrome headless y detecta textos sin traducir). Añadir un idioma = `--lang=xx` + revisar. |
+| Motor cliente | `public/js/shared/i18n.js`: `t()`, `tp()`, `apply()`, `setLanguage()`, formatos `Intl`, `MutationObserver` que traduce también el DOM generado por JS y **patrones automáticos** para plantillas con interpolación (`{0}`, `{1}`…), sin tocar el código que las crea. |
+| Motor servidor | `src/utils/i18n.js`: `t()`, `translatorFor()`, `formatPercent()`; usado en PDF/HTML/DOCX/ODT, correos, alertas, fallbacks del analista y SEO. |
+| Preferencias | `user_preferences.language` + `user_preferences.analysis_language`, API `GET/PUT /api/watchlists/preferences`, dos selectores en Ajustes. Detección inicial: preferencia → `localStorage` → navegador → `es`. |
+| Análisis | `analyses.language` + índice; directiva de idioma en los prompts (`languageDirective.js`) que fija etiquetas y formato numérico en-US; caché por idioma con respuesta `LANGUAGE_VARIANT_REQUIRED` y confirmación explícita antes de gastar cupo; fallbacks y notas deterministas localizados. |
+| Render del informe | Web, PDF, HTML, DOCX, ODT, SSR y Markdown detectan por estructura (no por cabeceras en español) y usan `t()` para etiquetas fijas; los informes guardados sin `language` siguen renderizándose en español. |
+| Correos y alertas | `email.service.js` y escáneres de alertas usan el idioma de la cuenta (`language`); los códigos de verificación y recuperación también. |
+| Guías y legales | Las páginas standalone inyectan `i18n.js` y se traducen en el navegador con el diccionario (auditadas); en las rutas `/en/legal/*` se inyecta un banner informativo de cortesía indicando que prevalece la versión en español hasta la firma jurídica oficial. |
+| Formatos | `Intl` para números/fechas en empresa, cartera y análisis; el LLM usa coma decimal en ES y punto en EN. |
+| Fase 5 (SEO y SSR bilingüe) | **Completada**: Rutas `/en` con `hreflang` recíproco (`es`, `en`, `x-default`) en todas las páginas públicas (portada, empresas, guías, legales, informes públicos); sitemap bilingüe con enlaces recíprocos `<xhtml:link>`; fichas de empresa SSR en inglés (`getCompanyBotContent`, `companyMeta.service.js`, `markdownSeo.service.js`); metatags, títulos y Open Graph traducidos en SSR y cliente (`empresaFormatting.js`). |
+| Prioridad por país | Si un usuario procede de un país donde el español no es idioma oficial (21 países hispanohablantes reconocidos) según región del navegador, cabeceras de país o zona horaria, el idioma prioritario por defecto es el inglés (`'en'`), con recomendaciones y descripciones de empresa generadas en inglés. |
+
+**Validación**: `npm test` 70/70 pasando (incluye tests de i18n, detección de países oficiales, zonas horarias prioritarias y cobertura del diccionario). Auditoría exhaustiva con Chrome headless en inglés de todas las rutas (`/en`, `/en/empresa/KHC`, `/en/guias`, `/en/guias/*`, `/en/legal/*`): 0 candidatos sin traducir en `public/locales/_missing.json`.

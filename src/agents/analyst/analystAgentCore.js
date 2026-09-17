@@ -58,6 +58,8 @@ import {
   processAcquisitionsDividendsAndWatchlist,
   renumberConclusionSections,
 } from './annualConclusionProcessor.js';
+import { getLanguageDirective } from './languageDirective.js';
+import { normalizeLanguage, t } from '../../utils/i18n.js';
 
 async function recoverDebtMaturitiesFromText(rawText, fiscalYear) {
   const debtText = extractDebtFilingText(rawText);
@@ -140,6 +142,8 @@ export class AnalystAgent extends BaseAgent {
     const sector = input.sector ?? 'defensive_consumer';
     const subsector = input.subsector ?? null;
     const formType = input.formType ?? '10-Q';
+    const language = normalizeLanguage(input.language);
+    const languageDirective = getLanguageDirective(language);
     const isAnnual = String(formType || '').toUpperCase().includes('10-K')
       || String(formType || '').toLowerCase().includes('anual');
 
@@ -150,7 +154,7 @@ export class AnalystAgent extends BaseAgent {
       throw new AgentError(`No hay reglas de análisis definidas para el sector ${sector}.`, 'NO_SECTOR_RULES');
     }
 
-    const extractionPrompt = EXTRACTION_PROMPT.replace('{SCHEMA}', EXTRACTION_SCHEMA.trim());
+    const extractionPrompt = `${EXTRACTION_PROMPT.replace('{SCHEMA}', EXTRACTION_SCHEMA.trim())}\n\n${languageDirective}`;
     let extracted;
     try {
       extracted = await chatJson([
@@ -289,10 +293,68 @@ export class AnalystAgent extends BaseAgent {
     }
 
     normalizeExtractedUnits(extracted);
-    extracted.capitalAllocationData = buildCapitalAllocationFromBalance(extracted);
+
+    if (!isAnnual && ticker && Number(fiscalQuarter) > 1) {
+      try {
+        const prevFlow = await getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuarter, reportingPeriod);
+        if (prevFlow) {
+          const round1 = (value) => Math.round(value * 10) / 10;
+          const currentCfo = toOptionalNumber(extracted.cashFlow?.operating);
+          const currentCapex = toOptionalNumber(extracted.cashFlow?.capex);
+          const currentDividends = toOptionalNumber(extracted.cashFlow?.dividends);
+          const currentBuybacks = toOptionalNumber(extracted.facts?.shareBuybacks);
+          const currentWcChange = toOptionalNumber(extracted.workingCapital?.reportedChangeYtd);
+          const deduced = {};
+          if (currentCfo != null && prevFlow.cfoYtd != null) deduced.cfo = round1(currentCfo - prevFlow.cfoYtd);
+          if (currentCapex != null && prevFlow.capexYtd != null) deduced.capex = round1(Math.abs(currentCapex) - prevFlow.capexYtd);
+          if (currentDividends != null && prevFlow.dividendsYtd != null) deduced.dividends = round1(Math.abs(currentDividends) - prevFlow.dividendsYtd);
+          if (currentBuybacks != null && prevFlow.buybacksYtd != null) deduced.buybacks = round1(Math.abs(currentBuybacks) - prevFlow.buybacksYtd);
+          if (currentWcChange != null && prevFlow.workingCapitalChangeYtd != null) {
+            deduced.workingCapitalChange = round1(currentWcChange - prevFlow.workingCapitalChangeYtd);
+          }
+          if (deduced.cfo != null && deduced.capex != null) deduced.fcf = round1(deduced.cfo - deduced.capex);
+
+          extracted.previousQuarterCashFlow = {
+            period: prevFlow.period,
+            periodEnd: prevFlow.periodEnd,
+            cfoYtd: prevFlow.cfoYtd,
+            capexYtd: prevFlow.capexYtd,
+            dividendsYtd: prevFlow.dividendsYtd,
+            buybacksYtd: prevFlow.buybacksYtd,
+            workingCapitalChangeYtd: prevFlow.workingCapitalChangeYtd,
+          };
+          if (Object.keys(deduced).length > 0) extracted.deducedQuarterCashFlow = deduced;
+
+          extracted.balance = extracted.balance || {};
+          const previousBalances = {
+            cashPreviousQuarter: prevFlow.cash,
+            shortTermInvestmentsPreviousQuarter: prevFlow.shortTermInvestments,
+            totalDebtPreviousQuarter: prevFlow.balanceSheetDebt,
+            restrictedCashPreviousQuarter: prevFlow.previousRestrictedCash,
+          };
+          for (const [key, value] of Object.entries(previousBalances)) {
+            if (extracted.balance[key] == null && value != null) extracted.balance[key] = value;
+          }
+
+          extracted.workingCapital = extracted.workingCapital || {};
+          if (extracted.workingCapital.reportedChangeQuarter == null && deduced.workingCapitalChange != null) {
+            extracted.workingCapital.reportedChangeQuarter = deduced.workingCapitalChange;
+          }
+
+          extracted.facts = extracted.facts || {};
+          if (extracted.facts.shareBuybacksQuarter == null && deduced.buybacks != null) {
+            extracted.facts.shareBuybacksQuarter = deduced.buybacks;
+          }
+        }
+      } catch (error) {
+        console.warn('[analyst] No se pudo obtener el flujo del trimestre previo:', error.message);
+      }
+    }
+
+    extracted.capitalAllocationData = buildCapitalAllocationFromBalance(extracted, language);
 
     if (!extracted.workingCapitalData) {
-      const fallbackWc = buildWorkingCapitalDataFallback(extracted);
+      const fallbackWc = buildWorkingCapitalDataFallback(extracted, language);
       if (fallbackWc) extracted.workingCapitalData = fallbackWc;
     }
 
@@ -381,9 +443,9 @@ export class AnalystAgent extends BaseAgent {
     // Fase 2: estructuración y redacción analítica
     const basePrompt = isAnnual ? ANNUAL_SYSTEM_PROMPT : SYSTEM_PROMPT;
     const schema = isAnnual ? ANNUAL_OUTPUT_SCHEMA : OUTPUT_SCHEMA;
-    const systemPrompt = basePrompt
+    const systemPrompt = `${basePrompt
       .replace('{REGLAS}', rules.trim())
-      .replace('{SCHEMA}', schema.trim());
+      .replace('{SCHEMA}', schema.trim())}\n\n${languageDirective}`;
 
     const { _rawText, ...extractedForModel } = extracted;
     let result;
@@ -404,29 +466,30 @@ export class AnalystAgent extends BaseAgent {
     if (isAnnual) {
       const annualHorizon = result.horizons.find((h) =>
         String(h.label || '').toUpperCase().includes('12') ||
-        String(h.label || '').toUpperCase().includes('AÑO')
+        String(h.label || '').toUpperCase().includes('AÑO') ||
+        String(h.label || '').toUpperCase().includes('YEAR')
       ) || result.horizons[result.horizons.length - 1];
-      annualHorizon.label = 'EN TODO EL AÑO (12 MESES)';
+      annualHorizon.label = t('EN TODO EL AÑO (12 MESES)', null, language);
       result.horizons = [annualHorizon];
     }
 
     // Normalización defensiva de horizontes
     result.horizons.forEach((horizon) => {
-      normalizeSalesBlock(horizon, extracted);
-      normalizeCashFlowBlock(horizon, extracted);
-      normalizeCapitalBlock(horizon, extracted);
+      normalizeSalesBlock(horizon, extracted, language);
+      normalizeCashFlowBlock(horizon, extracted, language);
+      normalizeCapitalBlock(horizon, extracted, language);
     });
 
     // Conclusión anual
     if (isAnnual) {
       result.conclusion = result.conclusion || {};
       const rawAnn = extracted.annualDetails || {};
-      processRepurchasesSection(result.conclusion, rawAnn, extracted);
-      processExecutiveChangesSection(result.conclusion, rawAnn);
-      processOutlookSection(result.conclusion, rawAnn, result);
-      processDebtSection(result.conclusion, rawAnn, edgarData, fiscalYear);
-      processAcquisitionsDividendsAndWatchlist(result.conclusion, rawAnn, extracted, edgarData, fiscalYear);
-      renumberConclusionSections(result.conclusion);
+      processRepurchasesSection(result.conclusion, rawAnn, extracted, language);
+      processExecutiveChangesSection(result.conclusion, rawAnn, language);
+      processOutlookSection(result.conclusion, rawAnn, result, language);
+      processDebtSection(result.conclusion, rawAnn, edgarData, fiscalYear, language);
+      processAcquisitionsDividendsAndWatchlist(result.conclusion, rawAnn, extracted, edgarData, fiscalYear, language);
+      renumberConclusionSections(result.conclusion, language);
 
       result.rating = result.rating || {};
       let scoreNum = Number(result.rating.score);
@@ -435,8 +498,8 @@ export class AnalystAgent extends BaseAgent {
         scoreNum = labelMatch ? parseFloat(labelMatch[0].replace(',', '.')) : 5;
       }
       result.rating.score = Math.min(10, Math.max(1, Math.round(scoreNum * 10) / 10));
-      result.rating.label = `NOTA DE RESULTADOS: ${result.rating.score}`;
-      result.rating.rationale = result.rating.rationale || 'Calificación puramente financiera sin especulación sobre cumplimiento futuro.';
+      result.rating.label = t('NOTA DE RESULTADOS: {score}', { score: result.rating.score }, language);
+      result.rating.rationale = result.rating.rationale || t('Calificación puramente financiera sin especulación sobre cumplimiento futuro.', null, language);
       result.isAnnual = true;
       result.formType = '10-K';
     } else {
@@ -444,6 +507,7 @@ export class AnalystAgent extends BaseAgent {
       result.formType = input.formType ?? '10-Q';
     }
 
+    result.language = language;
     result.fiscalQuarter = extracted.fiscalQuarter ?? fiscalQuarter ?? null;
     result.fiscalYear = extracted.fiscalYear ?? fiscalYear ?? null;
 

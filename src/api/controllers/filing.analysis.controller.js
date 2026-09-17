@@ -11,6 +11,9 @@ import { resolveUser } from '../../middleware/auth.middleware.js';
 import { getAiQuota, reserveAiQuota, refundAiQuota } from '../../services/aiQuota.service.js';
 import { handleEdgarError } from './screener.controller.js';
 import { serveExistingAnalysis } from './filing.versions.controller.js';
+import { resolveAnalysisLanguage } from '../../utils/analysisLanguage.js';
+import { translateAnalysisVariant } from '../../services/translation/analysisTranslation.service.js';
+import { SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE } from '../../utils/i18n.js';
 
 export const TICKER_PATTERN = /^[A-Z0-9.-]{1,10}$/;
 
@@ -28,6 +31,20 @@ export function normalizeAccession(acc) {
   return clean;
 }
 
+/**
+ * Busca una variante ya analizada del mismo filing en un idioma distinto al pedido.
+ * @param {{ ticker: string, accession: string, userId: number|null, language: string }} params
+ * @returns {Promise<object|null>}
+ */
+async function findLanguageVariant({ ticker, accession, userId, language }) {
+  for (const candidate of SUPPORTED_LANGUAGES) {
+    if (candidate === language) continue;
+    const analysis = await findLatestDoneAnalysis({ ticker, accession, userId, language: candidate });
+    if (analysis?.report) return analysis;
+  }
+  return null;
+}
+
 export async function analyzeFilingHandler(req, res, next) {
   try {
     const ticker = String(req.params.ticker ?? '').trim().toUpperCase();
@@ -40,6 +57,8 @@ export async function analyzeFilingHandler(req, res, next) {
     const user = await resolveUser(req);
     const force = req.query.force === '1' || req.query.force === 'true' || req.body?.force === true || res.locals.forceRegeneration === true;
     const upgrade = req.body?.upgrade === true || req.query.upgrade === '1' || res.locals.upgradeVersion === true;
+    const confirmLanguage = req.body?.confirmLanguage === true || req.query.confirmLanguage === '1' || res.locals.confirmLanguage === true;
+    const language = await resolveAnalysisLanguage(req, user);
 
     if (force && !user?.isAdmin) {
       res.status(403).json({ error: 'Solo los administradores pueden forzar la regeneración de informes.' });
@@ -55,10 +74,31 @@ export async function analyzeFilingHandler(req, res, next) {
     }
 
     if (!force && !upgrade) {
-      const existing = await findLatestDoneAnalysis({ ticker, accession, userId: user?.id ?? null });
+      const existing = await findLatestDoneAnalysis({ ticker, accession, userId: user?.id ?? null, language });
       if (existing && existing.report) {
         await serveExistingAnalysis(existing, ticker, accession, user, res);
         return;
+      }
+
+      // Variante de idioma: si el análisis existe en otro idioma, se pide confirmación
+      // explícita antes de gastar cupo generando la versión en el idioma pedido.
+      if (!confirmLanguage) {
+        const availableLanguages = [];
+        for (const candidate of SUPPORTED_LANGUAGES) {
+          if (candidate === language) continue;
+          const other = await findLatestDoneAnalysis({ ticker, accession, userId: user?.id ?? null, language: candidate });
+          if (other?.report) availableLanguages.push(candidate);
+        }
+        if (availableLanguages.length) {
+          res.status(409).json({
+            error: 'Este análisis ya existe en otro idioma. Se traducirá al idioma elegido en unos segundos, con las mismas cifras, y consume una generación de tu cupo diario.',
+            code: 'LANGUAGE_VARIANT_REQUIRED',
+            requestedLanguage: language,
+            availableLanguages,
+            translatable: true,
+          });
+          return;
+        }
       }
     }
 
@@ -68,6 +108,38 @@ export async function analyzeFilingHandler(req, res, next) {
         code: 'AUTH_REQUIRED',
       });
       return;
+    }
+
+    // Variante de idioma confirmada: se traduce el informe ya existente (mismos
+    // datos, coste mínimo) en lugar de volver a analizar el filing desde cero.
+    if (!force && !upgrade && confirmLanguage) {
+      const variant = await findLanguageVariant({ ticker, accession, userId: user.id, language });
+      if (variant?.report) {
+        const translationUsageId = await reserveAiQuota(user);
+        try {
+          const translated = await translateAnalysisVariant({
+            source: variant,
+            targetLanguage: language,
+            userId: user.id,
+            actor: user.username || user.email,
+          });
+          const translationQuota = await getAiQuota(user);
+          res.json({
+            ok: true,
+            ...translated,
+            currentVersion: translated.version ?? null,
+            versionOutdated: false,
+            saved: true,
+            cached: false,
+            translated: true,
+            quota: translationQuota,
+          });
+          return;
+        } catch (translationError) {
+          await refundAiQuota(translationUsageId);
+          console.warn('[analysis:translation] Falló la traducción, se regenera el análisis completo:', translationError.message);
+        }
+      }
     }
 
     const usageId = await reserveAiQuota(user);
@@ -99,6 +171,7 @@ export async function analyzeFilingHandler(req, res, next) {
         sourceUrl: content.filing?.documentUrl ?? null,
         formType: content.filing?.formType ?? null,
         presentationText,
+        language,
       };
 
       result = content.kind === 'pdf'
@@ -124,6 +197,7 @@ export async function analyzeFilingHandler(req, res, next) {
       report: result.report,
       pdfUrl: result.pdfUrl,
       downloadBase: result.downloadBase,
+      language: result.language ?? DEFAULT_LANGUAGE,
       saved: true,
       cached: false,
       quota,

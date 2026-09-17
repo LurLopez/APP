@@ -8,6 +8,7 @@ import { getAnalyzedAccessionsWithRatings } from '../../../db/repositories/analy
 import { resolveAnalysisVersion, isAnalysisOutdated } from '../../agents/sectorAgent.js';
 import { getChartSeries, getCompanyHolders } from '../../services/market.service.js';
 import { resolveUser } from '../../middleware/auth.middleware.js';
+import { detectPriorityLanguage } from '../../utils/i18n.js';
 
 const TICKER_PATTERN = /^[A-Z0-9.-]{1,10}$/;
 
@@ -32,8 +33,11 @@ export async function getCompanyDetailsHandler(req, res, next) {
       res.status(400).json({ error: 'Ticker no válido.' });
       return;
     }
+    const country = req.headers['cf-ipcountry'] || req.headers['x-country-code'] || req.headers['x-geo-country'];
+    const detectedLang = detectPriorityLanguage({ country, acceptLanguage: req.headers['accept-language'] });
+    const lang = req.query.lang || detectedLang;
     const user = await resolveUser(req);
-    const result = await getCompanyResults(ticker, { authenticated: Boolean(user) });
+    const result = await getCompanyResults(ticker, { authenticated: Boolean(user), lang });
     res.json({ ok: true, authenticated: Boolean(user), ...result });
   } catch (error) {
     handleEdgarError(error, res, next);

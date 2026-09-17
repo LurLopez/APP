@@ -109,6 +109,7 @@
 
     const formData = new FormData();
     formData.append('file', AS.selectedFile);
+    formData.append('language', window.I18n?.getAnalysisLanguage?.() || 'es');
     if (AS.selectedPresentation) formData.append('presentation', AS.selectedPresentation);
 
     try {
@@ -130,6 +131,7 @@
   async function runFilingAnalysis(ticker, accession, options = {}) {
     const isForce = Boolean(options.force);
     const isUpgrade = Boolean(options.upgrade);
+    const isTranslation = Boolean(options.translating);
     const openVersions = Boolean(options.openVersions);
     if (!isForce && !isAuthenticated()) {
       requireAuthForAnalysis(() => runFilingAnalysis(ticker, accession, options));
@@ -138,18 +140,22 @@
     AS.pendingFiling = { ticker, accession };
     AS.currentAnalysisTicker = ticker;
     AS.currentAnalysisAccession = accession;
-    startAnalysisUi(isForce
-      ? `Regenerando informe de ${ticker} con IA…`
-      : isUpgrade
-        ? `Actualizando el informe de ${ticker} a la nueva versión…`
-        : `Analizando el informe de ${ticker}…`);
+    startAnalysisUi(isTranslation
+      ? `Traduciendo el informe de ${ticker}…`
+      : isForce
+        ? `Regenerando informe de ${ticker} con IA…`
+        : isUpgrade
+          ? `Actualizando el informe de ${ticker} a la nueva versión…`
+          : `Analizando el informe de ${ticker}…`);
     const processingNote = document.querySelector('#processing-note');
     if (processingNote) {
-      processingNote.textContent = isForce
-        ? 'Volviendo a analizar desde SEC EDGAR con IA. Las versiones anteriores se conservan.'
-        : isUpgrade
-          ? 'Regenerando el informe con la versión más reciente del análisis. Las versiones anteriores se conservan.'
-          : 'Informe de SEC EDGAR. Verificación y extracción de señales financieras con IA.';
+      processingNote.textContent = isTranslation
+        ? 'Se traduce el análisis ya existente con IA. Las cifras se conservan exactamente igual.'
+        : isForce
+          ? 'Volviendo a analizar desde SEC EDGAR con IA. Las versiones anteriores se conservan.'
+          : isUpgrade
+            ? 'Regenerando el informe con la versión más reciente del análisis. Las versiones anteriores se conservan.'
+            : 'Informe de SEC EDGAR. Verificación y extracción de señales financieras con IA.';
     }
     startProcessingHints();
 
@@ -158,11 +164,31 @@
         ? `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/regenerate`
         : `/api/screener/company/${encodeURIComponent(ticker)}/filings/${encodeURIComponent(accession)}/analyze`;
 
-      const requestOptions = isUpgrade
-        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ upgrade: true }) }
-        : { method: 'POST' };
+      const requestOptions = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: window.I18n?.getAnalysisLanguage?.() || 'es',
+          ...(isUpgrade ? { upgrade: true } : {}),
+          ...(options.confirmLanguage ? { confirmLanguage: true } : {}),
+        }),
+      };
       const response = await fetch(endpoint, requestOptions);
       const data = await response.json().catch(() => ({}));
+
+      if (response.status === 409 && data.code === 'LANGUAGE_VARIANT_REQUIRED') {
+        const translate = window.I18n?.t || ((text) => text);
+        const languageNames = { es: translate('español'), en: translate('inglés') };
+        const requested = languageNames[data.requestedLanguage] || data.requestedLanguage;
+        const available = (data.availableLanguages || []).map((code) => languageNames[code] || code).join(', ');
+        const confirmed = window.confirm(translate('Este análisis ya existe en {available}. Se traducirá al {requested} en unos segundos, con las mismas cifras, y consume 1 análisis de tu cupo diario. ¿Quieres continuar?', { available, requested }));
+        if (confirmed) {
+          runFilingAnalysis(ticker, accession, { ...options, confirmLanguage: true, translating: true });
+        } else {
+          cancelAnalysisUi();
+        }
+        return;
+      }
 
       if (!response.ok) {
         if (handleAnalysisAccessError(data, () => runFilingAnalysis(ticker, accession, options))) return;

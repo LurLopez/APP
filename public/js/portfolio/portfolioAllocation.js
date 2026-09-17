@@ -91,8 +91,8 @@
           <ul class="pf-allocation-legend">${legend}</ul>
         </div>
         <div class="pf-card-footer">
-          <span class="pf-footer-hint">El gráfico de evolución y el detalle de cada posición están abajo.</span>
-          <button class="pf-footer-link" type="button" data-pf-export>⇩ Exportar CSV</button>
+          <span class="pf-footer-hint">${window.I18n ? window.I18n.t('El gráfico de evolución y el detalle de cada posición están abajo.') : 'El gráfico de evolución y el detalle de cada posición están abajo.'}</span>
+          <button class="pf-footer-link" type="button" data-pf-export>${window.I18n ? window.I18n.t('⇩ Exportar CSV') : '⇩ Exportar CSV'}</button>
         </div>
       </div>`;
   }

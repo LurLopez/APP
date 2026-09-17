@@ -8,6 +8,7 @@ const Settings = (() => {
   let userLogged = false;
   let preferences = {
     language: 'es',
+    analysisLanguage: 'es',
     theme: 'indigo',
     darkMode: false,
     watchlistAutoCalendar: true,

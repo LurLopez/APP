@@ -19,15 +19,17 @@ const __dirname = path.dirname(__filename);
 const FILE_NAME_PATTERN = /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)\.(pdf|docx|odt|html)$/;
 
 /**
- * Localiza el análisis propietario del informe solicitado por igualdad exacta de `pdf_url`,
- * nunca mediante comodines. Devuelve también la visibilidad para autorizar la descarga.
+ * Localiza el análisis propietario del informe solicitado por igualdad exacta de `pdf_url`
+ * resolviendo el identificador base del archivo (UUID con sufijo .pdf), nunca mediante comodines.
+ * Devuelve también la visibilidad para autorizar la descarga.
  * @private
- * @param {string} file - Nombre de archivo solicitado (ej. "uuid.pdf").
+ * @param {string} file - Nombre de archivo solicitado (ej. "uuid.pdf", "uuid.docx", "uuid.odt", "uuid.html").
  * @returns {Promise<{ id: number, user_id: number|null, is_public: boolean, report: object, created_at: Date, pdf_url: string }|null>}
  */
 async function findAnalysisByReportFile(file) {
-  const relativePath = `/api/reports/${file}`;
-  const absolutePath = `${config.siteUrl}/api/reports/${file}`;
+  const baseName = path.basename(file, path.extname(file));
+  const relativePath = `/api/reports/${baseName}.pdf`;
+  const absolutePath = `${config.siteUrl}/api/reports/${baseName}.pdf`;
   const { rows } = await pool.query(
     `SELECT id, user_id, is_public, report, created_at, pdf_url
        FROM analyses
@@ -81,7 +83,7 @@ function checkIfRegenerationRequired(filePath, dbCreatedAt, forceRefresh) {
  * @param {Object} reportData - Objeto con los datos estructurados del informe.
  * @returns {Promise<void>}
  */
-async function regenerateAllReportFormats(baseId, reportData) {
+export async function regenerateAllReportFormats(baseId, reportData) {
   try {
     const { buildReportPdf } = await import('../../services/report.service.js');
     const { buildReportHtml, buildReportDocx, buildReportOdt } = await import('../../services/reportExport.service.js');
@@ -155,6 +157,10 @@ export async function downloadReportFile(req, res, next) {
     const needsRegen = checkIfRegenerationRequired(filePath, analysis.created_at, forceRefresh);
     if (needsRegen) {
       await regenerateAllReportFormats(storedBase, analysis.report);
+      if (!fs.existsSync(filePath)) {
+        res.status(500).json({ error: 'Error al generar el formato solicitado del informe.' });
+        return;
+      }
     }
 
     const customName = req.query.name

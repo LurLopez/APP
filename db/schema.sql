@@ -60,6 +60,10 @@ ALTER TABLE analyses ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS version TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS subsector TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS sector_version TEXT;
+-- Idioma en que está redactado el informe ('es' o 'en'): permite cachear una
+-- variante por idioma del mismo filing sin regenerar el análisis.
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'es';
+CREATE INDEX IF NOT EXISTS idx_analyses_filing_language ON analyses (ticker, accession, language);
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS is_reviewed BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS reviewed_by INT REFERENCES users(id) ON DELETE SET NULL;
@@ -242,6 +246,7 @@ CREATE INDEX IF NOT EXISTS idx_user_price_alerts_pending ON user_price_alerts (s
 CREATE TABLE IF NOT EXISTS user_preferences (
     user_id                   INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     language                  TEXT NOT NULL DEFAULT 'es',
+    analysis_language         TEXT NOT NULL DEFAULT 'es',
     theme                     TEXT NOT NULL DEFAULT 'indigo',
     dark_mode                 BOOLEAN NOT NULL DEFAULT false,
     watchlist_auto_calendar   BOOLEAN NOT NULL DEFAULT true,
@@ -258,6 +263,7 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 );
 
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'es';
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS analysis_language TEXT NOT NULL DEFAULT 'es';
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'indigo';
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT false;
 

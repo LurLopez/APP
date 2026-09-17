@@ -32,6 +32,17 @@ export function notFound(message) {
   return error;
 }
 
+let secThrottleChain = Promise.resolve();
+
+function throttledFetch(url, options) {
+  const next = secThrottleChain.then(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    return fetch(url, options);
+  });
+  secThrottleChain = next.catch(() => {});
+  return next;
+}
+
 /**
  * Realiza una petición JSON a la API de la SEC con reintentos exponenciales ante rate limiting (429).
  * @param {string} url - URL de la SEC.
@@ -40,7 +51,7 @@ export function notFound(message) {
  */
 export async function fetchSecJson(url, retries = 3) {
   try {
-    const response = await fetch(url, {
+    const response = await throttledFetch(url, {
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'application/json',
@@ -102,22 +113,34 @@ export async function fetchSecText(url, retries = 2) {
  * Obtiene el mapa completo de tickers y CIKs de la SEC con caché en memoria.
  * @returns {Promise<Map<string, {cik: number|string, ticker: string, name: string}>>} Mapa indexado por ticker mayúsculas.
  */
+let pendingTickerMap = null;
+
 export async function getTickerMap() {
   if (tickerMapCache && Date.now() - tickerMapCache.at < TICKER_MAP_TTL) {
     return tickerMapCache.data;
   }
-  const raw = await fetchSecJson(COMPANY_TICKERS_URL);
-  const data = new Map();
-  for (const entry of Object.values(raw)) {
-    data.set(String(entry.ticker).toUpperCase(), {
-      cik: entry.cik_str,
-      ticker: String(entry.ticker).toUpperCase(),
-      name: entry.title,
-    });
+  if (pendingTickerMap) {
+    return pendingTickerMap;
   }
-  for (const [tick, override] of Object.entries(KNOWN_TICKER_OVERRIDES)) {
-    data.set(tick, override);
-  }
-  tickerMapCache = { data, at: Date.now() };
-  return data;
+  pendingTickerMap = (async () => {
+    try {
+      const raw = await fetchSecJson(COMPANY_TICKERS_URL);
+      const data = new Map();
+      for (const entry of Object.values(raw)) {
+        data.set(String(entry.ticker).toUpperCase(), {
+          cik: entry.cik_str,
+          ticker: String(entry.ticker).toUpperCase(),
+          name: entry.title,
+        });
+      }
+      for (const [tick, override] of Object.entries(KNOWN_TICKER_OVERRIDES)) {
+        data.set(tick, override);
+      }
+      tickerMapCache = { data, at: Date.now() };
+      return data;
+    } finally {
+      pendingTickerMap = null;
+    }
+  })();
+  return pendingTickerMap;
 }

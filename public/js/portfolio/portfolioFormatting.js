@@ -10,7 +10,14 @@
     return window.HtmlUtils.escapeHtml(value);
   }
 
+  function activeLocale() {
+    return window.I18n?.getLanguage?.() === 'en' ? 'en-US' : 'es-ES';
+  }
+
   function formatNumber(value, options) {
+    if (activeLocale() === 'en-US') {
+      return new Intl.NumberFormat('en-US', options).format(Number(value));
+    }
     const formatted = new Intl.NumberFormat('es-ES', options).format(Number(value));
     const [integer, decimals] = formatted.split(',');
     const sign = integer.startsWith('-') ? '-' : '';
@@ -58,6 +65,7 @@
     if (!value) return '—';
     const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
     if (Number.isNaN(date.getTime())) return '—';
+    if (window.I18n?.formatDate) return window.I18n.formatDate(date);
     return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
   }
 

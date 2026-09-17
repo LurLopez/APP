@@ -34,6 +34,11 @@
       reviewedCheckbox.checked = Boolean(AS.currentAnalysisIsReviewed);
     }
 
+    const adminChatBtn = document.querySelector('#admin-ai-chat-btn');
+    if (adminChatBtn) {
+      adminChatBtn.hidden = !isAdmin || !AS.currentAnalysisId;
+    }
+
     const toggle = document.querySelector('#analysis-versions-toggle');
     if (toggle) {
       const canList = Boolean(AS.currentAnalysisAccession && AS.currentAnalysisVersions.length);
@@ -170,7 +175,10 @@
     if (!analysis || !analysis.report) return;
     AS.currentPdfUrl = analysis.pdf_url ?? null;
     AS.currentDownloadBase = AS.currentPdfUrl ? AS.currentPdfUrl.replace(/\.pdf$/, '') : (analysis.downloadBase ?? null);
-    AS.currentDownloadName = analysis.downloadBase ?? (analysis.ticker ? `${analysis.ticker}-${(analysis.periodTitle || 'informe').replace(/\s+/g, '-')}` : 'analisis-cifra');
+    const cleanDownloadName = (analysis.ticker ? `${analysis.ticker}-${(analysis.periodTitle || analysis.report?.periodTitle || 'informe').replace(/\s+/g, '-')}` : null)
+      || (analysis.downloadBase && !analysis.downloadBase.startsWith('/') ? analysis.downloadBase : null)
+      || 'analisis-cifra';
+    AS.currentDownloadName = cleanDownloadName;
 
     const titleParts = [analysis.company_name || analysis.company || analysis.ticker, analysis.periodTitle || analysis.report?.periodTitle].filter(Boolean);
     const resultTitle = document.querySelector('#result-title');
@@ -198,9 +206,13 @@
     }
 
     const adminRegenBtn = document.querySelector('#admin-regenerate-report');
+    const adminChatBtn = document.querySelector('#admin-ai-chat-btn');
+    const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || AS.currentUser?.isAdmin);
     if (adminRegenBtn) {
-      const isAdmin = Boolean(window.AuthModule?.isAdmin?.() || AS.currentUser?.isAdmin);
       adminRegenBtn.hidden = !isAdmin;
+    }
+    if (adminChatBtn) {
+      adminChatBtn.hidden = !isAdmin || !AS.currentAnalysisId;
     }
 
     const processingPanel = document.querySelector('#processing-panel');

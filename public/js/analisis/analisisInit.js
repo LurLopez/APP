@@ -69,7 +69,8 @@
           return;
         }
         AS.currentAnalysisIsReviewed = Boolean(data.isReviewed);
-        analysisVersionsCache.clear();
+        window.analysisVersionsCache?.clear?.();
+        window.AnalisisVersions?.getCache?.()?.clear?.();
         renderAnalysisVersionControl();
         showToast(data.isReviewed
           ? 'Análisis marcado como revisado por humano 🛡️'
@@ -185,7 +186,7 @@
   }
 
 window.wireAnalisisAdmin = wireAnalisisAdmin;
-window.init = init;
+window.analisisInit = init;
 window.setAuthenticated = setAuthenticated;
 
 })(window);

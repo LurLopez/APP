@@ -85,7 +85,18 @@ function renderCompany(data) {
   document.querySelector('#pf-industry').textContent = info.industry ?? '—';
   document.querySelector('#pf-exchange').textContent = info.exchange ?? market.exchange ?? '—';
   document.querySelector('#pf-rivals').textContent = '—';
-  document.querySelector('#pf-description').textContent = profile.description || 'No hay descripción pública disponible.';
+  const isEn = window.I18n?.getLanguage?.() === 'en' || window.location.pathname === '/en' || window.location.pathname.startsWith('/en/');
+  if (isEn) {
+    const exchange = info.exchange ?? market.exchange ?? null;
+    const descParts = [
+      exchange ? `${data.company?.name || 'The company'} is listed on ${exchange}.` : `${data.company?.name || 'The company'} is a publicly traded company.`,
+      info.industry && info.industry !== '—' ? `Classified by the SEC in ${info.industry.toLowerCase()}.` : null,
+      info.address && info.address !== '—' ? `Registered address: ${info.address}.` : null,
+    ].filter(Boolean);
+    document.querySelector('#pf-description').textContent = descParts.length ? descParts.join(' ') : 'No public description available.';
+  } else {
+    document.querySelector('#pf-description').textContent = profile.description || 'No hay descripción pública disponible.';
+  }
 
   renderValuation(data);
 }
@@ -98,17 +109,20 @@ function renderScreenerTables() {
   const statements = companyData.statements ?? {};
   const title = document.querySelector('#screener-table-title');
   const statementNames = {
-    valuation: 'Valoración',
-    favorites: 'Favoritos',
-    income: 'Cuenta de resultados',
-    balance: 'Balance de situación',
-    cashflow: 'Estado de Flujo de Efectivo',
+    valuation: window.I18n ? window.I18n.t('Valoración') : 'Valoración',
+    favorites: window.I18n ? window.I18n.t('Favoritos') : 'Favoritos',
+    income: window.I18n ? window.I18n.t('Cuenta de resultados') : 'Cuenta de resultados',
+    balance: window.I18n ? window.I18n.t('Balance de situación') : 'Balance de situación',
+    cashflow: window.I18n ? window.I18n.t('Estado de Flujo de Efectivo') : 'Estado de Flujo de Efectivo',
   };
-  title.textContent = `${statementNames[screenerStatement] ?? 'Estado financiero'} | Cifra`;
+  const defTitle = window.I18n ? window.I18n.t('Estado financiero') : 'Estado financiero';
+  title.textContent = `${statementNames[screenerStatement] ?? defTitle} | Cifra`;
   const range = document.querySelector('#screener-period-range');
   range.textContent = visibleIndexes.length
-    ? `Datos financieros de ${periodDateLabel(rows[visibleIndexes[visibleIndexes.length - 1]])} a ${periodDateLabel(rows[visibleIndexes[0]])}`
-    : 'Sin periodos visibles';
+    ? (window.I18n
+        ? window.I18n.t('Datos financieros de {0} a {1}', { '0': periodDateLabel(rows[visibleIndexes[visibleIndexes.length - 1]]), '1': periodDateLabel(rows[visibleIndexes[0]]) })
+        : `Datos financieros de ${periodDateLabel(rows[visibleIndexes[visibleIndexes.length - 1]])} a ${periodDateLabel(rows[visibleIndexes[0]])}`)
+    : (window.I18n ? window.I18n.t('Sin periodos visibles') : 'Sin periodos visibles');
 
   const valSummaryBlock = document.querySelector('#val-summary-block');
   if (valSummaryBlock) {

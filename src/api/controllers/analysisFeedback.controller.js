@@ -10,6 +10,7 @@ import {
   setAnalysisReviewed,
   getAnalysisById,
 } from '../../../db/repositories/analysisRepository.js';
+import { invalidateReportCache } from '../../services/seo/reportSeo.cache.service.js';
 import { resolveUser } from '../../middleware/auth.middleware.js';
 import {
   parseIdParam,
@@ -172,6 +173,8 @@ export async function reviewAnalysis(req, res, next) {
       res.status(404).json({ error: 'El análisis no existe.' });
       return;
     }
+
+    invalidateReportCache();
 
     res.json({
       ok: true,

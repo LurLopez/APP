@@ -41,7 +41,7 @@ export function buildReportSlug(row) {
 
 export async function loadPublicReportRow(id) {
   const rows = await query(
-    `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, sector, version, subsector, sector_version, report
+    `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, sector, version, subsector, sector_version, is_reviewed, report
        FROM analyses
        WHERE id = $1 AND is_public = true AND status = 'done'
       LIMIT 1`,
@@ -56,7 +56,7 @@ export async function loadPublicReportBySlug(ticker, rawSlug) {
 
   let normSlug = String(rawSlug || '').trim().toUpperCase().replace(/10-K/, '10K');
   const rows = await query(
-    `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, sector, version, subsector, sector_version, report
+    `SELECT id, ticker, company_name, period_end, pdf_url, source_url, accession, created_at, sector, version, subsector, sector_version, is_reviewed, report
        FROM analyses
        WHERE is_public = true AND status = 'done' AND UPPER(ticker) = $1
        ORDER BY created_at DESC, id DESC`,
@@ -89,7 +89,8 @@ export async function getReportSlugById(id) {
   return { ticker, slug, row };
 }
 
-async function buildReportPage(row) {
+async function buildReportPage(row, lang = 'es') {
+  const isEn = lang === 'en';
   const report = row.report ?? {};
   const ticker = String(row.ticker ?? report.ticker ?? '').toUpperCase();
   const company = report.company ?? row.company_name ?? ticker;
@@ -103,9 +104,17 @@ async function buildReportPage(row) {
     ? report.periodTitle
     : (isAnnual ? `FY ${report.fiscalYear ?? ''}` : `Q${report.fiscalQuarter ?? ''} ${report.fiscalYear ?? ''}`);
   const slug = buildReportSlug(row);
-  const url = `${config.siteUrl}/informe/${encodeURIComponent(ticker)}/${slug}`;
-  const title = `Informe ${formType} de ${name} (${ticker}) — ${fyLabel} | ${SITE_NAME}`;
-  const description = `Resultados de ${name} (${ticker}) en su informe ${formType} ${fyLabel.trim()}: ventas, beneficio operativo, flujo de caja libre, dividendos, recompras y deuda, con el análisis financiero de Cifra.`;
+
+  const esUrl = `${config.siteUrl}/informe/${encodeURIComponent(ticker)}/${slug}`;
+  const enUrl = `${config.siteUrl}/en/informe/${encodeURIComponent(ticker)}/${slug}`;
+  const url = isEn ? enUrl : esUrl;
+
+  const title = isEn
+    ? `${name} (${ticker}) Form ${formType} report — ${fyLabel} | ${SITE_NAME}`
+    : `Informe ${formType} de ${name} (${ticker}) — ${fyLabel} | ${SITE_NAME}`;
+  const description = isEn
+    ? `${formType} financial results for ${name} (${ticker}) in its ${fyLabel.trim()} report: sales, operating income, free cash flow, dividends, share buybacks, and debt, with Cifra analysis.`
+    : `Resultados de ${name} (${ticker}) en su informe ${formType} ${fyLabel.trim()}: ventas, beneficio operativo, flujo de caja libre, dividendos, recompras y deuda, con el análisis financiero de Cifra.`;
   const reportHeadingTitle = `${ticker} — ${fyLabel}`;
 
   const meta = {
@@ -123,8 +132,15 @@ async function buildReportPage(row) {
     publishedAt: new Date(row.created_at).toISOString(),
   };
   const jsonLd = buildReportJsonLd(meta, row);
+  if (isEn && jsonLd?.['@graph']) {
+    const webPage = jsonLd['@graph'].find((g) => g['@type'] === 'WebPage');
+    if (webPage) webPage.inLanguage = 'en';
+  }
 
   let out = replaceTokens(readTemplate('index.html'));
+  if (isEn) {
+    out = out.replace('<html lang="es">', '<html lang="en">');
+  }
   out = setMetaTag(out, /<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`);
   out = setMetaTag(out, /<meta name="description" content="[\s\S]*?">/, `<meta name="description" content="${escapeHtml(description)}">`);
   out = setMetaTag(out, /<link rel="canonical" href="[\s\S]*?">/, `<link rel="canonical" href="${escapeHtml(url)}">`);
@@ -132,13 +148,16 @@ async function buildReportPage(row) {
   out = setMetaTag(out, /<meta property="og:description" content="[\s\S]*?">/, `<meta property="og:description" content="${escapeHtml(description)}">`);
   out = setMetaTag(out, /<meta property="og:url" content="[\s\S]*?">/, `<meta property="og:url" content="${escapeHtml(url)}">`);
   out = setMetaTag(out, /<meta property="og:type" content="[\s\S]*?">/, '<meta property="og:type" content="article">');
+  out = setMetaTag(out, /<meta property="og:locale" content="[\s\S]*?">/, `<meta property="og:locale" content="${isEn ? 'en_US' : 'es_ES'}">`);
   out = setMetaTag(out, /<meta name="twitter:title" content="[\s\S]*?">/, `<meta name="twitter:title" content="${escapeHtml(title)}">`);
   out = setMetaTag(out, /<meta name="twitter:description" content="[\s\S]*?">/, `<meta name="twitter:description" content="${escapeHtml(description)}">`);
 
+  const mdTitle = isEn ? 'Markdown version for AI' : 'Versión Markdown para IA';
   const hreflangs = [
-    `<link rel="alternate" hreflang="es" href="${escapeHtml(url)}">`,
-    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}">`,
-    `<link rel="alternate" type="text/markdown" href="${escapeHtml(url)}.md" title="Versión Markdown para IA">`,
+    `<link rel="alternate" hreflang="es" href="${escapeHtml(esUrl)}">`,
+    `<link rel="alternate" hreflang="en" href="${escapeHtml(enUrl)}">`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(esUrl)}">`,
+    `<link rel="alternate" type="text/markdown" href="${escapeHtml(url)}.md" title="${mdTitle}">`,
   ].join('\n  ');
   out = out.replace(/<link rel="alternate" hreflang="es"[^>]*>/, hreflangs);
 
@@ -169,12 +188,17 @@ async function buildReportPage(row) {
     version: row.version ?? null,
     subsector: row.subsector ?? null,
     sectorVersion: row.sector_version ?? null,
+    is_reviewed: Boolean(row.is_reviewed),
+    isReviewed: Boolean(row.is_reviewed),
     currentVersion: await resolveAnalysisVersion(versionOptions),
     versionOutdated: await isAnalysisOutdated({ version: row.version, ...versionOptions }),
     report,
   };
   const initialScript = `<script id="cifra-initial-report" type="application/json">${safeJsonForScript(initialPayload, 0)}</script>`;
   out = out.replace('</head>', `  ${initialScript}\n</head>`);
+  if (isEn && !out.includes('__CIFRA_LANGUAGE__')) {
+    out = out.replace('</head>', '  <script>window.__CIFRA_LANGUAGE__ = "en";</script>\n</head>');
+  }
   out = out.replace('<div class="company-loading" id="company-loading">Consultando EDGAR…</div>', '<div class="company-loading" id="company-loading" hidden>Consultando EDGAR…</div>');
   out = out.replace('<div id="company-body" hidden>', '<div id="company-body">');
   out = out.replace('<section class="company-head-row">', '<section class="company-head-row" hidden>');
@@ -184,15 +208,16 @@ async function buildReportPage(row) {
   out = out.replace('<div class="sec-analysis-entry" id="sec-analysis-entry">', '<div class="sec-analysis-entry" id="sec-analysis-entry" hidden>');
   out = out.replace('<div class="result-preview" id="result-preview" hidden>', '<div class="result-preview" id="result-preview">');
   out = out.replace('<h3 id="result-title">Informe generado</h3>', `<h3 id="result-title">${escapeHtml(reportHeadingTitle)}</h3>`);
-  out = out.replace('<div class="result-report" id="report-body"></div>', `<div class="result-report" id="report-body">${renderReportSsrHtml(report)}</div>`);
+  out = out.replace('<div class="result-report" id="report-body"></div>', `<div class="result-report" id="report-body">${renderReportSsrHtml(report, isEn ? 'en' : 'es')}</div>`);
 
   return out;
 }
 
-export async function getPublicReportHtmlBySlug(ticker, rawSlug) {
+export async function getPublicReportHtmlBySlug(ticker, rawSlug, { lang = 'es' } = {}) {
+  const isEn = lang === 'en';
   const cleanTicker = String(ticker || '').trim().toUpperCase();
   const normSlug = String(rawSlug || '').trim().toUpperCase().replace(/10-K/, '10K');
-  const cacheKey = `${cleanTicker}:${normSlug}`;
+  const cacheKey = `${cleanTicker}:${normSlug}:${isEn ? 'en' : 'es'}`;
 
   const cached = reportCache.get(cacheKey);
   if (cached && Date.now() - cached.at < REPORT_TTL) return cached.data;
@@ -209,12 +234,12 @@ export async function getPublicReportHtmlBySlug(ticker, rawSlug) {
   }
 
   const canonicalSlug = buildReportSlug(row);
-  const html = await buildReportPage(row);
+  const html = await buildReportPage(row, isEn ? 'en' : 'es');
   const result = { html, canonicalSlug, ticker: String(row.ticker ?? cleanTicker).toUpperCase() };
 
   reportCache.set(cacheKey, { data: result, at: Date.now() });
-  reportCache.set(`${result.ticker}:${canonicalSlug}`, { data: result, at: Date.now() });
-  if (row.id) reportCache.set(Number(row.id), { data: html, at: Date.now() });
+  reportCache.set(`${result.ticker}:${canonicalSlug}:${isEn ? 'en' : 'es'}`, { data: result, at: Date.now() });
+  if (row.id && !isEn) reportCache.set(Number(row.id), { data: html, at: Date.now() });
   return result;
 }
 

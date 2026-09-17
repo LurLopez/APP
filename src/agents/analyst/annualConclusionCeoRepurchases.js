@@ -4,6 +4,7 @@
 
 import { isPlaceholderText, parseLooseReportNumber } from './financialParsers.js';
 import { buildFutureProjectionText, buildShareCountEvolutionText, buildRepurchaseSecTable, enrichRepurchaseSnippet, mergeHistoryByYear } from './historyBuilders.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 const EXECUTIVE_CHANGE_DISCLAIMER = 'La trayectoria de los directivos combina los hechos del informe con contexto público general; verifícala con fuentes externas antes de decidir.';
 
@@ -45,7 +46,8 @@ function mergeExecutivePerson(aiPerson, extractedPerson, keys) {
   return Object.keys(merged).length ? merged : null;
 }
 
-function normalizeExecutiveChange(aiChange, extractedChange) {
+function normalizeExecutiveChange(aiChange, extractedChange, language = 'es') {
+  const lang = normalizeLanguage(language);
   const oldExecutive = mergeExecutivePerson(aiChange?.oldExecutive ?? aiChange?.outgoingExecutive, extractedChange?.oldExecutive ?? extractedChange?.outgoingExecutive, ['name', 'role', 'tenureStart', 'whereTheyGo', 'salesDuringTenure', 'policies']);
   const newExecutive = mergeExecutivePerson(aiChange?.newExecutive ?? aiChange?.incomingExecutive, extractedChange?.newExecutive ?? extractedChange?.incomingExecutive, ['name', 'origin', 'trackRecord', 'commitments']);
   const text = cleanReportText(aiChange?.text)
@@ -61,7 +63,7 @@ function normalizeExecutiveChange(aiChange, extractedChange) {
   if (!occurred) return null;
 
   return {
-    role: pickReportField(aiChange?.role, extractedChange?.role) || 'Directivo',
+    role: pickReportField(aiChange?.role, extractedChange?.role) || t('Directivo', null, lang),
     text,
     announcementDate: pickReportField(aiChange?.announcementDate, extractedChange?.announcementDate),
     effectiveDate: pickReportField(aiChange?.effectiveDate, extractedChange?.effectiveDate),
@@ -92,7 +94,8 @@ function sameExecutiveChange(aiChange, extractedChange) {
   return false;
 }
 
-export function processExecutiveChangesSection(conclusion, rawAnn) {
+export function processExecutiveChangesSection(conclusion, rawAnn, language = 'es') {
+  const lang = normalizeLanguage(language);
   const extraction = Array.isArray(rawAnn?.executiveChanges) ? rawAnn.executiveChanges : [];
   const ai = conclusion.executiveChanges ?? {};
   let aiChanges = [];
@@ -117,12 +120,12 @@ export function processExecutiveChangesSection(conclusion, rawAnn) {
   extraction.forEach((extractedChange) => {
     const aiIndex = aiChanges.findIndex((candidate, index) => !usedAiIndexes.has(index) && sameExecutiveChange(candidate, extractedChange));
     if (aiIndex !== -1) usedAiIndexes.add(aiIndex);
-    const change = normalizeExecutiveChange(aiIndex !== -1 ? aiChanges[aiIndex] : null, extractedChange);
+    const change = normalizeExecutiveChange(aiIndex !== -1 ? aiChanges[aiIndex] : null, extractedChange, lang);
     if (change) changes.push(change);
   });
   aiChanges.forEach((aiChange, index) => {
     if (usedAiIndexes.has(index)) return;
-    const change = normalizeExecutiveChange(aiChange, null);
+    const change = normalizeExecutiveChange(aiChange, null, lang);
     if (change) changes.push(change);
   });
 
@@ -132,22 +135,23 @@ export function processExecutiveChangesSection(conclusion, rawAnn) {
   }
 
   conclusion.executiveChanges = {
-    title: cleanReportText(ai.title) || cleanReportText(conclusion.ceoChange?.title) || 'Cambios en la dirección',
+    title: cleanReportText(ai.title) || cleanReportText(conclusion.ceoChange?.title) || t('Cambios en la dirección', null, lang),
     changes,
-    disclaimer: EXECUTIVE_CHANGE_DISCLAIMER,
+    disclaimer: t(EXECUTIVE_CHANGE_DISCLAIMER, null, lang),
   };
 }
 
-export function processRepurchasesSection(conclusion, rawAnn, extracted) {
+export function processRepurchasesSection(conclusion, rawAnn, extracted, language = 'es') {
+  const lang = normalizeLanguage(language);
   conclusion.repurchases = conclusion.repurchases || {};
   const rep = conclusion.repurchases;
   const extractionRep = rawAnn.repurchases ?? {};
-  rep.title = rep.title || '1: Recompras';
-  rep.text = rep.text || rawAnn.repurchasesNarrative || 'Detalle de los programas de recompras de acciones ejecutados durante el ejercicio.';
+  rep.title = rep.title || t('1: Recompras', null, lang);
+  rep.text = rep.text || rawAnn.repurchasesNarrative || t('Detalle de los programas de recompras de acciones ejecutados durante el ejercicio.', null, lang);
   rep.programAuthorization = rep.programAuthorization
     || rawAnn.repurchaseProgramSummary
     || extractionRep.programSummary
-    || (extractionRep.programAuthorizedTotal ? `Autorización de ${extractionRep.programAuthorizedTotal}M` : null)
+    || (extractionRep.programAuthorizedTotal ? t('Autorización de {amount}M', { amount: extractionRep.programAuthorizedTotal }, lang) : null)
     || null;
   rep.programRemaining = rep.programRemaining
     || rawAnn.repurchaseRemaining
@@ -160,8 +164,9 @@ export function processRepurchasesSection(conclusion, rawAnn, extracted) {
   const currentAuthRemaining = rep.authorizationRemaining;
   if ((!currentAuthRemaining || isPlaceholderText(currentAuthRemaining)) && extractionRep.programRemaining != null && extractionRep.programRemaining !== '') {
     const remNum = Number(extractionRep.programRemaining);
+    const remText = lang === 'en' ? String(remNum) : String(remNum).replace('.', ',');
     rep.authorizationRemaining = Number.isFinite(remNum)
-      ? `Unos ${String(remNum).replace('.', ',')}M de $ pendientes de ejecución`
+      ? t('Unos {amount}M de $ pendientes de ejecución', { amount: remText }, lang)
       : String(extractionRep.programRemaining);
   }
 
@@ -174,6 +179,7 @@ export function processRepurchasesSection(conclusion, rawAnn, extracted) {
       remainingAuthorization: extractionRep.programRemaining,
       averagePrice: avgPrice,
       sharesHistory: rep.sharesHistory,
+      language: lang,
     });
     if (projection) rep.futureProjection = projection;
   }
@@ -190,7 +196,7 @@ export function processRepurchasesSection(conclusion, rawAnn, extracted) {
 
   if (Array.isArray(rep.sharesHistory) && rep.sharesHistory.length >= 2) {
     rep.sharesHistory = mergeHistoryByYear(rep.sharesHistory, []).slice(-5);
-    const computedEvolution = buildShareCountEvolutionText(rep.sharesHistory);
+    const computedEvolution = buildShareCountEvolutionText(rep.sharesHistory, lang);
     if (computedEvolution) {
       const saysNoChange = /sin variaci|no variaci|sin cambios|no changes?/i.test(String(rep.shareCountEvolution ?? ''));
       const points = rep.sharesHistory;
@@ -281,7 +287,8 @@ export function processRepurchasesSection(conclusion, rawAnn, extracted) {
   const hasActiveBuybacks = (Number.isFinite(maxBuyback) && maxBuyback > 0)
     || (Number.isFinite(sharesRepurchased) && sharesRepurchased > 0);
   const hasSnippet = Boolean(rep.secSnippet && Array.isArray(rep.secSnippet.rows) && rep.secSnippet.rows.length > 0);
-  const hasCustomNarrative = Boolean(rep.text && !isPlaceholderText(rep.text) && !rep.text.startsWith('Detalle de los programas'));
+  const defaultNarrativePrefixes = ['Detalle de los programas', 'Details of the share repurchase programs'];
+  const hasCustomNarrative = Boolean(rep.text && !isPlaceholderText(rep.text) && !defaultNarrativePrefixes.some((prefix) => rep.text.startsWith(prefix)));
   const hasProgramAuth = Boolean(
     (rep.programAuthorization && !isPlaceholderText(rep.programAuthorization))
     || (extractionRep.programSummary && !isPlaceholderText(extractionRep.programSummary))

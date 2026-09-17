@@ -55,7 +55,7 @@ export async function getCompanyResults(ticker, options = {}) {
     company: { ticker: company.ticker, name: company.name, cik: company.cik },
     currency: 'USD',
     authenticated,
-    profile: buildCompanyProfile(company, facts, submissions ?? {}, annual, quarterly, market),
+    profile: buildCompanyProfile(company, facts, submissions ?? {}, annual, quarterly, market, { lang: options.lang }),
     statements: publicStatements(),
     annual,
     quarterly,
@@ -151,6 +151,13 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
       return Math.round((Number(val) / 1e5)) / 10;
     };
 
+    const balanceSheetDebt = (row) => {
+      const shortTerm = toMillions(row?.values?.shortTermLoans);
+      const longTerm = toMillions(row?.values?.longTermDebt);
+      if (shortTerm == null || longTerm == null) return null;
+      return Math.round((shortTerm + longTerm) * 10) / 10;
+    };
+
     let fyStartRow = null;
     if (currentRow && Number.isFinite(quarter) && quarter >= 1) {
       const currIdx = sorted.indexOf(currentRow);
@@ -231,6 +238,8 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
       previousRestrictedCash: toMillions(prevRow?.values?.restrictedCash),
       fyStartRestrictedCash: toMillions(fyStartRow?.values?.restrictedCash),
       totalDebt: prevDebt,
+      balanceSheetDebt: balanceSheetDebt(prevRow) ?? prevDebt,
+      currentBalanceSheetDebt: balanceSheetDebt(currentRow) ?? toMillions(currentRow?.values?.totalDebt),
       shortTermInvestments: prevShortTerm,
       fyStartCash,
       fyStartDebt,

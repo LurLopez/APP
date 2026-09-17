@@ -92,8 +92,25 @@
       if (!AS.lastAnalysisFailed) clearFile();
     });
 
+    const downloadsToggle = document.querySelector('#analysis-downloads-toggle');
+    downloadsToggle?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const menu = document.querySelector('#analysis-downloads-menu');
+      if (!menu) return;
+      const willOpen = menu.hidden;
+      menu.hidden = !willOpen;
+      downloadsToggle.setAttribute('aria-expanded', String(willOpen));
+    });
+
     document.querySelectorAll('.result-actions [data-format]').forEach((button) => {
-      button.addEventListener('click', () => downloadReport(button.dataset.format));
+      button.addEventListener('click', () => {
+        downloadReport(button.dataset.format);
+        const menu = document.querySelector('#analysis-downloads-menu');
+        if (menu && !menu.hidden) {
+          menu.hidden = true;
+          document.querySelector('#analysis-downloads-toggle')?.setAttribute('aria-expanded', 'false');
+        }
+      });
     });
   }
 
@@ -149,11 +166,19 @@
             showToast('No se pudo conectar con el servidor.');
           }
         } else {
-          downloadReport(action, entry.downloadBase, entry.downloadBase || 'analisis-cifra');
+          const versionName = entry.version ? `${AS.currentAnalysisTicker || 'analisis'}-v${entry.version}` : (AS.currentDownloadName || 'analisis-cifra');
+          downloadReport(action, entry.downloadBase, versionName);
         }
         return;
       }
       if (!event.target.closest('#analysis-version-box')) closeAnalysisVersionsMenu();
+      if (!event.target.closest('.analysis-downloads-wrap')) {
+        const menu = document.querySelector('#analysis-downloads-menu');
+        if (menu && !menu.hidden) {
+          menu.hidden = true;
+          document.querySelector('#analysis-downloads-toggle')?.setAttribute('aria-expanded', 'false');
+        }
+      }
     });
 
     const versionUpgradeBtn = document.querySelector('#analysis-version-upgrade');

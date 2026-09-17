@@ -7,6 +7,7 @@ import { hasSentAlert, recordSentAlert } from '../../../db/repositories/watchlis
 import { getCompanyFilings } from '../edgar.service.js';
 import { getDividendHistory } from '../market.service.js';
 import { sendCompanyEventAlert } from '../email.service.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 /**
  * Comprueba si existen nuevos informes 10-Q o 10-K presentados ante la SEC y notifica a los suscriptores.
@@ -27,12 +28,13 @@ export async function checkEarningsFilingAlerts(ticker, companyName, subscribers
 
     const eventKey = `earnings:${ticker}:${filing.accession || filing.filedAt}`;
     const periodText = filing.periodLabel || filing.period || '';
-    const eventTitle = `Resultados publicados (${periodText ? `${periodText} · ` : ''}Form ${filing.formType})`;
 
     for (const user of subscribers) {
+      const lang = normalizeLanguage(user.language);
       const alreadySent = await hasSentAlert(user.userId, eventKey);
       if (alreadySent) continue;
 
+      const eventTitle = `${t('Resultados publicados', null, lang)} (${periodText ? `${periodText} · ` : ''}Form ${filing.formType})`;
       await sendCompanyEventAlert({
         to: user.email,
         ticker,
@@ -40,7 +42,13 @@ export async function checkEarningsFilingAlerts(ticker, companyName, subscribers
         eventType: 'earnings',
         eventTitle,
         eventDate: filing.filedAt,
-        details: `La empresa ${companyName} (${ticker}) acaba de publicar oficialmente su informe ${filing.formType}${periodText ? ` correspondiente a ${periodText}` : ''} ante la SEC. Ya puedes consultar los estados financieros completos y el análisis con IA en Cifra.`,
+        language: lang,
+        details: t('La empresa {company} ({ticker}) acaba de publicar oficialmente su informe {form}{period} ante la SEC. Ya puedes consultar los estados financieros completos y el análisis con IA en Cifra.', {
+          company: companyName,
+          ticker,
+          form: filing.formType,
+          period: periodText ? ` correspondiente a ${periodText}` : '',
+        }, lang),
       });
       await recordSentAlert(user.userId, ticker, 'earnings', eventKey);
       sentCount += 1;
@@ -67,9 +75,9 @@ export async function checkDividendCutAlerts(ticker, companyName, subscribers, t
   if (!todayDiv) return sentCount;
 
   const eventKey = `exdiv:${ticker}:${todayDiv.date}`;
-  const eventTitle = 'Fecha Ex-Dividend (Hoy)';
 
   for (const user of subscribers) {
+    const lang = normalizeLanguage(user.language);
     const alreadySent = await hasSentAlert(user.userId, eventKey);
     if (alreadySent) continue;
 
@@ -79,9 +87,15 @@ export async function checkDividendCutAlerts(ticker, companyName, subscribers, t
       ticker,
       companyName,
       eventType: 'exdiv',
-      eventTitle,
+      eventTitle: t('Fecha Ex-Dividend (Hoy)', null, lang),
       eventDate: todayDiv.date,
-      details: `Hoy (${todayDiv.date}) es la fecha de corte Ex-Dividend de ${companyName} (${ticker}) por un importe de $${amountFormatted} por acción. Para tener derecho al dividendo, las acciones debían poseerse antes de la sesión de hoy.`,
+      language: lang,
+      details: t('Hoy ({date}) es la fecha de corte Ex-Dividend de {company} ({ticker}) por un importe de ${amount} por acción. Para tener derecho al dividendo, las acciones debían poseerse antes de la sesión de hoy.', {
+        date: todayDiv.date,
+        company: companyName,
+        ticker,
+        amount: amountFormatted,
+      }, lang),
     });
     await recordSentAlert(user.userId, ticker, 'exdiv', eventKey);
     sentCount += 1;

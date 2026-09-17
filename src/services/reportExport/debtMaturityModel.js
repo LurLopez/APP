@@ -4,6 +4,7 @@
  */
 
 import { parseSecNumber, cell, COLORS } from './exportColors.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 /**
  * Colores de los segmentos apilados en el calendario de vencimientos.
@@ -67,7 +68,8 @@ export function rateFromSecSnippet(snippet) {
  * @param {string|number} reportFiscalYear - Año fiscal de referencia del informe.
  * @returns {object|null} Modelo del calendario de vencimientos o null si no hay datos.
  */
-export function buildDebtMaturityModel(debt, reportFiscalYear) {
+export function buildDebtMaturityModel(debt, reportFiscalYear, language = 'es') {
+  const lang = normalizeLanguage(language);
   if (!debt) return null;
   let baseYear = Number(reportFiscalYear);
   if (!Number.isFinite(baseYear) || baseYear < 2000) {
@@ -174,7 +176,8 @@ export function buildDebtMaturityModel(debt, reportFiscalYear) {
   }
 
   return {
-    title: `CALENDARIO DE VENCIMIENTOS DE DEUDA (${minYear}–${maxYear})`,
+    title: t('CALENDARIO DE VENCIMIENTOS DE DEUDA ({from}–{to})', { from: minYear, to: maxYear }, lang),
+    language: lang,
     baseYear,
     minYear,
     maxYear,
@@ -195,20 +198,30 @@ export function buildDebtMaturityModel(debt, reportFiscalYear) {
  */
 export function buildDebtMaturityTable(chart) {
   if (!chart || !Array.isArray(chart.years) || !chart.years.length) return null;
+  const lang = normalizeLanguage(chart.language);
+  const num = (value, digits = 1) => {
+    const fixed = Number(value).toFixed(digits);
+    return lang === 'en' ? fixed : fixed.replace('.', ',');
+  };
+  const colYear = t('Año', null, lang);
+  const colItem = t('Tipo / Emisión de Deuda', null, lang);
+  const colAmount = t('Importe ($M)', null, lang);
+  const colRate = t('Tipo Interés', null, lang);
+  const colAvgRate = t('Tipo Medio Anual', null, lang);
   const headers = [
-    cell('Año', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Tipo / Emisión de Deuda', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Importe ($M)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Tipo Interés', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Tipo Medio Anual', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colYear, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colItem, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colAmount, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colRate, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colAvgRate, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
   ];
   const rows = [];
   chart.years.forEach((yr) => {
     if (!yr.items.length) {
       rows.push([
         cell(String(yr.year), { bold: true, color: COLORS.ink }),
-        cell('Sin vencimientos', { color: COLORS.muted }),
-        cell('$0,0M', { bold: true, color: COLORS.ink }),
+        cell(t('Sin vencimientos', null, lang), { color: COLORS.muted }),
+        cell(`$${num(0)}M`, { bold: true, color: COLORS.ink }),
         cell('—', { color: COLORS.muted }),
         cell('—', { color: COLORS.muted }),
       ]);
@@ -218,21 +231,27 @@ export function buildDebtMaturityTable(chart) {
       rows.push([
         cell(idx === 0 ? String(yr.year) : '', { bold: true, color: COLORS.ink }),
         cell(it.name, { color: COLORS.ink }),
-        cell(`$${it.amount.toFixed(1).replace('.', ',')}M`, { bold: true, color: COLORS.ink }),
+        cell(`$${num(it.amount)}M`, { bold: true, color: COLORS.ink }),
         cell(it.interestRate != null
-          ? `${it.estimated ? '~' : ''}${it.interestRate.toFixed(2).replace('.', ',')} %`
-          : (yr.averageRate != null ? `~${yr.averageRate.toFixed(2).replace('.', ',')} %` : '—'),
+          ? `${it.estimated ? '~' : ''}${num(it.interestRate, 2)} %`
+          : (yr.averageRate != null ? `~${num(yr.averageRate, 2)} %` : '—'),
           { bold: true, color: '#c2410c' }),
-        cell(idx === 0 && yr.averageRate != null ? `${yr.averageRateEstimated ? '~' : ''}${yr.averageRate.toFixed(2).replace('.', ',')} %` : '', { bold: true, color: '#0369a1', bg: idx === 0 ? '#f0fdfa' : null }),
+        cell(idx === 0 && yr.averageRate != null ? `${yr.averageRateEstimated ? '~' : ''}${num(yr.averageRate, 2)} %` : '', { bold: true, color: '#0369a1', bg: idx === 0 ? '#f0fdfa' : null }),
       ]);
     });
   });
   const summaryRow = [
-    cell('TOTAL (PRÓXIMOS 5 AÑOS)', { bold: true, color: COLORS.ink, bg: '#e0f2fe' }),
-    cell(chart.afterYearFive != null ? `Después del año 5: $${chart.afterYearFive.toFixed(1).replace('.', ',')}M` : '—', { color: COLORS.ink, bg: '#e0f2fe' }),
-    cell(`$${chart.totalAmount.toFixed(1).replace('.', ',')}M`, { bold: true, color: COLORS.ink, bg: '#e0f2fe' }),
+    cell(t('TOTAL (PRÓXIMOS 5 AÑOS)', null, lang), { bold: true, color: COLORS.ink, bg: '#e0f2fe' }),
+    cell(chart.afterYearFive != null ? t('Después del año 5: ${amount}M', { amount: num(chart.afterYearFive) }, lang) : '—', { color: COLORS.ink, bg: '#e0f2fe' }),
+    cell(`$${num(chart.totalAmount)}M`, { bold: true, color: COLORS.ink, bg: '#e0f2fe' }),
     cell('—', { color: COLORS.ink, bg: '#e0f2fe' }),
-    cell(chart.totalAverageRate != null ? `${chart.totalAverageRateEstimated ? 'Total medio estimado' : 'Total medio'}: ${chart.totalAverageRateEstimated ? '~' : ''}${chart.totalAverageRate.toFixed(2).replace('.', ',')} %` : '—', { bold: true, color: '#0369a1', bg: '#e0f2fe' }),
+    cell(chart.totalAverageRate != null
+      ? t('{label}: {prefix}{rate} %', {
+        label: chart.totalAverageRateEstimated ? t('Total medio estimado', null, lang) : t('Total medio', null, lang),
+        prefix: chart.totalAverageRateEstimated ? '~' : '',
+        rate: num(chart.totalAverageRate, 2),
+      }, lang)
+      : '—', { bold: true, color: '#0369a1', bg: '#e0f2fe' }),
   ];
-  return { columns: ['Año', 'Tipo / Emisión de Deuda', 'Importe ($M)', 'Tipo Interés', 'Tipo Medio Anual'], widths: [55, 170, 95, 95, 100], headers, rows: [...rows, summaryRow] };
+  return { columns: [colYear, colItem, colAmount, colRate, colAvgRate], widths: [55, 170, 95, 95, 100], headers, rows: [...rows, summaryRow] };
 }

@@ -47,8 +47,19 @@ function applyCanonicalRedirects(pathname, parsed, res) {
     return true;
   }
 
+  if (pathname === '/en/index.html' || pathname === '/en/empresa.html') {
+    const target = pathname === '/en/index.html' ? '/en' : '/en/empresa';
+    res.redirect(301, target + (parsed.search || ''));
+    return true;
+  }
+
   if (pathname === '/informe') {
     res.redirect(301, '/analisis');
+    return true;
+  }
+
+  if (pathname === '/en/informe') {
+    res.redirect(301, '/en/analisis');
     return true;
   }
 

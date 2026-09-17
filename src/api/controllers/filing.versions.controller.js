@@ -52,6 +52,7 @@ export async function getFilingVersionsHandler(req, res, next) {
         reviewedBy: entry.reviewed_by ?? null,
         modelUsed: entry.model_used ?? null,
         formType: entry.form_type ?? null,
+        language: entry.language ?? 'es',
         createdAt: entry.created_at,
         pdfUrl: entry.pdf_url ?? null,
         downloadBase: entry.pdf_url ? String(entry.pdf_url).replace(/\.pdf$/, '') : null,
@@ -108,6 +109,7 @@ export async function serveExistingAnalysis(existing, ticker, accession, user, r
           version: existing.version ?? null,
           subsector: existing.subsector ?? null,
           sectorVersion: existing.sector_version ?? null,
+          language: existing.language ?? existing.report?.language ?? 'es',
         });
         await updateAnalysis(linked.id, {
           origin: existing.origin ?? null,
@@ -148,6 +150,7 @@ export async function serveExistingAnalysis(existing, ticker, accession, user, r
     report: existing.report,
     pdfUrl,
     downloadBase: buildDownloadBase(existing.report, formType),
+    language: existing.language ?? existing.report?.language ?? 'es',
     saved: Boolean(user),
     cached: true,
   });

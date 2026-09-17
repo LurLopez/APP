@@ -76,19 +76,21 @@ export function computeEstimatedDebtRateFromIncome(annualRow, previousAnnualRow)
   };
 }
 
-export function formatFinancialValue(value) {
-  return Number.isFinite(value) ? String(Math.round(value * 10) / 10).replace('.', ',') : null;
+export function formatFinancialValue(value, language = 'es') {
+  if (!Number.isFinite(value)) return null;
+  const rounded = String(Math.round(value * 10) / 10);
+  return language === 'en' ? rounded : rounded.replace('.', ',');
 }
 
-export function formatCellNumber(value) {
+export function formatCellNumber(value, language = 'es') {
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
-  const rounded = Math.round(num * 100) / 100;
-  return String(rounded).replace('.', ',');
+  const rounded = String(Math.round(num * 100) / 100);
+  return language === 'en' ? rounded : rounded.replace('.', ',');
 }
 
 const EXTRACTED_FACT_MONEY_KEYS = [
-  'shareBuybacks',
+  'shareBuybacks', 'shareBuybacksQuarter',
   'purchasesOfMarketableSecuritiesQuarter', 'purchasesOfMarketableSecuritiesYtd',
   'proceedsFromSaleOfMarketableSecuritiesQuarter', 'proceedsFromSaleOfMarketableSecuritiesYtd',
   'acquisitionsQuarter', 'acquisitionsYtd', 'assetSalesQuarter', 'assetSalesYtd', 'brandDivestitures',

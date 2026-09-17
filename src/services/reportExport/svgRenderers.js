@@ -4,6 +4,7 @@
  */
 
 import { escapeHtml } from './exportColors.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 export function renderSharesChartSvg(chart) {
   if (!chart || !Array.isArray(chart.points) || chart.points.length < 2) return '';
@@ -49,7 +50,7 @@ export function renderSharesChartSvg(chart) {
       const xPrev = xFor(n - 2);
       const yPrev = yFor(chart.points[n - 2].shares);
       parts.push(`<line x1="${xPrev.toFixed(1)}" y1="${yPrev.toFixed(1)}" x2="${xFor(n - 1).toFixed(1)}" y2="${yN.toFixed(1)}" stroke="#dc2626" stroke-width="1.6" stroke-dasharray="6 4"/>`);
-      const label2 = `Últ. año: ${fmtP(mets[1].pct)} · BPA ${fmtB(mets[1].bpa)}`;
+      const label2 = t('Últ. año: {pct} · BPA {bpa}', { pct: fmtP(mets[1].pct), bpa: fmtB(mets[1].bpa) }, normalizeLanguage(chart.language));
       const w2 = label2.length * 5.4 + 12;
       const lx = Math.min(W - padR - w2 / 2, (xPrev + xFor(n - 1)) / 2);
       parts.push(`<rect x="${(lx - w2 / 2).toFixed(1)}" y="${(lineMidY - 40).toFixed(1)}" width="${w2.toFixed(1)}" height="15" rx="3" fill="#dc2626"/>`);
@@ -115,12 +116,15 @@ export function renderDebtMaturitySvg(chart) {
 
   const bannerY = H - 28;
   parts.push(`<rect x="${padL}" y="${bannerY}" width="${plotW}" height="22" rx="4" fill="#1e293b"/>`);
-  const afterText = chart.afterYearFive != null ? `  ·  Después del año 5: ${fmtMillions(chart.afterYearFive)}` : '';
-  const rateLabel = chart.totalAverageRateEstimated ? 'Tipo de interés medio estimado de la deuda' : 'Tipo de interés medio total de la deuda';
+  const svgLang = normalizeLanguage(chart.language);
+  const afterText = chart.afterYearFive != null ? `  ·  ${t('Después del año 5: {amount}', { amount: fmtMillions(chart.afterYearFive) }, svgLang)}` : '';
+  const rateLabel = chart.totalAverageRateEstimated
+    ? t('Tipo de interés medio estimado de la deuda', null, svgLang)
+    : t('Tipo de interés medio total de la deuda', null, svgLang);
   const rateValue = chart.totalAverageRateEstimated ? '~' : '';
   const bannerText = chart.totalAverageRate != null
-    ? `${rateLabel}: ${rateValue}${chart.totalAverageRate.toFixed(2).replace('.', ',')} %  ·  Deuda a amortizar: ${fmtMillions(chart.totalAmount)}${afterText}`
-    : `Deuda a amortizar en los próximos 5 años: ${fmtMillions(chart.totalAmount)}${afterText}`;
+    ? `${rateLabel}: ${rateValue}${chart.totalAverageRate.toFixed(2).replace('.', ',')} %  ·  ${t('Deuda a amortizar: {amount}', { amount: fmtMillions(chart.totalAmount) }, svgLang)}${afterText}`
+    : `${t('Deuda a amortizar en los próximos 5 años: {amount}', { amount: fmtMillions(chart.totalAmount) }, svgLang)}${afterText}`;
   parts.push(`<text x="${(padL + plotW / 2).toFixed(1)}" y="${bannerY + 14.5}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#ffffff">${escapeHtml(bannerText)}</text>`);
 
   return `<svg class="sc-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${escapeHtml(chart.title)}" preserveAspectRatio="xMidYMid meet">${parts.join('')}</svg>`;
@@ -141,9 +145,9 @@ export function renderDebtHistorySvg(chart) {
   const parts = [];
 
   parts.push('<rect x="170" y="10" width="10" height="10" rx="2" fill="#1e40af"/>');
-  parts.push('<text x="185" y="18" font-size="8.5" font-weight="700" fill="#334155">Deuda Normal / Total</text>');
+  parts.push(`<text x="185" y="18" font-size="8.5" font-weight="700" fill="#334155">${escapeHtml(t('Deuda Normal / Total', null, normalizeLanguage(chart.language)))}</text>`);
   parts.push('<rect x="330" y="10" width="10" height="10" rx="2" fill="#d97706"/>');
-  parts.push('<text x="345" y="18" font-size="8.5" font-weight="700" fill="#334155">Deuda Neta</text>');
+  parts.push(`<text x="345" y="18" font-size="8.5" font-weight="700" fill="#334155">${escapeHtml(t('Deuda Neta', null, normalizeLanguage(chart.language)))}</text>`);
   const cagrParts = [];
   if (chart.cagrTotalDebt != null) cagrParts.push(`normal ${chart.cagrTotalDebt >= 0 ? '+' : ''}${chart.cagrTotalDebt.toFixed(1).replace('.', ',')} %`);
   if (chart.cagrNetDebt != null) cagrParts.push(`neta ${chart.cagrNetDebt >= 0 ? '+' : ''}${chart.cagrNetDebt.toFixed(1).replace('.', ',')} %`);
@@ -206,10 +210,10 @@ export function renderDividendSvg(chart) {
   }
 
   parts.push(`<rect x="${padL}" y="10" width="10" height="10" rx="2" fill="#f59e0b"/>`);
-  parts.push(`<text x="${padL + 14}" y="18" font-size="8.5" font-weight="700" fill="#334155">Dividendo por acción ($)</text>`);
+  parts.push(`<text x="${padL + 14}" y="18" font-size="8.5" font-weight="700" fill="#334155">${escapeHtml(t('Dividendo por acción ($)', null, normalizeLanguage(chart.language)))}</text>`);
   parts.push(`<line x1="${padL + 165}" y1="15" x2="${padL + 185}" y2="15" stroke="#0f766e" stroke-width="2.5"/>`);
   parts.push(`<circle cx="${padL + 175}" cy="15" r="3.2" fill="#0f766e"/>`);
-  parts.push(`<text x="${padL + 190}" y="18" font-size="8.5" font-weight="700" fill="#0f766e">Payout s/ BPA ajustado (%)</text>`);
+  parts.push(`<text x="${padL + 190}" y="18" font-size="8.5" font-weight="700" fill="#0f766e">${escapeHtml(t('Payout s/ BPA ajustado (%)', null, normalizeLanguage(chart.language)))}</text>`);
   if (chart.dpsCagr != null || chart.totalCagr != null) {
     const cagrParts = [];
     if (chart.totalCagr != null) cagrParts.push(`importe ${chart.totalCagr >= 0 ? '+' : ''}${chart.totalCagr.toFixed(1).replace('.', ',')} %`);
@@ -250,7 +254,8 @@ export function renderDividendSvg(chart) {
 
 export function renderHtmlDividendChart(chart) {
   if (!chart || !Array.isArray(chart.points) || chart.points.length < 2) return '';
-  const note = chart.hasReportedFallback ? ' · * años con BPA reportado (sin ajustado)' : '';
-  const chartTitle = `EVOLUCIÓN DEL DIVIDENDO Y PAYOUT (${chart.points[0].year}–${chart.points[chart.points.length - 1].year})`;
+  const divLang = normalizeLanguage(chart.language);
+  const note = chart.hasReportedFallback ? ` · ${t('* años con BPA reportado (sin ajustado)', null, divLang)}` : '';
+  const chartTitle = t('EVOLUCIÓN DEL DIVIDENDO Y PAYOUT ({from}–{to})', { from: chart.points[0].year, to: chart.points[chart.points.length - 1].year }, divLang);
   return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chartTitle)}${note ? `<span style="font-weight:400;color:#94a3b8;">${escapeHtml(note)}</span>` : ''}</div>${renderDividendSvg(chart)}</div>`;
 }

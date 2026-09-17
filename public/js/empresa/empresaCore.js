@@ -77,7 +77,7 @@ function escapeHtml(value) {
 }
 
 function showToast(message) {
-  toast.textContent = message;
+  toast.textContent = window.I18n?.t ? window.I18n.t(message) : message;
   toast.classList.add('visible');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('visible'), 3200);
@@ -87,7 +87,8 @@ function goToCompany(ticker) {
   if (!ticker) return;
   const clean = String(ticker).trim().toUpperCase();
   localStorage.setItem(SAVED_TICKER_KEY, clean);
-  window.location.href = `/empresa/${encodeURIComponent(clean)}`;
+  const isEn = window.I18n?.getLanguage?.() === 'en' || window.location.pathname === '/en' || window.location.pathname.startsWith('/en/');
+  window.location.href = `${isEn ? '/en' : ''}/empresa/${encodeURIComponent(clean)}`;
 }
 
 function setQuoteDisplay({ price, change, changePercent, dateText, isHover = false, maValue = null, maLabel = null, maColor = null }) {

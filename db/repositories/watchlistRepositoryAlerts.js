@@ -53,9 +53,11 @@ export async function deleteEmailAlert(userId, ticker) {
 export async function getAllActiveAlertSubscriptions() {
   const { rows } = await query(
     `SELECT a.user_id, u.email, u.email_verified, a.ticker, a.company_name,
-            a.notify_earnings, a.notify_exdiv, a.notify_payout
+            a.notify_earnings, a.notify_exdiv, a.notify_payout,
+            COALESCE(p.language, 'es') AS language
      FROM user_email_alerts a
      JOIN users u ON u.id = a.user_id
+     LEFT JOIN user_preferences p ON p.user_id = a.user_id
      WHERE a.enabled = true`,
   );
   return rows.map((row) => ({
@@ -67,6 +69,7 @@ export async function getAllActiveAlertSubscriptions() {
     notifyEarnings: Boolean(row.notify_earnings),
     notifyExdiv: Boolean(row.notify_exdiv),
     notifyPayout: Boolean(row.notify_payout),
+    language: row.language ?? 'es',
   }));
 }
 

@@ -6,64 +6,181 @@ import { cleanAssetDescription } from './financialParsers.js';
 import { mergeHistoryByYear, mergeDividendHistory } from './historyBuilders.js';
 import { withOutlookComparison, completeOutlookPriorColumn, mergeOutlookRows } from './outlookHelpers.js';
 import { buildMaturityScheduleFromDebtTable, maturityItemsLookBucketed } from './debtMaturityFallback.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
-function formatAcquisitionAmount(value) {
+function formatAcquisitionAmount(value, language = 'es') {
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) return null;
   const [int, dec] = (Math.round(num * 10) / 10).toFixed(1).split('.');
+  if (language === 'en') {
+    const formattedInt = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return dec === '0' ? formattedInt : `${formattedInt}.${dec}`;
+  }
   const formattedInt = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return dec === '0' ? formattedInt : `${formattedInt},${dec}`;
 }
 
-function buildAcquisitionsTextFromDetails(items) {
+function buildAcquisitionsTextFromDetails(items, language = 'es') {
+  const lang = normalizeLanguage(language);
   if (!Array.isArray(items) || !items.length) return null;
   const paragraphs = items.map((item) => {
     const name = String(item?.name ?? '').trim();
     if (!name) return null;
     const parts = [];
     const description = String(item?.description ?? '').trim();
-    parts.push(`Se adquirió **${name}**${description ? `, ${description}` : ''}.`);
-    const price = formatAcquisitionAmount(item?.price);
+    parts.push(t('Se adquirió **{name}**{description}.', { name, description: description ? `, ${description}` : '' }, lang));
+    const price = formatAcquisitionAmount(item?.price, lang);
     const priceNote = String(item?.priceNote ?? '').trim();
-    if (price) parts.push(`El importe pagado fue de **${price}M$**${priceNote ? ` (${priceNote})` : ''}.`);
-    else if (priceNote) parts.push(`Condiciones de la operación: ${priceNote}.`);
+    if (price) parts.push(t('El importe pagado fue de **{price}M$**{priceNote}.', { price, priceNote: priceNote ? ` (${priceNote})` : '' }, lang));
+    else if (priceNote) parts.push(t('Condiciones de la operación: {priceNote}.', { priceNote }, lang));
     const rationale = String(item?.rationale ?? '').trim();
-    if (rationale) parts.push(`Motivo declarado de la compra: ${rationale}.`);
+    if (rationale) parts.push(t('Motivo declarado de la compra: {rationale}.', { rationale }, lang));
     const metrics = String(item?.businessMetrics ?? '').trim();
-    if (metrics) parts.push(`Tamaño del negocio adquirido: ${metrics}.`);
+    if (metrics) parts.push(t('Tamaño del negocio adquirido: {metrics}.', { metrics }, lang));
     const impact = String(item?.expectedImpact ?? '').trim();
-    if (impact) parts.push(`Impacto esperado: ${impact}.`);
+    if (impact) parts.push(t('Impacto esperado: {impact}.', { impact }, lang));
     const terms = String(item?.paymentTerms ?? '').trim();
-    if (terms) parts.push(`Forma de pago: ${terms}.`);
+    if (terms) parts.push(t('Forma de pago: {terms}.', { terms }, lang));
     const date = String(item?.date ?? '').trim();
-    if (date) parts.push(`Fecha de la operación: ${date}.`);
+    if (date) parts.push(t('Fecha de la operación: {date}.', { date }, lang));
     return parts.join(' ');
   }).filter(Boolean);
   return paragraphs.length ? paragraphs.join('\n\n') : null;
 }
 
-export function processOutlookSection(conclusion, rawAnn, result) {
+function buildDivestituresTextFromDetails(items, language = 'es') {
+  const lang = normalizeLanguage(language);
+  if (!Array.isArray(items) || !items.length) return null;
+  const paragraphs = items.map((item) => {
+    const name = String(item?.name ?? '').trim();
+    if (!name) return null;
+    const parts = [];
+    const description = String(item?.description ?? '').trim();
+    parts.push(t('Se vendió **{name}**{description}.', { name, description: description ? `, ${description}` : '' }, lang));
+    const stakePct = Number(item?.stakePct);
+    if (Number.isFinite(stakePct) && stakePct > 0) parts.push(t('La operación supone el **{pct} %** del capital de la sociedad participada.', { pct: stakePct }, lang));
+    const revenuePct = Number(item?.revenuePct);
+    if (Number.isFinite(revenuePct) && revenuePct > 0) parts.push(t('Lo vendido representa cerca del **{pct} %** de los ingresos consolidados.', { pct: revenuePct }, lang));
+    const proceeds = formatAcquisitionAmount(item?.proceeds, lang);
+    const priceNote = String(item?.priceNote ?? '').trim();
+    if (proceeds) parts.push(t('El importe cobrado fue de **{price}M$**{priceNote}.', { price: proceeds, priceNote: priceNote ? ` (${priceNote})` : '' }, lang));
+    else if (priceNote) parts.push(t('Condiciones de la operación: {priceNote}.', { priceNote }, lang));
+    const buyer = String(item?.buyer ?? '').trim();
+    if (buyer) parts.push(t('Comprador: {buyer}.', { buyer }, lang));
+    const date = String(item?.date ?? '').trim();
+    if (date) parts.push(t('Fecha de la operación: {date}.', { date }, lang));
+    const rationale = String(item?.rationale ?? '').trim();
+    if (rationale) parts.push(t('Motivo declarado de la venta: {rationale}.', { rationale }, lang));
+    const impact = String(item?.expectedImpact ?? '').trim();
+    if (impact) parts.push(t('Impacto esperado: {impact}.', { impact }, lang));
+    return parts.join(' ');
+  }).filter(Boolean);
+  return paragraphs.length ? paragraphs.join('\n\n') : null;
+}
+
+function buildSpinOffsTextFromDetails(items, language = 'es') {
+  const lang = normalizeLanguage(language);
+  if (!Array.isArray(items) || !items.length) return null;
+  const statusLabels = {
+    announced: t('anunciado y pendiente de ejecución', null, lang),
+    'in progress': t('en curso', null, lang),
+    completed: t('completado', null, lang),
+  };
+  const paragraphs = items.map((item) => {
+    const name = String(item?.name ?? '').trim();
+    if (!name) return null;
+    const parts = [];
+    const description = String(item?.description ?? '').trim();
+    parts.push(t('Se trata de la separación (spin-off) de **{name}**{description}.', { name, description: description ? `, ${description}` : '' }, lang));
+    const status = statusLabels[String(item?.status ?? '').trim().toLowerCase()] || t('anunciado y pendiente de ejecución', null, lang);
+    parts.push(t('Estado de la operación: **{status}**.', { status }, lang));
+    const announcementDate = String(item?.announcementDate ?? '').trim();
+    const expectedDate = String(item?.expectedDate ?? '').trim();
+    if (announcementDate || expectedDate) {
+      parts.push(t('Fecha de anuncio: **{date}**; fecha esperada o efectiva: **{expected}**.', {
+        date: announcementDate || t('no consta', null, lang),
+        expected: expectedDate || t('no consta', null, lang),
+      }, lang));
+    }
+    const structure = String(item?.structure ?? '').trim();
+    if (structure) parts.push(t('Estructura prevista: {structure}.', { structure }, lang));
+    const revenuePct = Number(item?.revenuePct);
+    if (Number.isFinite(revenuePct) && revenuePct > 0) parts.push(t('El negocio separado representa cerca del **{pct} %** de los ingresos consolidados.', { pct: revenuePct }, lang));
+    const rationale = String(item?.rationale ?? '').trim();
+    if (rationale) parts.push(t('Motivo declarado de la separación: {rationale}.', { rationale }, lang));
+    const impact = String(item?.expectedImpact ?? '').trim();
+    if (impact) parts.push(t('Impacto esperado: {impact}.', { impact }, lang));
+    return parts.join(' ');
+  }).filter(Boolean);
+  return paragraphs.length ? paragraphs.join('\n\n') : null;
+}
+
+function buildRestructuringsTextFromDetails(items, language = 'es') {
+  const lang = normalizeLanguage(language);
+  if (!Array.isArray(items) || !items.length) return null;
+  const paragraphs = items.map((item) => {
+    const name = String(item?.name ?? '').trim();
+    const description = String(item?.description ?? '').trim();
+    const impact = String(item?.expectedImpact ?? '').trim();
+    const rationale = String(item?.rationale ?? '').trim();
+    if (!name && !description && !impact && !rationale) return null;
+    const parts = [];
+    parts.push(t('Se anunció un plan de reestructuración{name}{description}.', {
+      name: name ? ` (**${name}**)` : '',
+      description: description ? `: ${description}` : '',
+    }, lang));
+    const date = String(item?.announcementDate ?? '').trim();
+    if (date) parts.push(t('Fecha de anuncio: {date}.', { date }, lang));
+    const totalCost = formatAcquisitionAmount(item?.totalCost, lang);
+    if (totalCost) parts.push(t('Coste total previsto del plan: **{amount}M$**.', { amount: totalCost }, lang));
+    const charges = formatAcquisitionAmount(item?.chargesRecognized, lang);
+    if (charges) parts.push(t('Cargos de reestructuración ya reconocidos en el ejercicio: **{amount}M$**.', { amount: charges }, lang));
+    const savings = formatAcquisitionAmount(item?.annualSavings, lang);
+    if (savings) parts.push(t('Ahorro anual esperado: **{amount}M$**.', { amount: savings }, lang));
+    const timeline = String(item?.savingsTimeline ?? '').trim();
+    if (timeline) parts.push(t('Plazo del ahorro: {timeline}.', { timeline }, lang));
+    const jobs = Number(item?.jobsAffected);
+    if (Number.isFinite(jobs) && jobs > 0) parts.push(t('Empleados afectados: **{jobs}**.', { jobs }, lang));
+    if (rationale) parts.push(t('Motivo declarado: {rationale}.', { rationale }, lang));
+    if (impact) parts.push(t('Impacto esperado: {impact}.', { impact }, lang));
+    return parts.join(' ');
+  }).filter(Boolean);
+  return paragraphs.length ? paragraphs.join('\n\n') : null;
+}
+
+function labeledCorporateBlock(heading, body) {
+  return `**${heading}:** ${body}`;
+}
+
+function stripNoneStatements(value) {
+  return String(value ?? '')
+    .replace(/^(?:(?:no se realizaron|no hubo|el ejercicio no registró|sin operaciones)[^.\n]*\.?\s*)+/i, '')
+    .trim();
+}
+
+export function processOutlookSection(conclusion, rawAnn, result, language = 'es') {
+  const lang = normalizeLanguage(language);
   conclusion.outlook = conclusion.outlook || {};
   const out = conclusion.outlook;
-  out.title = out.title || '2: Outlook';
+  out.title = out.title || t('2: Outlook', null, lang);
   const extractionOut = rawAnn.outlook ?? {};
 
   if (!out.text || out.text === 'Metas y previsiones cuantitativas oficiales para el próximo ejercicio.') {
     const parts = [];
-    if (extractionOut.guidanceSales && !/sin guidance/i.test(extractionOut.guidanceSales)) parts.push(`Ventas: ${extractionOut.guidanceSales}`);
+    if (extractionOut.guidanceSales && !/sin guidance|no quantitative guidance/i.test(extractionOut.guidanceSales)) parts.push(`${t('Ventas', null, lang)}: ${extractionOut.guidanceSales}`);
     if (extractionOut.guidanceEbt) parts.push(`EBT: ${extractionOut.guidanceEbt}`);
-    if (extractionOut.guidanceEps) parts.push(`BPA: ${extractionOut.guidanceEps}`);
+    if (extractionOut.guidanceEps) parts.push(`${t('BPA', null, lang)}: ${extractionOut.guidanceEps}`);
     if (extractionOut.guidanceFcf) parts.push(`FCF: ${extractionOut.guidanceFcf}`);
     if (extractionOut.guidanceCapex) parts.push(`CAPEX: ${extractionOut.guidanceCapex}`);
-    if (extractionOut.guidanceNetInterest) parts.push(`Gastos por intereses: ${extractionOut.guidanceNetInterest}`);
+    if (extractionOut.guidanceNetInterest) parts.push(`${t('Gastos por intereses', null, lang)}: ${extractionOut.guidanceNetInterest}`);
     if (parts.length) {
-      out.text = `Previsiones cuantitativas oficiales comunicadas por la dirección para el próximo ejercicio: ${parts.join(', ')}.`;
+      out.text = t('Previsiones cuantitativas oficiales comunicadas por la dirección para el próximo ejercicio: {parts}.', { parts: parts.join(', ') }, lang);
     } else if (rawAnn.outlookNarrative) {
       out.text = rawAnn.outlookNarrative;
     }
   }
 
-  out.fcfAnalysis = out.fcfAnalysis || (extractionOut.guidanceFcf ? `Previsión de FCF reportada en el guidance: ${extractionOut.guidanceFcf}.` : null);
+  out.fcfAnalysis = out.fcfAnalysis || (extractionOut.guidanceFcf ? t('Previsión de FCF reportada en el guidance: {fcf}.', { fcf: extractionOut.guidanceFcf }, lang) : null);
   out.riskFactors = out.riskFactors || extractionOut.commodityRisks || null;
   out.efficiencyPlans = out.efficiencyPlans || extractionOut.costSavingsPlan || null;
 
@@ -75,17 +192,18 @@ export function processOutlookSection(conclusion, rawAnn, result) {
   }
   if (out.secSnippet) {
     out.secSnippet = completeOutlookPriorColumn(
-      mergeOutlookRows(withOutlookComparison(out.secSnippet, result), extractionOut.secTable),
+      mergeOutlookRows(withOutlookComparison(out.secSnippet, result, lang), extractionOut.secTable),
       extractionOut,
     );
   }
 }
 
-export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear) {
+export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear, language = 'es') {
+  const lang = normalizeLanguage(language);
   conclusion.debt = conclusion.debt || {};
   const d = conclusion.debt;
-  d.title = d.title || '3: Deuda';
-  d.text = d.text || rawAnn.debtNarrative || 'Estructura de endeudamiento, liquidez y calendario de vencimientos de deuda.';
+  d.title = d.title || t('3: Deuda', null, lang);
+  d.text = d.text || rawAnn.debtNarrative || t('Estructura de endeudamiento, liquidez y calendario de vencimientos de deuda.', null, lang);
   d.refinancingAnalysis = d.refinancingAnalysis || null;
   d.refinancingImpact = d.refinancingImpact || null;
 
@@ -106,9 +224,9 @@ export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear) {
   } else if (!hasMaturitySchedule && edgarData.edgarDebtMaturities) {
     d.maturitySchedule = edgarData.edgarDebtMaturities.years.map((y) => ({
       year: y.year,
-      label: 'Vencimientos contractuales de deuda',
+      label: t('Vencimientos contractuales de deuda', null, lang),
       amount: y.amount,
-      type: 'Deuda total',
+      type: t('Deuda total', null, lang),
       interestRate: edgarData.edgarDebtMaturities.weightedAverageRate ?? null,
       estimated: edgarData.edgarDebtMaturities.weightedAverageRate != null,
     }));
@@ -132,7 +250,7 @@ export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear) {
     } else if (edgarData.edgarDebtMaturities?.weightedAverageRate != null) {
       d.allDebtAverageRate = edgarData.edgarDebtMaturities.weightedAverageRate;
       d.allDebtAverageRateEstimated = true;
-      d.allDebtAverageRateSource = 'SEC XBRL (tipo medio ponderado)';
+      d.allDebtAverageRateSource = t('SEC XBRL (tipo medio ponderado)', null, lang);
     }
   }
 
@@ -163,28 +281,78 @@ export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear) {
   }
 }
 
-export function processAcquisitionsDividendsAndWatchlist(conclusion, rawAnn, extracted, edgarData, fiscalYear) {
-  // Adquisiciones
+export function processAcquisitionsDividendsAndWatchlist(conclusion, rawAnn, extracted, edgarData, fiscalYear, language = 'es') {
+  const lang = normalizeLanguage(language);
+  // Operaciones corporativas: adquisiciones, desinversiones/ventas de participaciones, spin-offs y reestructuraciones
   conclusion.acquisitions = conclusion.acquisitions || {};
   const acq = conclusion.acquisitions;
-  acq.title = acq.title || '4: Adquisiciones';
+  acq.title = acq.title || t('Operaciones corporativas', null, lang);
   const acquisitionItems = Array.isArray(rawAnn.acquisitions?.items) ? rawAnn.acquisitions.items : [];
-  const detailedAcquisitionText = buildAcquisitionsTextFromDetails(acquisitionItems);
-  acq.text = acq.text || rawAnn.acquisitionsNarrative || detailedAcquisitionText || (extracted.facts?.acquisitionsYtd
-    ? `Se completaron adquisiciones corporativas por un importe neto de ${extracted.facts.acquisitionsYtd}M.`
-    : 'No se realizaron adquisiciones materiales durante el ejercicio.');
+  const divestitureItems = Array.isArray(rawAnn.divestitures?.items) ? rawAnn.divestitures.items : [];
+  const spinOffItems = Array.isArray(rawAnn.spinOffs?.items) ? rawAnn.spinOffs.items : [];
+  const restructuringItems = Array.isArray(rawAnn.restructurings?.items) ? rawAnn.restructurings.items : [];
+
+  const detailedAcquisitionText = buildAcquisitionsTextFromDetails(acquisitionItems, lang);
+  const detailedDivestitureText = buildDivestituresTextFromDetails(divestitureItems, lang);
+  const detailedSpinOffText = buildSpinOffsTextFromDetails(spinOffItems, lang);
+  const detailedRestructuringText = buildRestructuringsTextFromDetails(restructuringItems, lang);
+  const blockAdquisiciones = (detailedAcquisitionText && acquisitionItems.length)
+    ? labeledCorporateBlock(t('Adquisiciones', null, lang), detailedAcquisitionText)
+    : null;
+  const blockDesinversiones = detailedDivestitureText
+    ? labeledCorporateBlock(t('Desinversiones y ventas de participaciones', null, lang), detailedDivestitureText)
+    : null;
+  const blockSpinOffs = detailedSpinOffText
+    ? labeledCorporateBlock(t('Spin-offs', null, lang), detailedSpinOffText)
+    : null;
+  const blockReestructuraciones = detailedRestructuringText
+    ? labeledCorporateBlock(t('Reestructuraciones', null, lang), detailedRestructuringText)
+    : null;
 
   const hasOfficialAcq = extracted.facts?.acquisitionsYtd != null && Number.isFinite(Number(extracted.facts.acquisitionsYtd));
   const acqAmount = hasOfficialAcq ? Math.abs(Number(extracted.facts.acquisitionsYtd)) : null;
-  if (hasOfficialAcq && acqAmount < 50) {
-    const divAmount = Math.abs(Number(extracted.facts?.brandDivestitures) || 0) + Math.abs(Number(extracted.facts?.assetSalesYtd) || 0);
-    const divDesc = extracted.facts?.divestitureDescription;
-    const hasAmount = /\d[\d.,]*\s*(?:M\$|M\b|\$|millones|billion|million)/i.test(String(divDesc ?? ''));
-    const divSentence = (divAmount >= 50 && divDesc)
-      ? ` Se completó la desinversión de ${cleanAssetDescription(divDesc)}${hasAmount ? '' : ` por ${Math.round(divAmount)}M`}.`
-      : '';
-    acq.text = `No se realizaron adquisiciones materiales durante el ejercicio.${divSentence}`;
+  const noMaterialAcquisitions = hasOfficialAcq && acqAmount < 50;
+
+  // Desinversión detectada solo por cifras oficiales (sin detalle en las notas): se resume en una frase.
+  const divAmount = Math.abs(Number(extracted.facts?.brandDivestitures) || 0) + Math.abs(Number(extracted.facts?.assetSalesYtd) || 0);
+  const divDesc = extracted.facts?.divestitureDescription;
+  const divDescHasAmount = /\d[\d.,]*\s*(?:M\$|M\b|\$|millones|billion|million)/i.test(String(divDesc ?? ''));
+  const factsDivestitureSentence = (!divestitureItems.length && divAmount >= 50 && divDesc)
+    ? t(' Se completó la desinversión de {description}{amount}.', {
+      description: cleanAssetDescription(divDesc),
+      amount: divDescHasAmount ? '' : t(' por {value}M', { value: Math.round(divAmount) }, lang),
+    }, lang)
+    : '';
+
+  const noAcqSentence = t('No se realizaron adquisiciones materiales durante el ejercicio.', null, lang);
+  let text;
+  if (noMaterialAcquisitions) {
+    const parts = [`${noAcqSentence}${factsDivestitureSentence}`];
+    [blockDesinversiones, blockSpinOffs, blockReestructuraciones].forEach((block) => {
+      if (block) parts.push(block);
+    });
+    text = parts.join('\n\n');
+  } else if (acq.text || rawAnn.acquisitionsNarrative) {
+    text = acq.text || rawAnn.acquisitionsNarrative;
+    const remaining = stripNoneStatements(text).toLowerCase();
+    if (blockDesinversiones && !/desinversi|divestit|venta de participaci/.test(remaining)) text += `\n\n${blockDesinversiones}`;
+    if (blockSpinOffs && !/spin-?off|escisi|separaci[oó]n/.test(remaining)) text += `\n\n${blockSpinOffs}`;
+    if (blockReestructuraciones && !/reestructur|restructur|plan de ahorro|cost savings/.test(remaining)) text += `\n\n${blockReestructuraciones}`;
+  } else if (blockAdquisiciones || blockDesinversiones || blockSpinOffs || blockReestructuraciones) {
+    text = [blockAdquisiciones, blockDesinversiones, blockSpinOffs, blockReestructuraciones].filter(Boolean).join('\n\n');
+  } else if (acqAmount >= 50) {
+    text = t('Se completaron adquisiciones corporativas por un importe neto de {amount}M.', { amount: extracted.facts.acquisitionsYtd }, lang);
+  } else {
+    text = noAcqSentence;
   }
+  acq.text = text;
+
+  const textBeyondNone = stripNoneStatements(text).toLowerCase();
+  acq.hasDivestitures = divestitureItems.length > 0
+    || Boolean(factsDivestitureSentence)
+    || /desinversi|divestit|venta de participaci/.test(textBeyondNone);
+  acq.hasSpinOffs = spinOffItems.length > 0 || /spin-?off|escisi|separaci[oó]n/.test(textBeyondNone);
+  acq.hasRestructurings = restructuringItems.length > 0 || /reestructur|restructur|plan de ahorro|cost savings/.test(textBeyondNone);
 
   // Dividendos
   const extractionDividends = rawAnn.dividends ?? {};
@@ -202,37 +370,61 @@ export function processAcquisitionsDividendsAndWatchlist(conclusion, rawAnn, ext
     if (aiDividends || material) {
       conclusion.dividends = aiDividends || {};
       const div = conclusion.dividends;
-      div.title = div.title || '5: Dividendos';
+      div.title = div.title || t('5: Dividendos', null, lang);
       div.history = dividendHistory;
       div.changePct = changePct;
       div.changeType = changeType;
       if (!div.text) {
-        const verb = changeType === 'cut' ? 'recortó' : 'aumentó';
-        div.text = `El dividendo por acción ${verb} un ${Math.abs(changePct).toFixed(1).replace('.', ',')} % en ${lastDiv.year}, pasando de ${String(prevDiv.dps).replace('.', ',')} $ a ${String(lastDiv.dps).replace('.', ',')} $, con un pago total de ${String(lastDiv.total).replace('.', ',')}M.`;
+        const numberFormat = (value) => {
+          const fixed = Number(value).toFixed(2);
+          return lang === 'en' ? fixed : fixed.replace('.', ',');
+        };
+        const pctFormat = (value) => {
+          const fixed = Number(value).toFixed(1);
+          return lang === 'en' ? fixed : fixed.replace('.', ',');
+        };
+        const totalFormat = (value) => {
+          const rounded = String(value);
+          return lang === 'en' ? rounded : rounded.replace('.', ',');
+        };
+        const verb = changeType === 'cut'
+          ? t('recortó', null, lang)
+          : t('aumentó', null, lang);
+        div.text = t('El dividendo por acción {verb} un {pct} % en {year}, pasando de {prevDps} $ a {lastDps} $, con un pago total de {total}M.', {
+          verb,
+          pct: pctFormat(Math.abs(changePct)),
+          year: lastDiv.year,
+          prevDps: numberFormat(prevDiv.dps),
+          lastDps: numberFormat(lastDiv.dps),
+          total: totalFormat(lastDiv.total),
+        }, lang);
       }
     }
   }
 
   // Watchlist
   conclusion.watchlist = conclusion.watchlist || {};
-  conclusion.watchlist.title = conclusion.watchlist.title || `Cosas a tener en cuenta en ${fiscalYear ? fiscalYear + 1 : 'el próximo año'}`;
+  conclusion.watchlist.title = conclusion.watchlist.title || (fiscalYear
+    ? t('Cosas a tener en cuenta en {year}', { year: fiscalYear + 1 }, lang)
+    : t('Cosas a tener en cuenta el próximo año', null, lang));
   if (!Array.isArray(conclusion.watchlist.items) || conclusion.watchlist.items.length === 0) {
     conclusion.watchlist.items = [
-      '1: Evolución de los ingresos orgánicos y volúmenes respecto a competidores del sector.',
-      '2: Ritmo y precio de ejecución de los programas de recompra de acciones.',
-      '3: Refinanciación de la deuda próxima a vencer y coste efectivo de los nuevos intereses.',
+      t('1: Evolución de los ingresos orgánicos y volúmenes respecto a competidores del sector.', null, lang),
+      t('2: Ritmo y precio de ejecución de los programas de recompra de acciones.', null, lang),
+      t('3: Refinanciación de la deuda próxima a vencer y coste efectivo de los nuevos intereses.', null, lang),
     ];
   }
 }
 
-export function renumberConclusionSections(conclusion) {
+export function renumberConclusionSections(conclusion, language = 'es') {
+  const lang = normalizeLanguage(language);
   const sections = [
-    ['repurchases', 'Recompras'],
-    ['executiveChanges', 'Cambios en la dirección'],
+    ['repurchases', t('Recompras', null, lang)],
+    ['executiveChanges', t('Cambios en la dirección', null, lang)],
     ['outlook', 'Outlook'],
-    ['debt', 'Deuda'],
-    ['acquisitions', 'Adquisiciones'],
-    ['dividends', 'Dividendos'],
+    ['debt', t('Deuda', null, lang)],
+    ['acquisitions', t('Operaciones corporativas', null, lang)],
+    ['dividends', t('Dividendos', null, lang)],
   ];
   let sectionNumber = 0;
   sections.forEach(([key, fallback]) => {

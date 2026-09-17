@@ -63,6 +63,7 @@ export async function upsertEmailAlert(userId, ticker, { companyName, enabled = 
 
 export const DEFAULT_USER_PREFERENCES = {
   language: 'es',
+  analysisLanguage: 'es',
   theme: 'indigo',
   darkMode: false,
   watchlistAutoCalendar: true,
@@ -85,6 +86,9 @@ function normalizeAppearancePrefs(prefs = {}) {
   if (prefs.language !== undefined) {
     p.language = ALLOWED_LANGUAGES.includes(prefs.language) ? prefs.language : 'es';
   }
+  if (prefs.analysisLanguage !== undefined) {
+    p.analysisLanguage = ALLOWED_LANGUAGES.includes(prefs.analysisLanguage) ? prefs.analysisLanguage : 'es';
+  }
   if (prefs.theme !== undefined) {
     p.theme = ALLOWED_THEMES.includes(prefs.theme) ? prefs.theme : 'indigo';
   }
@@ -96,7 +100,7 @@ function normalizeAppearancePrefs(prefs = {}) {
 
 export async function getUserPreferences(userId) {
   const { rows } = await query(
-    `SELECT language, theme, dark_mode,
+    `SELECT language, analysis_language, theme, dark_mode,
             watchlist_auto_calendar, watchlist_auto_notify, watchlist_notify_earnings, watchlist_notify_exdiv, watchlist_notify_payout,
             portfolio_auto_notify, portfolio_notify_earnings, portfolio_notify_exdiv, portfolio_notify_payout
      FROM user_preferences
@@ -107,6 +111,7 @@ export async function getUserPreferences(userId) {
   const r = rows[0];
   return {
     language: r.language ?? 'es',
+    analysisLanguage: r.analysis_language ?? 'es',
     theme: r.theme ?? 'indigo',
     darkMode: Boolean(r.dark_mode),
     watchlistAutoCalendar: Boolean(r.watchlist_auto_calendar),
@@ -128,14 +133,15 @@ export async function updateUserPreferences(userId, prefs = {}) {
   const { rows } = await query(
     `INSERT INTO user_preferences (
        user_id,
-       language, theme, dark_mode,
+       language, analysis_language, theme, dark_mode,
        watchlist_auto_calendar, watchlist_auto_notify, watchlist_notify_earnings, watchlist_notify_exdiv, watchlist_notify_payout,
        portfolio_auto_notify, portfolio_notify_earnings, portfolio_notify_exdiv, portfolio_notify_payout,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now())
      ON CONFLICT (user_id) DO UPDATE SET
        language = EXCLUDED.language,
+       analysis_language = EXCLUDED.analysis_language,
        theme = EXCLUDED.theme,
        dark_mode = EXCLUDED.dark_mode,
        watchlist_auto_calendar = EXCLUDED.watchlist_auto_calendar,
@@ -148,7 +154,7 @@ export async function updateUserPreferences(userId, prefs = {}) {
        portfolio_notify_exdiv = EXCLUDED.portfolio_notify_exdiv,
        portfolio_notify_payout = EXCLUDED.portfolio_notify_payout,
        updated_at = now()
-     RETURNING language, theme, dark_mode AS "darkMode",
+     RETURNING language, analysis_language AS "analysisLanguage", theme, dark_mode AS "darkMode",
                watchlist_auto_calendar AS "watchlistAutoCalendar",
                watchlist_auto_notify AS "watchlistAutoNotify",
                watchlist_notify_earnings AS "watchlistNotifyEarnings",
@@ -161,6 +167,7 @@ export async function updateUserPreferences(userId, prefs = {}) {
     [
       userId,
       appearance.language ?? 'es',
+      appearance.analysisLanguage ?? 'es',
       appearance.theme ?? 'indigo',
       Boolean(appearance.darkMode),
       Boolean(p.watchlistAutoCalendar),

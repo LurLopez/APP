@@ -12,6 +12,7 @@ import { generateReportPdf } from './report.service.js';
 import { createAnalysis, updateAnalysis } from '../../db/repositories/analysisRepository.js';
 import { safeLogAnalysis } from './analysis/analysisLogger.service.js';
 import { buildPresentationText, htmlToText } from './analysis/presentationExtractor.service.js';
+import { normalizeLanguage } from '../utils/i18n.js';
 
 export { buildPresentationText, htmlToText };
 
@@ -38,7 +39,7 @@ export function buildDownloadBase(report, formType) {
  * Guarda en base de datos el resultado completado del análisis y asocia metadatos y versiones.
  * @private
  */
-async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, accession, modelUsed, version = null, subsector = null, sectorVersion = null }) {
+async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, accession, modelUsed, version = null, subsector = null, sectorVersion = null, language = 'es' }) {
   const report = result.report ?? {};
   const periodEnd = PERIOD_DATE_PATTERN.test(report.reportingPeriod ?? '') ? report.reportingPeriod : null;
   const parsedAccession = accession || (filename?.match(/[0-9]{10}-[0-9]{2}-[0-9]{6}/)?.[0] ?? null);
@@ -57,6 +58,7 @@ async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, acc
     version,
     subsector,
     sectorVersion,
+    language,
   });
 
   return updateAnalysis(created.id, {
@@ -74,7 +76,8 @@ async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, acc
  */
 async function runAnalysis(text, options, sessionId) {
   const startedAt = Date.now();
-  console.log(`[analysis] sesión IA ${sessionId.slice(0, 8)} · ${options.filename ?? 'informe'}`);
+  const language = normalizeLanguage(options.language);
+  console.log(`[analysis] sesión IA ${sessionId.slice(0, 8)} · ${options.filename ?? 'informe'} · ${language}`);
 
   try {
     const originAgent = getAgent('origin');
@@ -103,6 +106,7 @@ async function runAnalysis(text, options, sessionId) {
       subsector: sectorResult.subsector,
       formType: effectiveFormType,
       ticker: options.ticker ?? null,
+      language,
     });
 
     let pdfResult;
@@ -129,6 +133,7 @@ async function runAnalysis(text, options, sessionId) {
       docxUrl: pdfResult.docxUrl,
       odtUrl: pdfResult.odtUrl,
       downloadBase: buildDownloadBase(report, effectiveFormType),
+      language,
     };
 
     let saved = null;
@@ -143,6 +148,7 @@ async function runAnalysis(text, options, sessionId) {
         version: sectorResult.version,
         subsector: sectorResult.subsector ?? null,
         sectorVersion: sectorResult.sectorVersion ?? null,
+        language,
         result,
       });
     } catch (error) {

@@ -2,7 +2,7 @@
 
 > Esta es la **versión completa** del documento de visión. La versión resumida que se inyecta automáticamente en el contexto de los agentes es `documentacion/PROYECTO.md`. **Mantén ambos sincronizados** cuando actualices requisitos.
 
-> Versión: 1.0 (beta) · Documento de visión y requisitos · Idioma de la interfaz: **Español**
+> Versión: 1.0 (beta) · Documento de visión y requisitos · Idioma de la interfaz: **Español e inglés (multi-idioma)**
 
 ---
 
@@ -162,7 +162,7 @@ La arquitectura debe estar preparada desde el principio para:
 
 > El detalle de todo lo implementado hasta la fecha está en `documentacion/IMPLEMENTACION.md`.
 >
-> Plan específico del **multi-idioma (interfaz y análisis ES/EN)**: `documentacion/PLAN-MULTIIDIOMA.md`.
+> Plan específico del **multi-idioma (interfaz y análisis ES/EN)**: `documentacion/PLAN-MULTIIDIOMA.md` (núcleo implementado el 2026-09-15; pendiente la Fase 5 de SEO internacional).
 
 ## 9. Decisiones pendientes
 
@@ -172,7 +172,7 @@ La arquitectura debe estar preparada desde el principio para:
 | **Despliegue (dónde alojarlo)** | VPS único vs PaaS (Render/Railway/Neon) con BD gestionada | 🔴 No bloquea; decidir cuando toque publicar |
 | **Modelo de IA** | Comparados: DeepSeek directo vs OpenCode Go | 🔶 En uso: **DeepSeek directo** (`AI_PROVIDER=deepseek`, 22–23 s, fiable; OpenCode Go intermitente). Confirmar a medio plazo |
 | **Formato del informe final** | Los informes de referencia del usuario guían el prompt (`src/agents/prompts/consumo-defensivo.md`); se refinará con más referencias | 🔶 Formato base en producción (2 horizontes + Ventas/Cash Flow/Asignación de Capital) |
-| **Multi-idioma (ES/EN)** | Interfaz y análisis con idioma independiente; detección por idioma del navegador; caché de análisis por idioma | 📋 Planificado: plan específico en `documentacion/PLAN-MULTIIDIOMA.md` |
+| **Multi-idioma (ES/EN)** | Interfaz y análisis con idioma independiente; detección por idioma del navegador; caché de análisis por idioma; traducción de un análisis ya generado al otro idioma sin reanalizar el filing (etiquetas por diccionario, cifras intactas, narrativa por IA) | ✅ Implementado el núcleo (motor i18n, preferencias, directiva de idioma en agentes, caché por idioma, traducción de variantes, correos y exportaciones); pendiente Fase 5 (rutas `/en`, hreflang). Ver `documentacion/PLAN-MULTIIDIOMA.md` |
 
 ## 10. Contexto del desarrollador
 

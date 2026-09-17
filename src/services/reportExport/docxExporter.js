@@ -11,6 +11,8 @@ import { buildDebtMaturityTable } from './debtMaturityModel.js';
 import { buildDebtHistoryTable } from './debtHistoryRefinancingModel.js';
 import { buildReportChartImages } from './chartImages.js';
 import { buildReportModel } from './reportModel.js';
+import { getExecutiveFieldLabels } from './executiveChanges.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 function docxRun(text, { size, bold, italic, color, highlight } = {}) {
   const rPr = [
@@ -97,7 +99,7 @@ function docxRefinancingBox(refinancing) {
   const noBorder = ['top', 'bottom', 'right', 'insideH', 'insideV'].map((side) => `<w:${side} w:val="none" w:sz="0" w:space="0" w:color="auto"/>`).join('');
   const innerTable = `<w:tbl><w:tblPr><w:tblW w:w="${tableWidth}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders>${noBorder}</w:tblBorders><w:tblCellMar><w:top w:w="20" w:type="dxa"/><w:left w:w="20" w:type="dxa"/><w:bottom w:w="20" w:type="dxa"/><w:right w:w="20" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${badges.map(() => `<w:gridCol w:w="${tileWidth}"/>`).join('')}</w:tblGrid><w:tr>${tiles}</w:tr></w:tbl>`;
   const content = [
-    `<w:p><w:pPr><w:spacing w:before="0" w:after="80"/></w:pPr>${docxRun('Refinanciación de deuda e impacto en BPA:', { size: 8.5, bold: true, color: '#9A3412' })}</w:p>`,
+    `<w:p><w:pPr><w:spacing w:before="0" w:after="80"/></w:pPr>${docxRun(t('Refinanciación de deuda e impacto en BPA:', null, normalizeLanguage(refinancing.language)), { size: 8.5, bold: true, color: '#9A3412' })}</w:p>`,
     innerTable,
     refinancing.explanation ? docxRichParagraph(refinancing.explanation, { size: 8, color: '#431407', after: 40, before: 80 }) : '',
     refinancing.impactExplanation ? docxRichParagraph(refinancing.impactExplanation, { size: 8, color: '#C2410C', boldColor: '#C2410C', after: 40, before: 40 }) : '',
@@ -106,58 +108,55 @@ function docxRefinancingBox(refinancing) {
   return `<w:tbl><w:tblPr><w:tblW w:w="10466" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:shd w:val="clear" w:color="auto" w:fill="FFF7ED"/><w:tblBorders><w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="28" w:space="0" w:color="EA580C"/><w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/></w:tblBorders><w:tblCellMar><w:top w:w="120" w:type="dxa"/><w:left w:w="220" w:type="dxa"/><w:bottom w:w="120" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="10466"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="10466" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="FFF7ED"/></w:tcPr>${content}</w:tc></w:tr></w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>`;
 }
 
-function docxExecutiveChangeParts(change) {
+function docxExecutiveChangeParts(change, language = 'es') {
+  const lang = normalizeLanguage(language);
   if (!change || typeof change !== 'object') return [];
-  const roleLabel = String(change.role || 'Directivo').toUpperCase();
+  const roleLabel = String(change.role || t('Directivo', null, lang)).toUpperCase();
   const parts = [];
   if (change.text) parts.push(docxRichParagraph(change.text, { size: 9, color: COLORS.ink, after: 40 }));
   const meta = [
-    change.announcementDate ? `Anuncio: ${change.announcementDate}` : null,
-    change.effectiveDate ? `Efectivo: ${change.effectiveDate}` : null,
-    change.reason ? `Motivo: ${change.reason}` : null,
+    change.announcementDate ? `${t('Anuncio', null, lang)}: ${change.announcementDate}` : null,
+    change.effectiveDate ? `${t('Efectivo', null, lang)}: ${change.effectiveDate}` : null,
+    change.reason ? `${t('Motivo', null, lang)}: ${change.reason}` : null,
   ].filter(Boolean);
   if (meta.length) parts.push(docxParagraph(`• ${meta.join('   ·   ')}`, { size: 8, bold: true, color: '#854D0E', after: 20 }));
 
   const personBlock = (label, person) => {
     if (!person) return;
-    const fields = [
-      ['Inicio en el cargo', person.tenureStart],
-      ['Ventas durante su mandato', person.salesDuringTenure],
-      ['A dónde pasa', person.whereTheyGo],
-      ['Políticas de su etapa', person.policies],
-      ['De dónde viene', person.origin],
-      ['Trayectoria previa', person.trackRecord],
-      ['Qué ha anunciado', person.commitments],
-    ].filter(([, value]) => value);
+    const fields = getExecutiveFieldLabels(lang)
+      .map(([fieldLabel, key]) => [fieldLabel, person[key]])
+      .filter(([, value]) => value);
     if (!person.name && !fields.length) return;
     parts.push(docxParagraph(label, { size: 7.5, bold: true, color: '#4F46E5', after: 20, before: 60 }));
     if (person.name) parts.push(docxParagraph(`${person.name}${person.role ? ` — ${person.role}` : ''}`, { size: 8.5, bold: true, color: '#0F172A', after: 20 }));
     fields.forEach(([fieldLabel, value]) => parts.push(docxRichParagraph(`**${fieldLabel}:** ${value}`, { size: 8.5, color: '#374151', boldColor: '#334155', after: 20 })));
   };
-  personBlock(`ANTIGUO ${roleLabel}`, change.oldExecutive);
-  personBlock(`NUEVO ${roleLabel}`, change.newExecutive);
+  personBlock(t('ANTIGUO {role}', { role: roleLabel }, lang), change.oldExecutive);
+  personBlock(t('NUEVO {role}', { role: roleLabel }, lang), change.newExecutive);
   return parts;
 }
 
-function docxExecutiveChangesBlock(section) {
+function docxExecutiveChangesBlock(section, language = 'es') {
+  const lang = normalizeLanguage(language);
   const changes = Array.isArray(section?.changes) ? section.changes : [];
   const parts = [];
   changes.forEach((change, index) => {
     if (index > 0) parts.push(docxParagraph('', { after: 20 }));
     if (changes.length > 1) {
-      parts.push(docxParagraph(String(change.role || 'Directivo').toUpperCase(), { size: 7.5, bold: true, color: '#4F46E5', after: 20, before: index > 0 ? 80 : 40 }));
+      parts.push(docxParagraph(String(change.role || t('Directivo', null, lang)).toUpperCase(), { size: 7.5, bold: true, color: '#4F46E5', after: 20, before: index > 0 ? 80 : 40 }));
     }
-    docxExecutiveChangeParts(change).forEach((part) => parts.push(part));
+    docxExecutiveChangeParts(change, lang).forEach((part) => parts.push(part));
   });
   if (section?.disclaimer) parts.push(docxParagraph(section.disclaimer, { size: 7, italic: true, color: '#94A3B8', after: 20, before: 40 }));
   return parts;
 }
 
-function appendCardsToDocx(parts, cards, images, ids) {
+function appendCardsToDocx(parts, cards, images, ids, language = 'es') {
+  const lang = normalizeLanguage(language);
   cards.forEach((card, cardIndex) => {
     parts.push(docxParagraph(card.title, { size: 11, bold: true, color: COLORS.ink, after: 40, before: 60, pageBreakBefore: cardIndex > 0 }));
     if (card.text) parts.push(docxRichParagraph(card.text, { size: 8.5, color: COLORS.ink, after: 40 }));
-    if (card.executiveChanges) docxExecutiveChangesBlock(card.executiveChanges).forEach((part) => parts.push(part));
+    if (card.executiveChanges) docxExecutiveChangesBlock(card.executiveChanges, lang).forEach((part) => parts.push(part));
     if (card.badges?.length) card.badges.forEach((b) => parts.push(docxRichParagraph(`• ${b}`, { size: 8, color: '#854D0E', boldColor: '#7C2D12', after: 20 })));
     if (card.chart) {
       parts.push(docxParagraph(card.chart.title, { size: 8, bold: true, color: '#475569', after: 40 }));
@@ -177,12 +176,12 @@ function appendCardsToDocx(parts, cards, images, ids) {
     if (card.refinancing) parts.push(docxRefinancingBox(card.refinancing));
     if (card.dividendChart) {
       if (images.dividend) parts.push(docxImageParagraph(images.dividend, CHART_IMAGE_SLOTS.dividend.relId, ids));
-      if (card.dividendChart.hasReportedFallback) parts.push(docxParagraph('* Años con BPA reportado (sin ajustado disponible).', { size: 7, italic: true, color: COLORS.soft, after: 40 }));
+      if (card.dividendChart.hasReportedFallback) parts.push(docxParagraph(t('* Años con BPA reportado (sin ajustado disponible).', null, lang), { size: 7, italic: true, color: COLORS.soft, after: 40 }));
     }
     if (card.isWatchlist && card.items?.length) card.items.forEach((it) => parts.push(docxRichParagraph(`OK  ${it}`, { size: 8, color: COLORS.ink, after: 20 })));
     if (card.table) {
       if (card.table.title) {
-        parts.push(docxParagraph('EXTRACTO OFICIAL SEC (FORM 10-K)', { size: 8, bold: true, color: '#475569', highlight: '#F1F5F9', after: 20, before: 40 }));
+        parts.push(docxParagraph(t('EXTRACTO OFICIAL SEC (FORM 10-K)', null, lang), { size: 8, bold: true, color: '#475569', highlight: '#F1F5F9', after: 20, before: 40 }));
         parts.push(docxParagraph(card.table.title, { size: 9, bold: true, color: '#0F172A', after: 20 }));
       }
       if (card.table.summary) parts.push(docxParagraph(card.table.summary, { size: 7.5, italic: true, color: '#64748B', after: 20 }));
@@ -191,7 +190,8 @@ function appendCardsToDocx(parts, cards, images, ids) {
   });
 }
 
-function buildDocxXml(model, images = {}) {
+function buildDocxXml(model, images = {}, language = 'es') {
+  const lang = normalizeLanguage(language);
   const parts = [];
   const ids = { image: 0 };
   parts.push(docxParagraph(model.company, { size: 18, bold: true, color: COLORS.ink, after: 60 }));
@@ -213,7 +213,7 @@ function buildDocxXml(model, images = {}) {
   if (model.conclusion) {
     parts.push(docxParagraph(model.conclusion.title, { size: 14, bold: true, color: COLORS.ink, after: 40, pageBreakBefore: true }));
     if (model.conclusion.subtitle) parts.push(docxParagraph(model.conclusion.subtitle, { size: 9, italic: true, color: COLORS.muted, after: 80 }));
-    appendCardsToDocx(parts, model.conclusion.cards, images, ids);
+    appendCardsToDocx(parts, model.conclusion.cards, images, ids, lang);
   }
 
   if (model.rating) {
@@ -229,6 +229,7 @@ function buildDocxXml(model, images = {}) {
 
 export async function buildReportDocx(report) {
   const model = buildReportModel(report);
+  const lang = normalizeLanguage(report?.language);
   const images = buildReportChartImages(model);
   const mediaFiles = Object.entries(CHART_IMAGE_SLOTS)
     .filter(([key]) => images[key])
@@ -244,6 +245,6 @@ export async function buildReportDocx(report) {
   word.file('styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Helvetica" w:hAnsi="Helvetica" w:cs="Helvetica"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style></w:styles>');
   const media = word.folder('media');
   mediaFiles.forEach((file) => media.file(file.file, file.data));
-  word.file('document.xml', buildDocxXml(model, images));
+  word.file('document.xml', buildDocxXml(model, images, lang));
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }

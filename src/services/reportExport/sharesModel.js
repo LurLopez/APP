@@ -4,23 +4,28 @@
  */
 
 import { parseSecNumber, cell, COLORS } from './exportColors.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 /**
  * Formatea un porcentaje con signo y coma decimal.
  * @param {number} pct - Porcentaje a formatear.
+ * @param {string} [language] - Idioma del informe.
  * @returns {string} Texto formateado con signo y símbolo %.
  */
-export function fmtPct(pct) {
-  return `${pct < 0 ? '' : '-'}${pct.toFixed(1).replace('.', ',')} %`;
+export function fmtPct(pct, language = 'es') {
+  const value = pct.toFixed(1);
+  return `${pct < 0 ? '' : '-'}${language === 'en' ? value : value.replace('.', ',')} %`;
 }
 
 /**
  * Formatea el impacto positivo en BPA derivado de recompras.
  * @param {number} pct - Porcentaje de aumento en BPA.
+ * @param {string} [language] - Idioma del informe.
  * @returns {string} Texto formateado (ej. '+3,5 %').
  */
-export function fmtBpa(pct) {
-  return `+${pct.toFixed(1).replace('.', ',')} %`;
+export function fmtBpa(pct, language = 'es') {
+  const value = pct.toFixed(1);
+  return `+${language === 'en' ? value : value.replace('.', ',')} %`;
 }
 
 /**
@@ -58,7 +63,8 @@ export function withAveragePriceRow(snippet) {
  * @param {Array<{year: string|number, shares: number}>} sharesHistory - Histórico de acciones en circulación.
  * @returns {object|null} Modelo matemático para renderizado gráfico o null si no hay datos suficientes.
  */
-export function buildSharesChartModel(sharesHistory) {
+export function buildSharesChartModel(sharesHistory, language = 'es') {
+  const lang = normalizeLanguage(language);
   if (!Array.isArray(sharesHistory) || !sharesHistory.length) return null;
   const points = sharesHistory
     .map((h) => ({ year: String(h?.year ?? '').trim(), shares: Number(h?.shares) }))
@@ -67,8 +73,8 @@ export function buildSharesChartModel(sharesHistory) {
 
   const max = Math.max(...points.map((p) => p.shares));
   const title = points.length >= 5
-    ? 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (ÚLTIMOS 5 AÑOS)'
-    : 'EVOLUCIÓN DEL NÚMERO DE ACCIONES (AÑOS DISPONIBLES)';
+    ? t('EVOLUCIÓN DEL NÚMERO DE ACCIONES (ÚLTIMOS 5 AÑOS)', null, lang)
+    : t('EVOLUCIÓN DEL NÚMERO DE ACCIONES (AÑOS DISPONIBLES)', null, lang);
   const n = points.length;
   const first = points[0].shares;
   const lastPoint = points[n - 1].shares;
@@ -80,11 +86,12 @@ export function buildSharesChartModel(sharesHistory) {
 
   return {
     title,
+    language: lang,
     max,
     points,
     metrics: [
-      { label: `Reducción media anual (CAGR, ${n - 1} años)`, pct: cagrPct, bpa: bpaCagr },
-      { label: 'Último año', pct: lastPct, bpa: bpaLast },
+      { label: t('Reducción media anual (CAGR, {years} años)', { years: n - 1 }, lang), pct: cagrPct, bpa: bpaCagr },
+      { label: t('Último año', null, lang), pct: lastPct, bpa: bpaLast },
     ],
   };
 }
@@ -96,24 +103,29 @@ export function buildSharesChartModel(sharesHistory) {
  */
 export function buildSharesChartTable(chart) {
   if (!chart || !Array.isArray(chart.points) || !chart.points.length) return null;
+  const lang = normalizeLanguage(chart.language);
+  const colYear = t('Año', null, lang);
+  const colShares = t('Acciones (millones)', null, lang);
+  const colDelta = t('Δ vs año anterior', null, lang);
   const headers = [
-    cell('Año', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Acciones (millones)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Δ vs año anterior', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colYear, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colShares, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colDelta, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
   ];
   const rows = chart.points.map((p, i) => {
     const prev = i > 0 ? chart.points[i - 1].shares : null;
     const delta = prev != null ? ((p.shares - prev) / prev) * 100 : null;
+    const sharesValue = lang === 'en' ? String(p.shares) : String(p.shares).replace('.', ',');
     return [
       cell(String(p.year), { bold: true, color: COLORS.ink }),
-      cell(`${String(p.shares).replace('.', ',')}M`, { color: COLORS.ink }),
-      cell(delta != null ? fmtPct(delta) : '—', { color: delta != null && delta < 0 ? COLORS.negative : COLORS.ink }),
+      cell(`${sharesValue}M`, { color: COLORS.ink }),
+      cell(delta != null ? fmtPct(delta, lang) : '—', { color: delta != null && delta < 0 ? COLORS.negative : COLORS.ink }),
     ];
   });
   const metricRows = (chart.metrics ?? []).map((m) => [
     cell(m.label, { bold: true, color: COLORS.ink, bg: '#e0f2fe' }),
     cell('—', { color: COLORS.ink, bg: '#e0f2fe' }),
-    cell(`${fmtPct(m.pct)} (BPA ${fmtBpa(m.bpa)})`, { bold: true, color: COLORS.negative, bg: '#e0f2fe' }),
+    cell(`${fmtPct(m.pct, lang)} (BPA ${fmtBpa(m.bpa, lang)})`, { bold: true, color: COLORS.negative, bg: '#e0f2fe' }),
   ]);
-  return { columns: ['Año', 'Acciones (millones)', 'Δ vs año anterior'], widths: [70, 140, 120], headers, rows: [...rows, ...metricRows] };
+  return { columns: [colYear, colShares, colDelta], widths: [70, 140, 120], headers, rows: [...rows, ...metricRows] };
 }

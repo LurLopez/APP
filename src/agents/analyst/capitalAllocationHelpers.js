@@ -3,53 +3,103 @@
  * @module agents/analyst/capitalAllocationHelpers
  */
 
-export function formatWcNumber(value) {
+import { t, normalizeLanguage } from '../../utils/i18n.js';
+
+export function formatWcNumber(value, language = 'es') {
   if (!Number.isFinite(Number(value))) return '0';
-  return String(Math.round(Number(value) * 10) / 10).replace('.', ',');
+  const rounded = String(Math.round(Number(value) * 10) / 10);
+  return language === 'en' ? rounded : rounded.replace('.', ',');
 }
 
-export function buildDebtDetails({ prev, curr, prevCash, currCash, prevSti, currSti, fallback }) {
+function toFiniteNumber(value) {
+  if (value == null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function round1(value) {
+  return Math.round(Number(value) * 10) / 10;
+}
+
+export function buildDebtDetails({ prev, curr, prevCash, currCash, prevSti, currSti, fallback, language = 'es' }) {
+  const lang = normalizeLanguage(language);
   if (prev != null && curr != null) {
     const diff = Math.round((curr - prev) * 10) / 10;
+    const diffText = `${diff > 0 ? '+' : ''}${formatWcNumber(diff, lang)}`;
     let netPart = '';
     if (prevCash != null && currCash != null) {
       const prevNet = Math.round((prev - prevCash - (prevSti ?? 0)) * 10) / 10;
       const currNet = Math.round((curr - currCash - (currSti ?? 0)) * 10) / 10;
       const diffNet = Math.round((currNet - prevNet) * 10) / 10;
-      netPart = `. Deuda neta: ${prevNet}M -> ${currNet}M (${diffNet > 0 ? '+' : ''}${diffNet}M)`;
+      netPart = t('. Deuda neta: {prevNet}M -> {currNet}M ({diffNet}M)', {
+        prevNet: formatWcNumber(prevNet, lang),
+        currNet: formatWcNumber(currNet, lang),
+        diffNet: `${diffNet > 0 ? '+' : ''}${formatWcNumber(diffNet, lang)}`,
+      }, lang);
     }
-    return `Deuda balance: ${prev}M -> ${curr}M (${diff > 0 ? '+' : ''}${diff}M)${netPart}`;
+    return t('Deuda balance: {prev}M -> {curr}M ({diff}M){netPart}', {
+      prev: formatWcNumber(prev, lang),
+      curr: formatWcNumber(curr, lang),
+      diff: diffText,
+      netPart,
+    }, lang);
   }
   return fallback ?? null;
 }
 
-export function buildCashMovementDetails({ prev, curr, caja, periodYear, statementChange }) {
+export function buildCashMovementDetails({ prev, curr, caja, periodYear, prevLabel: prevLabelOverride, currLabel: currLabelOverride, statementChange, language = 'es' }) {
+  const lang = normalizeLanguage(language);
   if (prev == null || curr == null) return null;
   const delta = Math.round((curr - prev) * 10) / 10;
-  const deltaText = `${delta > 0 ? '+' : ''}${formatWcNumber(delta)}M`;
-  const rowValue = caja != null ? `${Number(caja) > 0 ? '+' : ''}${formatWcNumber(caja)}M` : '—';
+  const deltaText = `${delta > 0 ? '+' : ''}${formatWcNumber(delta, lang)}M`;
+  const rowValue = caja != null ? `${Number(caja) > 0 ? '+' : ''}${formatWcNumber(caja, lang)}M` : '—';
   const year = Number(periodYear);
-  const prevLabel = Number.isFinite(year) ? ` (${year - 1})` : '';
-  const currLabel = Number.isFinite(year) ? ` (${year})` : '';
-  const meaning = delta >= 0 ? 'la caja aumentó: uso de capital (-)' : 'la caja disminuyó: fuente de liquidez (+)';
+  const prevLabel = prevLabelOverride ?? (Number.isFinite(year) ? ` (${year - 1})` : '');
+  const currLabel = currLabelOverride ?? (Number.isFinite(year) ? ` (${year})` : '');
+  const meaning = delta >= 0
+    ? t('la caja aumentó: uso de capital (-)', null, lang)
+    : t('la caja disminuyó: fuente de liquidez (+)', null, lang);
   let statementNote = '';
-  const statement = Number(statementChange);
+  const statement = statementChange == null || statementChange === '' ? NaN : Number(statementChange);
   if (Number.isFinite(statement) && Math.abs(statement - delta) >= 1) {
     const diff = Math.round((statement - delta) * 10) / 10;
-    statementNote = ` El estado de flujos presenta un neto de ${formatWcNumber(statement)}M porque incluye efectivo restringido y otros ajustes (${diff > 0 ? '+' : ''}${formatWcNumber(diff)}M frente a la caja del balance).`;
+    statementNote = t(' El estado de flujos presenta un neto de {amount}M porque incluye efectivo restringido y otros ajustes ({diff}M frente a la caja del balance).', {
+      amount: formatWcNumber(statement, lang),
+      diff: `${diff > 0 ? '+' : ''}${formatWcNumber(diff, lang)}`,
+    }, lang);
   }
-  return `Caja balance: ${formatWcNumber(prev)}M${prevLabel} -> ${formatWcNumber(curr)}M${currLabel} (${deltaText}); ${meaning}; fila Caja = ${rowValue}.${statementNote}`;
+  return t('Caja balance: {prev}M{prevLabel} -> {curr}M{currLabel} ({delta}); {meaning}; fila Caja = {rowValue}.{statementNote}', {
+    prev: formatWcNumber(prev, lang),
+    prevLabel,
+    curr: formatWcNumber(curr, lang),
+    currLabel,
+    delta: deltaText,
+    meaning,
+    rowValue,
+    statementNote,
+  }, lang);
 }
 
-export function buildWcDeviationSentence({ reported, wcReq, deviation, cfo, adjusted }) {
-  const base = `Desviación del circulante reportado (${formatWcNumber(reported)}M) frente al WK teórico (${formatWcNumber(wcReq)}M): ${formatWcNumber(deviation)}M.`;
+export function buildWcDeviationSentence({ reported, wcReq, deviation, cfo, adjusted, language = 'es' }) {
+  const lang = normalizeLanguage(language);
+  const base = t('Desviación del circulante reportado ({reported}M) frente al WK teórico ({wcReq}M): {deviation}M.', {
+    reported: formatWcNumber(reported, lang),
+    wcReq: formatWcNumber(wcReq, lang),
+    deviation: formatWcNumber(deviation, lang),
+  }, lang);
   if (Number.isFinite(Number(cfo)) && Number.isFinite(Number(adjusted))) {
-    return `${base} El Cash Flow ajustado resta esa desviación: ${formatWcNumber(cfo)}M - (${formatWcNumber(deviation)}M) = ${formatWcNumber(adjusted)}M.`;
+    return t('{base} El Cash Flow ajustado resta esa desviación: {cfo}M - ({deviation}M) = {adjusted}M.', {
+      base,
+      cfo: formatWcNumber(cfo, lang),
+      deviation: formatWcNumber(deviation, lang),
+      adjusted: formatWcNumber(adjusted, lang),
+    }, lang);
   }
   return base;
 }
 
-export function buildCapitalAllocationFromBalance(extracted) {
+export function buildCapitalAllocationFromBalance(extracted, language = 'es') {
+  const lang = normalizeLanguage(language);
   const bal = extracted.balance ?? {};
   const invDiff3M = (bal.shortTermInvestments != null && bal.shortTermInvestmentsPreviousQuarter != null)
     ? Number(bal.shortTermInvestments) - Number(bal.shortTermInvestmentsPreviousQuarter)
@@ -59,6 +109,7 @@ export function buildCapitalAllocationFromBalance(extracted) {
     : 0;
   const rawDivYtd = Number(extracted.facts?.brandDivestitures) || 0;
   const buybacksYtd = Number(extracted.facts?.shareBuybacks) || 0;
+  const buybacksQuarterRaw = toFiniteNumber(extracted.facts?.shareBuybacksQuarter);
   const marketablePurchasesQuarter = Number(extracted.facts?.purchasesOfMarketableSecuritiesQuarter) || 0;
   const marketablePurchasesYtd = Number(extracted.facts?.purchasesOfMarketableSecuritiesYtd) || 0;
   const marketableProceedsQuarter = Number(extracted.facts?.proceedsFromSaleOfMarketableSecuritiesQuarter) || 0;
@@ -79,13 +130,16 @@ export function buildCapitalAllocationFromBalance(extracted) {
   const assumedDebtYtd = (debtDeltaYtd != null && Number.isFinite(debtCashYtdRaw) && acquisitionsYtd >= 50)
     ? Math.round((debtDeltaYtd - debtCashYtdRaw) * 10) / 10
     : 0;
-  const restrictedCurr = Number(extracted.balance?.restrictedCash);
-  const restrictedPrevious = Number(extracted.balance?.restrictedCashPreviousQuarter);
-  const restrictedStart = Number(extracted.balance?.restrictedCashBeginningOfYear);
-  const restrictedDiff3M = (Number.isFinite(restrictedCurr) && Number.isFinite(restrictedPrevious))
+  const restrictedCurr = toFiniteNumber(extracted.balance?.restrictedCash);
+  const restrictedPreviousRaw = toFiniteNumber(extracted.balance?.restrictedCashPreviousQuarter);
+  const restrictedStart = toFiniteNumber(extracted.balance?.restrictedCashBeginningOfYear);
+  const restrictedPrevious = (restrictedPreviousRaw === 0 && ((restrictedStart ?? 0) > 0 || (restrictedCurr ?? 0) > 0))
+    ? null
+    : restrictedPreviousRaw;
+  const restrictedDiff3M = (restrictedCurr != null && restrictedPrevious != null)
     ? restrictedCurr - restrictedPrevious
     : null;
-  const restrictedDiffYtd = (Number.isFinite(restrictedCurr) && Number.isFinite(restrictedStart))
+  const restrictedDiffYtd = (restrictedCurr != null && restrictedStart != null)
     ? restrictedCurr - restrictedStart
     : null;
 
@@ -113,8 +167,10 @@ export function buildCapitalAllocationFromBalance(extracted) {
       inversionesCortoPlazo: (marketablePurchasesQuarter || marketableProceedsQuarter)
         ? Math.round((marketableProceedsQuarter - marketablePurchasesQuarter) * 10) / 10
         : (Math.abs(invDiff3M) >= 50 ? Math.round(-invDiff3M * 10) / 10 : 0),
-      divestitures: rawDivYtd >= 50 ? rawDivYtd : 0,
-      buybacks: Number(extracted.fiscalQuarter) === 1 ? -Math.abs(buybacksYtd) : 0,
+      divestitures: 0,
+      buybacks: Number(extracted.fiscalQuarter) === 1
+        ? -Math.abs(buybacksYtd)
+        : (buybacksQuarterRaw != null ? -Math.abs(buybacksQuarterRaw) : 0),
       acquisitions: (() => {
         const raw = Number(extracted.fiscalQuarter) === 1 ? (acquisitionsQuarter || acquisitionsYtd) : acquisitionsQuarter;
         return raw >= 50 ? -Math.abs(raw) : 0;
@@ -135,13 +191,17 @@ export function buildCapitalAllocationFromBalance(extracted) {
         currCash: bal.cash != null ? Number(bal.cash) : null,
         prevSti: bal.shortTermInvestmentsPreviousQuarter != null ? Number(bal.shortTermInvestmentsPreviousQuarter) : null,
         currSti: bal.shortTermInvestments != null ? Number(bal.shortTermInvestments) : null,
+        language: lang,
       }),
       cashDetails: buildCashMovementDetails({
         prev: bal.cashPreviousQuarter != null ? Number(bal.cashPreviousQuarter) : null,
         curr: bal.cash != null ? Number(bal.cash) : null,
         caja: cashDiff3M,
         periodYear: Number(extracted.fiscalYear) || (extracted.reportingPeriod ? Number(String(extracted.reportingPeriod).slice(0, 4)) : null),
+        prevLabel: Number.isFinite(fiscalQuarterNumber) && fiscalQuarterNumber >= 2 ? ` (Q${fiscalQuarterNumber - 1})` : undefined,
+        currLabel: Number.isFinite(fiscalQuarterNumber) && fiscalQuarterNumber >= 2 ? ` (Q${fiscalQuarterNumber})` : undefined,
         statementChange: Number(extracted.fiscalQuarter) === 1 ? extracted.facts?.netChangeInCash : undefined,
+        language: lang,
       }),
     },
     ytd: {
@@ -172,6 +232,7 @@ export function buildCapitalAllocationFromBalance(extracted) {
         currCash: bal.cash != null ? Number(bal.cash) : null,
         prevSti: bal.shortTermInvestmentsBeginningOfYear != null ? Number(bal.shortTermInvestmentsBeginningOfYear) : null,
         currSti: bal.shortTermInvestments != null ? Number(bal.shortTermInvestments) : null,
+        language: lang,
       }),
       cashDetails: buildCashMovementDetails({
         prev: bal.cashBeginningOfYear != null ? Number(bal.cashBeginningOfYear) : null,
@@ -179,12 +240,14 @@ export function buildCapitalAllocationFromBalance(extracted) {
         caja: cashDiffYtd,
         periodYear: Number(extracted.fiscalYear) || (extracted.reportingPeriod ? Number(String(extracted.reportingPeriod).slice(0, 4)) : null),
         statementChange: extracted.facts?.netChangeInCash,
+        language: lang,
       }),
     },
   };
 }
 
-export function buildWorkingCapitalDataFallback(extracted) {
+export function buildWorkingCapitalDataFallback(extracted, language = 'es') {
+  const lang = normalizeLanguage(language);
   const balance = extracted.balance ?? {};
   const wc = extracted.workingCapital ?? {};
   const inv = Number(balance.inventories);
@@ -206,36 +269,104 @@ export function buildWorkingCapitalDataFallback(extracted) {
   const annualWcReq = hasWcInputs ? Math.round((pay - inv - rec) * (growth / 100) * 10) / 10 : 0;
   const months = Number(extracted.ytd?.months) || 3;
   const ytdWcReq = Math.round(annualWcReq * (months / 12) * 10) / 10;
-  const repYtd = Number.isFinite(Number(wc.reportedChangeYtd)) ? Number(wc.reportedChangeYtd) : 0;
+  const reportedQuarterRaw = toFiniteNumber(wc.reportedChangeQuarter);
+  const reportedYtdRaw = toFiniteNumber(wc.reportedChangeYtd);
+  const repYtd = reportedYtdRaw != null
+    ? reportedYtdRaw
+    : (reportedQuarterRaw != null && months <= 3 ? reportedQuarterRaw : 0);
   const wcDiffYtd = Math.round((repYtd - ytdWcReq) * 10) / 10;
   const cfoAdjYtd = Math.round((cfo - wcDiffYtd) * 10) / 10;
   const fcf = Math.round((cfo - capex) * 10) / 10;
   const fcfAdj = Math.round((cfoAdjYtd - capex) * 10) / 10;
   const shares = Number(extracted.shares);
-  const format = (value) => Number.isFinite(value) ? String(Math.round(value * 100) / 100).replace('.', ',') : null;
+  const format = (value) => {
+    if (!Number.isFinite(value)) return null;
+    const rounded = String(Math.round(value * 100) / 100);
+    return lang === 'en' ? rounded : rounded.replace('.', ',');
+  };
+  const formatPrice = (value) => {
+    const fixed = (Math.round(value * 100) / 100).toFixed(2);
+    return lang === 'en' ? fixed : fixed.replace('.', ',');
+  };
   const effectiveDividends = Number.isFinite(dividends) ? dividends : 0;
   const ytdValues = {
     cfo: [format(cfo), format(cfoAdjYtd)],
     capex: [format(capex), format(capex)],
     fcf: [format(fcf), format(fcfAdj)],
-    fcfPerShare: [Number.isFinite(shares) && shares ? `${(fcf / shares).toFixed(2).replace('.', ',')} $` : null, Number.isFinite(shares) && shares ? `${(fcfAdj / shares).toFixed(2).replace('.', ',')} $` : null],
+    fcfPerShare: [Number.isFinite(shares) && shares ? `${formatPrice(fcf / shares)} $` : null, Number.isFinite(shares) && shares ? `${formatPrice(fcfAdj / shares)} $` : null],
     dividends: [Number.isFinite(dividends) ? format(dividends) : '0', Number.isFinite(dividends) ? format(dividends) : '0'],
     libre: [format(fcf - effectiveDividends), format(fcfAdj - effectiveDividends)],
   };
+  const quarterWcReq = Math.round(annualWcReq / 4 * 10) / 10;
+  const deviationSentenceYtd = buildWcDeviationSentence({ reported: repYtd, wcReq: ytdWcReq, deviation: wcDiffYtd, cfo, adjusted: cfoAdjYtd, language: lang });
+  const explanationYtd = hasWcInputs
+    ? t('WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = ({pay} - {inv} - {rec}) × ({inflation}% + {volume}%) = {annual}M en todo el año -> en {months} meses = {ytd}M. {deviation}', {
+      pay: formatWcNumber(pay, lang),
+      inv: formatWcNumber(inv, lang),
+      rec: formatWcNumber(rec, lang),
+      inflation,
+      volume,
+      annual: formatWcNumber(annualWcReq, lang),
+      months,
+      ytd: formatWcNumber(ytdWcReq, lang),
+      deviation: deviationSentenceYtd,
+    }, lang)
+    : t('WK: no se dispone de inventarios, cuentas por pagar y cuentas por cobrar completas; se utiliza WK=0M y no se aplica ajuste de capital circulante. Volumen asumido: {volume}%; inflación sectorial estimada: {inflation}%.', { volume, inflation }, lang);
   const result = {
-    ytdScenarios: [`Normal (WC=${Math.round(repYtd)})`, `Ajustado (WC=${Math.round(ytdWcReq)})`],
+    ytdScenarios: [`${t('Normal', null, lang)} (WC=${Math.round(repYtd)})`, `${t('Ajustado', null, lang)} (WC=${Math.round(ytdWcReq)})`],
     ytdValues,
-    explanationYtd: hasWcInputs
-      ? `WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (${Math.round(pay)} - ${Math.round(inv)} - ${Math.round(rec)}) × (${inflation}% + ${volume}%) = ${formatWcNumber(annualWcReq)}M en todo el año -> en ${months} meses = ${formatWcNumber(ytdWcReq)}M. ${buildWcDeviationSentence({ reported: repYtd, wcReq: ytdWcReq, deviation: wcDiffYtd, cfo, adjusted: cfoAdjYtd })}`
-      : `WK: no se dispone de inventarios, cuentas por pagar y cuentas por cobrar completas; se utiliza WK=0M y no se aplica ajuste de capital circulante. Volumen asumido: ${volume}%; inflación sectorial estimada: ${inflation}%.`,
+    explanationYtd,
   };
-  if (Number(extracted.fiscalQuarter) === 1 || months === 3) {
-    result.quarterScenarios = [`Normal (WC=${Math.round(repYtd)})`, `Ajustado (WC=${Math.round(annualWcReq / 4)})`];
+
+  const quarterly = extracted.deducedQuarterCashFlow ?? null;
+  const reportedQuarter = reportedQuarterRaw != null
+    ? reportedQuarterRaw
+    : (months > 3 ? round1(repYtd * (3 / months)) : repYtd);
+  const wcDiffQuarter = round1(reportedQuarter - quarterWcReq);
+  const cfoQuarter = toFiniteNumber(quarterly?.cfo);
+  const capexQuarterRaw = toFiniteNumber(quarterly?.capex);
+  const capexQuarter = capexQuarterRaw != null ? Math.abs(capexQuarterRaw) : null;
+  const dividendsQuarterRaw = toFiniteNumber(quarterly?.dividends);
+  const dividendsQuarter = dividendsQuarterRaw != null ? Math.abs(dividendsQuarterRaw) : 0;
+
+  result.quarterScenarios = [`${t('Normal', null, lang)} (WC=${Math.round(reportedQuarter)})`, `${t('Ajustado', null, lang)} (WC=${Math.round(quarterWcReq)})`];
+  if (months <= 3) {
     result.quarterValues = ytdValues;
-    result.explanation3M = result.explanationYtd.replace(
-      `en ${months} meses = ${formatWcNumber(ytdWcReq)}M`,
-      `en 3 meses = ${formatWcNumber(Math.round(annualWcReq / 4 * 10) / 10)}M`,
-    );
+  } else if (cfoQuarter != null && capexQuarter != null) {
+    const cfoAdjQuarter = round1(cfoQuarter - wcDiffQuarter);
+    const fcfQuarter = round1(cfoQuarter - capexQuarter);
+    const fcfAdjQuarter = round1(cfoAdjQuarter - capexQuarter);
+    result.quarterValues = {
+      cfo: [format(cfoQuarter), format(cfoAdjQuarter)],
+      capex: [format(capexQuarter), format(capexQuarter)],
+      fcf: [format(fcfQuarter), format(fcfAdjQuarter)],
+      fcfPerShare: [
+        Number.isFinite(shares) && shares ? `${formatPrice(fcfQuarter / shares)} $` : null,
+        Number.isFinite(shares) && shares ? `${formatPrice(fcfAdjQuarter / shares)} $` : null,
+      ],
+      dividends: [format(dividendsQuarter), format(dividendsQuarter)],
+      libre: [format(fcfQuarter - dividendsQuarter), format(fcfAdjQuarter - dividendsQuarter)],
+    };
   }
+  const deviationSentenceQuarter = buildWcDeviationSentence({
+    reported: reportedQuarter,
+    wcReq: quarterWcReq,
+    deviation: wcDiffQuarter,
+    cfo: cfoQuarter,
+    adjusted: cfoQuarter != null ? round1(cfoQuarter - wcDiffQuarter) : null,
+    language: lang,
+  });
+  result.explanation3M = hasWcInputs
+    ? t('WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = ({pay} - {inv} - {rec}) × ({inflation}% + {volume}%) = {annual}M en todo el año -> en 3 meses = {quarter}M. {deviation}', {
+      pay: formatWcNumber(pay, lang),
+      inv: formatWcNumber(inv, lang),
+      rec: formatWcNumber(rec, lang),
+      inflation,
+      volume,
+      annual: formatWcNumber(annualWcReq, lang),
+      quarter: formatWcNumber(quarterWcReq, lang),
+      deviation: months <= 3 ? deviationSentenceYtd : deviationSentenceQuarter,
+    }, lang)
+    : explanationYtd;
   return result;
 }

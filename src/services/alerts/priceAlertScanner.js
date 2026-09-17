@@ -45,6 +45,7 @@ export async function checkMarketPriceAlerts() {
             targetPrice,
             currentPrice,
             condition: alert.condition,
+            language: alert.language || 'es',
           });
           await markPriceAlertTriggered(alert.id, currentPrice);
           result.triggeredCount += 1;

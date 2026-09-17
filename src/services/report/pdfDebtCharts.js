@@ -4,6 +4,7 @@
  */
 
 import { sanitize, drawPdfFormattedText } from './pdfStyles.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 export function drawDebtMaturityChart(doc, chart, y) {
   if (!chart || !Array.isArray(chart.years) || !chart.years.length) return y;
@@ -83,12 +84,15 @@ export function drawDebtMaturityChart(doc, chart, y) {
 
   const bannerY = y + boxH - footerH - 4;
   doc.rect(margin + 6, bannerY, pageWidth - 12, footerH).fill('#1e293b');
-  const afterText = chart.afterYearFive != null ? `   |   Después del año 5: ${fmtMillions(chart.afterYearFive)}` : '';
-  const rateLabel = chart.totalAverageRateEstimated ? 'Tipo de interés medio estimado de la deuda' : 'Tipo de interés medio total de la deuda';
+  const creditLang = normalizeLanguage(chart.language);
+  const afterText = chart.afterYearFive != null ? `   |   ${t('Después del año 5: {amount}', { amount: fmtMillions(chart.afterYearFive) }, creditLang)}` : '';
+  const rateLabel = chart.totalAverageRateEstimated
+    ? t('Tipo de interés medio estimado de la deuda', null, creditLang)
+    : t('Tipo de interés medio total de la deuda', null, creditLang);
   const ratePrefix = chart.totalAverageRateEstimated ? '~' : '';
   const bannerText = chart.totalAverageRate != null
-    ? `${rateLabel}: ${ratePrefix}${chart.totalAverageRate.toFixed(2).replace('.', ',')} %   |   Deuda a amortizar: ${fmtMillions(chart.totalAmount)}${afterText}`
-    : `Deuda a amortizar en los próximos 5 años: ${fmtMillions(chart.totalAmount)}${afterText}`;
+    ? `${rateLabel}: ${ratePrefix}${chart.totalAverageRate.toFixed(2).replace('.', ',')} %   |   ${t('Deuda a amortizar: {amount}', { amount: fmtMillions(chart.totalAmount) }, creditLang)}${afterText}`
+    : `${t('Deuda a amortizar en los próximos 5 años: {amount}', { amount: fmtMillions(chart.totalAmount) }, creditLang)}${afterText}`;
   doc.font('Helvetica-Bold').fontSize(7).fillColor('#ffffff').text(sanitize(bannerText), margin + 8, bannerY + 7, { width: pageWidth - 16, align: 'center', lineBreak: false });
 
   return y + boxH + 8;
@@ -122,9 +126,9 @@ export function drawDebtHistoryChart(doc, chart, y) {
 
   const legX = margin + pageWidth - 190;
   doc.rect(legX, y + 6, 8, 8).fill('#1e40af');
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text('Deuda Normal', legX + 11, y + 6.5);
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text(t('Deuda Normal', null, normalizeLanguage(chart.language)), legX + 11, y + 6.5);
   doc.rect(legX + 85, y + 6, 8, 8).fill('#d97706');
-  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text('Deuda Neta', legX + 96, y + 6.5);
+  doc.font('Helvetica-Bold').fontSize(6.5).fillColor('#334155').text(t('Deuda Neta', null, normalizeLanguage(chart.language)), legX + 96, y + 6.5);
 
   const plotX = margin + padL;
   const plotW = pageWidth - padL - padR;
@@ -179,7 +183,8 @@ export function drawDebtRefinancingBox(doc, refinancing, y) {
   const margin = doc.page.margins.left;
   const boxWidth = doc.page.width - margin * 2;
   const boxPad = 8;
-  const boxLabel = 'Refinanciación de deuda e impacto en BPA:';
+  const refLang = normalizeLanguage(refinancing.language);
+  const boxLabel = t('Refinanciación de deuda e impacto en BPA:', null, refLang);
 
   doc.font('Helvetica-Bold').fontSize(8.5);
   const labelH = doc.heightOfString(boxLabel, { width: boxWidth - 16 });
@@ -210,11 +215,12 @@ export function drawDebtRefinancingBox(doc, refinancing, y) {
   curY += labelH + 6;
 
   const badgeW = (boxWidth - 20) / 4;
+  const rateFmt = (value) => (refLang === 'en' ? value.toFixed(2) : value.toFixed(2).replace('.', ','));
   const badges = [
-    { label: 'Tipo deuda anterior', val: refinancing.oldDebtRate != null ? `${refinancing.oldDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
-    { label: 'Tipo nueva emisión', val: refinancing.newDebtRate != null ? `${refinancing.newDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
-    { label: 'Volumen refinanciado', val: refinancing.amount != null ? `$${Math.round(refinancing.amount)}M` : '—' },
-    { label: 'Impacto en BPA', val: refinancing.epsImpact != null ? `${refinancing.epsImpact >= 0 ? '+' : ''}${refinancing.epsImpact.toFixed(2).replace('.', ',')} $/acc` : '—', highlight: true },
+    { label: t('Tipo deuda anterior', null, refLang), val: refinancing.oldDebtRate != null ? `${rateFmt(refinancing.oldDebtRate)} %` : '—' },
+    { label: t('Tipo nueva emisión', null, refLang), val: refinancing.newDebtRate != null ? `${rateFmt(refinancing.newDebtRate)} %` : '—' },
+    { label: t('Volumen refinanciado', null, refLang), val: refinancing.amount != null ? `$${Math.round(refinancing.amount)}M` : '—' },
+    { label: t('Impacto en BPA', null, refLang), val: refinancing.epsImpact != null ? `${refinancing.epsImpact >= 0 ? '+' : ''}${rateFmt(refinancing.epsImpact)} $/acc` : '—', highlight: true },
   ];
 
   badges.forEach((b, idx) => {

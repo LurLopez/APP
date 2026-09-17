@@ -175,22 +175,25 @@ document.querySelectorAll('.nav-link[data-section]').forEach((link) => {
 
     if (sectionKey === 'favoritos') {
       history.pushState(null, '', '/seguimiento');
-    } else if (sectionKey === 'cartera') {
-      history.pushState(null, '', '/cartera');
+    }
+    const isEn = window.I18n?.getLanguage?.() === 'en' || window.location.pathname === '/en' || window.location.pathname.startsWith('/en/');
+    const prefix = isEn ? '/en' : '';
+    if (sectionKey === 'cartera') {
+      history.pushState(null, '', `${prefix}/cartera`);
     } else if (sectionKey === 'calendario') {
-      history.pushState(null, '', '/calendario');
+      history.pushState(null, '', `${prefix}/calendario`);
     } else if (sectionKey === 'alertas') {
-      history.pushState(null, '', '/alertas');
+      history.pushState(null, '', `${prefix}/alertas`);
     } else if (sectionKey === 'analisis') {
-      history.pushState(null, '', '/analisis');
+      history.pushState(null, '', `${prefix}/analisis`);
     } else if (sectionKey === 'novedades') {
-      history.pushState(null, '', '/novedades');
+      history.pushState(null, '', `${prefix}/novedades`);
     } else if (sectionKey === 'guias') {
-      history.pushState(null, '', '/guias');
+      history.pushState(null, '', `${prefix}/guias`);
     } else if (sectionKey === 'reportes') {
-      history.pushState(null, '', '/reportes');
+      history.pushState(null, '', `${prefix}/reportes`);
     } else {
-      history.pushState(null, '', `/empresa/${encodeURIComponent(companyTicker)}`);
+      history.pushState(null, '', `${prefix}/empresa/${encodeURIComponent(companyTicker)}`);
     }
   });
 });

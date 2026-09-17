@@ -43,11 +43,12 @@
     - **Desfase fiscal**: Si aparece `Deferred income tax provision/(benefit)`, `Deferred income taxes and income taxes payable, net` o `income taxes payable`, se estima el efectivo fiscal como `gasto por impuestos - ajuste fiscal del cash flow`. Se compara con el 23 % del EBT ajustado y solo se corrige si la diferencia está entre `-20 %` y `+20 %`; cuando se corrige, se propaga a FCF, FCF/Acción y Libre.
     - **Doble ajuste (circulante + impuestos, obligatorio)**: cuando se apliquen ambos ajustes, la Nota `*2` debe cerrar la cadena completa `Cash Flow Normal -> ajuste de circulante -> ajuste fiscal -> Cash Flow Ajustado`, mostrando CADA ajuste con su importe y su signo y aclarando expresamente si ambos se compensan. Ejemplo: `La cifra final combina los dos ajustes: 9415M -646,7M (circulante) +654,7M (impuestos) = 9423M; el efecto neto es de solo +8M porque ambos se cancelan en gran medida.` Queda prohibido que la tabla dé la impresión de que el ajuste fue irrelevante cuando hubo dos ajustes brutos grandes de signo opuesto.
 
-5. **Desinversiones y Ventas de Negocios**:
+5. **Desinversiones, Ventas de Negocios y Operaciones Corporativas**:
    - Estimar el beneficio neto del negocio vendido a partir de ventas y EBITDA reportados.
    - Calcular el PER implícito de la desinversión y comparar sus márgenes con el negocio consolidado.
    - **Identificación obligatoria**: En la nota correspondiente de la tabla de asignación de capital, explicar siempre con un breve texto qué marca o filial concreta se ha vendido o comprado (fuente documental del 10-Q/10-K), evitando notas genéricas.
    - Emitir un juicio de valor sobre la conveniencia estratégica del acuerdo e indicar el trimestre previsto de liquidación y entrada efectiva en caja.
+   - **En el análisis anual (10-K)**: además de las adquisiciones, la sección de Operaciones Corporativas explica con la información del 10-K las desinversiones y ventas de participaciones que representen ≥ 5 % de los ingresos consolidados (o ≥ 5 % del capital de la participada), los spin-offs anunciados, en curso o completados y las reestructuraciones materiales (plantas y funciones afectadas, coste, ahorro esperado y plazo), detallando qué ha pasado, fechas, importes e impacto esperado.
 
 6. **BPA Ajustado**: El BPA se calcula exclusivamente con el Beneficio Neto Ajustado y el número de acciones diluidas del periodo. Si una operación corporativa tiene un efecto incierto en el BPA, no se especula en el cálculo y se explica en nota.
 

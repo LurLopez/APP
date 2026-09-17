@@ -3,6 +3,7 @@
  */
 
 import { parseFinancialValue, formatFinancialValue, extractIncomeTaxesPaid } from './financialParsers.js';
+import { t } from '../../utils/i18n.js';
 
 export function buildDividendHistoryFromEdgar(annualSeries, maxYear) {
   if (!Array.isArray(annualSeries) || !annualSeries.length) return null;
@@ -65,7 +66,7 @@ export function mergeHistoryByYear(primary, fallback) {
   return [...map.values()].sort((a, b) => Number(a.year) - Number(b.year));
 }
 
-export function buildFutureProjectionText({ remainingAuthorization, averagePrice, sharesHistory }) {
+export function buildFutureProjectionText({ remainingAuthorization, averagePrice, sharesHistory, language = 'es' }) {
   const remaining = Number(remainingAuthorization);
   const price = Number(averagePrice);
   if (!Number.isFinite(remaining) || remaining <= 0 || !Number.isFinite(price) || price <= 0) return null;
@@ -77,14 +78,14 @@ export function buildFutureProjectionText({ remainingAuthorization, averagePrice
   const lastShares = points.length ? points[points.length - 1] : null;
   const annualPct = lastShares ? (perYear / lastShares) * 100 : null;
   const bpaPct = annualPct != null ? (annualPct / (100 - annualPct)) * 100 : null;
-  const fmt = (value) => String(value.toFixed(1)).replace('.', ',');
+  const fmt = (value) => (language === 'en' ? value.toFixed(1) : String(value.toFixed(1)).replace('.', ','));
   if (annualPct == null) {
-    return `Proyección a 5 años: con ~${formatFinancialValue(remaining)}M de autorización restante y un precio medio de ~${fmt(price)} $, se podrían recomprar ~${fmt(sharesToRepurchase)}M de acciones (~${fmt(perYear)}M/año).`;
+    return t('Proyección a 5 años: con ~{remaining}M de autorización restante y un precio medio de ~{price} $, se podrían recomprar ~{shares}M de acciones (~{perYear}M/año).', { remaining: formatFinancialValue(remaining, language), price: fmt(price), shares: fmt(sharesToRepurchase), perYear: fmt(perYear) }, language);
   }
-  return `Proyección a 5 años: con ~${formatFinancialValue(remaining)}M de autorización restante y un precio medio de ~${fmt(price)} $, se podrían recomprar ~${fmt(sharesToRepurchase)}M de acciones (~${fmt(perYear)}M/año), lo que reduciría el capital un ~${fmt(annualPct)} % anual e impulsaría el BPA ~${fmt(bpaPct)} % cada año.`;
+  return t('Proyección a 5 años: con ~{remaining}M de autorización restante y un precio medio de ~{price} $, se podrían recomprar ~{shares}M de acciones (~{perYear}M/año), lo que reduciría el capital un ~{annualPct} % anual e impulsaría el BPA ~{bpaPct} % cada año.', { remaining: formatFinancialValue(remaining, language), price: fmt(price), shares: fmt(sharesToRepurchase), perYear: fmt(perYear), annualPct: fmt(annualPct), bpaPct: fmt(bpaPct) }, language);
 }
 
-export function buildShareCountEvolutionText(sharesHistory) {
+export function buildShareCountEvolutionText(sharesHistory, language = 'es') {
   const points = [...(Array.isArray(sharesHistory) ? sharesHistory : [])]
     .map((point) => ({ year: Number(point?.year), shares: Number(point?.shares) }))
     .filter((point) => Number.isFinite(point.year) && Number.isFinite(point.shares) && point.shares > 0)
@@ -93,15 +94,18 @@ export function buildShareCountEvolutionText(sharesHistory) {
   const prev = points[points.length - 2];
   const curr = points[points.length - 1];
   const pct = ((curr.shares - prev.shares) / prev.shares) * 100;
-  const fmtShares = (value) => String(Math.round(value * 10) / 10).replace('.', ',');
-  const fmtPct = `${pct < 0 ? '-' : '+'}${Math.abs(pct).toFixed(1).replace('.', ',')} %`;
-  return `De ${fmtShares(prev.shares)}M de acciones al cierre de ${prev.year} a ${fmtShares(curr.shares)}M al cierre de ${curr.year} (${fmtPct})`;
+  const fmtShares = (value) => (language === 'en' ? String(Math.round(value * 10) / 10) : String(Math.round(value * 10) / 10).replace('.', ','));
+  const fmtPct = `${pct < 0 ? '-' : '+'}${formatFinancialValue(Math.abs(pct), language)} %`;
+  return t('De {prev}M de acciones al cierre de {yearPrev} a {curr}M al cierre de {yearCurr} ({pct})', { prev: fmtShares(prev.shares), yearPrev: prev.year, curr: fmtShares(curr.shares), yearCurr: curr.year, pct: fmtPct }, language);
 }
 
-export function getTaxNormalizationData({ extracted, horizon, isTrimestral }) {
+export function getTaxNormalizationData({ extracted, horizon, isTrimestral, language = 'es' }) {
   const facts = extracted.facts ?? {};
   const ebtRow = horizon.sales?.rows?.find((row) => String(row.name).toLowerCase().includes('ebt'));
-  const netRow = horizon.sales?.rows?.find((row) => String(row.name).toLowerCase().includes('neto'));
+  const netRow = horizon.sales?.rows?.find((row) => {
+    const name = String(row.name).toLowerCase();
+    return name.includes('neto') || name.includes('net income');
+  });
   const ebtReported = parseFinancialValue(ebtRow?.normal);
   let ebtAdjusted = parseFinancialValue(ebtRow?.adjusted);
   const netReported = parseFinancialValue(netRow?.normal);
@@ -149,9 +153,9 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral }) {
   const adjustment = Math.round((cashTaxesPaid - normalizedCashTaxes) * 10) / 10;
   if (Math.abs(adjustment) < 0.5) return null;
 
-  const normTaxText = `${formatFinancialValue(normalizedCashTaxes)}M`;
-  const paidTaxText = `${formatFinancialValue(cashTaxesPaid)}M`;
-  const adjText = `${adjustment >= 0 ? '+' : ''}${formatFinancialValue(adjustment)}M`;
+  const normTaxText = `${formatFinancialValue(normalizedCashTaxes, language)}M`;
+  const paidTaxText = `${formatFinancialValue(cashTaxesPaid, language)}M`;
+  const adjText = `${adjustment >= 0 ? '+' : ''}${formatFinancialValue(adjustment, language)}M`;
 
   return {
     reportedTax,
@@ -160,6 +164,11 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral }) {
     normalizedRate,
     normalizedCashTaxes,
     adjustment,
-    explanation: `Impuestos: La empresa debería haber pagado ${normTaxText} en impuestos (23 % sobre el EBT ajustado de ${formatFinancialValue(ebtAdjusted)}M) y solamente ha pagado ${paidTaxText} en efectivo según el estado de flujos. Ajuste de ${adjText} al Cash Flow Ajustado por la discrepancia fiscal.`,
+    explanation: t('Impuestos: La empresa debería haber pagado {normTaxText} en impuestos (23 % sobre el EBT ajustado de {ebtText}) y solamente ha pagado {paidTaxText} en efectivo según el estado de flujos. Ajuste de {adjText} al Cash Flow Ajustado por la discrepancia fiscal.', {
+      normTaxText,
+      ebtText: `${formatFinancialValue(ebtAdjusted, language)}M`,
+      paidTaxText,
+      adjText,
+    }, language),
   };
 }

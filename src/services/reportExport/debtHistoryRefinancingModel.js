@@ -4,6 +4,7 @@
  */
 
 import { parseSecNumber, cell, COLORS } from './exportColors.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 /**
  * Genera el modelo histórico de los últimos 10 años comparando deuda total bruta vs neta.
@@ -11,7 +12,8 @@ import { parseSecNumber, cell, COLORS } from './exportColors.js';
  * @param {object} report - Informe financiero completo.
  * @returns {object|null} Puntos temporales y tasas de crecimiento compuesto (CAGR).
  */
-export function buildDebtHistoryModel(debt, report) {
+export function buildDebtHistoryModel(debt, report, language = null) {
+  const lang = normalizeLanguage(language || report?.language);
   const toMillionsVal = (v) => {
     const num = parseSecNumber(v);
     if (!Number.isFinite(num)) return null;
@@ -66,7 +68,8 @@ export function buildDebtHistoryModel(debt, report) {
     : null);
 
   return {
-    title: `EVOLUCIÓN DE LA DEUDA: NORMAL VS NETA (${first.year}–${last.year})`,
+    title: t('EVOLUCIÓN DE LA DEUDA: NORMAL VS NETA ({from}–{to})', { from: first.year, to: last.year }, lang),
+    language: lang,
     points,
     maxVal: Math.max(...allVals),
     minVal: Math.min(0, ...allVals),
@@ -82,27 +85,36 @@ export function buildDebtHistoryModel(debt, report) {
  */
 export function buildDebtHistoryTable(chart) {
   if (!chart || !Array.isArray(chart.points) || !chart.points.length) return null;
+  const lang = normalizeLanguage(chart.language);
+  const num = (value, digits = 1) => {
+    const fixed = value.toFixed(digits);
+    return lang === 'en' ? fixed : fixed.replace('.', ',');
+  };
+  const colYear = t('Año', null, lang);
+  const colTotal = t('Deuda Normal ($M)', null, lang);
+  const colNet = t('Deuda Neta ($M)', null, lang);
+  const colDelta = t('Δ vs año anterior', null, lang);
   const headers = [
-    cell('Año', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Deuda Normal ($M)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Δ vs año anterior', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Deuda Neta ($M)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Δ vs año anterior', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colYear, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colTotal, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colDelta, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colNet, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colDelta, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
   ];
   const rows = chart.points.map((p) => [
     cell(String(p.year), { bold: true, color: COLORS.ink }),
-    cell(`$${p.totalDebt.toFixed(1).replace('.', ',')}M`, { bold: true, color: '#1e40af' }),
-    cell(p.deltaTotalDebt != null ? `${p.deltaTotalDebt > 0 ? '+' : ''}${p.deltaTotalDebt.toFixed(1).replace('.', ',')}M` : '—', {
+    cell(`$${num(p.totalDebt)}M`, { bold: true, color: '#1e40af' }),
+    cell(p.deltaTotalDebt != null ? `${p.deltaTotalDebt > 0 ? '+' : ''}${num(p.deltaTotalDebt)}M` : '—', {
       bold: true,
       color: p.deltaTotalDebt != null ? (p.deltaTotalDebt < 0 ? COLORS.positive : COLORS.negative) : COLORS.ink,
     }),
-    cell(Number.isFinite(p.netDebt) ? `$${p.netDebt.toFixed(1).replace('.', ',')}M` : '—', { bold: true, color: '#d97706' }),
-    cell(p.deltaNetDebt != null ? `${p.deltaNetDebt > 0 ? '+' : ''}${p.deltaNetDebt.toFixed(1).replace('.', ',')}M` : '—', {
+    cell(Number.isFinite(p.netDebt) ? `$${num(p.netDebt)}M` : '—', { bold: true, color: '#d97706' }),
+    cell(p.deltaNetDebt != null ? `${p.deltaNetDebt > 0 ? '+' : ''}${num(p.deltaNetDebt)}M` : '—', {
       bold: true,
       color: p.deltaNetDebt != null ? (p.deltaNetDebt < 0 ? COLORS.positive : COLORS.negative) : COLORS.ink,
     }),
   ]);
-  return { columns: ['Año', 'Deuda Normal ($M)', 'Δ vs año anterior', 'Deuda Neta ($M)', 'Δ vs año anterior'], widths: [60, 115, 110, 115, 115], headers, rows };
+  return { columns: [colYear, colTotal, colDelta, colNet, colDelta], widths: [60, 115, 110, 115, 115], headers, rows };
 }
 
 /**
@@ -111,7 +123,8 @@ export function buildDebtHistoryTable(chart) {
  * @param {object} report - Informe financiero consolidado.
  * @returns {object|null} Datos numéricos de tipos, delta de intereses e impacto por acción.
  */
-export function buildDebtRefinancingModel(debt, report) {
+export function buildDebtRefinancingModel(debt, report, language = null) {
+  const lang = normalizeLanguage(language || report?.language);
   if (!debt || debt.refinancing?.occurred !== true) return null;
   let oldDebtRate = debt.refinancing?.oldDebtRate ?? null;
   let newDebtRate = debt.refinancing?.newDebtRate ?? null;
@@ -169,10 +182,10 @@ export function buildDebtRefinancingModel(debt, report) {
   }
 
   if (epsImpact != null) {
-    const absEps = Math.abs(epsImpact).toFixed(2).replace('.', ',');
+    const absEps = lang === 'en' ? Math.abs(epsImpact).toFixed(2) : Math.abs(epsImpact).toFixed(2).replace('.', ',');
     epsText = epsImpact < 0
-      ? `los nuevos costes suben reduciendo en torno a **${absEps} $/acción** el BPA (impacto: **-${absEps} $/acc**)`
-      : `los nuevos costes bajan en torno a **${absEps} $/acción** (impacto favorable en el BPA de **+${absEps} $/acc**)`;
+      ? t('los nuevos costes suben reduciendo en torno a **{eps} $/acción** el BPA (impacto: **-{eps} $/acc**)', { eps: absEps }, lang)
+      : t('los nuevos costes bajan en torno a **{eps} $/acción** (impacto favorable en el BPA de **+{eps} $/acc**)', { eps: absEps }, lang);
   }
 
   const reportedInterestImpact = Number(debt.refinancing?.annualInterestImpact);
@@ -183,14 +196,16 @@ export function buildDebtRefinancingModel(debt, report) {
   const reportedEpsImpact = Number(debt.refinancing?.epsImpact);
   if (epsImpact == null && Number.isFinite(reportedEpsImpact)) {
     epsImpact = Math.round(reportedEpsImpact * 100) / 100;
-    const absEps = Math.abs(epsImpact).toFixed(2).replace('.', ',');
+    const absEps = lang === 'en' ? Math.abs(epsImpact).toFixed(2) : Math.abs(epsImpact).toFixed(2).replace('.', ',');
     epsText = epsImpact < 0
-      ? `impacto en el BPA de **-${absEps} $/acción** según el informe`
-      : `impacto favorable en el BPA de **+${absEps} $/acción** según el informe`;
+      ? t('impacto en el BPA de **-{eps} $/acción** según el informe', { eps: absEps }, lang)
+      : t('impacto favorable en el BPA de **+{eps} $/acción** según el informe', { eps: absEps }, lang);
   }
 
   const hasData = Number.isFinite(oldDebtRate) || Number.isFinite(newDebtRate) || Number.isFinite(amount) || Number.isFinite(epsImpact) || debt.refinancingAnalysis || debt.refinancingImpact;
   if (!hasData) return null;
+
+  const rateText = (value) => (lang === 'en' ? value.toFixed(2) : value.toFixed(2).replace('.', ','));
 
   return {
     oldDebtRate,
@@ -201,8 +216,13 @@ export function buildDebtRefinancingModel(debt, report) {
     shares,
     epsImpact,
     epsText,
+    language: lang,
     badge: (oldDebtRate != null && newDebtRate != null)
-      ? `Refinanciación: deuda vendida/vencida al **${oldDebtRate.toFixed(2).replace('.', ',')} %** vs nueva emitida al **${newDebtRate.toFixed(2).replace('.', ',')} %**${epsText ? ` · ${epsText}` : ''}`
+      ? t('Refinanciación: deuda vendida/vencida al **{old} %** vs nueva emitida al **{new} %**{eps}', {
+        old: rateText(oldDebtRate),
+        new: rateText(newDebtRate),
+        eps: epsText ? ` · ${epsText}` : '',
+      }, lang)
       : null,
     explanation: debt.refinancingAnalysis || null,
     impactExplanation: debt.refinancingImpact || null,
@@ -216,13 +236,15 @@ export function buildDebtRefinancingModel(debt, report) {
  */
 export function buildDebtRefinancingBadges(refinancing) {
   if (!refinancing) return [];
+  const lang = normalizeLanguage(refinancing.language);
+  const rateText = (value) => (lang === 'en' ? value.toFixed(2) : value.toFixed(2).replace('.', ','));
   return [
-    { label: 'Tipo deuda anterior', val: refinancing.oldDebtRate != null ? `${refinancing.oldDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
-    { label: 'Tipo nueva emisión', val: refinancing.newDebtRate != null ? `${refinancing.newDebtRate.toFixed(2).replace('.', ',')} %` : '—' },
-    { label: 'Volumen refinanciado', val: refinancing.amount != null ? `$${Math.round(refinancing.amount)}M` : '—' },
+    { label: t('Tipo deuda anterior', null, lang), val: refinancing.oldDebtRate != null ? `${rateText(refinancing.oldDebtRate)} %` : '—' },
+    { label: t('Tipo nueva emisión', null, lang), val: refinancing.newDebtRate != null ? `${rateText(refinancing.newDebtRate)} %` : '—' },
+    { label: t('Volumen refinanciado', null, lang), val: refinancing.amount != null ? `$${Math.round(refinancing.amount)}M` : '—' },
     {
-      label: 'Impacto en BPA',
-      val: refinancing.epsImpact != null ? `${refinancing.epsImpact >= 0 ? '+' : ''}${refinancing.epsImpact.toFixed(2).replace('.', ',')} $/acc` : '—',
+      label: t('Impacto en BPA', null, lang),
+      val: refinancing.epsImpact != null ? `${refinancing.epsImpact >= 0 ? '+' : ''}${rateText(refinancing.epsImpact)} $/acc` : '—',
       highlight: true,
     },
   ];

@@ -92,15 +92,15 @@
       <div class="pf-dividend-card pf-matrix-card">
         <div class="pf-card-head">
           <div>
-            <h4>Matriz de dividendos</h4>
+            <h4>${window.I18n ? window.I18n.t('Matriz de dividendos') : 'Matriz de dividendos'}</h4>
           </div>
         </div>
         <div class="pf-matrix-table-wrap">
           <table class="pf-matrix-table">
             <thead>
               <tr>
-                <th class="pf-matrix-sticky-company">Valor</th>
-                <th class="pf-matrix-sticky-sum">Suma</th>
+                <th class="pf-matrix-sticky-company">${window.I18n ? window.I18n.t('Valor') : 'Valor'}</th>
+                <th class="pf-matrix-sticky-sum">${window.I18n ? window.I18n.t('Suma') : 'Suma'}</th>
                 ${years.map((y) => `<th>${y}</th>`).join('')}
               </tr>
             </thead>
@@ -135,7 +135,7 @@
           <div class="pf-month-card-head">
             <div class="pf-month-card-title">
               <strong>${escapeHtml(card.title)}</strong>
-              <span class="pf-month-card-count">${card.paymentCount} pagos</span>
+              <span class="pf-month-card-count">${window.I18n ? window.I18n.tp(card.paymentCount, '{n} pago', '{n} pagos') : `${card.paymentCount} pagos`}</span>
             </div>
             <strong class="pf-month-card-total">${fmtEur(card.totalAmount)}</strong>
           </div>
@@ -149,11 +149,17 @@
       <div class="pf-dividend-card pf-summary-grid-card">
         <div class="pf-card-head">
           <div>
-            <h4>Resumen de dividendos</h4>
-            <p>Has recibido dividendos brutos de ${fmtEur(summary.ttmTotal)} en los últimos 12 meses, distribuidos en ${summary.paymentCount} pagos y ${summary.payDatesCount} fechas de pago.</p>
+            <h4>${window.I18n ? window.I18n.t('Resumen de dividendos') : 'Resumen de dividendos'}</h4>
+            <p>${window.I18n
+              ? window.I18n.t(
+                  'Has recibido dividendos brutos de {0} en los últimos 12 meses, distribuidos en {1} pagos y {2} fechas de pago.',
+                  { 0: fmtEur(summary.ttmTotal), 1: summary.paymentCount, 2: summary.payDatesCount }
+                )
+              : `Has recibido dividendos brutos de ${fmtEur(summary.ttmTotal)} en los últimos 12 meses, distribuidos en ${summary.paymentCount} pagos y ${summary.payDatesCount} fechas de pago.`
+            }</p>
           </div>
           <div class="pf-summary-head-controls">
-            <button class="pf-summary-toggle-btn" type="button" data-div-summary-collapse title="${DS.dividendSummaryCollapsed ? 'Expandir' : 'Plegar'}">
+            <button class="pf-summary-toggle-btn" type="button" data-div-summary-collapse title="${DS.dividendSummaryCollapsed ? (window.I18n ? window.I18n.t('Expandir') : 'Expandir') : (window.I18n ? window.I18n.t('Plegar') : 'Plegar')}">
               ${DS.dividendSummaryCollapsed ? '⌄' : '⌃'}
             </button>
             <select class="pf-select pf-summary-period-select" data-div-summary-period>
@@ -173,7 +179,7 @@
         <div class="pf-card-footer pf-summary-footer">
           <button class="pf-footer-link pf-export-csv-btn" type="button" data-div-export-csv>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Exportar CSV
+            ${window.I18n ? window.I18n.t('Exportar CSV') : 'Exportar CSV'}
           </button>
         </div>
       </div>`;

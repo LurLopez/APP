@@ -4,9 +4,10 @@
  */
 
 import { cell, headerCell, getHighlight, noteNumberOf, sanitize, COLORS } from './exportColors.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 export function isPctHeader(header) {
-  return ['% Aj.', '% N.', '% Ajustado', '% Normal', '%'].includes(String(header).trim());
+  return ['% Aj.', '% N.', '% Ajustado', '% Normal', '%', '% Adj.', '% N.', '% Adjusted', '% Normal'].includes(String(header).trim());
 }
 
 export function pctColor(value) {
@@ -29,10 +30,13 @@ export function buildNotes(notes) {
   });
 }
 
-export function buildSalesSection(sales) {
-  const columns = ['Métrica', 'Ajustado', 'Anterior Aj.', '% Ajustado', 'Normal', 'Anterior N.', '% Normal'];
+export function buildSalesSection(sales, language = 'es') {
+  const lang = normalizeLanguage(language);
+  const columns = [t('Métrica', null, lang), t('Ajustado', null, lang), t('Anterior Aj.', null, lang), t('% Ajustado', null, lang), t('Normal', null, lang), t('Anterior N.', null, lang), t('% Normal', null, lang)];
   const widths = [140, 62, 62, 63, 62, 62, 63];
   const headers = columns.map(headerCell);
+  const boldColumns = [1, 4];
+  const pctColumns = [3, 6];
   const rows = (sales.rows ?? []).map((row, index) => {
     const stripeBg = index % 2 === 0 ? COLORS.stripe : null;
     const isRowAdjusted = row.isAdjusted === true;
@@ -45,12 +49,11 @@ export function buildSalesSection(sales) {
 
     const values = [row.adjusted, row.prevAdjusted, row.pctAdjusted, row.normal, row.prevNormal, row.pctNormal];
     const valueCells = values.map((value, i) => {
-      const colHeader = columns[i + 1];
-      const base = { bold: colHeader === 'Ajustado' || colHeader === 'Normal', color: COLORS.ink, bg: stripeBg };
+      const base = { bold: boldColumns.includes(i + 1), color: COLORS.ink, bg: stripeBg };
       if (i === 0 && isRowAdjusted) {
         return cell(value, { bold: true, color: scheme.text, bg: scheme.bg });
       }
-      if (isPctHeader(colHeader)) {
+      if (pctColumns.includes(i + 1)) {
         const color = pctColor(value);
         if (color) return cell(value, { ...base, color, bold: false });
       }
@@ -60,19 +63,23 @@ export function buildSalesSection(sales) {
   });
 
   return {
-    title: '1. VENTAS',
+    title: t('1. VENTAS', null, lang),
     table: { columns, widths, headers, rows },
-    extras: [sales.shares ? `ACCIONES: ${sanitize(sales.shares)}` : null, sales.eps ? `BPA: ${sanitize(sales.eps)}` : null].filter(Boolean),
+    extras: [
+      sales.shares ? `${t('ACCIONES', null, lang)}: ${sanitize(sales.shares)}` : null,
+      sales.eps ? `${t('BPA', null, lang)}: ${sanitize(sales.eps)}` : null,
+    ].filter(Boolean),
     notes: buildNotes(sales.notes),
   };
 }
 
-export function buildCashFlowSection(cashFlow) {
+export function buildCashFlowSection(cashFlow, language = 'es') {
+  const lang = normalizeLanguage(language);
   let scenarios = Array.isArray(cashFlow.scenarios) ? [...cashFlow.scenarios] : [];
-  if (scenarios.length === 0) scenarios = ['Normal', 'Ajustado'];
-  else if (scenarios.length === 1) scenarios = [scenarios[0], 'Ajustado'];
+  if (scenarios.length === 0) scenarios = [t('Normal', null, lang), t('Ajustado', null, lang)];
+  else if (scenarios.length === 1) scenarios = [scenarios[0], t('Ajustado', null, lang)];
 
-  const columns = ['Métrica', ...scenarios];
+  const columns = [t('Métrica', null, lang), ...scenarios];
   const widths = [150, ...Array(scenarios.length).fill((515 - 150) / scenarios.length)];
   const headers = columns.map(headerCell);
   const rows = (cashFlow.rows ?? []).map((row, index) => {
@@ -87,7 +94,7 @@ export function buildCashFlowSection(cashFlow) {
     if (values.length === 1 && scenarios.length === 2) values.push(values[0]);
 
     const valueCells = values.map((value, i) => {
-      const base = { bold: columns[i + 1] === 'Ajustado' || columns[i + 1] === 'Normal', color: COLORS.ink, bg: stripeBg };
+      const base = { bold: true, color: COLORS.ink, bg: stripeBg };
       if (i === 1 && row.cashFlowAdjustedNote) {
         const scheme = getHighlight(String(row.cashFlowAdjustedNote).replace(/\D/g, '') || '2');
         return cell(value, { bold: true, color: scheme.text, bg: scheme.bg });
@@ -102,11 +109,12 @@ export function buildCashFlowSection(cashFlow) {
     return !lower.includes('deducido del acumulado') && !lower.includes('flujo trimestral deducido');
   });
 
-  return { title: '2. CASH FLOW', table: { columns, widths, headers, rows }, notes: buildNotes(notes) };
+  return { title: t('2. CASH FLOW', null, lang), table: { columns, widths, headers, rows }, notes: buildNotes(notes) };
 }
 
-export function buildCapitalSection(capital) {
-  const columns = ['Métrica', 'Valor'];
+export function buildCapitalSection(capital, language = 'es') {
+  const lang = normalizeLanguage(language);
+  const columns = [t('Métrica', null, lang), t('Valor', null, lang)];
   const widths = [150, 365];
   const headers = columns.map(headerCell);
   const rows = (capital.rows ?? []).map((row, index) => {
@@ -125,7 +133,7 @@ export function buildCapitalSection(capital) {
   });
 
   return {
-    title: '3. ASIGNACIÓN DE CAPITAL',
+    title: t('3. ASIGNACIÓN DE CAPITAL', null, lang),
     table: { columns, widths, headers, rows },
     verification: capital.verification ? sanitize(capital.verification) : null,
     notes: buildNotes(capital.notes),

@@ -238,18 +238,44 @@ export async function getSitemapXml() {
     });
   }
 
-  const xml = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
-    ...urls.map((url) => [
+  const xmlEntries = [];
+  for (const url of urls) {
+    const esLoc = url.loc;
+    const enLoc = esLoc === `${config.siteUrl}/`
+      ? `${config.siteUrl}/en`
+      : esLoc.replace(config.siteUrl, `${config.siteUrl}/en`);
+
+    const links = [
+      `    <xhtml:link rel="alternate" hreflang="es" href="${escapeXml(esLoc)}" />`,
+      `    <xhtml:link rel="alternate" hreflang="en" href="${escapeXml(enLoc)}" />`,
+      `    <xhtml:link rel="alternate" hreflang="x-default" href="${escapeXml(esLoc)}" />`,
+    ].join('\n');
+
+    xmlEntries.push([
       '  <url>',
-      `    <loc>${escapeXml(url.loc)}</loc>`,
+      `    <loc>${escapeXml(esLoc)}</loc>`,
       url.lastmod ? `    <lastmod>${url.lastmod}</lastmod>` : null,
       `    <changefreq>${url.changefreq}</changefreq>`,
       `    <priority>${url.priority}</priority>`,
-      `    <xhtml:link rel="alternate" hreflang="es" href="${escapeXml(url.loc)}" />`,
+      links,
       '  </url>',
-    ].filter(Boolean).join('\n')),
+    ].filter(Boolean).join('\n'));
+
+    xmlEntries.push([
+      '  <url>',
+      `    <loc>${escapeXml(enLoc)}</loc>`,
+      url.lastmod ? `    <lastmod>${url.lastmod}</lastmod>` : null,
+      `    <changefreq>${url.changefreq}</changefreq>`,
+      `    <priority>${url.priority}</priority>`,
+      links,
+      '  </url>',
+    ].filter(Boolean).join('\n'));
+  }
+
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    ...xmlEntries,
     '</urlset>',
     '',
   ].join('\n');

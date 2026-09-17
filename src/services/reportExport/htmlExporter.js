@@ -6,6 +6,8 @@
 import { escapeHtml, parseRichSegments, COLORS } from './exportColors.js';
 import { buildDebtRefinancingBadges } from './debtHistoryRefinancingModel.js';
 import { buildReportModel } from './reportModel.js';
+import { getExecutiveFieldLabels } from './executiveChanges.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 import {
   renderHtmlSharesChart,
   renderHtmlDebtMaturityChart,
@@ -54,24 +56,18 @@ export function renderHtmlRefinancingBox(refinancing) {
     </div>`).join('');
   return `
     <div style="margin:10pt 0 10pt;background:#fff7ed;border:1px solid #fed7aa;border-left:3.5pt solid #ea580c;border-radius:4px;padding:8pt 10pt;">
-      <p style="margin:0 0 6pt;font-size:9pt;font-weight:800;color:#9a3412;">Refinanciación de deuda e impacto en BPA:</p>
+      <p style="margin:0 0 6pt;font-size:9pt;font-weight:800;color:#9a3412;">${escapeHtml(t('Refinanciación de deuda e impacto en BPA:', null, normalizeLanguage(refinancing.language)))}</p>
       <div style="display:flex;gap:6pt;flex-wrap:wrap;">${tiles}</div>
       ${refinancing.explanation ? `<p style="font-size:8.5pt;line-height:1.45;margin:8pt 0 0;color:#431407;">${renderRichHtml(refinancing.explanation)}</p>` : ''}
       ${refinancing.impactExplanation ? `<p style="font-size:8.5pt;line-height:1.45;margin:5pt 0 0;color:#c2410c;font-weight:700;">${renderRichHtml(refinancing.impactExplanation)}</p>` : ''}
     </div>`;
 }
 
-function renderExecutivePersonHtml(label, person) {
+function renderExecutivePersonHtml(label, person, language = 'es') {
   if (!person) return '';
-  const fields = [
-    ['Inicio en el cargo', person.tenureStart],
-    ['Ventas durante su mandato', person.salesDuringTenure],
-    ['A dónde pasa', person.whereTheyGo],
-    ['Políticas de su etapa', person.policies],
-    ['De dónde viene', person.origin],
-    ['Trayectoria previa', person.trackRecord],
-    ['Qué ha anunciado', person.commitments],
-  ].filter(([, value]) => value);
+  const fields = getExecutiveFieldLabels(language)
+    .map(([fieldLabel, key]) => [fieldLabel, person[key]])
+    .filter(([, value]) => value);
   if (!person.name && !fields.length) return '';
   return `<div style="flex:1;min-width:220pt;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:8pt 10pt;">
     <div style="font-size:7pt;font-weight:800;letter-spacing:0.4pt;color:#4f46e5;">${escapeHtml(label)}</div>
@@ -80,17 +76,18 @@ function renderExecutivePersonHtml(label, person) {
   </div>`;
 }
 
-function renderExecutiveChangeHtml(change) {
+function renderExecutiveChangeHtml(change, language = 'es') {
   if (!change || typeof change !== 'object') return '';
-  const roleLabel = String(change.role || 'Directivo').toUpperCase();
+  const lang = normalizeLanguage(language);
+  const roleLabel = String(change.role || t('Directivo', null, lang)).toUpperCase();
   const meta = [
-    change.announcementDate ? `Anuncio: <strong>${escapeHtml(String(change.announcementDate))}</strong>` : '',
-    change.effectiveDate ? `Efectivo: <strong>${escapeHtml(String(change.effectiveDate))}</strong>` : '',
-    change.reason ? `Motivo: <strong>${escapeHtml(String(change.reason))}</strong>` : '',
+    change.announcementDate ? `${t('Anuncio', null, lang)}: <strong>${escapeHtml(String(change.announcementDate))}</strong>` : '',
+    change.effectiveDate ? `${t('Efectivo', null, lang)}: <strong>${escapeHtml(String(change.effectiveDate))}</strong>` : '',
+    change.reason ? `${t('Motivo', null, lang)}: <strong>${escapeHtml(String(change.reason))}</strong>` : '',
   ].filter(Boolean);
   const blocks = [
-    renderExecutivePersonHtml(`ANTIGUO ${roleLabel}`, change.oldExecutive),
-    renderExecutivePersonHtml(`NUEVO ${roleLabel}`, change.newExecutive),
+    renderExecutivePersonHtml(t('ANTIGUO {role}', { role: roleLabel }, lang), change.oldExecutive, lang),
+    renderExecutivePersonHtml(t('NUEVO {role}', { role: roleLabel }, lang), change.newExecutive, lang),
   ].filter(Boolean);
 
   return `
@@ -100,13 +97,14 @@ function renderExecutiveChangeHtml(change) {
   `;
 }
 
-function renderExecutiveChangesBox(section) {
+function renderExecutiveChangesBox(section, language = 'es') {
+  const lang = normalizeLanguage(language);
   const changes = Array.isArray(section?.changes) ? section.changes : [];
   if (!changes.length) return '';
   const body = changes
     .map((change, index) => `<div style="${index > 0 ? 'margin-top:8pt;border-top:1px solid #e2e8f0;padding-top:6pt;' : ''}">
-      ${changes.length > 1 ? `<div style="font-size:7.5pt;font-weight:800;letter-spacing:0.3pt;text-transform:uppercase;color:#4f46e5;">${escapeHtml(String(change.role || 'Directivo'))}</div>` : ''}
-      ${renderExecutiveChangeHtml(change)}
+      ${changes.length > 1 ? `<div style="font-size:7.5pt;font-weight:800;letter-spacing:0.3pt;text-transform:uppercase;color:#4f46e5;">${escapeHtml(String(change.role || t('Directivo', null, lang)))}</div>` : ''}
+      ${renderExecutiveChangeHtml(change, lang)}
     </div>`)
     .join('');
   return `${body}
@@ -114,7 +112,8 @@ function renderExecutiveChangesBox(section) {
   `;
 }
 
-function renderConclusionHtml(conclusion) {
+function renderConclusionHtml(conclusion, language = 'es') {
+  const lang = normalizeLanguage(language);
   if (!conclusion) return '';
   return `
   <section class="conclusion" style="page-break-before:always;margin-top:20pt;">
@@ -124,7 +123,7 @@ function renderConclusionHtml(conclusion) {
     <div style="border:1px solid ${COLORS.rule};border-radius:6px;padding:10pt 12pt;margin-bottom:12pt;background:#fff;${cardIndex > 0 ? 'page-break-before:always;' : ''}">
       <h3 style="margin:0 0 6pt;font-size:11pt;color:${COLORS.ink};">${escapeHtml(card.title)}</h3>
       ${card.text ? `<p style="font-size:9pt;line-height:1.5;margin:4pt 0 8pt;color:#374151;">${renderRichHtml(card.text)}</p>` : ''}
-      ${card.executiveChanges ? renderExecutiveChangesBox(card.executiveChanges) : ''}
+      ${card.executiveChanges ? renderExecutiveChangesBox(card.executiveChanges, lang) : ''}
       ${card.badges?.length ? `<ul style="font-size:8.5pt;color:#854d0e;padding-left:14pt;margin:4pt 0 8pt;">${card.badges.map((b) => `<li>${renderRichHtml(b)}</li>`).join('')}</ul>` : ''}
       ${card.chart ? renderHtmlSharesChart(card.chart) : ''}
       ${card.debtMaturityChart ? renderHtmlDebtMaturityChart(card.debtMaturityChart) : ''}
@@ -134,7 +133,7 @@ function renderConclusionHtml(conclusion) {
       ${card.isWatchlist && card.items?.length ? `<ul style="font-size:8.5pt;color:#16a34a;padding-left:14pt;margin:4pt 0 8pt;list-style:none;">${card.items.map((it) => `<li>✓ <span style="color:#374151;">${renderRichHtml(it)}</span></li>`).join('')}</ul>` : ''}
       ${card.table ? `
         <div style="margin-top:8pt;border:1px solid #cbd5e1;border-radius:4px;overflow:hidden;">
-          ${card.table.title ? `<div style="padding:3pt 8pt;background:#e2e8f0;font-size:7.5pt;font-weight:800;letter-spacing:0.3pt;color:#334155;">EXTRACTO OFICIAL SEC (FORM 10-K)</div>
+          ${card.table.title ? `<div style="padding:3pt 8pt;background:#e2e8f0;font-size:7.5pt;font-weight:800;letter-spacing:0.3pt;color:#334155;">${escapeHtml(t('EXTRACTO OFICIAL SEC (FORM 10-K)', null, lang))}</div>
           <div style="padding:4pt 8pt;background:#f1f5f9;font-size:8pt;font-weight:700;color:#475569;">${escapeHtml(card.table.title)} ${card.table.summary ? `<span style="font-style:italic;color:#64748b;margin-left:8pt;">${escapeHtml(card.table.summary)}</span>` : ''}</div>` : ''}
           ${renderHtmlTable(card.table)}
         </div>` : ''}
@@ -144,6 +143,7 @@ function renderConclusionHtml(conclusion) {
 
 export function buildReportHtml(report) {
   const model = buildReportModel(report);
+  const lang = normalizeLanguage(report?.language);
   const body = model.horizons.map((horizon) => `
   <section class="horizon">
     <h2>${escapeHtml(horizon.label)}</h2>
@@ -203,7 +203,7 @@ ${model.ticker ? `<p class="ticker">${escapeHtml(model.ticker)}</p>` : ''}
 ${model.periodTitle ? `<p class="period">${escapeHtml(model.periodTitle)}</p>` : ''}
 <hr>
 ${body}
-${renderConclusionHtml(model.conclusion)}
+${renderConclusionHtml(model.conclusion, lang)}
 ${ratingHtml}
 <footer>${escapeHtml(model.footer)}</footer>
 </body>

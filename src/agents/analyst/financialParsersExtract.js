@@ -152,14 +152,14 @@ export function parseLooseReportNumber(value) {
   return num;
 }
 
-export function normalizeNumericCell(value) {
+export function normalizeNumericCell(value, language = 'es') {
   if (value == null || value === '—') return value;
   const str = String(value).trim();
   if (!/^[+-]?\d+(?:[.,]\d+)?$/.test(str)) return value;
   const num = parseLooseReportNumber(str);
   if (!Number.isFinite(num)) return value;
-  const rounded = Math.round(num * 100) / 100;
-  return String(rounded).replace('.', ',');
+  const rounded = String(Math.round(num * 100) / 100);
+  return language === 'en' ? rounded : rounded.replace('.', ',');
 }
 
 export function parseDollarAmount(str) {

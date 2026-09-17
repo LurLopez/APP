@@ -126,7 +126,9 @@
     `;
 
     WS.sectionOptions.onEmptyChange?.(total > 0);
-    if (countEl) countEl.textContent = total ? `${total} ${total === 1 ? 'acción' : 'acciones'}` : '—';
+    if (countEl) {
+      countEl.textContent = total ? (window.I18n ? window.I18n.tp(total, '{n} acción', '{n} acciones') : `${total} ${total === 1 ? 'acción' : 'acciones'}`) : '—';
+    }
 
     bindSectionEvents();
   }

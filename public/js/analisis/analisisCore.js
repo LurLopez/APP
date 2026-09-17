@@ -104,13 +104,14 @@
     if (!value) return '—';
     const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
     if (Number.isNaN(date.getTime())) return '—';
+    if (window.I18n?.formatDate) return window.I18n.formatDate(date);
     return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
   }
 
   function showToast(message) {
     const toast = document.querySelector('#toast');
     if (!toast) return;
-    toast.textContent = message;
+    toast.textContent = window.I18n?.t ? window.I18n.t(message) : message;
     toast.classList.add('visible');
     setTimeout(() => toast.classList.remove('visible'), 3200);
   }

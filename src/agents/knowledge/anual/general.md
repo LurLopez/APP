@@ -24,10 +24,11 @@ INFORME ANUAL (FORM 10-K)
 │   ├── (+) Cambios en la dirección (justo después de Recompras, solo si aplica)
 │   ├── 2. Outlook y Perspectivas Futuras (Guidance) + Captura SEC obligatoria
 │   ├── 3. Deuda y Calendario de Vencimientos (Debt Maturity) + Captura SEC obligatoria
-│   ├── 4. Adquisiciones y Operaciones Corporativas (si existen)
-│   ├── (+) Puntos condicionales según materialidad (Dividendos, Desinversiones,
-│   │        Impairments, Reestructuraciones, Litigios, Impuestos, Pensiones,
-│   │        Concentración de clientes)
+│   ├── 4. Operaciones Corporativas (si existen: adquisiciones, desinversiones y
+│   │        ventas de participaciones ≥ 5 %, spin-offs anunciados o en curso y
+│   │        reestructuraciones)
+│   ├── (+) Puntos condicionales según materialidad (Dividendos, Impairments,
+│   │        Litigios, Impuestos, Pensiones, Concentración de clientes)
 │   └── 5. Puntos Clave a Vigilar para el Próximo Ejercicio (Watchlist)
 │
 └── PARTE III: NOTA DE RESULTADOS (1 a 10)
@@ -145,8 +146,9 @@ En los análisis anuales es **obligatorio** profundizar rigurosamente en los mot
                                     │
     ┌─────────────────┬─────────────┴───────────────┬────────────────┐
     ▼                 ▼                             ▼                ▼
-1. RECOMPRAS     2. OUTLOOK                   3. DEUDA         4. ADQUISICIONES
- + Captura SEC    + Captura SEC                + Captura SEC    (si aplican)
+1. RECOMPRAS     2. OUTLOOK                   3. DEUDA         4. OPERACIONES
+ + Captura SEC    + Captura SEC                + Captura SEC    CORPORATIVAS
+                                                                 (si aplican)
 ```
 
 ---
@@ -273,14 +275,16 @@ Examen en profundidad de la estructura de capital, la evolución de la deuda nor
 
 ---
 
-### 4. Adquisiciones y Operaciones Corporativas (si existen)
+### 4. Operaciones Corporativas (si existen)
 
-Si la compañía ha realizado adquisiciones durante el ejercicio analizado:
+La sección es un único relato, titulado **Operaciones corporativas**, con un bloque por tipo de operación presente (encabezado en negrita dentro del texto). Se explica **qué ha pasado con la información que proporciona el 10-K**: hechos, fechas, motivos declarados por la dirección, importes, tamaño del negocio e impacto esperado o real. Las cifras y detalles salen exclusivamente del 10-K (notas de adquisiciones/desinversiones, MD&A, resultados discontinuados) y del 8-K/presentación complementaria.
 
-- Detalle del negocio, marca o división adquirida.
-- Importe económico desembolsado y forma de financiación (caja propia, asunción de deuda o ampliación de capital).
-- Múltiplos implícitos de valoración y encaje estratégico dentro del portfolio de la empresa.
-- Si no se produjeron adquisiciones materiales ($\ge 50\text{M}$), se indicará expresamente que el ejercicio ha estado libre de operaciones inorgánicas.
+- **Adquisiciones** (si hay compras materiales, $\ge 50\text{M}$): detalle del negocio, marca o división adquirida; importe desembolsado y forma de financiación (caja propia, asunción de deuda o ampliación de capital); múltiplos implícitos de valoración cuando se puedan calcular; sinergias y encaje estratégico dentro del portfolio; impacto esperado en resultados y BPA.
+- **Desinversiones y ventas de participaciones significativas** (umbral: la operación supone **≥ 5 % de los ingresos consolidados** del ejercicio, **≥ 5 % del capital de la sociedad participada** o **≥ 50M$** cobrados): qué negocio, marca, activo o participación se vende y a quién si consta; porcentaje del capital vendido y peso sobre los ingresos; importe cobrado y matices (plusvalía o pérdida contable prevista, consideración aplazada, deuda traspasada); motivo declarado; efecto en caja, deuda y resultados, incluida la reclasificación a resultados discontinuados. Se aplica el juicio de la regla sectorial de desinversiones (PER implícito, márgenes del negocio vendido frente al consolidado).
+- **Spin-offs y separaciones anunciadas**: sociedad o división que se separa; estado (solo anunciado, en curso o completado); fecha de anuncio y fecha esperada o efectiva; estructura prevista (distribución a accionistas libre de impuestos, escisión, OPV, fusión); peso del negocio separado sobre los ingresos si consta; motivo declarado; impacto esperado (deuda que se traspasa, costes de separación, sinergias, efecto en dividendo y BPA). Basta con que esté **anunciado** en el ejercicio o para el siguiente: es un hecho relevante y se explica.
+- **Reestructuraciones y planes de ahorro materiales**: qué plan se anunció o ejecutó y qué plantas, marcas, funciones o geografías afecta; fecha de anuncio; coste total previsto y cargos ya reconocidos en el ejercicio; ahorro anual esperado y plazo (si forma parte del guidance, se indica); empleados afectados si consta; motivo declarado e impacto esperado en resultados y márgenes.
+- **Regla del ejercicio**: cada bloque se refiere exclusivamente al ejercicio analizado o a operaciones anunciadas para el siguiente. Queda prohibido presentar una operación del ejercicio anterior como si fuera del año analizado.
+- **Umbral global**: si no hubo operaciones corporativas materiales, se indica expresamente que el ejercicio no registró operaciones corporativas materiales.
 
 ---
 
@@ -300,19 +304,17 @@ Por lo tanto, cosas a tener en cuenta en 2026:
 
 ### 6. Puntos Condicionales Adicionales (según materialidad)
 
-Además de los puntos canónicos 1-4, la Parte II incorpora —siempre **después de Adquisiciones y antes de la Watchlist**— cualquier punto crítico que aparezca con materialidad en el 10-K (umbral de referencia: **≥ 50 M$** o relevancia estratégica, mismo criterio que en la Asignación de Capital). Si un punto no aplica, simplemente no aparece; la Watchlist cierra siempre la Parte II.
+Además de los puntos canónicos 1-4, la Parte II incorpora —siempre **después de Operaciones Corporativas y antes de la Watchlist**— cualquier punto crítico que aparezca con materialidad en el 10-K (umbral de referencia: **≥ 50 M$** o relevancia estratégica, mismo criterio que en la Asignación de Capital). Si un punto no aplica, simplemente no aparece; la Watchlist cierra siempre la Parte II.
 
-**Excepción de posición**: los **Cambios en la dirección (6.9)** son un punto propio que se coloca **inmediatamente después de Recompras**, antes de Outlook, por su relevancia estratégica. El resto de puntos condicionales (6.1–6.8) van después de Adquisiciones.
+**Excepción de posición**: los **Cambios en la dirección (6.7)** son un punto propio que se coloca **inmediatamente después de Recompras**, antes de Outlook, por su relevancia estratégica. El resto de puntos condicionales (6.1–6.6) van después de Operaciones Corporativas.
 
 - **6.1 Dividendos**: evolución del dividendo por acción y del total pagado, política de payout, cobertura por FCF, racha de años consecutivos de subida (o recortes) y dividendo extraordinario si existe.
-- **6.2 Desinversiones / venta de marcas o negocios**: aplicando la regla 6 trimestral portada al ejercicio anual (beneficio estimado del negocio vendido, PER implícito, comparación de márgenes, juicio sobre la operación e impacto en caja).
-- **6.3 Impairments de goodwill / marcas**: activos deteriorados, importe, causa declarada, recurrencia del deterioro y su efecto en el Beneficio Operativo ajustado.
-- **6.4 Reestructuraciones y planes de ahorro de costes**: plantas y funciones afectadas, importe total del programa, ahorro anual esperado, costes de ejecución y calendario. Si el plan solo se anuncia dentro del guidance, se analiza en Outlook (punto 2.4) sin punto propio.
-- **6.5 Litigios, contingencias y seguridad de producto**: demandas materiales (PFAS, talco, pesticidas...), retiradas de producto (*recalls*), provisiones constituidas y exposición estimada.
-- **6.6 Impuestos**: tipo efectivo anómalo, controversias fiscales abiertas (ej. disputa con el IRS) y su exposición potencial en caja.
-- **6.7 Pensiones / OPEB**: estado de financiación del plan, déficit o aportaciones relevantes cuando el 10-K las señala.
-- **6.8 Concentración de clientes y cadena de suministro**: clientes que suponen > 10 % de las ventas (ej. Walmart) y dependencias críticas de suministro manifestadas en el filing.
-- **6.9 Cambios en la dirección (CEO, CFO u otro directivo de primer nivel)**: si durante el ejercicio (o anunciado para el siguiente) hay relevo en el CEO, el CFO (director financiero), el COO (director de operaciones), el presidente u otro directivo de primer nivel:
+- **6.2 Impairments de goodwill / marcas**: activos deteriorados, importe, causa declarada, recurrencia del deterioro y su efecto en el Beneficio Operativo ajustado.
+- **6.3 Litigios, contingencias y seguridad de producto**: demandas materiales (PFAS, talco, pesticidas...), retiradas de producto (*recalls*), provisiones constituidas y exposición estimada.
+- **6.4 Impuestos**: tipo efectivo anómalo, controversias fiscales abiertas (ej. disputa con el IRS) y su exposición potencial en caja.
+- **6.5 Pensiones / OPEB**: estado de financiación del plan, déficit o aportaciones relevantes cuando el 10-K las señala.
+- **6.6 Concentración de clientes y cadena de suministro**: clientes que suponen > 10 % de las ventas (ej. Walmart) y dependencias críticas de suministro manifestadas en el filing.
+- **6.7 Cambios en la dirección (CEO, CFO u otro directivo de primer nivel)**: si durante el ejercicio (o anunciado para el siguiente) hay relevo en el CEO, el CFO (director financiero), el COO (director de operaciones), el presidente u otro directivo de primer nivel:
   - **Directivo saliente**: quién era (nombre, cargo y periodo en el poder), cómo evolucionaron las ventas durante su mandato (cifras y variación porcentual), qué políticas implementó (reestructuraciones, adquisiciones o desinversiones, dividendos, recompras, cambios de estrategia o de cartera de marcas) y a dónde pasa ahora (jubilación, presidencia del consejo, otra compañía; si no consta, se indica "No consta").
   - **Directivo entrante**: nombre, de dónde viene (empresa, puesto y periodo), qué ha hecho en puestos directivos anteriores (con fechas y resultados concretos: evolución de ventas y márgenes, reestructuraciones, recuperaciones; ejemplo de estilo: "fue directivo de HRL entre 2015 y 2017, cuando la compañía estaba estancada y los márgenes empeoraban; ejecutó una reestructuración que recuperó parcialmente los márgenes y logró que las ventas crecieran en línea con la inflación") y qué ha dicho que va a hacer (compromisos y prioridades anunciadas).
   - Contexto del relevo: sucesión planificada, dimisión, despido o salto a otra compañía; costes asociados observables (*severance*) si constan.

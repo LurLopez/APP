@@ -139,14 +139,14 @@ async function submitVerification(email) {
     }
   } finally {
     el.authSubmit.disabled = false;
-    el.authSubmit.textContent = 'Verificar código';
+    el.authSubmit.textContent = window.I18n?.t ? window.I18n.t('Verificar código') : 'Verificar código';
   }
 }
 
 async function handleResendCode() {
   if (!state.verifyingEmail) return;
   el.resendCodeBtn.disabled = true;
-  el.resendCodeBtn.textContent = 'Enviando...';
+  el.resendCodeBtn.textContent = window.I18n?.t ? window.I18n.t('Enviando...') : 'Enviando...';
   try {
     const { message } = await api('/api/auth/resend-code', {
       method: 'POST',
@@ -159,7 +159,7 @@ async function handleResendCode() {
     UI.showModalError(error.message);
   } finally {
     el.resendCodeBtn.disabled = false;
-    el.resendCodeBtn.textContent = 'Reenviar código';
+    el.resendCodeBtn.textContent = window.I18n?.t ? window.I18n.t('Reenviar código') : 'Reenviar código';
   }
 }
 
@@ -168,7 +168,7 @@ async function submitResetRequest() {
   if (!email) return UI.showModalError('Escribe tu correo electrónico.');
 
   el.authSubmit.disabled = true;
-  el.authSubmit.textContent = 'Enviando...';
+  el.authSubmit.textContent = window.I18n?.t ? window.I18n.t('Enviando...') : 'Enviando...';
 
   try {
     const { message } = await api('/api/auth/forgot-password', {
@@ -184,7 +184,7 @@ async function submitResetRequest() {
     UI.showModalError(error.message);
   } finally {
     el.authSubmit.disabled = false;
-    el.authSubmit.textContent = 'Enviar código';
+    el.authSubmit.textContent = window.I18n?.t ? window.I18n.t('Enviar código') : 'Enviar código';
   }
 }
 
@@ -198,7 +198,7 @@ async function submitResetCode() {
   if (newPassword !== confirm) return UI.showModalError('Las contraseñas no coinciden.');
 
   el.authSubmit.disabled = true;
-  el.authSubmit.textContent = 'Guardando...';
+  el.authSubmit.textContent = window.I18n?.t ? window.I18n.t('Guardando...') : 'Guardando...';
 
   try {
     const { message } = await api('/api/auth/reset-password', {
@@ -216,7 +216,7 @@ async function submitResetCode() {
     }
   } finally {
     el.authSubmit.disabled = false;
-    el.authSubmit.textContent = 'Cambiar contraseña';
+    el.authSubmit.textContent = window.I18n?.t ? window.I18n.t('Cambiar contraseña') : 'Cambiar contraseña';
   }
 }
 

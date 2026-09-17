@@ -22,6 +22,7 @@ import {
   reviewAnalysis,
 } from '../controllers/analysisFeedback.controller.js';
 import { downloadReportFile } from '../controllers/reportDownload.controller.js';
+import { chatAiAnalysisHandler } from '../controllers/adminReports.controller.js';
 
 const router = express.Router();
 
@@ -80,6 +81,7 @@ router.get('/analyses/:id', getAnalysisDetail);
 // Moderación y revisión (Administrador)
 router.post('/analyses/:id/review', requireAdmin, reviewAnalysis);
 router.patch('/analyses/:id/review', requireAdmin, reviewAnalysis);
+router.post('/analyses/:id/admin-chat', requireAdmin, chatAiAnalysisHandler);
 
 // Feedback, valoraciones y reporte de errores
 router.post('/analyses/:id/rating', ratingLimiter, rateAnalysis);

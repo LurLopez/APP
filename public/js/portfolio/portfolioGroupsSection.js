@@ -54,6 +54,7 @@
     const activeTabLabel = PS.activeTab?.type === 'predefined'
       ? (PORTFOLIO_PREDEFINED_TABS.find(([key]) => key === PS.activeTab.key)?.[1] ?? PS.activeTab.key)
       : (tab?.name ?? '');
+    const activeTabTranslated = window.I18n ? window.I18n.t(activeTabLabel) : activeTabLabel;
     const tabsHtml = options.map((opt) => {
       const value = tabOptionValue(opt);
       const active = selected === value;
@@ -61,11 +62,15 @@
       return `
         <button class="pf-groups-tab ${active ? 'active' : ''}" type="button" data-pf-groups-tab-select="${escapeHtml(value)}"
           role="tab" aria-selected="${active}">
-          ${color ? `<span class="pf-g-dot" style="background:${escapeHtml(color)}"></span>` : ''}${escapeHtml(opt.label)}
+          ${color ? `<span class="pf-g-dot" style="background:${escapeHtml(color)}"></span>` : ''}${escapeHtml(window.I18n ? window.I18n.t(opt.label) : opt.label)}
         </button>`;
     }).join('');
     const viewsHtml = ['current', 'sold', 'all'].map((key) => {
-      const label = key === 'current' ? 'Actual' : key === 'sold' ? 'Vendido' : 'Todo';
+      const label = key === 'current'
+        ? (window.I18n ? window.I18n.t('Actual') : 'Actual')
+        : key === 'sold'
+          ? (window.I18n ? window.I18n.t('Vendido') : 'Vendido')
+          : (window.I18n ? window.I18n.t('Todo') : 'Todo');
       return `
         <button class="pf-view-button ${PS.groupsView === key ? 'active' : ''}" type="button"
           data-pf-groups-view="${key}" aria-pressed="${PS.groupsView === key}">${label}</button>`;
@@ -74,15 +79,17 @@
       <div class="pf-groups-section">
         <div class="pf-card-head">
           <div>
-            <h4>Grupos</h4>
+            <h4>${window.I18n ? window.I18n.t('Grupos') : 'Grupos'}</h4>
             <p>${PS.activeTab
-              ? `Pestaña «${escapeHtml(activeTabLabel)}» — pulsa un grupo para ver sus sublíneas.`
-              : 'Elige una pestaña arriba para ver sus grupos.'}</p>
+              ? (window.I18n
+                  ? window.I18n.t('Pestaña «{0}» — pulsa un grupo para ver sus sublíneas.', { 0: activeTabTranslated })
+                  : `Pestaña «${escapeHtml(activeTabLabel)}» — pulsa un grupo para ver sus sublíneas.`)
+              : (window.I18n ? window.I18n.t('Elige una pestaña arriba para ver sus grupos.') : 'Elige una pestaña arriba para ver sus grupos.')}</p>
           </div>
           <div class="pf-groups-head-actions">
-            <button class="pf-outline-button pf-show-all-btn" type="button" data-pf-chart-show-all="grupos" title="Mostrar todos los grupos principales de esta pestaña en el gráfico">
+            <button class="pf-outline-button pf-show-all-btn" type="button" data-pf-chart-show-all="grupos" title="${window.I18n ? window.I18n.t('Mostrar todos los grupos principales de esta pestaña en el gráfico') : 'Mostrar todos los grupos principales de esta pestaña en el gráfico'}">
               <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15.5 7.2 10l3 2.5L16.5 5"/><path d="M13 5h3.5v3.5"/></svg>
-              <span>Mostrar todo</span>
+              <span>${window.I18n ? window.I18n.t('Mostrar todo') : 'Mostrar todo'}</span>
             </button>
             <div class="pf-positions-views" role="group" aria-label="Vista de grupos">${viewsHtml}</div>
             ${isCustom ? `
@@ -221,7 +228,7 @@
           <span class="pf-g-dot" style="background:${escapeHtml(group.color)}"></span>
            <span class="pf-broker-company-copy">
              <strong>${escapeHtml(group.label)}</strong>
-             <small>${actionCount} ${actionCount === 1 ? 'acción' : 'acciones'}</small>
+              <small>${window.I18n ? window.I18n.tp(actionCount, '{n} acción', '{n} acciones') : `${actionCount} ${actionCount === 1 ? 'acción' : 'acciones'}`}</small>
            </span>
            ${chartButtonHtml(chartId)}
            <span class="pf-g-row-actions">${editDelete}</span>

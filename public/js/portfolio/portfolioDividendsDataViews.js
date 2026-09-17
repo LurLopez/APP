@@ -89,13 +89,30 @@
       : `<div style="padding: 24px; text-align: center; color: #94a3b8; font-size: 11.5px;">No hay datos de dividendos en este periodo.</div>`;
 
     const centerSubtitle = dist.periodTitle === 'TTM'
-      ? 'Dividendos brutos TTM'
-      : (dist.periodTitle === 'Histórico' ? 'Dividendos históricos' : `Dividendos ${dist.periodTitle}`);
+      ? (window.I18n?.t ? window.I18n.t('Dividendos brutos TTM') : 'Dividendos brutos TTM')
+      : (dist.periodTitle === 'Histórico'
+          ? (window.I18n?.t ? window.I18n.t('Dividendos históricos') : 'Dividendos históricos')
+          : (window.I18n?.t ? window.I18n.t('Dividendos {0}', { 0: dist.periodTitle }) : `Dividendos ${dist.periodTitle}`));
     const centerMainText = dist.total > 0 ? fmtEur(dist.total) : '0,00 €';
 
-    const cardSubtitle = DS.dividendDistMode === 'month'
-      ? `Distribución de tus dividendos del mes de ${dist.periodTitle}.`
-      : `Distribución de tus dividendos ${dist.periodTitle === 'TTM' ? 'de los últimos 12 meses (TTM)' : (dist.periodTitle === 'Histórico' ? 'de todo el histórico' : 'del año ' + dist.periodTitle)}.`;
+    let cardSubtitle = '';
+    if (DS.dividendDistMode === 'month') {
+      cardSubtitle = window.I18n?.t
+        ? window.I18n.t('Distribución de tus dividendos del mes de {0}.', { 0: dist.periodTitle })
+        : `Distribución de tus dividendos del mes de ${dist.periodTitle}.`;
+    } else if (dist.periodTitle === 'TTM') {
+      cardSubtitle = window.I18n?.t
+        ? window.I18n.t('Distribución de tus dividendos de los últimos 12 meses (TTM).')
+        : 'Distribución de tus dividendos de los últimos 12 meses (TTM).';
+    } else if (dist.periodTitle === 'Histórico') {
+      cardSubtitle = window.I18n?.t
+        ? window.I18n.t('Distribución de tus dividendos de todo el histórico.')
+        : 'Distribución de tus dividendos de todo el histórico.';
+    } else {
+      cardSubtitle = window.I18n?.t
+        ? window.I18n.t('Distribución de tus dividendos del año {0}.', { 0: dist.periodTitle })
+        : `Distribución de tus dividendos del año ${dist.periodTitle}.`;
+    }
 
     let periodSelectOptionsHtml = '';
     if (DS.dividendDistMode === 'month') {

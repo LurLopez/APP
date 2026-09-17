@@ -182,7 +182,12 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ticker, type, shares, price, date, companyName }),
         });
-        showToast?.(`${type === 'buy' ? 'Compra' : 'Venta'} de ${shares} ${shares === 1 ? 'acción' : 'acciones'} de ${ticker} guardada.`);
+        const actionLabel = type === 'buy' ? (window.I18n ? window.I18n.t('Compra') : 'Compra') : (window.I18n ? window.I18n.t('Venta') : 'Venta');
+        const countLabel = window.I18n ? window.I18n.tp(shares, '{n} acción', '{n} acciones') : `${shares} ${shares === 1 ? 'acción' : 'acciones'}`;
+        const toastMsg = window.I18n
+          ? window.I18n.t('{0} de {1} de {2} guardada.', { 0: actionLabel, 1: countLabel, 2: ticker })
+          : `${type === 'buy' ? 'Compra' : 'Venta'} de ${shares} ${shares === 1 ? 'acción' : 'acciones'} de ${ticker} guardada.`;
+        showToast?.(toastMsg);
         if (!fixedTicker) form.reset();
         if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
         await refresh();

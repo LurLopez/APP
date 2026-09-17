@@ -9,14 +9,22 @@
   const SEO_LOWER_WORDS = new Set(['de', 'del', 'la', 'las', 'el', 'y', 'of', 'the', 'and']);
 
   /**
-   * Formatea un número según la convención local es-ES.
+   * Configuración regional activa según el idioma de la interfaz.
+   * @returns {string}
+   */
+  function activeLocale() {
+    return window.I18n?.getLanguage?.() === 'en' ? 'en-US' : 'es-ES';
+  }
+
+  /**
+   * Formatea un número según la configuración regional activa.
    * @param {number|string|null} value
    * @param {number} [digits=2]
    * @returns {string}
    */
   function formatProfileNumber(value, digits = 2) {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-    return new Intl.NumberFormat('es-ES', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value));
+    return new Intl.NumberFormat(activeLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value));
   }
 
   /**
@@ -88,7 +96,9 @@
   function formatProfileDate(value) {
     if (!value) return '—';
     const date = new Date(`${value}T00:00:00Z`);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('es-ES');
+    if (Number.isNaN(date.getTime())) return value;
+    if (window.I18n?.formatDate) return window.I18n.formatDate(date);
+    return date.toLocaleDateString('es-ES');
   }
 
   /**
@@ -100,7 +110,7 @@
   function formatMoneyUsd(value, precision = (window.screenerPrecision ?? 2)) {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
     const num = Number(value) / 1e6;
-    const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: precision, maximumFractionDigits: precision });
+    const formatter = new Intl.NumberFormat(activeLocale(), { minimumFractionDigits: precision, maximumFractionDigits: precision });
     const formatted = formatter.format(Math.abs(num));
     return num < 0 ? `(${formatted})` : formatted;
   }
@@ -113,7 +123,7 @@
    */
   function formatEps(value, precision = (window.screenerPrecision ?? 2)) {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-    const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: precision, maximumFractionDigits: precision });
+    const formatter = new Intl.NumberFormat(activeLocale(), { minimumFractionDigits: precision, maximumFractionDigits: precision });
     return `${formatter.format(Number(value))} $`;
   }
 
@@ -125,7 +135,7 @@
    */
   function formatShares(value, precision = (window.screenerPrecision ?? 2)) {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-    const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: precision, maximumFractionDigits: precision });
+    const formatter = new Intl.NumberFormat(activeLocale(), { minimumFractionDigits: precision, maximumFractionDigits: precision });
     return formatter.format(Number(value) / 1e6);
   }
 
@@ -137,7 +147,7 @@
    */
   function formatCount(value, precision = (window.screenerPrecision ?? 2)) {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-    const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: precision });
+    const formatter = new Intl.NumberFormat(activeLocale(), { minimumFractionDigits: 0, maximumFractionDigits: precision });
     return formatter.format(Number(value));
   }
 
@@ -151,7 +161,7 @@
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
     const num = Number(value);
     const digits = precision === 0 ? 0 : 1;
-    const formatter = new Intl.NumberFormat('es-ES', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    const formatter = new Intl.NumberFormat(activeLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
     return `${num < 0 ? `(${formatter.format(Math.abs(num))})` : formatter.format(num)} %`;
   }
 
@@ -216,7 +226,8 @@
    * @param {string} defaultTicker
    */
   function updateCompanySeoMeta(data, defaultTicker = '') {
-    const landingPath = window.location.pathname === '/' || window.location.pathname === '/empresa';
+    const isEn = window.I18n?.getLanguage?.() === 'en' || window.location.pathname === '/en' || window.location.pathname.startsWith('/en/');
+    const landingPath = window.location.pathname === '/' || window.location.pathname === '/empresa' || window.location.pathname === '/en' || window.location.pathname === '/en/empresa';
     const hasTickerQuery = new URLSearchParams(window.location.search).has('ticker');
     if (landingPath && !hasTickerQuery) return;
 
@@ -225,11 +236,23 @@
     const ticker = company.ticker ?? defaultTicker;
     const rawName = company.name ?? ticker;
     const name = seoTitleCase(rawName);
-    const sectorPart = info.sector && info.sector !== '—' ? ` del sector ${info.sector.toLowerCase()}` : '';
-    const exchangePart = info.exchange ? ` Cotiza en ${info.exchange}` : '';
-    const title = `${ticker} (${name}) — resultados 10-Q y 10-K | Cifra`;
-    const description = `Perfil y análisis de ${name}${sectorPart}: resultados de sus informes 10-Q y 10-K ante la SEC, con análisis con IA de ventas, flujo de caja libre y asignación de capital.${exchangePart}`;
-    const url = new URL(`/empresa/${encodeURIComponent(ticker)}`, window.location.origin).toString();
+
+    let title, description, url;
+    if (isEn) {
+      let sec = info.sector && info.sector !== '—' ? info.sector.toLowerCase() : '';
+      if (sec.includes('consumo defensivo')) sec = 'consumer defensive';
+      const sectorPart = sec ? ` in the ${sec} sector` : '';
+      const exchangePart = info.exchange ? ` Listed on ${info.exchange}.` : '';
+      title = `${ticker} (${name}) — 10-Q & 10-K SEC Filings, Analysis | Cifra`;
+      description = `Financial profile and analysis of ${name}${sectorPart}: SEC 10-Q and 10-K filings, with AI analysis of revenue, free cash flow and capital allocation.${exchangePart}`;
+      url = new URL(`/en/empresa/${encodeURIComponent(ticker)}`, window.location.origin).toString();
+    } else {
+      const sectorPart = info.sector && info.sector !== '—' ? ` del sector ${info.sector.toLowerCase()}` : '';
+      const exchangePart = info.exchange ? ` Cotiza en ${info.exchange}` : '';
+      title = `${ticker} (${name}) — resultados 10-Q y 10-K | Cifra`;
+      description = `Perfil y análisis de ${name}${sectorPart}: resultados de sus informes 10-Q y 10-K ante la SEC, con análisis con IA de ventas, flujo de caja libre y asignación de capital.${exchangePart}`;
+      url = new URL(`/empresa/${encodeURIComponent(ticker)}`, window.location.origin).toString();
+    }
 
     document.title = title;
     setSeoMeta('description', 'name', description);

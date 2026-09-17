@@ -60,8 +60,11 @@ export function drawTable(doc, columns, rows, options = {}) {
 
   drawHeaderRow();
 
-  const isSalesTable = columns.length === 7 && columns[1] === 'Ajustado' && columns[4] === 'Normal';
-  const isCapitalTable = isCapital || (columns.length === 2 && columns[0] === 'Métrica' && columns[1] === 'Valor');
+  const isSalesTable = options.isSales === true;
+  const isCapitalTable = isCapital === true || options.isCapital === true;
+  const isCashFlowTable = isCashFlow === true;
+  const boldColumns = Array.isArray(options.boldColumns) ? options.boldColumns : [1];
+  const pctColumns = Array.isArray(options.pctColumns) ? options.pctColumns : [];
 
   rows.forEach((row, index) => {
     ensureSpace(rowHeight);
@@ -94,11 +97,11 @@ export function drawTable(doc, columns, rows, options = {}) {
     const colorScheme = getPdfHighlightColor(noteNum);
 
     row.slice(1).forEach((cellValue, i) => {
-      const colHeader = columns[i + 1];
-      const isBoldCol = colHeader === 'Ajustado' || colHeader === 'Normal';
-      const isPctCol = colHeader === '% Aj.' || colHeader === '% N.' || colHeader === '% Ajustado' || colHeader === '% Normal';
+      const colIdx = i + 1;
+      const isBoldCol = boldColumns.includes(colIdx);
+      const isPctCol = pctColumns.includes(colIdx);
       const isAdjustedCell = isSalesTable && i === 0 && isRowAdjusted;
-      const isTaxAdjustedCell = isCashFlow && i === 1 && meta.cashFlowAdjustedNote;
+      const isTaxAdjustedCell = isCashFlowTable && i === 1 && meta.cashFlowAdjustedNote;
       const isCapitalCell = isCapitalTable && i === 0;
 
       if (isAdjustedCell) {

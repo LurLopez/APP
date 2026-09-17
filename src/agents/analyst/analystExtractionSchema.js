@@ -70,6 +70,7 @@ export const EXTRACTION_SCHEMA = `{
     "taxCashFlowAdjustmentYtd": 30.9,
     "incomeTaxesPaidQuarter": 131.4,
     "incomeTaxesPaidYtd": 131.4,
+    "shareBuybacksQuarter": 145,
     "shareBuybacks": 435,
     "purchasesOfMarketableSecuritiesQuarter": 0,
     "purchasesOfMarketableSecuritiesYtd": 1020,
@@ -170,6 +171,56 @@ export const EXTRACTION_SCHEMA = `{
           "rationale": "Motivo estratégico declarado por la compañía para la compra o null",
           "businessMetrics": "Tamaño del negocio adquirido (ventas, EBITDA, empleados) si consta o null",
           "expectedImpact": "Sinergias, impacto esperado en resultados o BPA e integración, o null"
+        }
+      ]
+    },
+    "divestitures": {
+      "occurred": true,
+      "items": [
+        {
+          "name": "Nombre del negocio, marca, activo o participación vendida o null",
+          "description": "A qué se dedica lo vendido: productos, marcas, geografía y canal, según el 10-K, o null",
+          "stakePct": 15,
+          "revenuePct": 6.5,
+          "proceeds": 649,
+          "priceNote": "Matices del importe (valoración total, consideración aplazada o contingente, deuda traspasada, neto de caja) o null",
+          "date": "AAAA-MM-DD o null",
+          "buyer": "Comprador de la operación si consta o null",
+          "rationale": "Motivo estratégico declarado por la compañía para la venta o null",
+          "expectedImpact": "Impacto esperado o real en resultados, márgenes, caja, deuda, resultados discontinuados o BPA, o null"
+        }
+      ]
+    },
+    "spinOffs": {
+      "occurred": true,
+      "items": [
+        {
+          "name": "Nombre de la sociedad, división o negocio que se separa o null",
+          "description": "A qué se dedica el negocio separado según el 10-K o null",
+          "status": "announced | in progress | completed",
+          "announcementDate": "AAAA-MM-DD o null",
+          "expectedDate": "Fecha esperada o efectiva de la operación o null",
+          "structure": "Estructura prevista (distribución a accionistas libre de impuestos, escisión, OPV, fusión) o null",
+          "revenuePct": 25,
+          "rationale": "Motivo estratégico declarado para la separación o null",
+          "expectedImpact": "Impacto esperado en resultados, deuda traspasada, costes de separación, sinergias o BPA, o null"
+        }
+      ]
+    },
+    "restructurings": {
+      "occurred": true,
+      "items": [
+        {
+          "name": "Nombre del plan de reestructuración o null",
+          "description": "Qué abarca el plan: plantas, funciones, marcas, geografías, cierres, según el 10-K o null",
+          "announcementDate": "AAAA-MM-DD o null",
+          "totalCost": 250,
+          "chargesRecognized": 180,
+          "annualSavings": 450,
+          "savingsTimeline": "Plazo del ahorro (ej. 3 años, 2026-2028) o null",
+          "jobsAffected": 1200,
+          "rationale": "Por qué la dirección anuncia el plan (eficiencia, márgenes, integración) o null",
+          "expectedImpact": "Impacto esperado en resultados, márgenes o BPA o null"
         }
       ]
     },

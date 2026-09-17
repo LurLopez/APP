@@ -9,7 +9,7 @@ export async function getAnalysisVersions({ ticker, accession, userId = null } =
   const filename = `${ticker}-${accession}.pdf`;
   const { rows } = await query(
     `SELECT
-       id, version, subsector, sector_version, model_used, is_public, pdf_url, created_at,
+       id, version, subsector, sector_version, model_used, is_public, pdf_url, language, created_at,
        is_reviewed, reviewed_at, reviewed_by,
        report->>'formType' AS form_type
      FROM analyses

@@ -1,6 +1,7 @@
 /**
  * @fileoverview Procesamiento y enriquecimiento defensivo de la conclusión del informe anual (Form 10-K).
- * Incluye recompras, perspectivas (outlook), deuda, adquisiciones, dividendos y watchlist.
+ * Incluye recompras, perspectivas (outlook), deuda, operaciones corporativas (adquisiciones,
+ * desinversiones y ventas de participaciones, spin-offs y reestructuraciones), dividendos y watchlist.
  * @module agents/analyst/annualConclusionProcessor
  */
 

@@ -47,55 +47,97 @@ export const GUIDES = [
   {
     slug: 'que-es-un-informe-10-q',
     title: '¿Qué es un informe 10-Q y cómo leerlo?',
+    titleEn: 'What is a 10-Q filing and how to read it?',
     description: 'El 10-Q es el informe trimestral que las empresas de EE. UU. presentan ante la SEC: qué contiene, cuándo se publica y cómo leerlo paso a paso.',
+    descriptionEn: 'The 10-Q is the quarterly report U.S. companies file with the SEC: what it contains, when it is filed, and how to read it step by step.',
   },
   {
     slug: 'que-es-un-informe-10-k',
     title: '¿Qué es un informe 10-K? El informe anual de la SEC',
+    titleEn: 'What is a 10-K filing? The SEC annual report',
     description: 'El 10-K es el informe anual auditado de las empresas de EE. UU.: secciones, plazos de presentación y qué mirar para analizar una empresa.',
+    descriptionEn: 'The 10-K is the audited annual report of U.S. companies: sections, filing deadlines, and what to look for when analyzing a company.',
   },
   {
     slug: 'que-es-un-informe-8-k',
     title: '¿Qué es un informe 8-K y por qué es clave en los resultados trimestrales?',
+    titleEn: 'What is an 8-K report and why is it key in quarterly earnings?',
     description: 'El 8-K es el informe de hechos relevantes de la SEC: qué contiene el Item 2.02, por qué incluye la presentación de resultados y cómo interpretarlo.',
+    descriptionEn: 'The 8-K reports material corporate events to the SEC: what Item 2.02 contains, why it includes earnings presentations, and how to interpret it.',
   },
   {
     slug: 'diferencias-entre-10-k-y-10-q',
     title: 'Diferencias entre el 10-K y el 10-Q',
+    titleEn: 'Differences between Form 10-K and Form 10-Q',
     description: 'Comparativa completa entre el 10-K (anual, auditado) y el 10-Q (trimestral, sin auditar): frecuencia, contenido, plazos y cuándo leer cada uno.',
+    descriptionEn: 'Complete comparison between the 10-K (annual, audited) and 10-Q (quarterly, unaudited): frequency, contents, deadlines, and when to read each.',
   },
   {
     slug: 'que-es-el-flujo-de-caja-libre',
     title: '¿Qué es el flujo de caja libre (FCF)?',
+    titleEn: 'What is Free Cash Flow (FCF)?',
     description: 'El flujo de caja libre es el dinero que una empresa genera tras invertir en su negocio: fórmula, por qué importa más que el beneficio y cómo usarlo.',
+    descriptionEn: 'Free cash flow is the cash a company generates after investing in its business: formula, why it matters more than net income, and how to use it.',
   },
   {
     slug: 'que-es-la-asignacion-de-capital',
     title: '¿Qué es la asignación de capital?',
+    titleEn: 'What is Capital Allocation?',
     description: 'La asignación de capital es lo que una empresa hace con el dinero que genera: dividendos, recompras, deuda, adquisiciones e inversión. Claves para el inversor.',
+    descriptionEn: 'Capital allocation is what a company does with the cash it generates: dividends, buybacks, debt, acquisitions, and reinvestment.',
   },
   {
     slug: 'como-analiza-la-ia-por-sectores',
     title: 'Cómo analiza la IA de Cifra según cada sector',
+    titleEn: 'How Cifra AI analyzes by sector',
     description: 'Descubre la metodología multi-agente de Cifra: dos horizontes temporales y adaptación a consumo defensivo, software, industriales y retail.',
+    descriptionEn: 'Discover Cifra multi-agent methodology: two time horizons and adaptation to consumer staples, software, industrials, and retail.',
   },
   {
     slug: 'que-es-el-bpa-ajustado',
     title: '¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo?',
+    titleEn: 'What is Adjusted EPS (Non-GAAP EPS) and how to interpret it?',
     description: 'El BPA ajustado en los resultados trimestrales: diferencias con el BPA GAAP, partidas excluidas, trampas de maquillaje y cómo lo normaliza Cifra.',
+    descriptionEn: 'Adjusted EPS in quarterly earnings: differences with GAAP EPS, excluded items, accounting gimmicks, and how Cifra normalizes it.',
   },
   {
     slug: 'como-analizar-una-empresa-de-consumo-defensivo',
     title: 'Cómo analizar una empresa de consumo defensivo',
+    titleEn: 'How to analyze a consumer staples company',
     description: 'Guía para analizar empresas de consumo defensivo (alimentos, bebidas, tabaco, hogar): ingresos, márgenes, flujo de caja, dividendos y deuda.',
+    descriptionEn: 'Guide to analyzing consumer staples companies (food, beverages, tobacco, household): sales, margins, cash flow, dividends, and debt.',
   },
 ];
 
 export const LEGAL_PAGES = [
-  { slug: 'aviso-legal', title: 'Aviso legal', description: 'Identificación del titular, condiciones de uso y responsabilidad del sitio web de Cifra.' },
-  { slug: 'privacidad', title: 'Política de privacidad', description: 'Qué datos personales recoge Cifra, con qué finalidad, durante cuánto tiempo y cómo ejercer tus derechos.' },
-  { slug: 'cookies', title: 'Política de cookies', description: 'Qué cookies y almacenamiento local usa Cifra, para qué sirven y cómo aceptarlas o rechazarlas.' },
-  { slug: 'terminos', title: 'Términos de uso', description: 'Condiciones de uso del servicio Cifra: cuenta, límites de uso, propiedad intelectual y responsabilidad.' },
+  {
+    slug: 'aviso-legal',
+    title: 'Aviso legal',
+    titleEn: 'Legal notice',
+    description: 'Identificación del titular, condiciones de uso y responsabilidad del sitio web de Cifra.',
+    descriptionEn: 'Owner identification, terms of access and use of the website, intellectual property, and liability.',
+  },
+  {
+    slug: 'privacidad',
+    title: 'Política de privacidad',
+    titleEn: 'Privacy policy',
+    description: 'Qué datos personales recoge Cifra, con qué finalidad, durante cuánto tiempo y cómo ejercer tus derechos.',
+    descriptionEn: 'What personal data Cifra collects, for what purpose, retention periods, and how to exercise your rights.',
+  },
+  {
+    slug: 'cookies',
+    title: 'Política de cookies',
+    titleEn: 'Cookie policy',
+    description: 'Qué cookies y almacenamiento local usa Cifra, para qué sirven y cómo aceptarlas o rechazarlas.',
+    descriptionEn: 'What cookies and local storage Cifra uses, their purpose, and how to accept or reject them.',
+  },
+  {
+    slug: 'terminos',
+    title: 'Términos de uso',
+    titleEn: 'Terms of service',
+    description: 'Condiciones de uso del servicio Cifra: cuenta, límites de uso, propiedad intelectual y responsabilidad.',
+    descriptionEn: 'Terms and conditions of Cifra services: account, usage limits, intellectual property, and liability.',
+  },
 ];
 
 export const BENCHMARK_CONSUMER_DEFENSIVE = [
@@ -176,13 +218,81 @@ export function formatUsdShare(value) {
   return `${new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)} $`;
 }
 
-export function readTemplate(fileName) {
+let enDictionaryCache = null;
+
+export function getEnDictionary() {
+  if (enDictionaryCache) return enDictionaryCache;
+  try {
+    const raw = fs.readFileSync(path.join(PUBLIC_DIR, 'locales', 'en.json'), 'utf8');
+    enDictionaryCache = JSON.parse(raw);
+    return enDictionaryCache;
+  } catch {
+    return {};
+  }
+}
+
+export function translateHtmlToEnglish(sourceHtml) {
+  const dict = getEnDictionary();
+  if (!dict || !Object.keys(dict).length) return sourceHtml;
+
+  const scripts = [];
+  let stashed = sourceHtml.replace(/<script[\s\S]*?<\/script>/gi, (m) => {
+    scripts.push(m);
+    return `__SCRIPT_TOKEN_${scripts.length - 1}__`;
+  });
+  const styles = [];
+  stashed = stashed.replace(/<style[\s\S]*?<\/style>/gi, (m) => {
+    styles.push(m);
+    return `__STYLE_TOKEN_${styles.length - 1}__`;
+  });
+
+  stashed = stashed.replace('<html lang="es">', '<html lang="en">');
+
+  // Nodos de texto entre etiquetas >...<
+  stashed = stashed.replace(/>([^<]+)</g, (match, inner) => {
+    const trimmed = inner.trim();
+    if (!trimmed || trimmed.toLowerCase() === 'cifra') return match;
+    const translated = dict[trimmed] || dict[trimmed.replace(/\s+/g, ' ')];
+    if (translated && translated !== trimmed) {
+      return `>${inner.replace(trimmed, translated)}<`;
+    }
+    return match;
+  });
+
+  // Atributos traducibles
+  stashed = stashed.replace(/(placeholder|title|aria-label)="([^"]+)"/g, (match, attr, val) => {
+    const trimmed = val.trim();
+    if (!trimmed || trimmed.toLowerCase() === 'cifra') return match;
+    const translated = dict[trimmed] || dict[trimmed.replace(/\s+/g, ' ')];
+    if (translated && translated !== trimmed) {
+      return `${attr}="${translated.replace(/"/g, '&quot;')}"`;
+    }
+    return match;
+  });
+
+  // Reescribir enlaces legales y guías hacia /en/...
+  stashed = stashed.replace(/href="\/legal\//g, 'href="/en/legal/');
+  stashed = stashed.replace(/href="\/guias\//g, 'href="/en/guias/');
+  stashed = stashed.replace(/href="\/guias"/g, 'href="/en/guias"');
+
+  // Restaurar scripts y estilos
+  stashed = stashed.replace(/__STYLE_TOKEN_(\d+)__/g, (_, idx) => styles[Number(idx)]);
+  stashed = stashed.replace(/__SCRIPT_TOKEN_(\d+)__/g, (_, idx) => scripts[Number(idx)]);
+
+  return stashed;
+}
+
+export function readTemplate(fileName, lang = 'es') {
+  const cacheKey = `${fileName}:${lang}`;
   if (config.production) {
-    const cached = templatesCache.get(fileName);
+    const cached = templatesCache.get(cacheKey);
     if (cached) return cached;
   }
-  const html = fs.readFileSync(path.join(PUBLIC_DIR, fileName), 'utf8');
-  if (config.production) templatesCache.set(fileName, html);
+  let html = fs.readFileSync(path.join(PUBLIC_DIR, fileName), 'utf8');
+  if (lang === 'en') {
+    html = translateHtmlToEnglish(html);
+  }
+  if (config.production) templatesCache.set(cacheKey, html);
   return html;
 }
 

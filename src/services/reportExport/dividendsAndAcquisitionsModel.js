@@ -4,9 +4,11 @@
  */
 
 import { parseSecNumber, cell, COLORS } from './exportColors.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 /**
- * Determina si las adquisiciones o desinversiones del ejercicio superan el umbral de materialidad (50M$).
+ * Determina si las operaciones corporativas del ejercicio (adquisiciones, desinversiones,
+ * spin-offs o reestructuraciones) superan el umbral de materialidad (50M$ o relevancia estratégica).
  * @param {object} report - Informe financiero consolidado.
  * @returns {{acquisitions: number, divestitures: number, material: boolean}} Datos monetarios y flag de materialidad.
  */
@@ -24,10 +26,15 @@ export function buildAcquisitionsModel(report) {
   };
   const acquisitions = readValue(['adquisic', 'acquisit']);
   const divestitures = readValue(['desinvers', 'divestit']);
-  const text = String(report?.conclusion?.acquisitions?.text ?? '');
-  const saysNone = /no se realizaron|no hubo|no material|sin adquisiciones|no acquisitions|no se produjeron|none/i.test(text);
+  const section = report?.conclusion?.acquisitions;
+  const text = String(section?.text ?? '');
+  const saysNone = /no se realizaron|no hubo|no material|sin adquisiciones|no acquisitions|no se produjeron|el ejercicio no registró|none/i.test(text);
+  const hasOtherCorporateEvents = section?.hasDivestitures === true
+    || section?.hasSpinOffs === true
+    || section?.hasRestructurings === true;
   const material = (Number.isFinite(acquisitions) && Math.abs(acquisitions) >= 50)
     || (Number.isFinite(divestitures) && Math.abs(divestitures) >= 50)
+    || hasOtherCorporateEvents
     || (text.trim().length > 0 && !saysNone);
   return { acquisitions: acquisitions ?? 0, divestitures: divestitures ?? 0, material };
 }
@@ -38,6 +45,7 @@ export function buildAcquisitionsModel(report) {
  * @returns {object|null} Serie histórica de dividendos, métricas CAGR y variaciones, o null si no aplica.
  */
 export function buildDividendModel(report) {
+  const lang = normalizeLanguage(report?.language);
   const div = report?.conclusion?.dividends ?? null;
   const rawHistory = (Array.isArray(div?.history) && div.history.length)
     ? div.history
@@ -81,8 +89,18 @@ export function buildDividendModel(report) {
     ? (Math.pow(to / from, 1 / span) - 1) * 100
     : null);
 
+  const fmtNum = (value) => {
+    const fixed = Number(value).toFixed(2);
+    return lang === 'en' ? fixed : fixed.replace('.', ',');
+  };
   const generatedText = Number.isFinite(changePct)
-    ? `El dividendo por acción ${changeType === 'cut' ? 'se recortó' : 'aumentó'} un ${Math.abs(changePct).toFixed(1).replace('.', ',')} % en ${last.year}, pasando de ${String(previous.dps).replace('.', ',')} $ a ${String(last.dps).replace('.', ',')} $.`
+    ? t('El dividendo por acción {verb} un {pct} % en {year}, pasando de {prev} $ a {curr} $.', {
+      verb: changeType === 'cut' ? t('se recortó', null, lang) : t('aumentó', null, lang),
+      pct: lang === 'en' ? Math.abs(changePct).toFixed(1) : Math.abs(changePct).toFixed(1).replace('.', ','),
+      year: last.year,
+      prev: fmtNum(previous.dps),
+      curr: fmtNum(last.dps),
+    }, lang)
     : null;
 
   const acquisitionsMaterial = buildAcquisitionsModel(report).material;
@@ -90,8 +108,9 @@ export function buildDividendModel(report) {
   const dividendNumber = 3 + (repurchasesShown ? 1 : 0) + (acquisitionsMaterial ? 1 : 0);
 
   return {
-    title: div?.title || `${dividendNumber}: Dividendos`,
+    title: div?.title || t('{number}: Dividendos', { number: dividendNumber }, lang),
     text: div?.text || generatedText,
+    language: lang,
     points,
     changeType,
     changePct,
@@ -109,19 +128,29 @@ export function buildDividendModel(report) {
  */
 export function buildDividendTable(chart) {
   if (!chart || !Array.isArray(chart.points) || !chart.points.length) return null;
+  const lang = normalizeLanguage(chart.language);
+  const num = (value, digits = 2) => {
+    const fixed = Number(value).toFixed(digits);
+    return lang === 'en' ? fixed : fixed.replace('.', ',');
+  };
+  const colYear = t('Año', null, lang);
+  const colDps = t('Dividendo/acción', null, lang);
+  const colTotal = t('Dividendo total ($M)', null, lang);
+  const colEps = t('BPA usado ($)', null, lang);
+  const colPayout = t('Payout (%)', null, lang);
   const headers = [
-    cell('Año', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Dividendo/acción', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Dividendo total ($M)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('BPA usado ($)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
-    cell('Payout (%)', { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colYear, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colDps, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colTotal, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colEps, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
+    cell(colPayout, { bold: true, color: COLORS.headerColor, bg: COLORS.headerBg }),
   ];
   const rows = chart.points.map((point) => [
     cell(String(point.year), { bold: true, color: COLORS.ink }),
-    cell(Number.isFinite(point.dps) ? `${point.dps.toFixed(2).replace('.', ',')} $` : '—', { color: COLORS.ink }),
-    cell(Number.isFinite(point.total) ? `$${point.total.toFixed(1).replace('.', ',')}M` : '—', { color: COLORS.ink }),
-    cell(Number.isFinite(point.epsUsed) ? `${point.epsUsed.toFixed(2).replace('.', ',')} $${point.epsIsAdjusted ? '' : ' *'}` : '—', { color: COLORS.ink }),
-    cell(Number.isFinite(point.payoutPct) ? `${point.payoutPct.toFixed(1).replace('.', ',')} %` : '—', { bold: true, color: '#0f766e' }),
+    cell(Number.isFinite(point.dps) ? `${num(point.dps)} $` : '—', { color: COLORS.ink }),
+    cell(Number.isFinite(point.total) ? `$${num(point.total, 1)}M` : '—', { color: COLORS.ink }),
+    cell(Number.isFinite(point.epsUsed) ? `${num(point.epsUsed)} $${point.epsIsAdjusted ? '' : ' *'}` : '—', { color: COLORS.ink }),
+    cell(Number.isFinite(point.payoutPct) ? `${num(point.payoutPct, 1)} %` : '—', { bold: true, color: '#0f766e' }),
   ]);
-  return { columns: ['Año', 'Dividendo/acción', 'Dividendo total ($M)', 'BPA usado ($)', 'Payout (%)'], widths: [60, 110, 130, 110, 105], headers, rows };
+  return { columns: [colYear, colDps, colTotal, colEps, colPayout], widths: [60, 110, 130, 110, 105], headers, rows };
 }

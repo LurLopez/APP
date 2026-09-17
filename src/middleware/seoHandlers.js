@@ -113,30 +113,37 @@ export async function handleSpecialTextRoutes(pathname, res) {
  * @returns {boolean} Verdadero si fue resuelta.
  */
 export function handleGuideAndLegalRoutes(pathname, res) {
-  if (pathname === '/guias') {
-    serveHtml(res, HTML_FILE, { pathname: '/guias', noIndex: false });
+  const isEn = pathname === '/en' || pathname.startsWith('/en/');
+  const cleanPathname = isEn ? (pathname.replace(/^\/en/, '') || '/') : pathname;
+  const lang = isEn ? 'en' : 'es';
+  const prefix = isEn ? '/en' : '';
+
+  if (cleanPathname === '/guias') {
+    serveHtml(res, HTML_FILE, { pathname, lang, noIndex: false });
     return true;
   }
-  if (pathname === '/guías') {
-    res.redirect(301, '/guias');
+  if (cleanPathname === '/guías') {
+    res.redirect(301, `${prefix}/guias`);
     return true;
   }
-  if (pathname.startsWith('/guías/')) {
-    res.redirect(301, '/guias/' + pathname.slice('/guías/'.length));
+  if (cleanPathname.startsWith('/guías/')) {
+    res.redirect(301, `${prefix}/guias/${cleanPathname.slice('/guías/'.length)}`);
     return true;
   }
-  if (pathname.startsWith('/guias/')) {
-    if (serveGuide(res, decodeURIComponent(pathname.slice('/guias/'.length)))) return true;
-    serve404Page(res);
+  if (cleanPathname.startsWith('/guias/')) {
+    const slug = decodeURIComponent(cleanPathname.slice('/guias/'.length));
+    if (serveGuide(res, slug, { lang })) return true;
+    serve404Page(res, { lang });
     return true;
   }
-  if (pathname === '/legal') {
-    res.redirect(301, '/legal/aviso-legal');
+  if (cleanPathname === '/legal') {
+    res.redirect(301, `${prefix}/legal/aviso-legal`);
     return true;
   }
-  if (pathname.startsWith('/legal/')) {
-    if (serveLegal(res, decodeURIComponent(pathname.slice('/legal/'.length)))) return true;
-    serve404Page(res);
+  if (cleanPathname.startsWith('/legal/')) {
+    const slug = decodeURIComponent(cleanPathname.slice('/legal/'.length));
+    if (serveLegal(res, slug, { lang })) return true;
+    serve404Page(res, { lang });
     return true;
   }
   return false;
@@ -150,38 +157,43 @@ export function handleGuideAndLegalRoutes(pathname, res) {
  * @returns {Promise<boolean>} Verdadero si la ruta correspondía a un informe y fue atendida.
  */
 export async function handlePublicReportRoutes(pathname, req, res) {
-  const reportIdMatch = pathname.match(REPORT_ID_PATH);
-  const reportIdMdMatch = pathname.match(REPORT_ID_MD_PATH);
-  const reportSlugMatch = pathname.match(REPORT_SLUG_PATH);
-  const reportSlugMdMatch = pathname.match(REPORT_SLUG_MD_PATH);
+  const isEn = pathname === '/en' || pathname.startsWith('/en/');
+  const cleanPathname = isEn ? (pathname.replace(/^\/en/, '') || '/') : pathname;
+  const lang = isEn ? 'en' : 'es';
+  const prefix = isEn ? '/en' : '';
+
+  const reportIdMatch = cleanPathname.match(REPORT_ID_PATH);
+  const reportIdMdMatch = cleanPathname.match(REPORT_ID_MD_PATH);
+  const reportSlugMatch = cleanPathname.match(REPORT_SLUG_PATH);
+  const reportSlugMdMatch = cleanPathname.match(REPORT_SLUG_MD_PATH);
 
   if (reportIdMdMatch || (reportIdMatch && req.headers.accept?.includes('text/markdown'))) {
     const reportId = reportIdMdMatch ? reportIdMdMatch[1] : reportIdMatch[1];
     const info = await getReportSlugById(reportId).catch(() => null);
-    if (info) res.redirect(301, `/informe/${encodeURIComponent(info.ticker)}/${info.slug}.md`);
-    else serve404Page(res);
+    if (info) res.redirect(301, `${prefix}/informe/${encodeURIComponent(info.ticker)}/${info.slug}.md`);
+    else serve404Page(res, { lang });
     return true;
   }
 
   if (reportIdMatch) {
     const info = await getReportSlugById(reportIdMatch[1]).catch(() => null);
-    if (info) res.redirect(301, `/informe/${encodeURIComponent(info.ticker)}/${info.slug}`);
-    else serve404Page(res);
+    if (info) res.redirect(301, `${prefix}/informe/${encodeURIComponent(info.ticker)}/${info.slug}`);
+    else serve404Page(res, { lang });
     return true;
   }
 
   if (reportSlugMdMatch || (reportSlugMatch && req.headers.accept?.includes('text/markdown'))) {
     const rawTicker = reportSlugMdMatch ? reportSlugMdMatch[1] : reportSlugMatch[1];
     const rawSlug = reportSlugMdMatch ? reportSlugMdMatch[2] : reportSlugMatch[2];
-    const resObj = await getPublicReportMarkdownBySlug(rawTicker, rawSlug).catch(() => null);
+    const resObj = await getPublicReportMarkdownBySlug(rawTicker, rawSlug, lang).catch(() => null);
     if (resObj) {
       if (resObj.canonicalSlug && resObj.canonicalSlug !== rawSlug.toUpperCase()) {
-        res.redirect(301, `/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}.md`);
+        res.redirect(301, `${prefix}/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}.md`);
         return true;
       }
       res.set('Content-Type', 'text/markdown; charset=utf-8').set('Cache-Control', 'public, max-age=1800').send(resObj.markdown);
     } else {
-      serve404Page(res);
+      serve404Page(res, { lang });
     }
     return true;
   }
@@ -189,15 +201,15 @@ export async function handlePublicReportRoutes(pathname, req, res) {
   if (reportSlugMatch) {
     const rawTicker = reportSlugMatch[1];
     const rawSlug = reportSlugMatch[2];
-    const resObj = await getPublicReportHtmlBySlug(rawTicker, rawSlug).catch(() => null);
+    const resObj = await getPublicReportHtmlBySlug(rawTicker, rawSlug, lang).catch(() => null);
     if (resObj) {
       if (resObj.canonicalSlug && resObj.canonicalSlug !== rawSlug.toUpperCase()) {
-        res.redirect(301, `/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}`);
+        res.redirect(301, `${prefix}/informe/${encodeURIComponent(resObj.ticker)}/${resObj.canonicalSlug}`);
         return true;
       }
-      serveStandalone(res, resObj.html);
+      serveStandalone(res, resObj.html, { lang, pathname });
     } else {
-      serve404Page(res);
+      serve404Page(res, { lang });
     }
     return true;
   }
@@ -215,44 +227,48 @@ export async function handlePublicReportRoutes(pathname, req, res) {
  * @returns {Promise<boolean>}
  */
 export async function handleCompanyRoutes(pathname, parsed, req, res, next) {
-  const companyMdMatch = pathname.match(/^\/empresa\/([A-Za-z0-9.-]{1,10})\.md$/);
-  if (companyMdMatch || (pathname.startsWith('/empresa/') && req.headers.accept?.includes('text/markdown'))) {
-    const rawTicker = companyMdMatch ? companyMdMatch[1] : decodeURIComponent(pathname.slice('/empresa/'.length));
-    const md = await getCompanyMarkdown(rawTicker).catch(() => null);
+  const isEn = pathname === '/en' || pathname.startsWith('/en/');
+  const cleanPathname = isEn ? (pathname.replace(/^\/en/, '') || '/') : pathname;
+  const lang = isEn ? 'en' : 'es';
+
+  const companyMdMatch = cleanPathname.match(/^\/empresa\/([A-Za-z0-9.-]{1,10})\.md$/);
+  if (companyMdMatch || (cleanPathname.startsWith('/empresa/') && req.headers.accept?.includes('text/markdown'))) {
+    const rawTicker = companyMdMatch ? companyMdMatch[1] : decodeURIComponent(cleanPathname.slice('/empresa/'.length));
+    const md = await getCompanyMarkdown(rawTicker, lang).catch(() => null);
     if (md) res.set('Content-Type', 'text/markdown; charset=utf-8').set('Cache-Control', 'public, max-age=1800').send(md);
-    else serve404Page(res);
+    else serve404Page(res, { lang });
     return true;
   }
 
-  const companyTarget = pathname.startsWith('/empresa/');
-  const isPrivate = isPrivatePath(pathname);
+  const companyTarget = cleanPathname.startsWith('/empresa/');
+  const isPrivate = isPrivatePath(cleanPathname);
   if (!companyTarget && !isPrivate) {
     next();
     return true;
   }
 
   try {
-    const companyMeta = await resolveCompanyMeta(pathname, parsed.searchParams);
+    const companyMeta = await resolveCompanyMeta(cleanPathname, parsed.searchParams, lang);
     if (companyTarget && !companyMeta) {
-      serve404Page(res);
+      serve404Page(res, { lang });
       return true;
     }
     let botContent = null;
     if (companyMeta && !isPrivate) {
-      botContent = await getCompanyBotContent(companyMeta).catch(() => null);
+      botContent = await getCompanyBotContent(companyMeta, lang).catch(() => null);
     }
-    serveHtml(res, HTML_FILE, { pathname, noIndex: isPrivate, companyMeta, botContent });
+    serveHtml(res, HTML_FILE, { pathname, noIndex: isPrivate, companyMeta, botContent, lang });
     return true;
   } catch (error) {
     if (error.code === 'EDGAR_UNAVAILABLE') {
-      res.status(503).set('Retry-After', '60').send('Servicio de datos temporalmente no disponible');
+      res.status(503).set('Retry-After', '60').send(lang === 'en' ? 'Data service temporarily unavailable' : 'Servicio de datos temporalmente no disponible');
       return true;
     }
     if (companyTarget) {
-      serve404Page(res);
+      serve404Page(res, { lang });
       return true;
     }
-    serveHtml(res, HTML_FILE, { pathname, noIndex: isPrivate });
+    serveHtml(res, HTML_FILE, { pathname, noIndex: isPrivate, lang });
     return true;
   }
 }
@@ -265,22 +281,26 @@ export async function handleCompanyRoutes(pathname, parsed, req, res, next) {
  * @returns {Promise<boolean>}
  */
 export async function handleHomeAndIndexRoutes(pathname, parsed, res) {
-  if (pathname === '/') {
+  const isEn = pathname === '/en' || pathname.startsWith('/en/');
+  const cleanPathname = isEn ? (pathname.replace(/^\/en/, '') || '/') : pathname;
+  const lang = isEn ? 'en' : 'es';
+
+  if (cleanPathname === '/') {
     try {
-      const [botContent, jsonLd] = await Promise.all([getHomeBotContent(), getHomeJsonLd()]);
-      serveHtml(res, INDEX_FILE, { pathname: '/', botContent, headExtras: jsonLdScript(jsonLd) });
+      const [botContent, jsonLd] = await Promise.all([getHomeBotContent(lang), getHomeJsonLd(lang)]);
+      serveHtml(res, INDEX_FILE, { pathname, lang, botContent, headExtras: jsonLdScript(jsonLd) });
     } catch {
-      serveHtml(res, INDEX_FILE, { pathname: '/' });
+      serveHtml(res, INDEX_FILE, { pathname, lang });
     }
     return true;
   }
 
-  if (pathname === '/empresa' && !parsed.searchParams.has('ticker')) {
+  if (cleanPathname === '/empresa' && !parsed.searchParams.has('ticker')) {
     try {
-      const [botContent, jsonLd] = await Promise.all([getCompaniesBotContent(), getCompaniesJsonLd()]);
-      serveHtml(res, HTML_FILE, { pathname, botContent, headExtras: jsonLdScript(jsonLd) });
+      const [botContent, jsonLd] = await Promise.all([getCompaniesBotContent(lang), getCompaniesJsonLd(lang)]);
+      serveHtml(res, HTML_FILE, { pathname, lang, botContent, headExtras: jsonLdScript(jsonLd) });
     } catch {
-      serveHtml(res, HTML_FILE, { pathname });
+      serveHtml(res, HTML_FILE, { pathname, lang });
     }
     return true;
   }

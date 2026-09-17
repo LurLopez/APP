@@ -33,26 +33,77 @@ const SIC_SECTORS = {
   96: 'Administración pública', 97: 'Administración pública', 99: 'Otros',
 };
 
+export const WELL_KNOWN_ORIGINS = {
+  AAPL: { sector: 'Maquinaria', country: 'Estados Unidos', cik: 320193, name: 'Apple Inc.' },
+  MSFT: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 789019, name: 'MICROSOFT CORP' },
+  GOOGL: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 1652044, name: 'Alphabet Inc.' },
+  GOOG: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 1652044, name: 'Alphabet Inc.' },
+  NVDA: { sector: 'Electrónica', country: 'Estados Unidos', cik: 1045810, name: 'NVIDIA CORP' },
+  META: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 1326801, name: 'Meta Platforms, Inc.' },
+  AMZN: { sector: 'Comercio minorista', country: 'Estados Unidos', cik: 1018724, name: 'AMAZON COM INC' },
+  KO: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 21344, name: 'COCA COLA CO' },
+  PEP: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 77476, name: 'PEPSICO INC' },
+  PG: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 80424, name: 'PROCTER & GAMBLE Co' },
+  CAG: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 23217, name: 'CONAGRA BRANDS INC.' },
+  GIS: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 40704, name: 'GENERAL MILLS INC' },
+  JNJ: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 200406, name: 'JOHNSON & JOHNSON' },
+  PFE: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 78003, name: 'PFIZER INC' },
+  ABBV: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 1551152, name: 'AbbVie Inc.' },
+  UNH: { sector: 'Seguros', country: 'Estados Unidos', cik: 731766, name: 'UNITEDHEALTH GROUP INC' },
+  JPM: { sector: 'Bancos', country: 'Estados Unidos', cik: 19617, name: 'JPMORGAN CHASE & CO' },
+  BAC: { sector: 'Bancos', country: 'Estados Unidos', cik: 70858, name: 'BANK OF AMERICA CORP /DE/' },
+  V: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 1403161, name: 'VISA INC.' },
+  HD: { sector: 'Comercio minorista', country: 'Estados Unidos', cik: 354950, name: 'HOME DEPOT, INC.' },
+  MCD: { sector: 'Restauración', country: 'Estados Unidos', cik: 63908, name: 'MCDONALDS CORP' },
+  WMT: { sector: 'Comercio minorista', country: 'Estados Unidos', cik: 104169, name: 'Walmart Inc.' },
+  COST: { sector: 'Comercio minorista', country: 'Estados Unidos', cik: 909832, name: 'COSTCO WHOLESALE CORP /NEW' },
+  CAT: { sector: 'Maquinaria', country: 'Estados Unidos', cik: 18230, name: 'CATERPILLAR INC' },
+  HON: { sector: 'Vehículos', country: 'Estados Unidos', cik: 773840, name: 'HONEYWELL INTERNATIONAL INC' },
+  XOM: { sector: 'Petróleo y gas', country: 'Estados Unidos', cik: 34088, name: 'EXXON MOBIL CORP' },
+  CVX: { sector: 'Petróleo y gas', country: 'Estados Unidos', cik: 93410, name: 'CHEVRON CORP' },
+  DIS: { sector: 'Entretenimiento', country: 'Estados Unidos', cik: 1744489, name: 'Walt Disney Co' },
+  NKE: { sector: 'Plásticos y caucho', country: 'Estados Unidos', cik: 320187, name: 'NIKE, Inc.' },
+};
+
 export async function getCompanyByTicker(ticker) {
-  const map = await getTickerMap();
   const up = ticker.toUpperCase();
   const normalized = up.replace(/\./g, '-');
-  const company = map.get(up) ?? map.get(normalized);
-  if (!company) {
-    throw notFound(`No se encontró la empresa "${ticker}" en EDGAR.`);
+  try {
+    const map = await getTickerMap();
+    const company = map.get(up) ?? map.get(normalized);
+    if (company) return company;
+  } catch {
+    // Si EDGAR falla por rate limiting o caída, intentamos resolver con los conocidos
   }
-  return company;
+  const fallback = WELL_KNOWN_ORIGINS[up] ?? WELL_KNOWN_ORIGINS[normalized];
+  if (fallback) {
+    return { cik: fallback.cik, ticker: up, name: fallback.name };
+  }
+  throw notFound(`No se encontró la empresa "${ticker}" en EDGAR.`);
 }
+
+const pendingSubmissions = new Map();
 
 export async function getCompanySubmissions(company) {
   const cached = filingsCache.get(company.ticker);
   if (cached && Date.now() - cached.at < FILINGS_TTL) {
     return cached.data;
   }
-  const url = SUBMISSIONS_URL_TEMPLATE.replace('{CIK}', String(company.cik).padStart(10, '0'));
-  const data = await fetchSecJson(url);
-  filingsCache.set(company.ticker, { data, at: Date.now() });
-  return data;
+  if (pendingSubmissions.has(company.ticker)) {
+    return pendingSubmissions.get(company.ticker);
+  }
+  const promise = (async () => {
+    try {
+      const url = SUBMISSIONS_URL_TEMPLATE.replace('{CIK}', String(company.cik).padStart(10, '0'));
+      const data = await fetchSecJson(url);
+      filingsCache.set(company.ticker, { data, at: Date.now() });
+      return data;
+    } finally {
+      pendingSubmissions.delete(company.ticker);
+    }
+  })();
+  pendingSubmissions.set(company.ticker, promise);
+  return promise;
 }
 
 export function latestFactValue(facts, namespace, tags, unit, predicate = () => true) {
@@ -119,12 +170,22 @@ export function profileExchange(company, submissions) {
 }
 
 export async function getCompanyOrigin(ticker) {
-  const company = await getCompanyByTicker(ticker);
-  const submissions = await getCompanySubmissions(company);
-  return {
-    sector: profileSector(submissions?.sic) ?? '—',
-    country: profileCountry(submissions),
-  };
+  const up = String(ticker ?? '').toUpperCase();
+  const normalized = up.replace(/\./g, '-');
+  try {
+    const company = await getCompanyByTicker(ticker);
+    const submissions = await getCompanySubmissions(company);
+    return {
+      sector: profileSector(submissions?.sic) ?? WELL_KNOWN_ORIGINS[up]?.sector ?? '—',
+      country: profileCountry(submissions) ?? WELL_KNOWN_ORIGINS[up]?.country ?? '—',
+    };
+  } catch (error) {
+    const fallback = WELL_KNOWN_ORIGINS[up] ?? WELL_KNOWN_ORIGINS[normalized];
+    if (fallback) {
+      return { sector: fallback.sector, country: fallback.country };
+    }
+    throw error;
+  }
 }
 
 export async function getCompanySector(ticker) {
@@ -168,7 +229,8 @@ export async function getCompanySeoProfile(ticker) {
   };
 }
 
-export function buildCompanyProfile(company, facts, submissions, annual, quarterly, market) {
+export function buildCompanyProfile(company, facts, submissions, annual, quarterly, market, { lang = 'es' } = {}) {
+  const isEn = lang === 'en';
   const latestStatement = annual[0] ?? quarterly[0] ?? { values: {} };
   const values = latestStatement.values ?? {};
   const latestShares = quarterly[0]?.values?.weightedSharesDiluted
@@ -187,9 +249,15 @@ export function buildCompanyProfile(company, facts, submissions, annual, quarter
   const recentFiling = normalizeRecentFilings(submissions?.filings?.recent)
     .find((entry) => entry.form === '10-Q' || entry.form === '10-K');
   const descriptionParts = [
-    exchange ? `${company.name} cotiza en ${exchange}.` : `${company.name} es una empresa cotizada.`,
-    industry ? `La SEC la clasifica en ${industry.toLowerCase()}.` : null,
-    address ? `Domicilio registrado: ${address}.` : null,
+    exchange
+      ? (isEn ? `${company.name} is listed on ${exchange}.` : `${company.name} cotiza en ${exchange}.`)
+      : (isEn ? `${company.name} is a publicly traded company.` : `${company.name} es una empresa cotizada.`),
+    industry
+      ? (isEn ? `The SEC classifies it under ${industry.toLowerCase()}.` : `La SEC la clasifica en ${industry.toLowerCase()}.`)
+      : null,
+    address
+      ? (isEn ? `Registered address: ${address}.` : `Domicilio registrado: ${address}.`)
+      : null,
   ].filter(Boolean);
 
   const recent4Quarters = quarterly.slice(0, 4);

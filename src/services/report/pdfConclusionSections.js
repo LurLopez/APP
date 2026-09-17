@@ -9,16 +9,18 @@ import { drawDebtMaturityChart, drawDebtHistoryChart, drawDebtRefinancingBox } f
 import { withOutlookComparison, buildDebtMaturityModel, buildDebtHistoryModel, buildDebtRefinancingModel, buildAcquisitionsModel, buildDividendModel } from '../reportExport.service.js';
 import { getExecutiveChanges } from '../reportExport/executiveChanges.js';
 import { drawRepurchases, drawExecutiveChanges } from './pdfRepurchasesDrawer.js';
+import { t, normalizeLanguage } from '../../utils/i18n.js';
 
-function drawOutlook(doc, out, report, margin, y) {
-  let curY = drawSectionTitle(doc, out.title || '2: OUTLOOK', y);
+function drawOutlook(doc, out, report, margin, y, language = 'es') {
+  const lang = normalizeLanguage(language);
+  let curY = drawSectionTitle(doc, out.title || t('2: OUTLOOK', null, lang), y);
   if (out.text) {
     curY = drawPdfFormattedText(doc, out.text, margin, curY, doc.page.width - margin * 2, 'Helvetica', 'Helvetica-Bold', 8.5, '#374151') + 8;
   }
   const outDetails = [
-    out.fcfAnalysis ? `Análisis FCF: ${out.fcfAnalysis}` : null,
-    out.riskFactors ? `Riesgos y Sensibilidad: ${out.riskFactors}` : null,
-    out.efficiencyPlans ? `Programas de ahorro / eficiencia: ${out.efficiencyPlans}` : null,
+    out.fcfAnalysis ? t('Análisis FCF: {value}', { value: out.fcfAnalysis }, lang) : null,
+    out.riskFactors ? t('Riesgos y Sensibilidad: {value}', { value: out.riskFactors }, lang) : null,
+    out.efficiencyPlans ? t('Programas de ahorro / eficiencia: {value}', { value: out.efficiencyPlans }, lang) : null,
   ].filter(Boolean);
   if (outDetails.length) {
     outDetails.forEach((d) => {
@@ -31,20 +33,21 @@ function drawOutlook(doc, out, report, margin, y) {
     curY += 5;
   }
   const outSnippet = out.secSnippet || out.secTable;
-  if (outSnippet) curY = drawPdfSecSnippet(doc, withOutlookComparison(outSnippet, report), curY);
+  if (outSnippet) curY = drawPdfSecSnippet(doc, withOutlookComparison(outSnippet, report, lang), curY);
   return drawHorizontalRule(doc, curY);
 }
 
-function drawDebtSection(doc, debt, report, margin, y) {
-  let curY = drawSectionTitle(doc, debt.title || '3: DEUDA', y);
+function drawDebtSection(doc, debt, report, margin, y, language = 'es') {
+  const lang = normalizeLanguage(language);
+  let curY = drawSectionTitle(doc, debt.title || t('3: DEUDA', null, lang), y);
   if (debt.text) {
     curY = drawPdfFormattedText(doc, debt.text, margin, curY, doc.page.width - margin * 2, 'Helvetica', 'Helvetica-Bold', 8.5, '#374151') + 8;
   }
-  const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear);
+  const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear, lang);
   if (maturityChart) curY = drawDebtMaturityChart(doc, maturityChart, curY);
-  const historyChart = buildDebtHistoryModel(debt, report);
+  const historyChart = buildDebtHistoryModel(debt, report, lang);
   if (historyChart) curY = drawDebtHistoryChart(doc, historyChart, curY);
-  const refinancing = buildDebtRefinancingModel(debt, report);
+  const refinancing = buildDebtRefinancingModel(debt, report, lang);
   if (refinancing) {
     curY = drawDebtRefinancingBox(doc, refinancing, curY);
   }
@@ -54,15 +57,16 @@ function drawDebtSection(doc, debt, report, margin, y) {
   return drawHorizontalRule(doc, curY);
 }
 
-function drawRatingBanner(doc, rating, margin, y) {
+function drawRatingBanner(doc, rating, margin, y, language = 'es') {
+  const lang = normalizeLanguage(language);
   const score = Number(rating.score);
   const bannerWidth = doc.page.width - margin * 2;
   const bannerBg = score >= 7 ? '#dcfce7' : (score >= 4 ? '#fef9c3' : '#fee2e2');
   const bannerBorder = score >= 7 ? '#16a34a' : (score >= 4 ? '#ca8a04' : '#dc2626');
   const bannerText = score >= 7 ? '#14532d' : (score >= 4 ? '#713f12' : '#7f1d1d');
-  const labelText = sanitize(rating.label || `NOTA DE RESULTADOS: ${score}`);
+  const labelText = sanitize(rating.label || t('NOTA DE RESULTADOS: {score}', { score }, lang));
   const rationaleText = rating.rationale ? sanitize(rating.rationale) : null;
-  const disclaimerText = 'Nota puramente financiera basada exclusivamente en cuentas del año, outlook oficial y asignación de capital. Sin especulación futura.';
+  const disclaimerText = t('Nota puramente financiera basada exclusivamente en cuentas del año, outlook oficial y asignación de capital. Sin especulación futura.', null, lang);
 
   doc.font('Helvetica-Bold').fontSize(12);
   const labelH = doc.heightOfString(labelText, { width: bannerWidth - 24 - 92 });
@@ -97,6 +101,7 @@ function drawRatingBanner(doc, rating, margin, y) {
 }
 
 export function drawConclusion(doc, report, startY) {
+  const lang = normalizeLanguage(report?.language);
   const margin = doc.page.margins.left;
   let y = startY;
 
@@ -106,9 +111,9 @@ export function drawConclusion(doc, report, startY) {
       y = doc.page.margins.top;
     }
     const conc = report.conclusion || {};
-    doc.font('Helvetica-Bold').fontSize(14).fillColor('#111827').text('PARTE II: INDAGACIÓN A FONDO Y CONCLUSIÓN', margin, y);
+    doc.font('Helvetica-Bold').fontSize(14).fillColor('#111827').text(t('PARTE II: INDAGACIÓN A FONDO Y CONCLUSIÓN', null, lang), margin, y);
     y += 18;
-    doc.font('Helvetica').fontSize(9).fillColor('#6b7280').text('Análisis detallado de recompras, cambios en la dirección, outlook oficial, deuda y asignación de capital', margin, y);
+    doc.font('Helvetica').fontSize(9).fillColor('#6b7280').text(t('Análisis detallado de recompras, cambios en la dirección, outlook oficial, deuda y asignación de capital', null, lang), margin, y);
     y += 18;
     y = drawHorizontalRule(doc, y);
 
@@ -121,30 +126,30 @@ export function drawConclusion(doc, report, startY) {
       }
     };
 
-    if (conc.repurchases) { startPage(); y = drawRepurchases(doc, conc.repurchases, margin, y); }
+    if (conc.repurchases) { startPage(); y = drawRepurchases(doc, conc.repurchases, margin, y, lang); }
     const executiveChanges = getExecutiveChanges(conc);
-    if (executiveChanges) { startPage(); y = drawExecutiveChanges(doc, executiveChanges, margin, y); }
-    if (conc.outlook) { startPage(); y = drawOutlook(doc, conc.outlook, report, margin, y); }
-    if (conc.debt) { startPage(); y = drawDebtSection(doc, conc.debt, report, margin, y); }
+    if (executiveChanges) { startPage(); y = drawExecutiveChanges(doc, executiveChanges, margin, y, lang); }
+    if (conc.outlook) { startPage(); y = drawOutlook(doc, conc.outlook, report, margin, y, lang); }
+    if (conc.debt) { startPage(); y = drawDebtSection(doc, conc.debt, report, margin, y, lang); }
 
     if (conc.acquisitions && buildAcquisitionsModel(report).material) {
       startPage();
-      y = drawSectionTitle(doc, conc.acquisitions.title || '4: ADQUISICIONES', y);
-      doc.font('Helvetica').fontSize(8.5).fillColor('#374151').text(sanitize(conc.acquisitions.text || 'No se realizaron adquisiciones materiales durante el ejercicio.'), margin, y, { width: doc.page.width - margin * 2, lineBreak: true });
+      y = drawSectionTitle(doc, conc.acquisitions.title || t('4: OPERACIONES CORPORATIVAS', null, lang), y);
+      doc.font('Helvetica').fontSize(8.5).fillColor('#374151').text(sanitize(conc.acquisitions.text || t('No se realizaron operaciones corporativas materiales durante el ejercicio.', null, lang)), margin, y, { width: doc.page.width - margin * 2, lineBreak: true });
       y = drawHorizontalRule(doc, doc.y + 8);
     }
 
     const dividendChart = buildDividendModel(report);
     if (dividendChart) {
       startPage();
-      y = drawSectionTitle(doc, dividendChart.title || '5: DIVIDENDOS', y);
+      y = drawSectionTitle(doc, dividendChart.title || t('5: DIVIDENDOS', null, lang), y);
       if (dividendChart.text) y = drawPdfFormattedText(doc, dividendChart.text, margin, y, doc.page.width - margin * 2, 'Helvetica', 'Helvetica-Bold', 8.5, '#374151') + 8;
       y = drawHorizontalRule(doc, drawDividendChart(doc, dividendChart, y));
     }
 
     if (conc.watchlist && Array.isArray(conc.watchlist.items) && conc.watchlist.items.length) {
       startPage();
-      y = drawSectionTitle(doc, conc.watchlist.title || 'COSAS A TENER EN CUENTA', y);
+      y = drawSectionTitle(doc, conc.watchlist.title || t('COSAS A TENER EN CUENTA', null, lang), y);
       conc.watchlist.items.forEach((item) => {
         if (y > doc.page.height - doc.page.margins.bottom - 20) { doc.addPage(); y = doc.page.margins.top; }
         doc.font('Helvetica-Bold').fontSize(8).fillColor('#16a34a').text('OK', margin + 6, y, { continued: true });
@@ -156,7 +161,7 @@ export function drawConclusion(doc, report, startY) {
 
     if (report.rating && report.rating.score != null) {
       if (y > doc.page.margins.top + 30) startPage();
-      y = drawRatingBanner(doc, report.rating, margin, y);
+      y = drawRatingBanner(doc, report.rating, margin, y, lang);
     }
   }
 

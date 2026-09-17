@@ -55,13 +55,25 @@
     oauthGoogleText: document.querySelector('#oauth-google-text'),
   };
 
+  let lastUser = null;
+
+  /**
+   * Helper de traducción para AuthUI.
+   * @param {string} text
+   * @param {Object} [params]
+   * @returns {string}
+   */
+  function t(text, params) {
+    return window.I18n?.t ? window.I18n.t(text, params) : text;
+  }
+
   /**
    * Muestra una notificación emergente temporal en pantalla.
    * @param {string} message - Mensaje a mostrar.
    */
   function showToast(message) {
     if (!elements.toast) return;
-    elements.toast.textContent = message;
+    elements.toast.textContent = t(message);
     elements.toast.classList.add('visible');
     setTimeout(() => elements.toast.classList.remove('visible'), 3200);
   }
@@ -89,6 +101,7 @@
    * @param {Object} user - Usuario actual o null.
    */
   function renderUserState(user) {
+    lastUser = user;
     const logged = Boolean(user);
     const isAdmin = Boolean(user?.isAdmin);
 
@@ -102,18 +115,18 @@
       if (elements.accountAvatar) elements.accountAvatar.textContent = initials(displayName);
       if (elements.accountName) elements.accountName.textContent = displayName;
       if (elements.accountPlan) {
-        elements.accountPlan.textContent = isAdmin ? 'Administrador' : planLabel(user.plan);
+        elements.accountPlan.textContent = isAdmin ? t('Administrador') : t(planLabel(user.plan));
         elements.accountPlan.classList.toggle('account-plan-admin', isAdmin);
       }
-      if (elements.accountAction) elements.accountAction.textContent = 'Salir';
+      if (elements.accountAction) elements.accountAction.textContent = t('Salir');
     } else {
       if (elements.accountAvatar) elements.accountAvatar.textContent = '?';
-      if (elements.accountName) elements.accountName.textContent = 'Invitado';
+      if (elements.accountName) elements.accountName.textContent = t('Invitado');
       if (elements.accountPlan) {
-        elements.accountPlan.textContent = 'Beta privada';
+        elements.accountPlan.textContent = t('Beta privada');
         elements.accountPlan.classList.remove('account-plan-admin');
       }
-      if (elements.accountAction) elements.accountAction.textContent = 'Entrar';
+      if (elements.accountAction) elements.accountAction.textContent = t('Entrar');
     }
 
     document.body.classList.toggle('is-admin', isAdmin);
@@ -135,23 +148,23 @@
   function setTab(tab) {
     const isRegister = tab === 'register';
 
-    if (elements.modalTitle) elements.modalTitle.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
+    if (elements.modalTitle) elements.modalTitle.textContent = isRegister ? t('Crear cuenta') : t('Iniciar sesión');
     if (elements.modalSubtitle) {
       elements.modalSubtitle.textContent = isRegister
-        ? 'Guarda tus análisis y accede desde cualquier equipo.'
-        : 'Accede para guardar tus análisis.';
+        ? t('Guarda tus análisis y accede desde cualquier equipo.')
+        : t('Accede para guardar tus análisis.');
     }
-    if (elements.authSubmit) elements.authSubmit.textContent = isRegister ? 'Crear cuenta' : 'Entrar';
+    if (elements.authSubmit) elements.authSubmit.textContent = isRegister ? t('Crear cuenta') : t('Entrar');
     if (elements.authConfirmField) elements.authConfirmField.hidden = !isRegister;
     if (elements.authConfirm) elements.authConfirm.required = isRegister;
     if (elements.authEmail) {
       elements.authEmail.autocomplete = isRegister ? 'email' : 'username';
       elements.authEmail.type = isRegister ? 'email' : 'text';
-      elements.authEmail.placeholder = isRegister ? 'tu@correo.com' : 'tu@correo.com o usuario';
+      elements.authEmail.placeholder = isRegister ? 'tu@correo.com' : t('tu@correo.com o usuario');
     }
     const authEmailLabel = document.querySelector('#auth-email-label');
     if (authEmailLabel) {
-      authEmailLabel.textContent = isRegister ? 'Correo electrónico' : 'Correo electrónico o usuario';
+      authEmailLabel.textContent = isRegister ? t('Correo electrónico') : t('Correo electrónico o usuario');
     }
     if (elements.authPassword) {
       elements.authPassword.autocomplete = isRegister ? 'new-password' : 'current-password';
@@ -159,7 +172,7 @@
     if (elements.forgotRow) elements.forgotRow.hidden = !elements.isRegister && tab !== 'login';
 
     if (elements.oauthGoogleText) {
-      elements.oauthGoogleText.textContent = isRegister ? 'Registrarse con Google' : 'Continuar con Google';
+      elements.oauthGoogleText.textContent = isRegister ? t('Registrarse con Google') : t('Continuar con Google');
     }
     if (elements.oauthGoogleBtn) {
       const returnTo = window.location.pathname + window.location.search;
@@ -193,20 +206,20 @@
     });
 
     if (state.step === 'verify') {
-      elements.modalTitle.textContent = 'Verifica tu correo';
-      elements.modalSubtitle.textContent = 'Solo nos queda confirmar que el correo es tuyo.';
-      elements.verifyHint.textContent = `Te hemos enviado un código de 6 dígitos a ${state.verifyingEmail}.`;
-      elements.authSubmit.textContent = 'Verificar código';
+      elements.modalTitle.textContent = t('Verifica tu correo');
+      elements.modalSubtitle.textContent = t('Solo nos queda confirmar que el correo es tuyo.');
+      elements.verifyHint.textContent = t(`Te hemos enviado un código de 6 dígitos a ${state.verifyingEmail}.`);
+      elements.authSubmit.textContent = t('Verificar código');
       elements.authCode.required = true;
     } else if (state.step === 'reset-request') {
-      elements.modalTitle.textContent = 'Recuperar contraseña';
-      elements.modalSubtitle.textContent = 'Te enviaremos un código a tu correo para restablecerla.';
-      elements.authSubmit.textContent = 'Enviar código';
+      elements.modalTitle.textContent = t('Recuperar contraseña');
+      elements.modalSubtitle.textContent = t('Te enviaremos un código a tu correo para restablecerla.');
+      elements.authSubmit.textContent = t('Enviar código');
     } else if (state.step === 'reset-code') {
-      elements.modalTitle.textContent = 'Nueva contraseña';
-      elements.modalSubtitle.textContent = 'Introduce el código y tu nueva contraseña.';
-      elements.resetHint.textContent = `Te hemos enviado un código de 6 dígitos a ${state.resetEmail}.`;
-      elements.authSubmit.textContent = 'Cambiar contraseña';
+      elements.modalTitle.textContent = t('Nueva contraseña');
+      elements.modalSubtitle.textContent = t('Introduce el código y tu nueva contraseña.');
+      elements.resetHint.textContent = t(`Te hemos enviado un código de 6 dígitos a ${state.resetEmail}.`);
+      elements.authSubmit.textContent = t('Cambiar contraseña');
     } else {
       setTab(state.tab);
     }
@@ -218,9 +231,16 @@
    */
   function showModalError(message) {
     if (!elements.modalError) return;
-    elements.modalError.textContent = message;
+    elements.modalError.textContent = t(message);
     elements.modalError.hidden = false;
   }
+
+  window.addEventListener('i18n:change', () => {
+    renderUserState(lastUser);
+  });
+  window.I18n?.whenReady?.(() => {
+    renderUserState(lastUser);
+  });
 
   // Exportar al objeto global
   window.AuthUI = {

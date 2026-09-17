@@ -39,7 +39,7 @@ const PriceAlerts = (() => {
     if (refTicker) refTicker.textContent = selectedCompany.ticker;
     if (refCompany) refCompany.textContent = `(${selectedCompany.name})`;
     if (refPrice) {
-      refPrice.textContent = selectedCompany.price ? `$${Number(selectedCompany.price).toFixed(2)}` : 'Consultando…';
+      refPrice.textContent = selectedCompany.price ? `$${Number(selectedCompany.price).toFixed(2)}` : (window.I18n?.t ? window.I18n.t('Consultando…') : 'Consultando…');
     }
     if (refRow) refRow.hidden = false;
     if (selectedCompany.price && targetPriceInput && !targetPriceInput.value) {

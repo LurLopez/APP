@@ -10,6 +10,8 @@ import { listAnalyses, getAnalysisById, updateAnalysis, listAnalysisCompanies } 
 import { getCompanyFilings } from '../../services/edgar.service.js';
 import { getAiQuota, reserveAiQuota, refundAiQuota } from '../../services/aiQuota.service.js';
 import { parseIdParam, parseDateFilter, isRealPdf, escapeHtml } from '../../utils/validate.js';
+import { resolveAnalysisLanguage } from '../../utils/analysisLanguage.js';
+import { DEFAULT_LANGUAGE } from '../../utils/i18n.js';
 
 const TICKER_PATTERN = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
@@ -118,12 +120,14 @@ export async function uploadAndAnalyzePdf(req, res, next) {
     }
 
     usageId = await reserveAiQuota(req.user);
+    const language = await resolveAnalysisLanguage(req, req.user);
 
     const result = await analyzePdf(mainFile.buffer, {
       userId: req.user.id,
       actor: req.user.username || req.user.email,
       filename: mainFile.originalname,
       presentationText,
+      language,
     });
 
     const quota = await getAiQuota(req.user);
@@ -134,6 +138,7 @@ export async function uploadAndAnalyzePdf(req, res, next) {
       sector: result.sector,
       report: result.report,
       pdfUrl: result.pdfUrl,
+      language: result.language ?? DEFAULT_LANGUAGE,
       saved: true,
       quota,
     });

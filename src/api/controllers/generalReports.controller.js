@@ -16,6 +16,8 @@ import {
   listGeneralReports,
   updateGeneralReport,
   deleteGeneralReport,
+  batchUpdateGeneralReports,
+  batchDeleteGeneralReports,
 } from '../../../db/repositories/generalReportsRepository.js';
 
 const GENERAL_REPORT_CATEGORIES = [
@@ -32,22 +34,24 @@ const ERROR_REPORT_STATUS = ['pending', 'reviewed', 'resolved', 'dismissed'];
 
 /**
  * Consulta la lista filtrada de reportes generales de la plataforma (solo administradores).
- * @param {import('express').Request} req - Petición con filtros (status, category, search, limit).
- * @param {import('express').Response} res - Lista de reportes.
+ * @param {import('express').Request} req - Petición con filtros (status, category, search, limit, offset).
+ * @param {import('express').Response} res - Lista de reportes y conteo total.
  * @param {import('express').NextFunction} next - Manejador de errores.
  * @returns {Promise<void>}
  */
 export async function listGeneralReportsHandler(req, res, next) {
   try {
     const { status, category, search } = req.query;
-    const limit = Math.min(Number(req.query.limit ?? 100) || 100, 200);
-    const reports = await listGeneralReports({
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 250) || 250, 1), 1000);
+    const offset = Math.max(Number(req.query.offset ?? 0) || 0, 0);
+    const { reports, total } = await listGeneralReports({
       status: String(status ?? '').trim() || null,
       category: String(category ?? '').trim() || null,
       search: String(search ?? '').trim() || null,
       limit,
+      offset,
     });
-    res.json({ ok: true, reports });
+    res.json({ ok: true, reports, total });
   } catch (error) {
     next(error);
   }
@@ -104,6 +108,57 @@ export async function deleteGeneralReportHandler(req, res, next) {
       return;
     }
     res.json({ ok: true, message: 'Reporte general eliminado.' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Actualiza en lote el estado o notas de múltiples reportes generales.
+ * @param {import('express').Request} req - Petición con body ({ ids, status, adminNotes }).
+ * @param {import('express').Response} res - Conteo de reportes actualizados.
+ * @param {import('express').NextFunction} next - Manejador de errores.
+ * @returns {Promise<void>}
+ */
+export async function batchUpdateGeneralReportsHandler(req, res, next) {
+  try {
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const rawIds = Array.isArray(body.ids) ? body.ids : [];
+    const ids = rawIds.map((x) => parseIdParam(x)).filter(Boolean).slice(0, 100);
+    if (!ids.length) {
+      res.status(400).json({ error: 'Debes proporcionar al menos un ID válido.' });
+      return;
+    }
+    const { status, adminNotes } = body;
+    if (status !== undefined && !ERROR_REPORT_STATUS.includes(status)) {
+      res.status(400).json({ error: 'Estado no válido. Usa: pending, reviewed, resolved o dismissed.' });
+      return;
+    }
+    const updatedCount = await batchUpdateGeneralReports(ids, { status, adminNotes });
+    res.json({ ok: true, count: updatedCount, message: `${updatedCount} reportes actualizados.` });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Elimina en lote múltiples reportes generales.
+ * @param {import('express').Request} req - Petición con body ({ ids }).
+ * @param {import('express').Response} res - Conteo de reportes eliminados.
+ * @param {import('express').NextFunction} next - Manejador de errores.
+ * @returns {Promise<void>}
+ */
+export async function batchDeleteGeneralReportsHandler(req, res, next) {
+  try {
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const rawIds = Array.isArray(body.ids) ? body.ids : [];
+    const ids = rawIds.map((x) => parseIdParam(x)).filter(Boolean).slice(0, 100);
+    if (!ids.length) {
+      res.status(400).json({ error: 'Debes proporcionar al menos un ID válido.' });
+      return;
+    }
+    const deletedCount = await batchDeleteGeneralReports(ids);
+    res.json({ ok: true, count: deletedCount, message: `${deletedCount} reportes eliminados.` });
   } catch (error) {
     next(error);
   }

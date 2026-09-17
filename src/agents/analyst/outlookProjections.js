@@ -2,6 +2,8 @@
  * @fileoverview Módulo extraído de outlookHelpers.js.
  */
 
+import { t, normalizeLanguage } from '../../utils/i18n.js';
+
 function parseNum(val) {
   if (val == null) return null;
   let s = String(val).replace(/[^0-9.,\-]/g, '');
@@ -11,9 +13,13 @@ function parseNum(val) {
   return Number.isFinite(n) ? n : null;
 }
 
-function fmtMoney(n) {
+function fmtMoney(n, language = 'es') {
   if (n == null || !Number.isFinite(n)) return '—';
-  return '$' + Math.round(n).toLocaleString('en-US') + 'M';
+  const rounded = Math.round(n);
+  const formatted = language === 'en'
+    ? rounded.toLocaleString('en-US')
+    : rounded.toLocaleString('de-DE');
+  return '$' + formatted + 'M';
 }
 
 function fmtEps(n) {
@@ -33,25 +39,25 @@ function extractPctRange(g) {
   return { minP: Math.min(p1, p2), maxP: Math.max(p1, p2) };
 }
 
-function projectSales(g, prevSalesVal, prevYear) {
+function projectSales(g, prevSalesVal, prevYear, language = 'es') {
   if (/flat\s*(?:[±+\-/]+|\+\/-)\s*(\d+(?:[\.,]\d+)?)/i.test(g)) {
     const pct = parseFloat(g.match(/flat\s*(?:[±+\-/]+|\+\/-)\s*(\d+(?:[\.,]\d+)?)/i)[1].replace(',', '.')) / 100;
     if (prevSalesVal) {
-      return `~${fmtMoney(prevSalesVal * (1 - pct))} – ${fmtMoney(prevSalesVal * (1 + pct))}`;
+      return `~${fmtMoney(prevSalesVal * (1 - pct), language)} – ${fmtMoney(prevSalesVal * (1 + pct), language)}`;
     }
-    return `En línea con ${prevYear}`;
+    return t('En línea con {year}', { year: prevYear }, language);
   }
   const range = extractPctRange(g);
   if (range && prevSalesVal) {
-    return `~${fmtMoney(prevSalesVal * (1 + range.minP))} – ${fmtMoney(prevSalesVal * (1 + range.maxP))}`;
+    return `~${fmtMoney(prevSalesVal * (1 + range.minP), language)} – ${fmtMoney(prevSalesVal * (1 + range.maxP), language)}`;
   }
   return g;
 }
 
-function projectEbt(g, prevEbtVal) {
+function projectEbt(g, prevEbtVal, language = 'es') {
   const range = extractPctRange(g);
   if (range && prevEbtVal) {
-    return `~${fmtMoney(prevEbtVal * (1 + range.minP))} – ${fmtMoney(prevEbtVal * (1 + range.maxP))}`;
+    return `~${fmtMoney(prevEbtVal * (1 + range.minP), language)} – ${fmtMoney(prevEbtVal * (1 + range.maxP), language)}`;
   }
   return g;
 }
@@ -68,36 +74,39 @@ function projectEps(g, prevEpsVal) {
   return g;
 }
 
-function projectFcf(g, prevEbtVal) {
+function projectFcf(g, prevEbtVal, language = 'es') {
   const bMatch = g.match(/\$([0-9.,]+)\s*B\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
   if (bMatch) {
     const base = parseFloat(bMatch[1].replace(',', '.')) * 1000;
     const pct = parseFloat(bMatch[2].replace(',', '.')) / 100;
-    return `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+    return `~${fmtMoney(base * (1 - pct), language)} – ${fmtMoney(base * (1 + pct), language)}`;
   }
   const mMatch = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
   if (mMatch) {
     const base = parseFloat(mMatch[1].replace(',', '.'));
     const pct = parseFloat(mMatch[2].replace(',', '.')) / 100;
-    return `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+    return `~${fmtMoney(base * (1 - pct), language)} – ${fmtMoney(base * (1 + pct), language)}`;
   }
   if (/100\s*%/i.test(g)) {
-    return prevEbtVal ? `~${fmtMoney(prevEbtVal * 0.75)} (conversión ~100 %)` : '~100 % conversión';
+    return prevEbtVal
+      ? t('~{value} (conversión ~100 %)', { value: fmtMoney(prevEbtVal * 0.75, language) }, language)
+      : t('~100 % conversión', null, language);
   }
   return g;
 }
 
-function projectCapexOrDepr(g) {
+function projectCapexOrDepr(g, language = 'es') {
   const mMatch = g.match(/\$([0-9.,]+)\s*M\s*(?:[±+\-/]+|\+\/-)\s*(\d+)\s*%/i);
   if (mMatch) {
     const base = parseFloat(mMatch[1].replace(',', '.'));
     const pct = parseFloat(mMatch[2].replace(',', '.')) / 100;
-    return `~${fmtMoney(base * (1 - pct))} – ${fmtMoney(base * (1 + pct))}`;
+    return `~${fmtMoney(base * (1 - pct), language)} – ${fmtMoney(base * (1 + pct), language)}`;
   }
   return g;
 }
 
 function buildComparisonRow(row, context) {
+  const language = context.language;
   const metric = Array.isArray(row) ? row[0] : (row.metric ?? row.name);
   const guidance = Array.isArray(row) ? row[1] : row.value;
   if (Array.isArray(row) && row.length >= 4) return row;
@@ -108,26 +117,26 @@ function buildComparisonRow(row, context) {
   let projStr = '—';
 
   if (/sales|ventas|revenue/i.test(m)) {
-    if (context.prevSalesVal) prevStr = fmtMoney(context.prevSalesVal);
-    projStr = projectSales(g, context.prevSalesVal, context.prevYear);
+    if (context.prevSalesVal) prevStr = fmtMoney(context.prevSalesVal, language);
+    projStr = projectSales(g, context.prevSalesVal, context.prevYear, language);
   } else if (/income before|ebt|operating income|beneficio/i.test(m)) {
-    if (context.prevEbtVal) prevStr = `${fmtMoney(context.prevEbtVal)} (adj)`;
-    projStr = projectEbt(g, context.prevEbtVal);
+    if (context.prevEbtVal) prevStr = `${fmtMoney(context.prevEbtVal, language)} (adj)`;
+    projStr = projectEbt(g, context.prevEbtVal, language);
   } else if (/eps|earnings per share|bpa/i.test(m)) {
     if (context.prevEpsVal) prevStr = fmtEps(context.prevEpsVal);
     projStr = projectEps(g, context.prevEpsVal);
   } else if (/free cash flow|fcf/i.test(m)) {
     prevStr = context.prevFcfVal
-      ? (context.prevFcfAdjVal ? `${fmtMoney(context.prevFcfVal)} / ${fmtMoney(context.prevFcfAdjVal)} (adj)` : fmtMoney(context.prevFcfVal))
+      ? (context.prevFcfAdjVal ? `${fmtMoney(context.prevFcfVal, language)} / ${fmtMoney(context.prevFcfAdjVal, language)} (adj)` : fmtMoney(context.prevFcfVal, language))
       : '—';
-    projStr = projectFcf(g, context.prevEbtVal);
+    projStr = projectFcf(g, context.prevEbtVal, language);
   } else if (/depreciation|amorti/i.test(m)) {
-    projStr = projectCapexOrDepr(g);
+    projStr = projectCapexOrDepr(g, language);
   } else if (/interest/i.test(m)) {
-    projStr = projectCapexOrDepr(g);
+    projStr = projectCapexOrDepr(g, language);
   } else if (/capex|capital expend/i.test(m)) {
-    prevStr = context.prevCapexVal ? fmtMoney(context.prevCapexVal) : '—';
-    projStr = projectCapexOrDepr(g);
+    prevStr = context.prevCapexVal ? fmtMoney(context.prevCapexVal, language) : '—';
+    projStr = projectCapexOrDepr(g, language);
   } else {
     projStr = g;
   }
@@ -135,7 +144,8 @@ function buildComparisonRow(row, context) {
   return [metric, prevStr, guidance, projStr];
 }
 
-export function withOutlookComparison(snippet, report) {
+export function withOutlookComparison(snippet, report, language = null) {
+  const lang = normalizeLanguage(language || report?.language);
   if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return snippet;
   const rawHeaders = Array.isArray(snippet.headers) ? snippet.headers : [];
   if (rawHeaders.length >= 4) return snippet;
@@ -151,12 +161,15 @@ export function withOutlookComparison(snippet, report) {
   const salesRows = h0?.sales?.rows || [];
   const cfRows = h0?.cashFlow?.rows || [];
 
-  const getSalesRow = (name) => salesRows.find((r) => (r.name || '').toLowerCase().includes(name.toLowerCase()));
+  const getSalesRow = (names) => salesRows.find((r) => {
+    const rowName = (r.name || '').toLowerCase();
+    return names.some((name) => rowName.includes(name.toLowerCase()));
+  });
   const getCfRow = (name) => cfRows.find((r) => (r.name || '').toLowerCase().includes(name.toLowerCase()));
 
-  const prevSalesRow = getSalesRow('Ventas');
+  const prevSalesRow = getSalesRow(['Ventas', 'Sales']);
   const prevSalesVal = parseNum(prevSalesRow?.adjusted || prevSalesRow?.normal);
-  const prevEbtRow = getSalesRow('EBT');
+  const prevEbtRow = getSalesRow(['EBT']);
   const prevEbtVal = parseNum(prevEbtRow?.adjusted || prevEbtRow?.normal);
   const prevFcfRow = getCfRow('FCF');
   const prevFcfVal = parseNum(prevFcfRow?.values?.[0]);
@@ -166,6 +179,7 @@ export function withOutlookComparison(snippet, report) {
   const prevEpsVal = parseNum(h0?.sales?.eps) || (prevEbtVal ? prevEbtVal / (parseNum(h0?.sales?.shares) || 200) : null);
 
   const context = {
+    language: lang,
     prevYear,
     prevSalesVal,
     prevEbtVal,
@@ -176,10 +190,10 @@ export function withOutlookComparison(snippet, report) {
   };
 
   const newHeaders = [
-    rawHeaders[0] || 'Métrica',
-    `${prevYear} (Año anterior)`,
+    rawHeaders[0] || t('Métrica', null, lang),
+    `${prevYear} ${t('(Año anterior)', null, lang)}`,
     rawHeaders[1] || `Guidance ${nextYear}E*`,
-    `Cifra Proyectada ${nextYear}E`,
+    `${t('Cifra Proyectada', null, lang)} ${nextYear}E`,
   ];
 
   const newRows = snippet.rows.map((row) => buildComparisonRow(row, context));

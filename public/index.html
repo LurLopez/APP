@@ -544,7 +544,7 @@
                     <p class="demo-disclaimer" id="processing-note">El documento se verifica automáticamente antes de continuar.</p>
                   </div>
 
-                  <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3 id="result-title">Informe generado</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-report" id="report-body"></div><div class="analysis-feedback-bar" id="analysis-feedback-bar"><div class="analysis-rating-wrap"><span class="feedback-label">Valorar este análisis:</span><div class="rating-stars" id="rating-stars" role="radiogroup" aria-label="Valorar análisis"><button type="button" class="star-btn" data-value="1" title="1 estrella">★</button><button type="button" class="star-btn" data-value="2" title="2 estrellas">★</button><button type="button" class="star-btn" data-value="3" title="3 estrellas">★</button><button type="button" class="star-btn" data-value="4" title="4 estrellas">★</button><button type="button" class="star-btn" data-value="5" title="5 estrellas">★</button></div><span class="rating-summary-text" id="rating-summary-text"></span></div><button type="button" class="report-error-trigger" id="report-error-trigger"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Reportar error</button></div><div class="result-actions"><button class="primary-button download-button" id="report-download" data-format="pdf" type="button">PDF <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v9M8 10l4 4 4-4M6 18h12"/></svg></button><button class="secondary-button download-button" data-format="docx" type="button">Word (.docx)</button><button class="secondary-button download-button" data-format="odt" type="button">ODT (.odt)</button><button class="secondary-button download-button" data-format="html" type="button">Web (.html)</button><button class="secondary-button" id="copy-report-url" type="button" title="Copiar enlace permanente de este informe">🔗 Copiar enlace</button><div class="analysis-version-box" id="analysis-version-box" hidden><span class="analysis-version-badge" id="analysis-version-badge" title="Versión del análisis"></span><span class="analysis-reviewed-badge" id="analysis-reviewed-badge" hidden title="Este análisis ha sido revisado por un humano" aria-label="Este análisis ha sido revisado por un humano"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span>Revisado</span></span><div class="analysis-versions-wrap"><button class="secondary-button analysis-versions-toggle" id="analysis-versions-toggle" type="button" aria-expanded="false" hidden>Versiones <span id="analysis-versions-count"></span> ▾</button><div class="analysis-versions-menu" id="analysis-versions-menu" hidden></div></div><button class="secondary-button analysis-version-upgrade" id="analysis-version-upgrade" type="button" hidden></button><label class="analysis-reviewed-admin-toggle admin-only" id="analysis-reviewed-toggle" hidden title="Activar o desactivar marca de revisión humana (solo admin)"><input type="checkbox" id="analysis-reviewed-checkbox"><span>Revisado</span></label></div><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button><button class="secondary-button admin-only admin-regen-report-btn" id="admin-regenerate-report" type="button" hidden title="Volver a generar este informe de nuevo con IA (elimina el informe actual)">🔄 Volver a generar informe (Admin)</button></div></div>
+                  <div class="result-preview" id="result-preview" hidden><div class="result-heading"><div><span class="section-index">ANÁLISIS COMPLETADO</span><h3 id="result-title">Informe generado</h3></div><span class="result-status"><span class="status-dot"></span> 3 agentes completados</span></div><div class="result-report" id="report-body"></div><div class="analysis-feedback-bar" id="analysis-feedback-bar"><div class="analysis-rating-wrap"><span class="feedback-label">Valorar este análisis:</span><div class="rating-stars" id="rating-stars" role="radiogroup" aria-label="Valorar análisis"><button type="button" class="star-btn" data-value="1" title="1 estrella">★</button><button type="button" class="star-btn" data-value="2" title="2 estrellas">★</button><button type="button" class="star-btn" data-value="3" title="3 estrellas">★</button><button type="button" class="star-btn" data-value="4" title="4 estrellas">★</button><button type="button" class="star-btn" data-value="5" title="5 estrellas">★</button></div><span class="rating-summary-text" id="rating-summary-text"></span></div><button type="button" class="report-error-trigger" id="report-error-trigger"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Reportar error</button></div><div class="result-actions"><div class="analysis-downloads-wrap"><button class="primary-button analysis-downloads-toggle" id="analysis-downloads-toggle" type="button" aria-expanded="false">Descargar <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v9M8 10l4 4 4-4M6 18h12"/></svg> ▾</button><div class="analysis-downloads-menu" id="analysis-downloads-menu" hidden><button class="download-menu-item download-button" data-format="pdf" type="button">PDF (.pdf)</button><button class="download-menu-item download-button" data-format="docx" type="button">Word (.docx)</button><button class="download-menu-item download-button" data-format="odt" type="button">ODT (.odt)</button><button class="download-menu-item download-button" data-format="html" type="button">Web (.html)</button></div></div><button class="secondary-button" id="copy-report-url" type="button" title="Copiar enlace permanente de este informe">🔗 Copiar enlace</button><div class="analysis-version-box" id="analysis-version-box" hidden><span class="analysis-reviewed-badge" id="analysis-reviewed-badge" hidden title="Este análisis ha sido revisado por un humano" aria-label="Este análisis ha sido revisado por un humano"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span>Revisado</span></span><div class="analysis-versions-wrap"><button class="secondary-button analysis-versions-toggle" id="analysis-versions-toggle" type="button" aria-expanded="false" hidden>Versiones <span id="analysis-versions-count"></span> ▾</button><div class="analysis-versions-menu" id="analysis-versions-menu" hidden></div></div><button class="secondary-button analysis-version-upgrade" id="analysis-version-upgrade" type="button" hidden></button><label class="analysis-reviewed-admin-toggle admin-only" id="analysis-reviewed-toggle" hidden title="Activar o desactivar marca de revisión humana (solo admin)"><input type="checkbox" id="analysis-reviewed-checkbox"><span>Revisado</span></label></div><button class="secondary-button" id="new-analysis" type="button">Analizar otro informe <span>↗</span></button><button class="secondary-button admin-only admin-ai-chat-btn" id="admin-ai-chat-btn" type="button" hidden title="Corregir datos o iterar este informe con el asistente IA (DeepSeek)">✨ Ajustar con IA (Admin)</button><button class="secondary-button admin-only admin-regen-report-btn" id="admin-regenerate-report" type="button" hidden title="Volver a generar este informe de nuevo con IA (elimina el informe actual)">🔄 Volver a generar informe (Admin)</button></div></div>
                 </div>
 
                 <aside class="panel coverage-panel" id="metodologia" hidden><div class="panel-heading compact"><div><span class="section-index">02 / PROCESO</span><h3>Qué ocurre después</h3></div><span class="method-icon">✦</span></div><p class="method-intro">Tres agentes revisan el documento en orden. Si no cumple el alcance, el análisis se detiene con una explicación clara.</p><div class="mini-pipeline"><div class="mini-step"><span class="mini-step-number">01</span><div><strong>Origen</strong><span>Estados Unidos</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step"><span class="mini-step-number">02</span><div><strong>Sector</strong><span>Consumo defensivo</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div><div class="pipeline-connector"></div><div class="mini-step final"><span class="mini-step-number">03</span><div><strong>Análisis</strong><span>Informe estructurado</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></div></div><div class="method-note"><span>i</span><p>La IA ordena la información. La decisión final siempre es tuya.</p></div></aside>
@@ -1219,18 +1219,25 @@
                   <span class="settings-group-icon">🌐</span>
                   <div>
                     <h4 class="settings-group-title">Idioma</h4>
-                    <p class="settings-group-desc">Elige el idioma de la interfaz. Se guardará en tu cuenta.</p>
+                    <p class="settings-group-desc">Elige el idioma de la interfaz y de los análisis. Se guardarán en tu cuenta.</p>
                   </div>
                 </div>
                 <div class="settings-card">
                   <div class="settings-select-row">
-                    <span>Idioma preferido</span>
+                    <span>Idioma de la interfaz</span>
                     <select id="pref-language" name="language">
                       <option value="es">Español</option>
                       <option value="en">English</option>
                     </select>
                   </div>
-                  <span class="settings-soon-note">⏳ La traducción de la interfaz llegará próximamente; de momento tu elección queda guardada en tu cuenta.</span>
+                  <div class="settings-select-row">
+                    <span>Idioma de los análisis</span>
+                    <select id="pref-analysis-language" name="analysisLanguage">
+                      <option value="es">Español</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                  <span class="settings-soon-note">Los informes nuevos se generarán en el idioma de análisis elegido. Cambiar el idioma de la interfaz no modifica los análisis ya guardados.</span>
                 </div>
               </div>
             </div>
@@ -1555,7 +1562,8 @@
   </div>
 
   <script src="/js/shared/htmlUtils.js"></script>
-  <script src="/js/auth/authUI.js"></script>
+  <script src="/js/shared/i18n.js?v=3"></script>
+  <script src="/js/auth/authUI.js?v=2"></script>
   <script src="/authFlow.js"></script>
 
   <script src="/authOAuth.js"></script>
@@ -1570,7 +1578,7 @@
   <script src="/js/watchlists/watchlistsUI.js"></script>
 
   <script src="/watchlists.js?v=12"></script>
-  <script src="/js/portfolio/portfolioFormatting.js"></script>
+  <script src="/js/portfolio/portfolioFormatting.js?v=1"></script>
   <script src="/js/portfolio/portfolioDonuts.js"></script>
   <script src="/js/portfolio/portfolioHistory.js"></script>
   <script src="/js/portfolio/portfolioDividendsBenchmarkBase.js"></script>
@@ -1646,8 +1654,8 @@
   <script src="/js/portfolio/portfolioSection.js"></script>
   <script src="/portfolio.js?v=71"></script>
   <script src="/theme.js?v=1"></script>
-  <script src="/js/settings/settingsForm.js"></script>
-  <script src="/settings.js?v=6"></script>
+  <script src="/js/settings/settingsForm.js?v=1"></script>
+  <script src="/settings.js?v=7"></script>
   <script src="/js/alerts/priceAlertsRender.js"></script>
   <script src="/priceAlerts.js?v=5"></script>
   <script src="/js/forum/forumRender.js"></script>
@@ -1670,20 +1678,20 @@
   <script src="/js/analisis/analisisChartsDividends.js"></script>
 
   <script src="/js/analisis/analisisCharts.js"></script>
-  <script src="/js/analisis/analisisTablesCore.js"></script>
+  <script src="/js/analisis/analisisTablesCore.js?v=2"></script>
 
-  <script src="/js/analisis/analisisTablesReport.js"></script>
+  <script src="/js/analisis/analisisTablesReport.js?v=2"></script>
 
   <script src="/js/analisis/analisisTables.js?v=35"></script>
   <script src="/js/analisis/analisisHistory.js"></script>
   <script src="/js/analisis/analisisVersions.js"></script>
   <script src="/analisisState.js"></script>
 
-  <script src="/js/analisis/analisisCore.js"></script>
+  <script src="/js/analisis/analisisCore.js?v=1"></script>
 
   <script src="/js/analisis/analisisProgress.js"></script>
 
-  <script src="/js/analisis/analisisActions.js"></script>
+  <script src="/js/analisis/analisisActions.js?v=1"></script>
 
   <script src="/js/analisis/analisisVersionControl.js"></script>
 
@@ -1694,13 +1702,14 @@
   <script src="/js/analisis/analisisHistoryWiring.js"></script>
 
   <script src="/js/analisis/analisisInit.js"></script>
+  <script src="/js/analisis/analisisAdminChat.js"></script>
 
   <script src="/analisis.js?v=36"></script>
   <script src="/js/novedades/novedadesRender.js"></script>
   <script src="/novedades.js?v=6"></script>
   <script src="/guias.js?v=4"></script>
   <script src="/donations.js?v=3"></script>
-  <script src="/js/empresa/empresaFormatting.js?v=75"></script>
+  <script src="/js/empresa/empresaFormatting.js?v=76"></script>
   <script src="/js/empresa/empresaChartUtils.js?v=75"></script>
   <script src="/js/empresa/empresaValuationMetrics.js"></script>
 
@@ -1758,7 +1767,7 @@
   <script src="/js/empresa/empresaValuationChartTimeline.js?v=1"></script>
   <script src="/js/empresa/empresaValuationChart.js?v=2"></script>
   <script src="/js/empresa/empresaPriceChart.js?v=2"></script>
-  <script src="/js/empresa/empresaCore.js"></script>
+  <script src="/js/empresa/empresaCore.js?v=1"></script>
 
   <script src="/js/empresa/empresaCompany.js?v=80"></script>
 
@@ -1769,5 +1778,33 @@
   <script src="/js/empresa/empresaBoot.js?v=80"></script>
 
   <script src="/empresa.js?v=80"></script>
+
+  <!-- Mini-chat de administración con DeepSeek para iterar el informe -->
+  <div class="admin-ai-chat-drawer" id="admin-ai-chat-drawer" hidden aria-hidden="true">
+    <div class="admin-ai-chat-header">
+      <div class="admin-ai-chat-title-wrap">
+        <div class="admin-ai-chat-title-row">
+          <span class="admin-ai-chat-badge">DeepSeek</span>
+          <h4 class="admin-ai-chat-title">Iterar informe con IA</h4>
+        </div>
+        <span class="admin-ai-chat-subtitle" id="admin-ai-chat-subtitle"></span>
+      </div>
+      <div class="admin-ai-chat-header-actions">
+        <button type="button" class="admin-ai-chat-close" id="admin-ai-chat-close" title="Cerrar asistente">✕</button>
+      </div>
+    </div>
+    <div class="admin-ai-chat-messages" id="admin-ai-chat-messages"></div>
+    <div class="admin-ai-chat-suggestions" id="admin-ai-chat-suggestions">
+      <span class="suggestion-chip" data-prompt="Corrige la deuda neta a ">Corregir deuda neta</span>
+      <span class="suggestion-chip" data-prompt="Ajusta el cálculo de Free Cash Flow y capital allocation a ">Ajustar FCF</span>
+      <span class="suggestion-chip" data-prompt="Actualiza el dividendo y las recompras a ">Dividendos / Recompras</span>
+    </div>
+    <form class="admin-ai-chat-input-wrap" id="admin-ai-chat-form">
+      <textarea class="admin-ai-chat-textarea" id="admin-ai-chat-input" placeholder="Indica qué corregir o cambiar en este informe..." rows="1"></textarea>
+      <button type="submit" class="admin-ai-chat-send" id="admin-ai-chat-send" title="Enviar a DeepSeek">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </form>
+  </div>
 </body>
 </html>

@@ -40,7 +40,8 @@ export function jsonLdScript(obj) {
  * @param {number} limit - Número de elementos.
  * @returns {Promise<object>} Objeto Schema.org de tipo ItemList.
  */
-export async function buildFeaturedItemList(name, url, limit) {
+export async function buildFeaturedItemList(name, url, limit, lang = 'es') {
+  const isEn = lang === 'en';
   let companies = [];
   try {
     companies = await getFeaturedCompanies(limit);
@@ -60,21 +61,28 @@ export async function buildFeaturedItemList(name, url, limit) {
         '@type': 'Corporation',
         name: company.name ?? company.ticker,
         tickerSymbol: company.ticker,
-        url: `${config.siteUrl}/empresa/${encodeURIComponent(company.ticker)}`,
+        url: isEn
+          ? `${config.siteUrl}/en/empresa/${encodeURIComponent(company.ticker)}`
+          : `${config.siteUrl}/empresa/${encodeURIComponent(company.ticker)}`,
       },
     })),
   };
 }
 
-export async function getHomeJsonLd() {
-  return buildFeaturedItemList('Empresas analizadas en Cifra', `${config.siteUrl}/`, 8);
+export async function getHomeJsonLd(lang = 'es') {
+  return lang === 'en'
+    ? buildFeaturedItemList('Companies analyzed on Cifra', `${config.siteUrl}/en`, 8, 'en')
+    : buildFeaturedItemList('Empresas analizadas en Cifra', `${config.siteUrl}/`, 8, 'es');
 }
 
-export async function getCompaniesJsonLd() {
-  return buildFeaturedItemList('Empresas de consumo defensivo de EE. UU. en Cifra', `${config.siteUrl}/empresa`, 28);
+export async function getCompaniesJsonLd(lang = 'es') {
+  return lang === 'en'
+    ? buildFeaturedItemList('U.S. Consumer Staples Companies on Cifra', `${config.siteUrl}/en/empresa`, 28, 'en')
+    : buildFeaturedItemList('Empresas de consumo defensivo de EE. UU. en Cifra', `${config.siteUrl}/empresa`, 28, 'es');
 }
 
-export function buildCompanyJsonLd(meta, profile) {
+export function buildCompanyJsonLd(meta, profile, lang = 'es') {
+  const isEn = lang === 'en';
   const corporationId = `${meta.url}/#corporation`;
   const breadcrumbId = `${meta.url}/#breadcrumb`;
   const faqId = `${meta.url}/#faq`;
@@ -92,7 +100,9 @@ export function buildCompanyJsonLd(meta, profile) {
     identifier: { '@type': 'PropertyValue', name: 'Ticker', value: meta.ticker },
     isBasedOn: secEdgarUrl,
     citation: secEdgarUrl,
-    knowsAbout: ['Análisis fundamental', 'Informes 10-Q y 10-K', 'SEC EDGAR', 'Flujo de caja libre', 'Asignación de capital'],
+    knowsAbout: isEn
+      ? ['Fundamental analysis', '10-Q and 10-K filings', 'SEC EDGAR', 'Free cash flow', 'Capital allocation']
+      : ['Análisis fundamental', 'Informes 10-Q y 10-K', 'SEC EDGAR', 'Flujo de caja libre', 'Asignación de capital'],
   };
   if (profile.sector && profile.sector !== '—') corporation.sector = profile.sector;
   if (profile.industry) corporation.industry = profile.industry;
@@ -106,10 +116,76 @@ export function buildCompanyJsonLd(meta, profile) {
   if (profile.lastFiling?.form) {
     corporation.subjectOf = {
       '@type': 'CreativeWork',
-      name: `${profile.lastFiling.form} de ${meta.name}`,
+      name: isEn ? `${meta.name} Form ${profile.lastFiling.form}` : `${profile.lastFiling.form} de ${meta.name}`,
       datePublished: profile.lastFiling.filedAt ?? undefined,
     };
   }
+
+  const breadcrumbs = isEn
+    ? [
+        { '@type': 'ListItem', position: 1, name: 'Cifra', item: `${config.siteUrl}/en` },
+        { '@type': 'ListItem', position: 2, name: 'Companies', item: `${config.siteUrl}/en/empresa` },
+        { '@type': 'ListItem', position: 3, name: `${meta.ticker} · ${meta.name}`, item: meta.url },
+      ]
+    : [
+        { '@type': 'ListItem', position: 1, name: 'Cifra', item: `${config.siteUrl}/` },
+        { '@type': 'ListItem', position: 2, name: 'Empresas', item: `${config.siteUrl}/empresa` },
+        { '@type': 'ListItem', position: 3, name: `${meta.ticker} · ${meta.name}`, item: meta.url },
+      ];
+
+  const faqItems = isEn
+    ? [
+        {
+          '@type': 'Question',
+          name: `What business does ${meta.name} operate in and where is it listed?`,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: `${meta.name} (${meta.ticker}) is listed on ${profile.exchange || 'the U.S. stock market'} and operates in the ${profile.industry || profile.sector || 'consumer staples'} industry according to official SEC EDGAR classification.`,
+          },
+        },
+        {
+          '@type': 'Question',
+          name: `Where can you view official SEC 10-Q and 10-K filings for ${meta.ticker}?`,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: `Official 10-Q (quarterly) and 10-K (annual) filings for ${meta.name} are registered with the SEC under CIK ${profile.cik}. On Cifra you can access primary EDGAR documents and AI-assisted financial analyses.`,
+          },
+        },
+        {
+          '@type': 'Question',
+          name: `How does Cifra analyze financial results for ${meta.name}?`,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: `Cifra examines official filings of ${meta.name} (${meta.ticker}), extracting revenue, operating income, net income, free cash flow (FCF), dividends, share buybacks, and debt across two time horizons.`,
+          },
+        },
+      ]
+    : [
+        {
+          '@type': 'Question',
+          name: `¿Qué actividad tiene ${meta.name} y en qué sector cotiza?`,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: `${meta.name} (${meta.ticker}) cotiza en ${profile.exchange || 'la bolsa de EE. UU.'} y opera en la industria de ${profile.industry || profile.sector || 'consumo defensivo'} del sector de consumo defensivo según la clasificación oficial de SEC EDGAR.`,
+          },
+        },
+        {
+          '@type': 'Question',
+          name: `¿Dónde consultar los informes 10-Q y 10-K oficiales de ${meta.ticker}?`,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: `Los informes 10-Q (trimestrales) y 10-K (anuales) de ${meta.name} se presentan ante la SEC bajo el CIK ${profile.cik}. En Cifra puedes consultar el histórico directo de filings oficiales de EDGAR y análisis financieros estructurados con IA.`,
+          },
+        },
+        {
+          '@type': 'Question',
+          name: `¿Cómo analiza Cifra los resultados financieros de ${meta.name}?`,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: `Cifra examina los informes oficiales de ${meta.name} (${meta.ticker}) extrayendo ingresos, beneficio operativo, beneficio neto, flujo de caja libre (FCF), dividendos, recompras de acciones y deuda en dos horizontes temporales para ayudar a los inversores en su toma de decisiones.`,
+          },
+        },
+      ];
 
   return {
     '@context': 'https://schema.org',
@@ -121,7 +197,7 @@ export function buildCompanyJsonLd(meta, profile) {
         url: meta.url,
         name: meta.title,
         description: meta.description,
-        inLanguage: 'es',
+        inLanguage: isEn ? 'en' : 'es',
         isPartOf: { '@id': `${config.siteUrl}/#website` },
         mainEntity: { '@id': corporationId },
         breadcrumb: { '@id': breadcrumbId },
@@ -141,41 +217,12 @@ export function buildCompanyJsonLd(meta, profile) {
       {
         '@type': 'BreadcrumbList',
         '@id': breadcrumbId,
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Cifra', item: `${config.siteUrl}/` },
-          { '@type': 'ListItem', position: 2, name: 'Empresas', item: `${config.siteUrl}/empresa` },
-          { '@type': 'ListItem', position: 3, name: `${meta.ticker} · ${meta.name}`, item: meta.url },
-        ],
+        itemListElement: breadcrumbs,
       },
       {
         '@type': 'FAQPage',
         '@id': faqId,
-        mainEntity: [
-          {
-            '@type': 'Question',
-            name: `¿Qué actividad tiene ${meta.name} y en qué sector cotiza?`,
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: `${meta.name} (${meta.ticker}) cotiza en ${profile.exchange || 'la bolsa de EE. UU.'} y opera en la industria de ${profile.industry || profile.sector || 'consumo defensivo'} del sector de consumo defensivo según la clasificación oficial de SEC EDGAR.`,
-            },
-          },
-          {
-            '@type': 'Question',
-            name: `¿Dónde consultar los informes 10-Q y 10-K oficiales de ${meta.ticker}?`,
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: `Los informes 10-Q (trimestrales) y 10-K (anuales) de ${meta.name} se presentan ante la SEC bajo el CIK ${profile.cik}. En Cifra puedes consultar el histórico directo de filings oficiales de EDGAR y análisis financieros estructurados con IA.`,
-            },
-          },
-          {
-            '@type': 'Question',
-            name: `¿Cómo analiza Cifra los resultados financieros de ${meta.name}?`,
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: `Cifra examina los informes oficiales de ${meta.name} (${meta.ticker}) extrayendo ingresos, beneficio operativo, beneficio neto, flujo de caja libre (FCF), dividendos, recompras de acciones y deuda en dos horizontes temporales para ayudar a los inversores en su toma de decisiones.`,
-            },
-          },
-        ],
+        mainEntity: faqItems,
       },
     ],
   };

@@ -65,7 +65,7 @@
         ${positionsTableHtml(PS.positionsView)}
         ${gruposSectionHtml()}
         <div class="pf-card-footer">
-          <button class="pf-footer-link" type="button" data-pf-export>⇩ Exportar CSV</button>
+          <button class="pf-footer-link" type="button" data-pf-export>${window.I18n ? window.I18n.t('⇩ Exportar CSV') : '⇩ Exportar CSV'}</button>
         </div>
       </div>`;
   }

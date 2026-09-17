@@ -10,15 +10,16 @@
   /**
    * Lee la configuración visual y de idioma desde el formulario.
    * @param {HTMLFormElement} form
-   * @returns {{ theme: string, darkMode: boolean, language: string }}
+   * @returns {{ theme: string, darkMode: boolean, language: string, analysisLanguage: string }}
    */
   function readAppearance(form) {
-    if (!form) return { theme: 'indigo', darkMode: false, language: 'es' };
+    if (!form) return { theme: 'indigo', darkMode: false, language: 'es', analysisLanguage: 'es' };
     const activeTheme = form.querySelector('.theme-option.active');
     return {
       theme: activeTheme?.dataset.themeValue || 'indigo',
       darkMode: Boolean(form.querySelector('#pref-darkmode')?.checked),
       language: form.querySelector('#pref-language')?.value || 'es',
+      analysisLanguage: form.querySelector('#pref-analysis-language')?.value || 'es',
     };
   }
 
@@ -32,6 +33,7 @@
     const appearance = readAppearance(form);
     return {
       language: appearance.language,
+      analysisLanguage: appearance.analysisLanguage,
       theme: appearance.theme,
       darkMode: appearance.darkMode,
       watchlistAutoCalendar: Boolean(form.querySelector('#pref-wl-calendar')?.checked),
@@ -86,6 +88,9 @@
     const langSelect = form.querySelector('#pref-language');
     if (langSelect) langSelect.value = preferences.language || 'es';
 
+    const analysisLangSelect = form.querySelector('#pref-analysis-language');
+    if (analysisLangSelect) analysisLangSelect.value = preferences.analysisLanguage || 'es';
+
     const userInput = form.querySelector('#pref-username');
     if (userInput && currentUsername) userInput.value = currentUsername;
   }
@@ -107,6 +112,9 @@
 
     const darkToggle = form.querySelector('#pref-darkmode');
     darkToggle?.addEventListener('change', onPreview);
+
+    const langSelect = form.querySelector('#pref-language');
+    langSelect?.addEventListener('change', onPreview);
   }
 
   /**

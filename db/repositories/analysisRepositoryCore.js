@@ -7,7 +7,7 @@ import { query } from '../pool.js';
 const ANALYSIS_COLUMNS = `
     id, user_id, is_public, filename, status, error, origin, sector, report,
     model_used, version, subsector, sector_version, is_reviewed, reviewed_at, reviewed_by,
-    ticker, company_name, period_end, pdf_url, source_url, accession, created_at
+    ticker, company_name, period_end, pdf_url, source_url, accession, language, created_at
 `;
 
 export async function createAnalysis({
@@ -24,12 +24,13 @@ export async function createAnalysis({
   version = null,
   subsector = null,
   sectorVersion = null,
+  language = 'es',
 } = {}) {
   const { rows } = await query(
-    `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession, version, subsector, sector_version)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession, version, subsector, sector_version, language)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      RETURNING ${ANALYSIS_COLUMNS}`,
-    [userId, Boolean(isPublic), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession, version, subsector, sectorVersion],
+    [userId, Boolean(isPublic), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession, version, subsector, sectorVersion, language],
   );
   return rows[0];
 }
@@ -126,7 +127,7 @@ export async function listAnalyses({
 export async function updateAnalysis(id, fields) {
   const allowed = [
     'status', 'error', 'origin', 'sector', 'report', 'model_used', 'version', 'subsector', 'sector_version', 'is_public',
-    'ticker', 'company_name', 'period_end', 'pdf_url', 'source_url', 'accession',
+    'ticker', 'company_name', 'period_end', 'pdf_url', 'source_url', 'accession', 'language',
   ];
   const entries = Object.entries(fields).filter(([key]) => allowed.includes(key));
 
@@ -146,7 +147,7 @@ export async function updateAnalysis(id, fields) {
   return rows[0] ?? null;
 }
 
-export async function findLatestDoneAnalysis({ ticker, accession, userId = null }) {
+export async function findLatestDoneAnalysis({ ticker, accession, userId = null, language = null }) {
   if (!ticker || !accession) return null;
   const filename = `${ticker}-${accession}.pdf`;
   const { rows } = await query(
@@ -157,9 +158,10 @@ export async function findLatestDoneAnalysis({ ticker, accession, userId = null 
         AND status = 'done'
         AND report IS NOT NULL
         AND (is_public = true OR ($4::int IS NOT NULL AND user_id = $4))
+        AND ($5::text IS NULL OR language = $5)
       ORDER BY created_at DESC, id DESC
       LIMIT 1`,
-    [ticker, accession, filename, userId],
+    [ticker, accession, filename, userId, language || null],
   );
   return rows[0] ?? null;
 }
@@ -182,14 +184,15 @@ export async function findUserAnalysis({ userId, ticker, accession }) {
 }
 
 export async function setAnalysisReviewed(id, { isReviewed = true, userId = null } = {}) {
+  const numericUserId = Number.isInteger(Number(userId)) && Number(userId) > 0 ? Number(userId) : null;
   const { rows } = await query(
     `UPDATE analyses
      SET is_reviewed = $1,
          reviewed_at = CASE WHEN $1 THEN now() ELSE NULL END,
-         reviewed_by = CASE WHEN $1 THEN $2 ELSE NULL END
+         reviewed_by = CASE WHEN $1 THEN $2::integer ELSE NULL END
      WHERE id = $3
      RETURNING ${ANALYSIS_COLUMNS}`,
-    [Boolean(isReviewed), userId, id],
+    [Boolean(isReviewed), numericUserId, id],
   );
   return rows[0] ?? null;
 }
