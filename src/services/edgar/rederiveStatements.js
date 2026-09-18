@@ -98,6 +98,17 @@ export function rederiveCashValues(annual, quarterly) {
       if (cashTotal !== undefined) {
         values.cashAndShortTermInvestments = cashTotal;
       }
+      // El efectivo restringido suele venir partido en corriente + no corriente; si la suma de las
+      // partes supera al dato único (una de las partes), el total real es la suma.
+      const restrictedParts = [
+        Number.isFinite(Number(values.restrictedCashCurrent)) ? Number(values.restrictedCashCurrent) : null,
+        Number.isFinite(Number(values.restrictedCashNoncurrent)) ? Number(values.restrictedCashNoncurrent) : null,
+      ].filter((part) => part !== null);
+      if (restrictedParts.length) {
+        const partsTotal = restrictedParts.reduce((sum, part) => sum + part, 0);
+        const total = Number(values.restrictedCash);
+        if (!Number.isFinite(total) || partsTotal > total) values.restrictedCash = partsTotal;
+      }
       const stl = Number(values.shortTermLoans);
       const ltd = Number(values.longTermDebt);
       const ltdc = Number(values.longTermDebtCurrent);

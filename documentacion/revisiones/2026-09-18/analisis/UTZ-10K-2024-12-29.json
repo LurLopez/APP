@@ -1,0 +1,423 @@
+{
+  "filing": {
+    "ticker": "UTZ",
+    "name": "Utz Brands, Inc.",
+    "formType": "10-K",
+    "period": "2024-12-29",
+    "periodLabel": "FY 2024",
+    "filedAt": "2025-02-20",
+    "accession": "0001739566-25-000053",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/1739566/000173956625000053/utz-20241229.htm"
+  },
+  "provider": "deepseek",
+  "elapsed": 54.484,
+  "analysisId": 593,
+  "origin": "US",
+  "formType": "10-K",
+  "sector": "defensive_consumer",
+  "subsector": null,
+  "version": "0.1",
+  "sectorVersion": "1",
+  "language": "es",
+  "report": {
+    "company": "Utz Brands, Inc.",
+    "ticker": "UTZ",
+    "periodTitle": "2024 ANNUAL results — UTZ",
+    "reportingPeriod": "2024-12-29",
+    "formType": "10-K",
+    "horizons": [
+      {
+        "label": "EN TODO EL AÑO (12 MESES)",
+        "sales": {
+          "rows": [
+            {
+              "name": "Ventas",
+              "adjusted": "1409,3M",
+              "prevAdjusted": "1438,2M",
+              "pctAdjusted": "-2,01 %",
+              "normal": "1409,3M",
+              "prevNormal": "1438,2M",
+              "pctNormal": "-2,01 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Bruto",
+              "adjusted": "494,8M",
+              "prevAdjusted": "456,5M",
+              "pctAdjusted": "+8,39 %",
+              "normal": "494,8M",
+              "prevNormal": "456,5M",
+              "pctNormal": "+8,39 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Operativo",
+              "adjusted": "71,5M",
+              "prevAdjusted": "28,6M",
+              "pctAdjusted": "+150 %",
+              "normal": "58,9M",
+              "prevNormal": "16M",
+              "pctNormal": "+268,13 %",
+              "isAdjusted": true,
+              "adjustedNote": "*1"
+            },
+            {
+              "name": "EBT",
+              "adjusted": "82,1M",
+              "prevAdjusted": "-26,7M",
+              "pctAdjusted": "+407,49 %",
+              "normal": "69,5M",
+              "prevNormal": "-39,3M",
+              "pctNormal": "—",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Neto",
+              "adjusted": "63,2M",
+              "prevAdjusted": "-20,6M",
+              "pctAdjusted": "+406,8 %",
+              "normal": "30,7M",
+              "prevNormal": "-40M",
+              "pctNormal": "—",
+              "isAdjusted": true,
+              "adjustedNote": "*2"
+            }
+          ],
+          "notes": [
+            "*1: En 2023 se registró una pérdida por deterioro de activos fijos de 12,6M relacionada con el cierre de la planta de Birmingham, Alabama. Se suma de vuelta en la columna Anterior Ajustado del Beneficio Operativo (16M + 12,6M = 28,6M). En 2024 no hubo deterioros (impairmentsYtd = 0).",
+            "*2: El tipo efectivo reportado en 2024 fue del 55,8 %, muy alejado del tipo normalizado del 23 %. Se normaliza el gasto fiscal al 23 % del EBT ajustado: 82,1M × 0,23 = 18,9M. Beneficio Neto Ajustado = 82,1M × 0,77 = 63,2M. En 2023, con EBT ajustado de -26,7M, el Beneficio Neto Ajustado resultante es -20,6M."
+          ],
+          "shares": "83,5M (al final del 2024, no el promedio) -> %2,8 más (81,2M) -> efecto en el BPA: -2,8 %",
+          "eps": "0,77 $ -> %35,1 más (0,57 $)"
+        },
+        "cashFlow": {
+          "scenarios": [
+            "Normal (WC=22)",
+            "Ajustado (WC=-2)"
+          ],
+          "rows": [
+            {
+              "name": "Cash Flow",
+              "values": [
+                "106,2",
+                "78,4"
+              ],
+              "cashFlowAdjustedNote": "*2"
+            },
+            {
+              "name": "CAPEX",
+              "values": [
+                "98,6",
+                "98,6"
+              ]
+            },
+            {
+              "name": "FCF",
+              "values": [
+                "7,6",
+                "-20,2"
+              ]
+            },
+            {
+              "name": "FCF/Acción",
+              "values": [
+                "0,09 $",
+                "-0,24 $"
+              ]
+            },
+            {
+              "name": "Dividendo",
+              "values": [
+                "21,7",
+                "21,7"
+              ]
+            },
+            {
+              "name": "Libre",
+              "values": [
+                "-14,1",
+                "-41,9"
+              ]
+            }
+          ],
+          "notes": [
+            "*1: WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (150,9 - 101,4 - 119,9) × (3% + 0%) = -2,1M en todo el año -> en 12 meses = -2,1M. Desviación del circulante reportado (21,8M) frente al WK teórico (-2,1M): 23,9M. El Cash Flow ajustado resta esa desviación: 106,2M - (23,9M) = 82,3M.",
+            "*2: Impuestos: La empresa debería haber pagado 18,9M en impuestos (23 % sobre el EBT ajustado de 82,1M) y solamente ha pagado 15M en efectivo según el estado de flujos. Ajuste de -3,9M al Cash Flow Ajustado por la discrepancia fiscal. La cifra final combina los dos ajustes sobre el Cash Flow: 106,2M -23,9M (circulante) -3,9M (impuestos) = 78,4M."
+          ]
+        },
+        "capital": {
+          "rows": [
+            {
+              "name": "Libre",
+              "value": "-14,1"
+            },
+            {
+              "name": "Desinversiones",
+              "value": "194,1"
+            },
+            {
+              "name": "Caja",
+              "value": "-4,1"
+            },
+            {
+              "name": "Deuda",
+              "value": "-135,9"
+            },
+            {
+              "name": "En total",
+              "value": "40"
+            }
+          ],
+          "verification": "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle.",
+          "notes": [
+            "*1: Deuda balance: 926,4M -> 790,5M (-135,9M). Deuda neta: 874,4M -> 734,4M (-140M). Caja balance: 52M (2023) -> 56,1M (2024) (+4,1M); la caja aumentó: uso de capital (-); fila Caja = -4,1M."
+          ]
+        }
+      }
+    ],
+    "conclusion": {
+      "repurchases": {
+        "title": "1: Recompras",
+        "text": "Durante 2024 la compañía no ejecutó ninguna recompra de acciones propias (shareBuybacks = 0). No se detalla ningún programa de recompra activo en el informe 10-K. La compañía ha priorizado la reducción de deuda y las desinversiones de marcas no estratégicas frente a la retribución vía recompras.",
+        "authorizationRemaining": null,
+        "shareCountEvolution": "De 81,2M de acciones en diciembre de 2023 a 83,5M en diciembre de 2024 (+2,8 %)",
+        "bpaImpact": "El aumento del número de acciones (+2,8 %) tuvo un efecto negativo de aproximadamente -2,8 % en el BPA del último año.",
+        "futureProjection": "Sin programa de recompra activo ni autorización remanente, no se puede proyectar un impulso al BPA por esta vía. La compañía podría destinar su flujo libre futuro a recompras si así lo decidiera, pero no hay compromiso anunciado.",
+        "sharesHistory": [
+          {
+            "year": 2022,
+            "shares": 77.6
+          },
+          {
+            "year": 2023,
+            "shares": 81.2
+          },
+          {
+            "year": 2024,
+            "shares": 83.5
+          }
+        ],
+        "secSnippet": {
+          "title": "Share Repurchase Program (Form 10-K)",
+          "summary": "No se detalla programa de recompra de acciones en el 10-K de 2024.",
+          "headers": [
+            "Año",
+            "Acciones recompradas",
+            "Coste agregado (millones)"
+          ],
+          "rows": [
+            [
+              "2024",
+              "0",
+              "$0"
+            ],
+            [
+              "2023",
+              "0",
+              "$0"
+            ],
+            [
+              "2022",
+              "0",
+              "$0"
+            ]
+          ]
+        },
+        "programAuthorization": null,
+        "programRemaining": null,
+        "authorizationExpiry": null,
+        "buybackPctOfShares": 2.8,
+        "buybackPctOfSharesEstimated": true,
+        "programChanges": null,
+        "programEvent": null
+      },
+      "outlook": {
+        "title": "2: Outlook",
+        "text": "La dirección proyecta para **2025** un crecimiento orgánico de ventas netas de un **dígito bajo** (aproximadamente **~$1.450M – $1.500M** frente a los **$1.409,3M** de 2024), un crecimiento del EBITDA ajustado del **6 % al 10 %** (desde **$200,2M** en 2024, implicando **~$212M – $220M**), y un crecimiento del BPA ajustado del **10 % al 15 %** (desde **$0,77** en 2024, implicando **~$0,85 – $0,89**). El gasto de capital se prevé entre **$90M y $100M** (frente a **$98,6M** en 2024) y el gasto por intereses en aproximadamente **$43M** (frente a **$44,9M** en 2024).",
+        "fcfAnalysis": "El guidance de CAPEX de **$90M – $100M** es ligeramente inferior al CAPEX ejecutado en 2024 (**$98,6M**). Con un flujo de caja operativo que en 2024 fue de **$106,2M** y un FCF de solo **$7,6M**, la compañía necesitará mejorar su conversión de caja para cubrir el dividendo anual de aproximadamente **$21,7M**. El programa de ahorro de costes de **$150M+** para 2026 debería contribuir a mejorar la generación de caja.",
+        "riskFactors": "Riesgo de precios de materias primas como **papas, aceite, harina, trigo, maíz, queso, especias y materiales de embalaje**. La inflación en estos insumos podría comprimir los márgenes operativos, que en 2024 fueron del **4,2 %**. Adicionalmente, la reducción de ventas por la desinversión de marcas (**-3,3 %**) presiona el crecimiento orgánico.",
+        "efficiencyPlans": "Programa de ahorro de costes de **$150M+** para 2026 en el marco de la **Integrated Supply Chain Strategy**, que incluye optimización de la red de fabricación, excelencia en abastecimiento, automatización y mejora continua. El plan abarca el periodo **2024-2026**.",
+        "secSnippet": {
+          "title": "2025 Guidance / Full Year Outlook",
+          "summary": "Metas cuantitativas oficiales para el próximo ejercicio",
+          "headers": [
+            "Métrica",
+            "2024 (Año anterior)",
+            "Guidance 2025E*",
+            "Cifra Proyectada 2025E"
+          ],
+          "rows": [
+            [
+              "Crecimiento orgánico de ventas netas",
+              "$1.409,3M",
+              "Dígito bajo",
+              "~$1.450M – $1.500M"
+            ],
+            [
+              "Crecimiento del EBITDA ajustado",
+              "$200,2M",
+              "6 % a 10 %",
+              "~$212M – $220M"
+            ],
+            [
+              "Crecimiento del BPA ajustado",
+              "$0,77",
+              "10 % a 15 %",
+              "~$0,85 – $0,89"
+            ],
+            [
+              "Gasto de capital",
+              "$98,6M",
+              "$90M – $100M",
+              "~$90M – $100M"
+            ],
+            [
+              "Gasto por intereses",
+              "$44,9M",
+              "~$43M",
+              "~$43M"
+            ]
+          ]
+        }
+      },
+      "debt": {
+        "title": "3: Deuda",
+        "text": "La deuda total se sitúa en **790,5M$** (**-135,9M$** vs ejercicio anterior) y la deuda neta en **734,4M$** (**-140M$**). El calendario de vencimientos de los próximos 5 años muestra un vencimiento de **31,4M$** en **2026**. La compañía no desglosa el calendario completo de vencimientos por tramos en el 10-K.",
+        "refinancingAnalysis": "Se refinanció el **Term Loan B** mediante una modificación para refinanciar **630,3M$**, reduciendo el tipo de **SOFR+3,00 %** a **SOFR+2,75 %** (una mejora de **-0,25 puntos porcentuales**).",
+        "refinancingImpact": "La reducción del tipo en **0,25 puntos porcentuales** sobre **630,3M$** supone un ahorro bruto anual de intereses de aproximadamente **1,6M$**. Tras impuestos (~23 %), el ahorro neto es de **~1,2M$**, lo que mejora el BPA en torno a **+0,01 $/acción** (con 83,5M de acciones).",
+        "maturitySchedule": [
+          {
+            "year": 2026,
+            "label": "Vencimientos contractuales de deuda",
+            "amount": 31.4,
+            "type": "Deuda total",
+            "rate": null,
+            "estimated": false
+          }
+        ],
+        "maturityAfterFive": null,
+        "debtHistory": [
+          {
+            "year": 2019,
+            "totalDebt": 42,
+            "netDebt": 41
+          },
+          {
+            "year": 2020,
+            "totalDebt": 779,
+            "netDebt": 732
+          },
+          {
+            "year": 2021,
+            "totalDebt": 842,
+            "netDebt": 800
+          },
+          {
+            "year": 2022,
+            "totalDebt": 912,
+            "netDebt": 839
+          },
+          {
+            "year": 2023,
+            "totalDebt": 900,
+            "netDebt": 848
+          },
+          {
+            "year": 2024,
+            "totalDebt": 769,
+            "netDebt": 713
+          }
+        ],
+        "refinancing": {
+          "occurred": true,
+          "oldDebtRate": 3,
+          "newDebtRate": 2.75,
+          "amountRefinanced": 630.3,
+          "annualInterestImpact": 1.6,
+          "epsImpact": 0.01
+        },
+        "secTable": {
+          "headers": [
+            "Obligación",
+            "Vencimiento",
+            "December 31, 2024",
+            "December 31, 2023"
+          ],
+          "rows": [
+            [
+              "Vencimientos contractuales de deuda",
+              "2026",
+              "$31,4",
+              "—"
+            ]
+          ]
+        }
+      },
+      "acquisitions": {
+        "title": "4: Operaciones corporativas",
+        "text": "No se realizaron adquisiciones materiales durante el ejercicio.\n\n**Desinversiones y ventas de participaciones:** Se vendió **Good Health y R.W. Garcia**, Marcas de snacks saludables y tortillas, junto con cinco plantas de fabricación asociadas. Lo vendido representa cerca del **3.3 %** de los ingresos consolidados. El importe cobrado fue de **167,5M$**. Comprador: Our Home. Motivo declarado de la venta: Optimización del portafolio, enfocándose en las marcas principales (Power Four Brands). Impacto esperado: Reducción de ventas netas en 3.3% y un impacto negativo de aproximadamente $30 millones en el flujo de caja operativo.\n\n**Reestructuraciones:** Se anunció un plan de reestructuración (**Integrated Supply Chain Strategy**): Optimización de la red de fabricación, excelencia en abastecimiento, automatización y mejora continua. Ahorro anual esperado: **150M$**. Plazo del ahorro: 2024-2026. Motivo declarado: Mejorar la eficiencia y reducir costos en la cadena de suministro. Impacto esperado: Ahorros de costos superiores a $150 millones para 2026.",
+        "hasDivestitures": true,
+        "hasSpinOffs": false,
+        "hasRestructurings": true
+      },
+      "dividends": {
+        "title": "5: Dividendos",
+        "text": "El dividendo por acción aumentó un **18,4 %** en 2024, hasta **0,27 $**, con un pago total de **22,6M$**. El BPA ajustado del ejercicio fue de **0,77 $**.",
+        "changeType": "increase",
+        "changePct": 18.4,
+        "history": [
+          {
+            "year": 2020,
+            "dps": 0.11,
+            "total": null,
+            "eps": -1.64
+          },
+          {
+            "year": 2021,
+            "dps": 0.15,
+            "total": 11.9,
+            "eps": 0.25
+          },
+          {
+            "year": 2022,
+            "dps": 0.21,
+            "total": 17.2,
+            "eps": 0
+          },
+          {
+            "year": 2023,
+            "dps": 0.23,
+            "total": 18.5,
+            "eps": -0.31,
+            "adjustedEps": 0.57
+          },
+          {
+            "year": 2024,
+            "dps": 0.25,
+            "total": 21.7,
+            "eps": 0.19,
+            "adjustedEps": 0.77
+          }
+        ]
+      },
+      "watchlist": {
+        "title": "Cosas a tener en cuenta en 2025",
+        "items": [
+          "1: Evolución del crecimiento orgánico de ventas y la recuperación de márgenes operativos tras la desinversión de marcas.",
+          "2: Ejecución del programa de ahorro de costes de $150M+ para 2026 y su impacto en la generación de caja.",
+          "3: Refinanciación de la deuda que vence en 2026 y coste efectivo de los nuevos intereses.",
+          "4: Sostenibilidad del dividendo dado el estrecho margen de FCF (7,6M$ en 2024 frente a 21,7M$ de dividendo)."
+        ]
+      }
+    },
+    "rating": {
+      "score": 5,
+      "label": "NOTA DE RESULTADOS: 5",
+      "rationale": "Calificación puramente financiera basada en la realidad de las cuentas del año, las metas expuestas en el outlook oficial y la asignación de capital ejecutada. La compañía muestra una mejora significativa en beneficio operativo y neto, con una reducción de deuda de 135,9M$ y una refinanciación favorable del Term Loan B. Sin embargo, el FCF es muy estrecho (7,6M$) y no cubre el dividendo (21,7M$), y las ventas retroceden un 2,01 %. El outlook proyecta crecimiento moderado con mejora de márgenes. Sin especulación sobre el cumplimiento futuro."
+    },
+    "isAnnual": true,
+    "language": "es",
+    "fiscalQuarter": 4,
+    "fiscalYear": 2024
+  }
+}

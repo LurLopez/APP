@@ -6,3 +6,4 @@ uploads/*
 agentes
 PROYECTO.md
 .secrets/
+commit-development.sh

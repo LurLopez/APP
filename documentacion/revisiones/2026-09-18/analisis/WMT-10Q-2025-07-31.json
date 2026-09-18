@@ -1,0 +1,325 @@
+{
+  "filing": {
+    "ticker": "WMT",
+    "name": "Walmart Inc.",
+    "formType": "10-Q",
+    "period": "2025-07-31",
+    "periodLabel": "Q2 2026",
+    "filedAt": "2025-08-29",
+    "accession": "0000104169-25-000137",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000137/wmt-20250731.htm"
+  },
+  "provider": "deepseek",
+  "elapsed": 32.095,
+  "analysisId": 592,
+  "origin": "US",
+  "formType": "10-Q",
+  "sector": "defensive_consumer",
+  "subsector": null,
+  "version": "0.1",
+  "sectorVersion": "1",
+  "language": "es",
+  "report": {
+    "company": "Walmart Inc.",
+    "ticker": "WMT",
+    "periodTitle": "2026 Q2 results — WMT",
+    "reportingPeriod": "2025-07-31",
+    "horizons": [
+      {
+        "label": "ÚLTIMOS 3 MESES",
+        "sales": {
+          "rows": [
+            {
+              "name": "Ventas",
+              "adjusted": "175750M",
+              "prevAdjusted": "167767M",
+              "pctAdjusted": "+4,76 %",
+              "normal": "175750M",
+              "prevNormal": "167767M",
+              "pctNormal": "+4,76 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Bruto",
+              "adjusted": "42979M",
+              "prevAdjusted": "40957M",
+              "pctAdjusted": "+4,94 %",
+              "normal": "42979M",
+              "prevNormal": "40957M",
+              "pctNormal": "+4,94 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Operativo",
+              "adjusted": "7286M",
+              "prevAdjusted": "7940M",
+              "pctAdjusted": "-8,24 %",
+              "normal": "7286M",
+              "prevNormal": "7940M",
+              "pctNormal": "-8,24 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "EBT",
+              "adjusted": "9319M",
+              "prevAdjusted": "6213M",
+              "pctAdjusted": "+49,99 %",
+              "normal": "9319M",
+              "prevNormal": "6213M",
+              "pctNormal": "+49,99 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Neto",
+              "adjusted": "7175,6M",
+              "prevAdjusted": "4501M",
+              "pctAdjusted": "+59,42 %",
+              "normal": "7026M",
+              "prevNormal": "4501M",
+              "pctNormal": "+56,1 %",
+              "isAdjusted": true,
+              "adjustedNote": "*1"
+            }
+          ],
+          "notes": [
+            "*1: Impuestos: El EBT ajustado del trimestre asciende a 9319M. El impuesto reportado fue de 2168M (tipo efectivo del 23,3 %), dentro del rango de ±20 % respecto al 23 % del EBT ajustado (2143,4M), por lo que se conserva el impuesto reportado. Beneficio Neto Ajustado = 9319M − 2168M = 7151M. No obstante, se ha detectado que el tipo efectivo reportado (23,3 %) se sitúa ligeramente por encima del tipo normalizado del 23 %, sin desviación material que exija normalización."
+          ],
+          "shares": "7975M",
+          "eps": "0,90 $"
+        },
+        "cashFlow": {
+          "scenarios": [
+            "Normal (WC=-839)",
+            "Ajustado (WC=-61)"
+          ],
+          "rows": [
+            {
+              "name": "Cash Flow",
+              "values": [
+                "12941",
+                "13718,8"
+              ]
+            },
+            {
+              "name": "CAPEX",
+              "values": [
+                "6423",
+                "6423"
+              ]
+            },
+            {
+              "name": "FCF",
+              "values": [
+                "6518",
+                "7295,8"
+              ]
+            },
+            {
+              "name": "FCF/Acción",
+              "values": [
+                "0,82 $",
+                "0,91 $"
+              ]
+            },
+            {
+              "name": "Dividendo",
+              "values": [
+                "1875",
+                "1875"
+              ]
+            },
+            {
+              "name": "Libre",
+              "values": [
+                "4643",
+                "5420,8"
+              ]
+            }
+          ],
+          "notes": [
+            "*1: WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (60086 - 57729 - 10518) × (3% + 0%) = -244,8M en todo el año -> en 3 meses = -61,2M. Desviación del circulante reportado (-839M) frente al WK teórico (-61,2M): -777,8M. El Cash Flow ajustado resta esa desviación: 12941M - (-777,8M) = 13718,8M."
+          ]
+        },
+        "capital": {
+          "rows": [
+            {
+              "name": "Libre",
+              "value": "4643"
+            },
+            {
+              "name": "Recompras",
+              "value": "-1592"
+            },
+            {
+              "name": "Caja*1",
+              "value": "-120"
+            },
+            {
+              "name": "Deuda*1",
+              "value": "-2712"
+            },
+            {
+              "name": "En total",
+              "value": "219"
+            }
+          ],
+          "verification": "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle.",
+          "notes": [
+            "*1: Deuda balance: 46200M -> 43488M (-2712M). Deuda neta: 36889M -> 34057M (-2832M). Caja balance: 9311M (Q1) -> 9431M (Q2) (+120M); la caja aumentó: uso de capital (-); fila Caja = -120M."
+          ]
+        }
+      },
+      {
+        "label": "EN TODO EL AÑO (6 MESES)",
+        "sales": {
+          "rows": [
+            {
+              "name": "Ventas",
+              "adjusted": "339731M",
+              "prevAdjusted": "327705M",
+              "pctAdjusted": "+3,67 %",
+              "normal": "339731M",
+              "prevNormal": "327705M",
+              "pctNormal": "+3,67 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Bruto",
+              "adjusted": "82657M",
+              "prevAdjusted": "79464M",
+              "pctAdjusted": "+4,02 %",
+              "normal": "82657M",
+              "prevNormal": "79464M",
+              "pctNormal": "+4,02 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Operativo",
+              "adjusted": "14421M",
+              "prevAdjusted": "14781M",
+              "pctAdjusted": "-2,44 %",
+              "normal": "14421M",
+              "prevNormal": "14781M",
+              "pctNormal": "-2,44 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "EBT",
+              "adjusted": "15313M",
+              "prevAdjusted": "13248M",
+              "pctAdjusted": "+15,59 %",
+              "normal": "15313M",
+              "prevNormal": "13248M",
+              "pctNormal": "+15,59 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Neto",
+              "adjusted": "11791M",
+              "prevAdjusted": "9605M",
+              "pctAdjusted": "+22,76 %",
+              "normal": "11513M",
+              "prevNormal": "9605M",
+              "pctNormal": "+19,86 %",
+              "isAdjusted": true,
+              "adjustedNote": "*1"
+            }
+          ],
+          "notes": [
+            "*1: Impuestos: El EBT ajustado acumulado asciende a 15313M. El impuesto reportado fue de 3523M (tipo efectivo del 23,0 %), dentro del rango de ±20 % respecto al 23 % del EBT ajustado (3522M), por lo que se conserva el impuesto reportado. Beneficio Neto Ajustado = 15313M − 3523M = 11790M."
+          ],
+          "shares": "7975M",
+          "eps": "1,48 $"
+        },
+        "cashFlow": {
+          "scenarios": [
+            "Normal (WC=-1149)",
+            "Ajustado (WC=-122)"
+          ],
+          "rows": [
+            {
+              "name": "Cash Flow",
+              "values": [
+                "18352",
+                "17828,6"
+              ],
+              "cashFlowAdjustedNote": "*2"
+            },
+            {
+              "name": "CAPEX",
+              "values": [
+                "11409",
+                "11409"
+              ]
+            },
+            {
+              "name": "FCF",
+              "values": [
+                "6943",
+                "6419,6"
+              ]
+            },
+            {
+              "name": "FCF/Acción",
+              "values": [
+                "0,87 $",
+                "0,80 $"
+              ]
+            },
+            {
+              "name": "Dividendo",
+              "values": [
+                "3755",
+                "3755"
+              ]
+            },
+            {
+              "name": "Libre",
+              "values": [
+                "3188",
+                "2664,6"
+              ]
+            }
+          ],
+          "notes": [
+            "*1: WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (60086 - 57729 - 10518) × (3% + 0%) = -244,8M en todo el año -> en 6 meses = -122,4M. Desviación del circulante reportado (-1149M) frente al WK teórico (-122,4M): -1026,6M. El Cash Flow ajustado resta esa desviación: 18352M - (-1026,6M) = 19378,6M.",
+            "*2: Impuestos: La empresa debería haber pagado 3522M en impuestos (23 % sobre el EBT ajustado de 15313M) y solamente ha pagado 1972M en efectivo según el estado de flujos. Ajuste de -1550M al Cash Flow Ajustado por la discrepancia fiscal. La cifra final combina los dos ajustes sobre el Cash Flow: 18352M +1026,6M (circulante) -1550M (impuestos) = 17828,6M."
+          ]
+        },
+        "capital": {
+          "rows": [
+            {
+              "name": "Libre",
+              "value": "3188"
+            },
+            {
+              "name": "Recompras",
+              "value": "-6200"
+            },
+            {
+              "name": "Caja*1",
+              "value": "-394"
+            },
+            {
+              "name": "Deuda*1",
+              "value": "4421"
+            },
+            {
+              "name": "En total",
+              "value": "1015"
+            }
+          ],
+          "verification": "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle. La tabla solo incluye movimientos de caja; los siguientes no pasan por caja: efectivo restringido (consignaciones o liberaciones) +53M; deuda no monetaria (recompras o amortizaciones anticipadas de deuda con ganancia o pérdida, efecto divisa) -1313M. Con ellos, el resto sin explicar sería -245M, que corresponde a partidas no mapeadas o reclasificaciones pendientes de revisar en las notas del informe.",
+          "notes": [
+            "*1: Deuda balance: 39067M -> 43488M (+4421M). Deuda neta: 30030M -> 34057M (+4027M). Caja balance: 9037M (2025) -> 9431M (2026) (+394M); la caja aumentó: uso de capital (-); fila Caja = -394M."
+          ]
+        }
+      }
+    ],
+    "isAnnual": false,
+    "formType": "10-Q",
+    "language": "es",
+    "fiscalQuarter": 2,
+    "fiscalYear": 2026
+  }
+}

@@ -250,10 +250,26 @@ function renderQuarterlyBlock3() {
                           <li><strong>Recompras de acciones:</strong> Desembolso en compra de títulos propios (- uso).</li>
                           <li><strong>Adquisiciones (M&A):</strong> Compra de negocios o marcas (- uso, filtro material ≥ 50M).</li>
                           <li><strong>Desinversiones:</strong> Ingresos por venta de marcas, filiales o activos (+ fuente, filtro material ≥ 50M).</li>
-                          <li><strong>Efectivo restringido / escrow:</strong> Fondos pignorados o bloqueados (+ fuente si se liberan, - uso si se consignan, ≥ 50M).</li>
                           <li><strong>Financiación de capital:</strong> Emisión de preferentes o venta de minoritarios (+ fuente, ≥ 50M).</li>
                           <li><strong>Deuda asumida (no-cash):</strong> Corrección negativa (-) cuando se asume deuda preexistente de un negocio comprado sin que haya entrado caja.</li>
+                          <li><strong>Movimientos que no pasan por caja:</strong> El efectivo restringido/escrow y la deuda no monetaria <strong>no se pintan como filas</strong> (la tabla solo lleva movimientos de caja). Si el cuadre no cierra, el informe los explica bajo la tabla con su importe exacto (ver más abajo), aunque el descuadre entre dentro del umbral razonable.</li>
                         </ul>
+                      </div>
+                    </div>
+
+                    <!-- MOVIMIENTOS QUE NO PASAN POR CAJA -->
+                    <div class="guias-line-rule-box amber" style="margin-bottom: 10px;">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      <div>
+                        <strong>Agujeros que no son agujeros: efectivo restringido y deuda no monetaria.</strong>
+                        <p style="margin: 6px 0 0;">Hay movimientos que cambian el balance sin ser ni entradas ni salidas de caja: el <strong>efectivo restringido</strong> (dinero consignado en escrow, colateral o depósitos, que solo cambia de cajón) y la <strong>deuda no monetaria</strong> (deuda que desaparece o aparece sin pagarse en efectivo). La tabla de Asignación de Capital solo lleva movimientos de caja, así que estos casos quedan fuera y, cuando el cuadre no cierra, el informe los explica bajo la tabla con su importe exacto y el resto pendiente (aunque el descuadre entre dentro del umbral razonable). Solo si no hay movimientos de este tipo no se añade nada.</p>
+                        <p style="margin: 8px 0 0;"><strong>Ejemplo (deuda no monetaria):</strong> la empresa tiene bonos anotados en el balance por <strong>1.000M</strong>. Los tipos de interés suben y esos bonos (con cupón antiguo) pasan a valer <strong>800M</strong> en el mercado. La empresa los recompra pagando <strong>800M</strong> y la obligación de 1.000M desaparece: la deuda baja 1.000M, la caja baja 800M y <strong>200M no costaron nada</strong> (ganancia por extinción de deuda).</p>
+                        <ul style="margin: 8px 0 0 16px; padding: 0; line-height: 1.55;">
+                          <li><code>Libre 0</code> · <code>Deuda -1.000</code> · <code>Caja +800</code> · <code>En total -200</code> → el informe avisa: «No cuadra: quedan -200M».</li>
+                          <li>Bajo la tabla lo explica: <em>«Los siguientes no pasan por caja y explican el descuadre: deuda no monetaria (recompras o amortizaciones anticipadas de deuda con ganancia o pérdida, efecto divisa) +200M. Sin ellos, el resto sin explicar sería 0M, dentro del margen razonable.»</em></li>
+                          <li>Si los tipos bajan y el bono cotiza por encima (1.100M), recomprarlo cuesta más que su valor contable: la deuda no monetaria sería <strong>negativa</strong> y también se explica igual.</li>
+                        </ul>
+                        <p style="margin: 8px 0 0;"><strong>Ejemplo real:</strong> en el 10-Q de <strong>Kraft Heinz</strong> (Q2 FY2026) la deuda del balance cayó 2.132M, pero el estado de flujos solo refleja 1.829M de movimientos de deuda. Los 303M de diferencia —ganancia por extinción anticipada declarada en el propio informe («Loss/(gain) on extinguishment of debt») más efecto divisa— se explican bajo la tabla. Y en el 10-Q de <strong>PepsiCo</strong> (2018) el <em>escrow</em> de 1.997M de la compra de SodaStream (efectivo restringido) es otro caso típico: el dinero no se gastó, solo quedó consignado.</p>
                       </div>
                     </div>
 
@@ -266,7 +282,7 @@ function renderQuarterlyBlock3() {
                         <ul style="margin: 4px 0 0 16px; padding: 0; line-height: 1.55;">
                           <li><strong>Cuadre razonable:</strong> Si <code>|En total| ≤ max(50M, 20% del Libre, 10% de la suma bruta)</code>, la IA emite: <em>«Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle.»</em> (o <em>«El resultado cuadra.»</em> si es 0).</li>
                           <li><strong>Descuadre significativo:</strong> Si supera dicho umbral: <em>«No cuadra. Hay una discrepancia significativa entre el capital libre y los usos detectados; se deberá analizar más a fondo.»</em>
-                          Que ponga «no cuadra» <strong>no significa necesariamente que la IA lo haya hecho mal</strong>: normalmente es que hay dinero que se está «perdiendo» por el camino y no aparece en las partidas detectadas. Ahí toca investigar en qué se está yendo: <strong>efectivo restringido</strong>, depósitos en <em>escrow</em>, litigios, derivados financieros, adquisiciones parciales u otras partidas de <em>«otros»</em> que el balance no desglosa con claridad.</li>
+                          Que ponga «no cuadra» <strong>no significa necesariamente que la IA lo haya hecho mal</strong>: normalmente es que hay dinero que se está «perdiendo» por el camino y no aparece en las partidas detectadas. Cuando el sistema conoce la causa exacta (<strong>efectivo restringido</strong>, <strong>deuda no monetaria</strong>), la propia verificación lo explica bajo la tabla con el importe. Para el resto toca investigar en qué se está yendo: depósitos en <em>escrow</em>, litigios, derivados financieros, adquisiciones parciales u otras partidas de <em>«otros»</em> que el balance no desglosa con claridad.</li>
                         </ul>
                       </div>
                     </div>

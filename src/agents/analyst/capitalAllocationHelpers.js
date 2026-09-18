@@ -4,6 +4,7 @@
  */
 
 import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { parseLooseReportNumber } from './financialParsers.js';
 
 export function formatWcNumber(value, language = 'es') {
   if (!Number.isFinite(Number(value))) return '0';
@@ -13,8 +14,14 @@ export function formatWcNumber(value, language = 'es') {
 
 function toFiniteNumber(value) {
   if (value == null || value === '') return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const parsed = parseLooseReportNumber(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Normaliza un campo de extracción a número (0 si falta o no es parseable). */
+function factNumber(value) {
+  return toFiniteNumber(value) ?? 0;
 }
 
 function round1(value) {
@@ -107,22 +114,26 @@ export function buildCapitalAllocationFromBalance(extracted, language = 'es') {
   const invDiffYtd = (bal.shortTermInvestments != null)
     ? Number(bal.shortTermInvestments) - (bal.shortTermInvestmentsBeginningOfYear != null ? Number(bal.shortTermInvestmentsBeginningOfYear) : 0)
     : 0;
-  const rawDivYtd = Number(extracted.facts?.brandDivestitures) || 0;
-  const buybacksYtd = Number(extracted.facts?.shareBuybacks) || 0;
+  const rawDivYtd = factNumber(extracted.facts?.brandDivestitures);
+  const divestitureItemsProceeds = (Array.isArray(extracted.annualDetails?.divestitures?.items)
+    ? extracted.annualDetails.divestitures.items
+    : []).reduce((acc, item) => acc + Math.abs(factNumber(item?.proceeds)), 0);
+  const divestituresYtd = Math.max(rawDivYtd, Math.round(divestitureItemsProceeds * 10) / 10);
+  const buybacksYtd = factNumber(extracted.facts?.shareBuybacks);
   const buybacksQuarterRaw = toFiniteNumber(extracted.facts?.shareBuybacksQuarter);
-  const marketablePurchasesQuarter = Number(extracted.facts?.purchasesOfMarketableSecuritiesQuarter) || 0;
-  const marketablePurchasesYtd = Number(extracted.facts?.purchasesOfMarketableSecuritiesYtd) || 0;
-  const marketableProceedsQuarter = Number(extracted.facts?.proceedsFromSaleOfMarketableSecuritiesQuarter) || 0;
-  const marketableProceedsYtd = Number(extracted.facts?.proceedsFromSaleOfMarketableSecuritiesYtd) || 0;
-  const acquisitionsQuarter = Number(extracted.facts?.acquisitionsQuarter) || 0;
-  const acquisitionsYtd = Number(extracted.facts?.acquisitionsYtd) || 0;
-  const assetSalesQuarter = Number(extracted.facts?.assetSalesQuarter) || 0;
-  const assetSalesYtd = Number(extracted.facts?.assetSalesYtd) || 0;
+  const marketablePurchasesQuarter = factNumber(extracted.facts?.purchasesOfMarketableSecuritiesQuarter);
+  const marketablePurchasesYtd = factNumber(extracted.facts?.purchasesOfMarketableSecuritiesYtd);
+  const marketableProceedsQuarter = factNumber(extracted.facts?.proceedsFromSaleOfMarketableSecuritiesQuarter);
+  const marketableProceedsYtd = factNumber(extracted.facts?.proceedsFromSaleOfMarketableSecuritiesYtd);
+  const acquisitionsQuarter = factNumber(extracted.facts?.acquisitionsQuarter);
+  const acquisitionsYtd = factNumber(extracted.facts?.acquisitionsYtd);
+  const assetSalesQuarter = factNumber(extracted.facts?.assetSalesQuarter);
+  const assetSalesYtd = factNumber(extracted.facts?.assetSalesYtd);
   const acquisitionDescription = extracted.facts?.acquisitionDescription ?? null;
   const divestitureDescription = extracted.facts?.divestitureDescription ?? null;
-  const preferredYtdRaw = Number(extracted.facts?.preferredIssuanceYtd) || 0;
-  const nonControllingYtdRaw = Number(extracted.facts?.nonControllingSaleYtd) || 0;
-  const debtCashYtdRaw = Number(extracted.facts?.debtCashFlowYtd);
+  const preferredYtdRaw = factNumber(extracted.facts?.preferredIssuanceYtd);
+  const nonControllingYtdRaw = factNumber(extracted.facts?.nonControllingSaleYtd);
+  const debtCashYtdRaw = toFiniteNumber(extracted.facts?.debtCashFlowYtd);
   const fiscalQuarterNumber = Number(extracted.fiscalQuarter);
   const debtDeltaYtd = (bal.totalDebt != null && bal.totalDebtBeginningOfYear != null)
     ? Number(bal.totalDebt) - Number(bal.totalDebtBeginningOfYear)
@@ -149,6 +160,30 @@ export function buildCapitalAllocationFromBalance(extracted, language = 'es') {
   const assumedDebt3M = (acquisitions3MAbs >= 50 && acquisitionsYtd >= 50
     && Math.abs(acquisitions3MAbs - acquisitionsYtd) < 1 && assumedDebtYtd >= 50)
     ? assumedDebtYtd
+    : 0;
+  // Movimiento no monetario de deuda: diferencia entre la variación del balance y los flujos de
+  // deuda del estado de flujos (recompras/amortizaciones anticipadas con ganancia o pérdida,
+  // efecto divisa u otras reclasificaciones). Solo se usa la composición XBRL del sistema (no el
+  // parser de texto) y, para no inventar filas cuando la fuente está incompleta, la divergencia
+  // debe ser material y no superar la mitad de la variación del balance, con el mismo signo.
+  const debtDelta3M = (bal.totalDebt != null && bal.totalDebtPreviousQuarter != null)
+    ? Math.round((Number(bal.totalDebt) - Number(bal.totalDebtPreviousQuarter)) * 10) / 10
+    : null;
+  const systemDebtCash = extracted.systemDebtCash ?? {};
+  const systemDebtCashYtd = toFiniteNumber(systemDebtCash.ytd);
+  const systemDebtCashQuarter = toFiniteNumber(systemDebtCash.quarter);
+  const inNonCashDebtBand = (debtDelta, debtCash) => {
+    if (debtDelta == null || debtCash == null || debtDelta === 0) return false;
+    if (Math.sign(debtDelta) !== Math.sign(debtCash)) return false;
+    const diff = Math.abs(debtDelta - debtCash);
+    const absDelta = Math.abs(debtDelta);
+    return diff >= Math.max(50, absDelta * 0.1) && diff <= absDelta * 0.5;
+  };
+  const nonCashDebt3M = (acquisitions3MAbs < 50 && inNonCashDebtBand(debtDelta3M, systemDebtCashQuarter))
+    ? Math.round((debtDelta3M - systemDebtCashQuarter) * 10) / 10
+    : 0;
+  const nonCashDebtYtd = (acquisitionsYtd < 50 && inNonCashDebtBand(debtDeltaYtd, systemDebtCashYtd))
+    ? Math.round((debtDeltaYtd - systemDebtCashYtd) * 10) / 10
     : 0;
   const cashDiff3M = (bal.cash != null && bal.cashPreviousQuarter != null)
     ? Math.round(-(Number(bal.cash) - Number(bal.cashPreviousQuarter)) * 10) / 10
@@ -179,6 +214,9 @@ export function buildCapitalAllocationFromBalance(extracted, language = 'es') {
       preferredIssuance: fiscalQuarterNumber === 1 && preferredYtdRaw >= 50 ? preferredYtdRaw : 0,
       nonControllingSale: fiscalQuarterNumber === 1 && nonControllingYtdRaw >= 50 ? nonControllingYtdRaw : 0,
       assumedDebt: assumedDebt3M >= 50 ? assumedDebt3M : 0,
+      nonCashDebt: nonCashDebt3M,
+      debtDelta: debtDelta3M,
+      debtCashFlow: systemDebtCashQuarter,
       restrictedCashMovement: (restrictedDiff3M != null && Math.abs(restrictedDiff3M) >= 50)
         ? Math.round(-restrictedDiff3M * 10) / 10
         : 0,
@@ -213,13 +251,16 @@ export function buildCapitalAllocationFromBalance(extracted, language = 'es') {
       inversionesCortoPlazo: (marketablePurchasesYtd || marketableProceedsYtd)
         ? Math.round((marketableProceedsYtd - marketablePurchasesYtd) * 10) / 10
         : (Math.abs(invDiffYtd) >= 50 ? Math.round(-invDiffYtd * 10) / 10 : 0),
-      divestitures: rawDivYtd >= 50 ? rawDivYtd : 0,
+      divestitures: divestituresYtd >= 50 ? divestituresYtd : 0,
       buybacks: buybacksYtd ? -Math.abs(buybacksYtd) : 0,
       acquisitions: acquisitionsYtd >= 50 ? -Math.abs(acquisitionsYtd) : 0,
       assetSales: assetSalesYtd,
       preferredIssuance: preferredYtdRaw >= 50 ? preferredYtdRaw : 0,
       nonControllingSale: nonControllingYtdRaw >= 50 ? nonControllingYtdRaw : 0,
       assumedDebt: assumedDebtYtd >= 50 ? assumedDebtYtd : 0,
+      nonCashDebt: nonCashDebtYtd,
+      debtDelta: debtDeltaYtd,
+      debtCashFlow: systemDebtCashYtd,
       restrictedCashMovement: (restrictedDiffYtd != null && Math.abs(restrictedDiffYtd) >= 50)
         ? Math.round(-restrictedDiffYtd * 10) / 10
         : 0,

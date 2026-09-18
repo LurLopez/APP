@@ -1,0 +1,173 @@
+{
+  "filing": {
+    "ticker": "HNST",
+    "name": "The Honest Company, Inc.",
+    "formType": "10-Q",
+    "period": "2026-03-31",
+    "periodLabel": "Q1 2026",
+    "filedAt": "2026-05-06",
+    "accession": "0001628280-26-031249",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/1530979/000162828026031249/hnst-20260331.htm"
+  },
+  "provider": "deepseek",
+  "elapsed": 277.832,
+  "analysisId": 599,
+  "origin": "US",
+  "formType": "10-Q",
+  "sector": "defensive_consumer",
+  "subsector": null,
+  "version": "0.1",
+  "sectorVersion": "1",
+  "language": "es",
+  "report": {
+    "company": "The Honest Company, Inc.",
+    "ticker": "HNST",
+    "periodTitle": "2026 Q1 results — HNST",
+    "reportingPeriod": "2026-03-31",
+    "horizons": [
+      {
+        "label": "ÚLTIMOS 3 MESES (Q1)",
+        "sales": {
+          "rows": [
+            {
+              "name": "Ventas",
+              "adjusted": "78,1M",
+              "prevAdjusted": "97,3M",
+              "pctAdjusted": "-19,73 %",
+              "normal": "78,1M",
+              "prevNormal": "97,3M",
+              "pctNormal": "-19,73 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Bruto",
+              "adjusted": "33,3M",
+              "prevAdjusted": "37,7M",
+              "pctAdjusted": "-11,67 %",
+              "normal": "33,3M",
+              "prevNormal": "37,7M",
+              "pctNormal": "-11,67 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Operativo",
+              "adjusted": "-0,1M",
+              "prevAdjusted": "2,5M",
+              "pctAdjusted": "-104 %",
+              "normal": "-0,7M",
+              "prevNormal": "2,5M",
+              "pctNormal": "-128 %",
+              "isAdjusted": true,
+              "adjustedNote": "*1"
+            },
+            {
+              "name": "EBT",
+              "adjusted": "0,6M",
+              "prevAdjusted": "3,3M",
+              "pctAdjusted": "-81,82 %",
+              "normal": "0,0M",
+              "prevNormal": "3,3M",
+              "pctNormal": "-100 %",
+              "isAdjusted": false
+            },
+            {
+              "name": "Beneficio Neto",
+              "adjusted": "0,5M",
+              "prevAdjusted": "2,5M",
+              "pctAdjusted": "-80 %",
+              "normal": "0,0M",
+              "prevNormal": "3,3M",
+              "pctNormal": "-100 %",
+              "isAdjusted": true,
+              "adjustedNote": "*2"
+            }
+          ],
+          "notes": [
+            "*1: Se excluyen 0,6M de amortización de intangibles para reflejar el beneficio operativo recurrente de la compañía. Beneficio Operativo Ajustado = -0,7M + 0,6M = -0,1M.",
+            "*2: Impuestos: El EBT ajustado es de 0,6M. El impuesto reportado es de 0,0M (tipo efectivo reportado anómalo del 1.150 %). El 23 % del EBT ajustado sería 0,14M, por lo que el Beneficio Neto Ajustado = 0,6M × 0,77 = 0,5M. La compañía no ha registrado gasto fiscal material en el trimestre."
+          ],
+          "shares": "113,7M",
+          "eps": "0,00 $"
+        },
+        "cashFlow": {
+          "scenarios": [
+            "Normal (WC=1)",
+            "Ajustado (WC=-1)"
+          ],
+          "rows": [
+            {
+              "name": "Cash Flow",
+              "values": [
+                "5,5",
+                "4,3"
+              ]
+            },
+            {
+              "name": "CAPEX",
+              "values": [
+                "1,7",
+                "1,7"
+              ]
+            },
+            {
+              "name": "FCF",
+              "values": [
+                "3,8",
+                "2,6"
+              ]
+            },
+            {
+              "name": "FCF/Acción",
+              "values": [
+                "0,03 $",
+                "0,02 $"
+              ]
+            },
+            {
+              "name": "Dividendo",
+              "values": [
+                "0",
+                "0"
+              ]
+            },
+            {
+              "name": "Libre",
+              "values": [
+                "3,8",
+                "2,6"
+              ]
+            }
+          ],
+          "notes": [
+            "*1: WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (15,1 - 61,2 - 34) × (3% + 0%) = -2,4M en todo el año -> en 3 meses = -0,6M. Desviación del circulante reportado (0,6M) frente al WK teórico (-0,6M): 1,2M. El Cash Flow ajustado resta esa desviación: 5,5M - (1,2M) = 4,3M."
+          ]
+        },
+        "capital": {
+          "rows": [
+            {
+              "name": "Libre",
+              "value": "3,8"
+            },
+            {
+              "name": "Caja*1",
+              "value": "-0,8"
+            },
+            {
+              "name": "En total",
+              "value": "3"
+            }
+          ],
+          "verification": "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle.",
+          "notes": [
+            "*1: Deuda balance: 0M -> 0M (0M). Deuda neta: -89,6M -> -90,4M (-0,8M). Caja balance: 89,6M (2025) -> 90,4M (2026) (+0,8M); la caja aumentó: uso de capital (-); fila Caja = -0,8M."
+          ]
+        }
+      }
+    ],
+    "isAnnual": false,
+    "formType": "10-Q",
+    "language": "es",
+    "fiscalQuarter": 1,
+    "fiscalYear": 2026
+  }
+}

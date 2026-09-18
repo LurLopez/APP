@@ -22,33 +22,39 @@ const DEBT_MATURITY_SLOT = {
 
 /**
  * Extrae el tipo de interés medio ponderado de la deuda a partir de los hechos XBRL us-gaap.
+ * Distingue entre una etiqueta de tipo medio real ("weighted") y el cupón de una emisión
+ * concreta ("instrument"), que no representa la deuda total.
  * @param {object} facts - Objeto de hechos XBRL (Company Facts).
- * @returns {number|null} Tipo medio en % (ej. 4.25) o null si no consta.
+ * @returns {{rate: number, source: 'weighted'|'instrument'}|null} Tipo medio en % (ej. 4.25) o null si no consta.
  */
 export function extractDebtWeightedAverageRateFromFacts(facts) {
   const usGaap = facts?.facts?.['us-gaap'];
   if (!usGaap) return null;
-  const tags = [
+  const weightedTags = [
     'DebtWeightedAverageInterestRate',
     'DebtInstrumentWeightedAverageEffectiveInterestRate',
     'LongTermDebtWeightedAverageInterestRate',
+  ];
+  const instrumentTags = [
     'DebtInstrumentInterestRateStatedPercentage',
     'DebtInstrumentInterestRateEffectivePercentage',
   ];
-  for (const tag of tags) {
-    const meta = usGaap[tag];
-    if (!meta?.units) continue;
-    const unitList = meta.units.pure || meta.units['%'] || Object.values(meta.units)[0];
-    if (!Array.isArray(unitList) || !unitList.length) continue;
-    const valid = unitList
-      .filter((u) => Number.isFinite(Number(u.val)) && Number(u.val) > 0)
-      .sort((a, b) => String(b.end || b.filed || '').localeCompare(String(a.end || a.filed || '')));
-    if (valid.length) {
-      let val = Number(valid[0].val);
-      if (val < 1.0) {
-        val = val * 100;
+  for (const [tags, source] of [[weightedTags, 'weighted'], [instrumentTags, 'instrument']]) {
+    for (const tag of tags) {
+      const meta = usGaap[tag];
+      if (!meta?.units) continue;
+      const unitList = meta.units.pure || meta.units['%'] || Object.values(meta.units)[0];
+      if (!Array.isArray(unitList) || !unitList.length) continue;
+      const valid = unitList
+        .filter((u) => Number.isFinite(Number(u.val)) && Number(u.val) > 0)
+        .sort((a, b) => String(b.end || b.filed || '').localeCompare(String(a.end || a.filed || '')));
+      if (valid.length) {
+        let val = Number(valid[0].val);
+        if (val < 1.0) {
+          val = val * 100;
+        }
+        return { rate: Math.round(val * 100) / 100, source };
       }
-      return Math.round(val * 100) / 100;
     }
   }
   return null;
@@ -118,14 +124,15 @@ export function buildDebtMaturitiesFromFacts(facts) {
     const fallback = poolToUse[0];
     const fallbackYear = Number(String(fallback.end).slice(0, 4));
     const fallbackAmount = Math.round((fallback.val / 1e6) * 10) / 10;
-    const weightedAverageRate = extractDebtWeightedAverageRateFromFacts(facts);
+    const rateInfo = extractDebtWeightedAverageRateFromFacts(facts);
     return {
       baseYear: fallbackYear,
       asOf: fallback.end,
       years: [{ year: fallbackYear + 1, amount: fallbackAmount }],
       afterYearFive: null,
       totalAmount: fallbackAmount,
-      weightedAverageRate,
+      weightedAverageRate: rateInfo?.rate ?? null,
+      weightedAverageRateSource: rateInfo?.source ?? null,
       partial: true,
       source: 'SEC XBRL (porción corriente de deuda a largo plazo)',
     };
@@ -154,7 +161,7 @@ export function buildDebtMaturitiesFromFacts(facts) {
 
   const afterYearFive = toMillions(bucket.get('afterYearFive'));
   const totalAmount = years.reduce((sum, y) => sum + y.amount, 0) + (afterYearFive ?? 0);
-  const weightedAverageRate = extractDebtWeightedAverageRateFromFacts(facts);
+  const rateInfo = extractDebtWeightedAverageRateFromFacts(facts);
 
   return {
     baseYear,
@@ -162,7 +169,8 @@ export function buildDebtMaturitiesFromFacts(facts) {
     years: years.map((y) => ({ year: baseYear + y.offset, amount: y.amount })),
     afterYearFive,
     totalAmount: Number.isFinite(totalAmount) ? Math.round(totalAmount * 10) / 10 : null,
-    weightedAverageRate,
+    weightedAverageRate: rateInfo?.rate ?? null,
+    weightedAverageRateSource: rateInfo?.source ?? null,
     source: 'SEC XBRL (contractual maturities)',
   };
 }

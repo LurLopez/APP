@@ -1,0 +1,158 @@
+{
+  "seed": 20260918,
+  "fromPeriod": "2024-01-01",
+  "createdAt": "2026-09-18T03:47:44.165Z",
+  "count": 15,
+  "filings": [
+    {
+      "ticker": "UTZ",
+      "name": "Utz Brands, Inc.",
+      "formType": "10-K",
+      "period": "2024-12-29",
+      "periodLabel": "FY 2024",
+      "filedAt": "2025-02-20",
+      "accession": "0001739566-25-000053",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/1739566/000173956625000053/utz-20241229.htm"
+    },
+    {
+      "ticker": "HELE",
+      "name": "Helen of Troy Limited",
+      "formType": "10-K",
+      "period": "2025-02-28",
+      "periodLabel": "FY 2025",
+      "filedAt": "2025-04-24",
+      "accession": "0000916789-25-000012",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/916789/000091678925000012/hele-20250228.htm"
+    },
+    {
+      "ticker": "USFD",
+      "name": "US Foods Holding Corp.",
+      "formType": "10-K",
+      "period": "2025-12-27",
+      "periodLabel": "FY 2025",
+      "filedAt": "2026-02-12",
+      "accession": "0001665918-26-000008",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/1665918/000166591826000008/usfd-20251227.htm"
+    },
+    {
+      "ticker": "KR",
+      "name": "The Kroger Co.",
+      "formType": "10-Q",
+      "period": "2024-11-09",
+      "periodLabel": "Q3 2025",
+      "filedAt": "2024-12-13",
+      "accession": "0001558370-24-016233",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/56873/000155837024016233/kr-20241109x10q.htm"
+    },
+    {
+      "ticker": "ANDE",
+      "name": "The Andersons, Inc.",
+      "formType": "10-K",
+      "period": "2025-12-31",
+      "periodLabel": "FY 2025",
+      "filedAt": "2026-02-18",
+      "accession": "0000821026-26-000010",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/821026/000082102626000010/ande-20251231.htm"
+    },
+    {
+      "ticker": "CENT",
+      "name": "Central Garden & Pet Company",
+      "formType": "10-Q",
+      "period": "2025-12-27",
+      "periodLabel": "Q1 2026",
+      "filedAt": "2026-02-05",
+      "accession": "0000887733-26-000007",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/887733/000088773326000007/cent-20251227.htm"
+    },
+    {
+      "ticker": "COTY",
+      "name": "Coty Inc.",
+      "formType": "10-Q",
+      "period": "2024-03-31",
+      "periodLabel": "Q3 2024",
+      "filedAt": "2024-05-07",
+      "accession": "0001024305-24-000023",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/1024305/000102430524000023/coty-20240331.htm"
+    },
+    {
+      "ticker": "WMT",
+      "name": "Walmart Inc.",
+      "formType": "10-Q",
+      "period": "2025-07-31",
+      "periodLabel": "Q2 2026",
+      "filedAt": "2025-08-29",
+      "accession": "0000104169-25-000137",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000137/wmt-20250731.htm"
+    },
+    {
+      "ticker": "FIZZ",
+      "name": "National Beverage Corp.",
+      "formType": "10-Q",
+      "period": "2026-01-31",
+      "periodLabel": "Q3 2026",
+      "filedAt": "2026-03-12",
+      "accession": "0001437749-26-007987",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/69891/000143774926007987/fizz20260125_10q.htm"
+    },
+    {
+      "ticker": "HNST",
+      "name": "The Honest Company, Inc.",
+      "formType": "10-Q",
+      "period": "2026-03-31",
+      "periodLabel": "Q1 2026",
+      "filedAt": "2026-05-06",
+      "accession": "0001628280-26-031249",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/1530979/000162828026031249/hnst-20260331.htm"
+    },
+    {
+      "ticker": "LW",
+      "name": "Lamb Weston Holdings, Inc.",
+      "formType": "10-Q",
+      "period": "2025-11-23",
+      "periodLabel": "Q2 2026",
+      "filedAt": "2025-12-19",
+      "accession": "0001679273-25-000076",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/1679273/000167927325000076/lw-20251123.htm"
+    },
+    {
+      "ticker": "YSWY",
+      "name": "Yesway, Inc.",
+      "formType": "10-Q",
+      "period": "2026-06-30",
+      "periodLabel": "Q2 2026",
+      "filedAt": "2026-08-13",
+      "accession": "0001104659-26-095497",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/1859836/000110465926095497/tmb-20260630x10q.htm"
+    },
+    {
+      "ticker": "EL",
+      "name": "The Estée Lauder Companies Inc.",
+      "formType": "10-Q",
+      "period": "2026-03-31",
+      "periodLabel": "Q3 2026",
+      "filedAt": "2026-05-01",
+      "accession": "0001001250-26-000019",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/1001250/000100125026000019/el-20260331.htm"
+    },
+    {
+      "ticker": "MKC",
+      "name": "McCormick & Company, Incorporated",
+      "formType": "10-Q",
+      "period": "2024-08-31",
+      "periodLabel": "Q3 2024",
+      "filedAt": "2024-10-01",
+      "accession": "0000063754-24-000064",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/63754/000006375424000064/mkc-20240831.htm"
+    },
+    {
+      "ticker": "BJ",
+      "name": "BJ's Wholesale Club Holdings, Inc.",
+      "formType": "10-Q",
+      "period": "2024-05-04",
+      "periodLabel": "Q1 2025",
+      "filedAt": "2024-05-30",
+      "accession": "0001531152-24-000071",
+      "documentUrl": "https://www.sec.gov/Archives/edgar/data/1531152/000153115224000071/bj-20240504.htm"
+    }
+  ]
+}

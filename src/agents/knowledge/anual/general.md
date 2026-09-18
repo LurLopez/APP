@@ -119,10 +119,12 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
   5. `Adquisiciones`: Pagos por compra de negocios o empresas (signo negativo `-`).
   6. `Efectivo restringido`: Variación del efectivo restringido / escrow / colateral (negativo `-` si aumenta, positivo `+` si disminuye). Es distinto de la fila `Caja`, que solo recoge el efectivo no restringido del balance. Fila obligatoria si la variación es $\ge 50\text{M}$.
   7. `Emisión de preferentes` y `Venta de participaciones`: fuentes de capital (signo positivo `+`) por emisión de preferentes o venta de participaciones no controladoras; cada fila si es $\ge 50\text{M}$.
-  8. `Deuda asumida (no-cash)`: parte del aumento de deuda del balance que no supone entrada de caja (deuda asumida en una compra), con signo negativo `-` ($\ge 50\text{M}$), para que la fila `Deuda` refleje solo la deuda con caja.
+  8. `Deuda asumida (no-cash)`: SOLO si el ejercicio tuvo una adquisición material y la deuda del balance AUMENTÓ en parte por deuda preexistente de la empresa adquirida (campo `capitalAllocationData.assumedDebt`, siempre $\ge 50\text{M}$), con signo negativo `-`, para que la fila `Deuda` refleje solo la deuda con caja. Si `assumedDebt` es 0 o no existe, esta fila NO se incluye nunca: prohibido inventarla o usarla para duplicar la variación de deuda del balance.
   9. `Caja`: Variación de tesorería del balance de cierre anual (negativo `-` si la caja aumentó, positivo `+` si disminuyó).
   10. `Deuda`: Variación de deuda total en balance durante el ejercicio (positivo `+` si la deuda creció, negativo `-` si se amortizó).
   11. `En total`: Suma algebraica de todas las partidas.
+
+- **Filas sin importe prohibidas**: queda prohibido incluir filas con valor `0` o `—` en la Asignación de Capital. Solo `Libre` y `En total` son obligatorias; el resto aparece únicamente si su importe es material ($\ge 50\text{M}$) y consta en el JSON de extracción.
 
 - **Movimientos no monetarios y reclasificaciones (obligatorio)**: además de las partidas anteriores, se mapean siempre las variaciones que no suponen entrada o salida real de caja y que rompen el cuadre: efectivo restringido/escrow de adquisiciones o colaterales (fila `Efectivo restringido`), deuda asumida en compras (fila `Deuda asumida (no-cash)`), efecto divisa sobre la caja y reclasificaciones entre caja e inversiones a corto plazo detectadas en las notas. Si tras mapearlas el `En total` sigue descuadrado, la verificación indica el importe exacto del desfase y que corresponde a movimientos no monetarios o reclasificaciones a revisar en las notas de flujos y balance; nunca se deja el descuadre sin cifra ni sin explicación, ni se oculta con una fila genérica sin desglose.
 

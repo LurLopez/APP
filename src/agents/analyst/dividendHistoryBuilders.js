@@ -122,12 +122,23 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral, lang
 
   const normalizedCashTaxes = Math.round(ebtAdjusted * normalizedRate * 10) / 10;
 
+  // Un importe idéntico a un año de la cabecera de una tabla de impuestos no es un pago real.
+  const fiscalYear = Number(extracted.fiscalYear)
+    || Number(String(extracted.reportingPeriod ?? '').slice(0, 4))
+    || null;
+  const isYearHeaderAmount = (value) => {
+    const num = Number(value);
+    if (!Number.isInteger(num) || num < 1900 || num > 2100) return false;
+    return num === fiscalYear || num === fiscalYear - 1 || num > ebtAdjusted;
+  };
+
   let cashTaxesPaid = Number(facts[isTrimestral ? 'incomeTaxesPaidQuarter' : 'incomeTaxesPaidYtd']);
+  if (isYearHeaderAmount(cashTaxesPaid)) cashTaxesPaid = NaN;
   if (!Number.isFinite(cashTaxesPaid) || cashTaxesPaid <= 0) {
     const rawText = extracted._rawText || extracted.text || '';
     if (rawText) {
       const extractedPaid = extractIncomeTaxesPaid(rawText);
-      if (Number.isFinite(extractedPaid) && extractedPaid > 0) {
+      if (Number.isFinite(extractedPaid) && extractedPaid > 0 && !isYearHeaderAmount(extractedPaid)) {
         cashTaxesPaid = extractedPaid;
       }
     }

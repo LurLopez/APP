@@ -43,7 +43,7 @@ function drawDebtSection(doc, debt, report, margin, y, language = 'es') {
   if (debt.text) {
     curY = drawPdfFormattedText(doc, debt.text, margin, curY, doc.page.width - margin * 2, 'Helvetica', 'Helvetica-Bold', 8.5, '#374151') + 8;
   }
-  const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear, lang);
+  const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear, lang, report?.reportingPeriod ?? null);
   if (maturityChart) curY = drawDebtMaturityChart(doc, maturityChart, curY);
   const historyChart = buildDebtHistoryModel(debt, report, lang);
   if (historyChart) curY = drawDebtHistoryChart(doc, historyChart, curY);

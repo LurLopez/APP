@@ -14,7 +14,7 @@ const SPANISH_DIRECTIVE = `IDIOMA DEL INFORME (OBLIGATORIO): español.
 - Etiquetas de horizonte: "ÚLTIMOS 3 MESES", "ÚLTIMOS 3 MESES (Q1)" y "EN TODO EL AÑO (X MESES)"; en 10-K: "EN TODO EL AÑO (12 MESES)".
 - Filas de Ventas: "Ventas", "Beneficio Bruto", "Beneficio Operativo", "EBT", "Beneficio Neto".
 - Filas de Cash Flow: "Cash Flow", "CAPEX", "FCF", "FCF/Acción", "Dividendo", "Libre".
-- Filas de Asignación de Capital: "Libre", "Inversiones a corto plazo", "Desinversiones", "Adquisiciones", "Deuda", "Caja", "Recompras", "Efectivo restringido", "En total".
+- Filas de Asignación de Capital: "Libre", "Inversiones a corto plazo", "Desinversiones", "Adquisiciones", "Deuda", "Caja", "Recompras", "Emisión de preferentes", "Venta de participaciones", "Deuda asumida (no-cash)", "En total".
 - Cabeceras de escenario de Cash Flow: "Normal (WC=...)" y "Ajustado*1 (WC=...)".
 - Título de la nota de impuestos: "*2: Impuestos: ..." y verificación con las frases del prompt.
 - Los textos libres ("extraNotes", "acquisitionDescription", "divestitureDescription") también en español.`;
@@ -25,7 +25,7 @@ const ENGLISH_DIRECTIVE = `OUTPUT LANGUAGE (MANDATORY): English.
 - Horizon labels: "LAST 3 MONTHS", "LAST 3 MONTHS (Q1)" and "FULL YEAR TO DATE (X MONTHS)"; for 10-K: "FULL YEAR (12 MONTHS)".
 - Sales rows: "Sales", "Gross Profit", "Operating Income", "EBT", "Net Income".
 - Cash Flow rows: "Cash Flow", "CAPEX", "FCF", "FCF/Share", "Dividend", "Free".
-- Capital Allocation rows: "Free", "Short-term investments", "Divestitures", "Acquisitions", "Debt", "Cash", "Buybacks", "Restricted cash", "Total".
+- Capital Allocation rows: "Free", "Short-term investments", "Divestitures", "Acquisitions", "Debt", "Cash", "Buybacks", "Preferred stock issuance", "Sale of non-controlling interests", "Assumed debt (non-cash)", "Total".
 - Cash Flow scenario headers: "Normal (WC=...)" and "Adjusted*1 (WC=...)".
 - Mandated note phrases (translate them exactly like this):
   * Debt note: "Debt balance: <prev>M -> <current>M (<change>M). Net debt: <prevNet>M -> <currentNet>M (<netChange>M). Cash balance: <prev>M -> <current>M (<change>M); cash increased: use of capital (-) / cash decreased: source of liquidity (+); Cash row = <value>M."

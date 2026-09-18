@@ -21,14 +21,29 @@ export function extractTaxCashFlowAdjustment(text) {
   return Number.isFinite(current) ? current : null;
 }
 
+/** Una columna de años (2026, 2025…) de la cabecera de una tabla no es un importe de impuestos. */
+function looksLikeYearHeader(raw) {
+  if (!/^\d{4}$/.test(String(raw ?? '').trim())) return false;
+  const year = Number(raw);
+  return Number.isInteger(year) && year >= 1900 && year <= 2100;
+}
+
 export function extractIncomeTaxesPaid(text) {
   const source = String(text ?? '');
+  // Tablas de divulgación con columna por ejercicio (ASU 2023-09): se toma la fila "Total" de la
+  // misma tabla porque las primeras cifras tras el encabezado son los años y no el importe pagado.
+  const tableMatch = source.match(/Income tax(?:es)?[^\n]{0,60}net of refunds[\s\S]{0,1500}?(?:^|\n)\s*Total[^\d()]{0,15}\$?\s*([()\d.,-]+)/i)
+    || source.match(/Income tax(?:es)?[^\n]{0,60}paid[\s\S]{0,600}?(?:^|\n)\s*Total[^\d()]{0,15}\$?\s*([()\d.,-]+)/i);
+  if (tableMatch && !looksLikeYearHeader(tableMatch[1])) {
+    const tableVal = parseFinancialValue(tableMatch[1]);
+    if (Number.isFinite(tableVal)) return Math.abs(tableVal);
+  }
   const directMatch = source.match(/(?:Income tax(?:es)?\s*(?:\(paid\)\s*received|\(paid\)|\(net of refunds\)|paid))\s+([()\d.,-]+)(?:\s+([()\d.,-]+))?/i)
     || source.match(/(?:Total net cash income taxes paid|Net cash paid for income taxes)\s+\$?\s*([()\d.,-]+)/i)
     || source.match(/Cash paid[^\n]{0,60}for income taxes[^\d()]*([()\d.,-]+)/i)
     || source.match(/(?:Income taxes paid,?\s+net|Net income taxes paid|Cash paid during the (?:year|period) for income taxes)[^\d()]*([()\d.,-]+)/i)
     || source.match(/Income taxes[^\n]{0,40}paid[^\d()]*([()\d.,-]+)/i);
-  if (directMatch) {
+  if (directMatch && !looksLikeYearHeader(directMatch[1])) {
     const val = parseFinancialValue(directMatch[1]);
     if (Number.isFinite(val)) return Math.abs(val);
   }
@@ -80,13 +95,38 @@ export function extractEquityIssuance(text) {
   };
 }
 
+/** Detecta si el estado financiero está en miles (devuelve 1000) o en millones (1). */
+function detectStatementScale(source, fromIndex, windowSize = 4000) {
+  const window = source.slice(Math.max(0, fromIndex - windowSize), fromIndex).toLowerCase();
+  const thousands = window.lastIndexOf('in thousands');
+  const millions = window.lastIndexOf('in millions');
+  if (thousands === -1 && millions === -1) return 1;
+  return thousands > millions ? 1000 : 1;
+}
+
 export function extractDebtCashFlow(text) {
   const source = String(text ?? '');
-  const netIdx = source.search(/Net cash (?:provided by|used in)[^\n]{0,80}financing/i);
-  const start = netIdx > 0
-    ? source.lastIndexOf('Financing activities', netIdx)
-    : source.search(/Financing activities/i);
+  const netIdx = source.search(/(?:Net cash(?: flows)? (?:provided by|used in|used for|from)|Cash (?:provided by|used in))[^\n]{0,60}financing/i);
+  const lowerSource = source.toLowerCase();
+  const searchLimit = netIdx > 0 ? netIdx : lowerSource.length;
+  // Se busca el encabezado de la sección ("CASH FLOWS FROM FINANCING ACTIVITIES" o
+  // "Cash Provided by (Used in) Financing Activities") y, si no aparece, la última mención a
+  // "financing activities" anterior a la línea del neto.
+  const headingIdx = Math.max(
+    lowerSource.lastIndexOf('cash flows from financing activities', searchLimit),
+    lowerSource.lastIndexOf('cash provided by (used in) financing activities', searchLimit),
+  );
+  const genericIdx = lowerSource.lastIndexOf('financing activities', searchLimit);
+  let start = headingIdx >= 0 ? headingIdx : genericIdx;
   if (start < 0) return null;
+  if (headingIdx < 0) {
+    const lineStart = lowerSource.lastIndexOf('\n', start - 1) + 1;
+    if (/^\s*other financing/.test(lowerSource.slice(lineStart, start))) {
+      const lineEnd = lowerSource.indexOf('\n', start);
+      if (lineEnd === -1) return null;
+      start = lineEnd + 1;
+    }
+  }
   const tail = source.slice(start);
   const endMatch = tail.search(/Net cash (?:provided by|used in)[^\n]{0,80}financing/i);
   const section = tail.slice(0, endMatch > 0 ? endMatch : Math.min(tail.length, 25000));
@@ -112,7 +152,9 @@ export function extractDebtCashFlow(text) {
     net += isRepayment ? -Math.abs(value) : Math.abs(value);
     found = true;
   });
-  return found ? Math.round(net * 10) / 10 : null;
+  if (!found) return null;
+  const scale = detectStatementScale(source, start);
+  return Math.round((net / scale) * 10) / 10;
 }
 
 export function parseLooseReportNumber(value) {

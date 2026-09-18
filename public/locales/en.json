@@ -1815,7 +1815,9 @@
   "Deuda a amortizar: {amount}": "Debt to be amortized: {amount}",
   "Deuda a largo plazo": "Long-term debt",
   "Deuda a Largo Plazo": "Long-Term Debt",
+  "Deuda asumida (no-cash)": "Assumed debt (non-cash)",
   "Deuda asumida (no-cash):": "Assumed debt (non-cash):",
+  "Deuda asumida (no-cash): {amount}M de deuda preexistente de la empresa adquirida se asume con la compra; no supone entrada de caja y se resta en el cuadre.": "Assumed debt (non-cash): {amount}M of pre-existing debt of the acquired company is assumed with the purchase; it does not involve a cash inflow and is deducted from the reconciliation.",
   "Deuda balance": "Debt balance",
   "Deuda Balance:": "Debt Balance:",
   "Deuda balance: {prev}M -> {curr}M ({diff}M){netPart}": "Debt balance: {prev}M -> {curr}M ({diff}M){netPart}",
@@ -2210,6 +2212,7 @@
   "Eliminar?": "Delete?",
   "Emisión de acciones ordinarias": "Issuance of common stock",
   "Emisión de deuda o acuerdos financieros materiales (Item 1.01):": "Issuance of debt or material financial agreements (Item 1.01):",
+  "Emisión de preferentes": "Preferred stock issuance",
   "Emisión de preferentes o venta de minoritarios (+ fuente, ≥ 50M).": "Issuance of preferred shares or sale of minority stakes (+ source, ≥ 50M).",
   "Empieza por la cuenta de resultados:": "Start with the income statement:",
   "Empleados": "Employees",
@@ -4649,6 +4652,7 @@
   "Venta": "Sale",
   "Venta de {0} {1} de {2} guardada.": "Sale of {0} {1} of {2} saved.",
   "Venta de inmovilizado material": "Sale of property, plant and equipment",
+  "Venta de participaciones": "Sale of non-controlling interests",
   "Venta de valores negociables y de renta variable": "Sale of trading and equity securities",
   "Ventas": "Sales",
   "Ventas (Revenue / Top-Line)": "Sales (Revenue / Top-Line)",
@@ -4782,5 +4786,11 @@
   "Zoom del gráfico": "Chart zoom",
   "Δ vs año anterior": "Δ vs prior year",
   "ΔCaja = -(Caja actual - Caja anterior)": "ΔCash = -(Current cash - Prior cash)",
-  "ΔDeuda = Deuda actual - Deuda anterior": "ΔDebt = Current debt - Prior debt"
+  "ΔDeuda = Deuda actual - Deuda anterior": "ΔDebt = Current debt - Prior debt",
+  "efectivo restringido (consignaciones o liberaciones)": "restricted cash (deposits or releases)",
+  "deuda no monetaria (recompras o amortizaciones anticipadas de deuda con ganancia o pérdida, efecto divisa)": "non-cash debt (early debt repurchases or repayments at a gain or loss, foreign exchange)",
+  "No cuadra: quedan {amount} sin explicar entre el capital libre y los usos detectados. La tabla solo incluye movimientos de caja; los siguientes no pasan por caja y explican el descuadre: {list}. {tail}": "Does not reconcile: {amount} remain unexplained between free capital and detected uses. The table only includes cash movements; the following do not go through cash and explain the gap: {list}. {tail}",
+  "Con ellos, el resto sin explicar sería {net}, dentro del margen razonable.": "Including them, the remaining gap would be {net}, within the reasonable margin.",
+  "Con ellos, el resto sin explicar sería {net}, que corresponde a partidas no mapeadas o reclasificaciones pendientes de revisar en las notas del informe.": "Including them, the remaining gap would be {net}, which corresponds to unmapped items or reclassifications to be reviewed in the report notes.",
+  "La tabla solo incluye movimientos de caja; los siguientes no pasan por caja: {list}. {tail}": "The table only includes cash movements; the following do not go through cash: {list}. {tail}"
 }

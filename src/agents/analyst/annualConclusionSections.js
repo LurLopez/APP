@@ -198,7 +198,7 @@ export function processOutlookSection(conclusion, rawAnn, result, language = 'es
   }
 }
 
-export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear, language = 'es') {
+export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear, language = 'es', periodEnd = null) {
   const lang = normalizeLanguage(language);
   conclusion.debt = conclusion.debt || {};
   const d = conclusion.debt;
@@ -211,10 +211,10 @@ export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear, la
   const extractionMaturity = (Array.isArray(extractionDebt.maturityItems) && extractionDebt.maturityItems.length)
     ? extractionDebt.maturityItems
     : ((Array.isArray(extractionDebt.maturitySchedule) && extractionDebt.maturitySchedule.length) ? extractionDebt.maturitySchedule : null);
-  const extractionBucketed = maturityItemsLookBucketed(extractionMaturity, fiscalYear);
+  const extractionBucketed = maturityItemsLookBucketed(extractionMaturity, fiscalYear, periodEnd);
   const hasMaturitySchedule = Array.isArray(d.maturitySchedule) && d.maturitySchedule.length > 0;
   const fallbackMaturity = ((!extractionMaturity || extractionBucketed) && !hasMaturitySchedule)
-    ? buildMaturityScheduleFromDebtTable(rawAnn.debtMaturitiesSecTable || extractionDebt.secTable, fiscalYear)
+    ? buildMaturityScheduleFromDebtTable(rawAnn.debtMaturitiesSecTable || extractionDebt.secTable, fiscalYear, periodEnd)
     : null;
 
   if (extractionMaturity && !(extractionBucketed && fallbackMaturity)) {
@@ -247,7 +247,8 @@ export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear, la
       d.allDebtAverageRate = extractionDebt.allDebtAverageRate;
       d.allDebtAverageRateEstimated = extractionDebt.allDebtAverageRateEstimated === true;
       d.allDebtAverageRateSource = extractionDebt.allDebtAverageRateSource ?? null;
-    } else if (edgarData.edgarDebtMaturities?.weightedAverageRate != null) {
+    } else if (edgarData.edgarDebtMaturities?.weightedAverageRate != null
+      && edgarData.edgarDebtMaturities.weightedAverageRateSource !== 'instrument') {
       d.allDebtAverageRate = edgarData.edgarDebtMaturities.weightedAverageRate;
       d.allDebtAverageRateEstimated = true;
       d.allDebtAverageRateSource = t('SEC XBRL (tipo medio ponderado)', null, lang);

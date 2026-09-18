@@ -80,10 +80,13 @@ export class AnalystAgent extends BaseAgent {
     const edgarData = await loadAnnualEdgarData({ edgarResults, ticker, isAnnual, fiscalYear, reportingPeriod });
 
     if (isAnnual) {
-      const debtDetails = extracted.annualDetails?.debt;
+      extracted.annualDetails = extracted.annualDetails || {};
+      const debtDetails = extracted.annualDetails.debt = extracted.annualDetails.debt || {};
       await recoverAnnualMaturities(debtDetails, {
         rawText: input.text,
         fiscalYear,
+        reportingPeriod,
+        totalDebt: extracted.balance?.totalDebt ?? extracted.facts?.totalDebt ?? null,
         edgarDebtMaturities: edgarData.edgarDebtMaturities,
       });
       await recoverAnnualRefinancing(debtDetails, input.text);

@@ -279,29 +279,11 @@ export function processRepurchasesSection(conclusion, rawAnn, extracted, languag
   const hasProgramEvent = Boolean(newProgramText || cancelledProgramText || cleanReportText(rep.programChanges));
   const materialByShares = buybackPctOfShares != null && buybackPctOfShares >= REPURCHASE_MATERIALITY_PCT;
   const materialByFallback = buybackPctOfShares == null && maxBuyback != null && maxBuyback >= 50;
-  const hasRemainingAuth = Boolean(
-    (extractionRep.programRemaining != null && extractionRep.programRemaining !== '')
-    || (rep.programRemaining != null && rep.programRemaining !== '')
-    || (rep.authorizationRemaining && !isPlaceholderText(rep.authorizationRemaining))
-  );
-  const hasActiveBuybacks = (Number.isFinite(maxBuyback) && maxBuyback > 0)
-    || (Number.isFinite(sharesRepurchased) && sharesRepurchased > 0);
-  const hasSnippet = Boolean(rep.secSnippet && Array.isArray(rep.secSnippet.rows) && rep.secSnippet.rows.length > 0);
-  const defaultNarrativePrefixes = ['Detalle de los programas', 'Details of the share repurchase programs'];
-  const hasCustomNarrative = Boolean(rep.text && !isPlaceholderText(rep.text) && !defaultNarrativePrefixes.some((prefix) => rep.text.startsWith(prefix)));
-  const hasProgramAuth = Boolean(
-    (rep.programAuthorization && !isPlaceholderText(rep.programAuthorization))
-    || (extractionRep.programSummary && !isPlaceholderText(extractionRep.programSummary))
-  );
 
-  const keepRepurchases = hasProgramEvent
-    || materialByShares
-    || materialByFallback
-    || hasRemainingAuth
-    || hasActiveBuybacks
-    || hasSnippet
-    || hasCustomNarrative
-    || hasProgramAuth;
+  // Materialidad: la sección solo aparece si hubo un evento de programa (nuevo, ampliado o
+  // cancelado), si las recompras suponen >= 1 % del capital, o si sin datos de acciones el
+  // importe alcanza el umbral material (>= 50M). Recompras marginales se omiten.
+  const keepRepurchases = hasProgramEvent || materialByShares || materialByFallback;
 
   if (conclusion.repurchases && !keepRepurchases) {
     delete conclusion.repurchases;

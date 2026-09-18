@@ -5,6 +5,7 @@
 
 import { parseSecNumber, cell, COLORS } from './exportColors.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { maturityWindowBounds } from '../../agents/analyst/debtMaturityFallback.js';
 
 /**
  * Colores de los segmentos apilados en el calendario de vencimientos.
@@ -66,9 +67,11 @@ export function rateFromSecSnippet(snippet) {
  * Construye el modelo analítico para el gráfico apilado de vencimientos de deuda a 5 años.
  * @param {object} debt - Objeto con datos de deuda del informe.
  * @param {string|number} reportFiscalYear - Año fiscal de referencia del informe.
+ * @param {string} [language] - Idioma del informe.
+ * @param {string} [periodEnd] - Fecha de cierre en formato AAAA-MM-DD.
  * @returns {object|null} Modelo del calendario de vencimientos o null si no hay datos.
  */
-export function buildDebtMaturityModel(debt, reportFiscalYear, language = 'es') {
+export function buildDebtMaturityModel(debt, reportFiscalYear, language = 'es', periodEnd = null) {
   const lang = normalizeLanguage(language);
   if (!debt) return null;
   let baseYear = Number(reportFiscalYear);
@@ -76,8 +79,8 @@ export function buildDebtMaturityModel(debt, reportFiscalYear, language = 'es') 
     const fromSnippet = String(debt?.secSnippet?.title || debt?.title || '').match(/20\d\d/);
     baseYear = fromSnippet ? parseInt(fromSnippet[0], 10) : 2025;
   }
-  const minYear = baseYear + 1;
-  const maxYear = baseYear + 5;
+  const bounds = maturityWindowBounds(baseYear, periodEnd) ?? { minYear: baseYear + 1, maxYear: baseYear + 5 };
+  const { minYear, maxYear } = bounds;
 
   const rawItems = [];
   const pushItem = (entry, fallbackYear) => {
@@ -132,15 +135,15 @@ export function buildDebtMaturityModel(debt, reportFiscalYear, language = 'es') 
 
   let totalAverageRate = null;
   let totalAverageRateEstimated = false;
-  if (snippetAverage && snippetAverage.amount > allRatedAmount) {
+  if (fallbackRate != null) {
+    totalAverageRate = fallbackRate;
+    totalAverageRateEstimated = debt.allDebtAverageRateEstimated !== false;
+  } else if (snippetAverage && snippetAverage.amount > allRatedAmount) {
     totalAverageRate = snippetAverage.rate;
     totalAverageRateEstimated = snippetAverage.estimated === true;
   } else if (itemsAverageRate != null) {
     totalAverageRate = itemsAverageRate;
     totalAverageRateEstimated = itemsAverageRateEstimated;
-  } else if (fallbackRate != null) {
-    totalAverageRate = fallbackRate;
-    totalAverageRateEstimated = true;
   }
 
   const yearsMap = new Map();

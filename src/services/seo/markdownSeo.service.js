@@ -9,6 +9,7 @@ import { titleCaseName, formatUsdMillions, formatUsdShare } from './seoConstants
 import { buildCompanyMeta } from './companyMeta.service.js';
 import { getExecutiveChanges, getExecutiveFieldLabels } from '../reportExport/executiveChanges.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { visibleCapitalRows } from '../../utils/capitalRows.js';
 import { getCompanySeoContent } from './botContent.service.js';
 import {
   buildReportSlug,
@@ -214,7 +215,7 @@ export function buildReportMarkdown(row) {
       lines.push('');
       lines.push(`| ${t('Concepto', null, lang)} | ${t('Importe', null, lang)} |`);
       lines.push('|---|---|');
-      for (const r of horizon.capital.rows) {
+      for (const r of visibleCapitalRows(horizon.capital.rows)) {
         lines.push(`| ${r.name} | ${r.value ?? '—'} |`);
       }
       lines.push('');

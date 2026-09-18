@@ -91,7 +91,20 @@ function toMillions(value) {
   return Math.round((Number(value) / 1e5)) / 10;
 }
 
-function balanceSheetDebt(row) {
+export function balanceSheetDebt(row) {
+  const shortTerm = toMillions(row?.values?.shortTermLoans);
+  const longTerm = toMillions(row?.values?.longTermDebt);
+  if (shortTerm == null || longTerm == null) return toMillions(row?.values?.totalDebt);
+  const longTermCurrent = toMillions(row?.values?.longTermDebtCurrent);
+  return Math.round((shortTerm + longTerm + (longTermCurrent ?? 0)) * 10) / 10;
+}
+
+/**
+ * Deuda del balance sin la porción corriente de largo plazo. Sirve para detectar casos en los
+ * que `longTermDebtCurrent` es en realidad una etiqueta narrativa ya incluida en `shortTermLoans`
+ * (p. ej. PepsiCo: la línea del balance "Short-term debt obligations" ya contiene los vencimientos).
+ */
+export function balanceSheetDebtWithoutCurrentPortion(row) {
   const shortTerm = toMillions(row?.values?.shortTermLoans);
   const longTerm = toMillions(row?.values?.longTermDebt);
   if (shortTerm == null || longTerm == null) return null;
@@ -216,6 +229,7 @@ function buildPreviousQuarterResult({ currentRow, prevRow, metrics }) {
     buybacksYtd: toMillions(pickBuybacks !== undefined ? Math.abs(pickBuybacks) : null),
     debtIssuedYtd: toMillions(pickDebtIssued),
     debtPaidYtd: toMillions(pickDebtPaid !== undefined ? Math.abs(pickDebtPaid) : null),
+    hasDebtMovement,
     netDebtChangeYtd: toMillions(hasDebtMovement
       ? (Number(pickDebtIssued) || 0) + (Number(pickDebtPaid) || 0)
       : null),
@@ -226,7 +240,9 @@ function buildPreviousQuarterResult({ currentRow, prevRow, metrics }) {
     fyStartRestrictedCash: metrics.fiscalYearStartRestrictedCash,
     totalDebt: metrics.previousDebt,
     balanceSheetDebt: balanceSheetDebt(prevRow) ?? metrics.previousDebt,
+    balanceSheetDebtWithoutCurrentPortion: balanceSheetDebtWithoutCurrentPortion(prevRow),
     currentBalanceSheetDebt: balanceSheetDebt(currentRow) ?? toMillions(currentRow?.values?.totalDebt),
+    currentBalanceSheetDebtWithoutCurrentPortion: balanceSheetDebtWithoutCurrentPortion(currentRow),
     shortTermInvestments: metrics.previousShortTerm,
     fyStartCash: metrics.fiscalYearStartCash,
     fyStartDebt: metrics.fiscalYearStartDebt,
@@ -243,6 +259,13 @@ function buildPreviousQuarterResult({ currentRow, prevRow, metrics }) {
 
 function buildCurrentQuarterData({ currentRow, prevRow, metrics }) {
   const values = currentRow.values;
+  const ytdValues = currentRow.ytdValues ?? {};
+  const debtCashFlow = (source) => {
+    const issued = toMillions(source?.debtIssued);
+    const paid = toMillions(source?.debtPaid);
+    if (issued == null && paid == null) return null;
+    return Math.round(((issued ?? 0) + (paid ?? 0)) * 10) / 10;
+  };
   return {
     period: currentRow.period,
     periodEnd: currentRow.periodEnd,
@@ -263,6 +286,8 @@ function buildCurrentQuarterData({ currentRow, prevRow, metrics }) {
     divestituresYtd: metrics.currentDivestituresYtd,
     buybacks3M: metrics.currentBuybacks3M ? -Math.abs(metrics.currentBuybacks3M) : 0,
     buybacksYtd: metrics.currentBuybacksYtd ? -Math.abs(metrics.currentBuybacksYtd) : 0,
+    debtCashFlow3M: debtCashFlow(values),
+    debtCashFlowYtd: debtCashFlow(ytdValues.debtIssued !== undefined || ytdValues.debtPaid !== undefined ? ytdValues : values),
   };
 }
 

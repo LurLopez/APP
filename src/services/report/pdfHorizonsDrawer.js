@@ -6,6 +6,7 @@
 import { sanitize, drawSectionTitle, drawNotes, drawHorizontalRule } from './pdfStyles.js';
 import { drawTable } from './pdfTableDrawer.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { visibleCapitalRows } from '../../utils/capitalRows.js';
 
 function drawSales(doc, sales, margin, y, lang) {
   if (!Array.isArray(sales.rows) || !sales.rows.length) return y;
@@ -79,8 +80,10 @@ function drawCashFlow(doc, cashFlow, margin, y, lang) {
 
 function drawCapital(doc, capital, margin, y, lang) {
   if (!Array.isArray(capital.rows) || !capital.rows.length) return y;
+  const capitalRowsVisible = visibleCapitalRows(capital.rows);
+  if (!capitalRowsVisible.length) return y;
   let curY = drawSectionTitle(doc, t('3. ASIGNACIÓN DE CAPITAL', null, lang), y);
-  const capitalRows = capital.rows.map((row) => [row.name, row.value]);
+  const capitalRows = capitalRowsVisible.map((row) => [row.name, row.value]);
   curY = drawTable(doc, [t('Métrica', null, lang), t('Valor', null, lang)], capitalRows, {
     startY: curY,
     colWidths: [150, 365],

@@ -1681,7 +1681,9 @@
   "Deuda a amortizar: {amount}",
   "Deuda a largo plazo",
   "Deuda a Largo Plazo",
+  "Deuda asumida (no-cash)",
   "Deuda asumida (no-cash):",
+  "Deuda asumida (no-cash): {amount}M de deuda preexistente de la empresa adquirida se asume con la compra; no supone entrada de caja y se resta en el cuadre.",
   "Deuda balance",
   "Deuda Balance:",
   "Deuda financiera neta (Deuda total - Efectivo/inversiones CP) dividida entre el EBITDA",
@@ -2059,6 +2061,7 @@
   "Eliminar respuesta",
   "Emisión de acciones ordinarias",
   "Emisión de deuda o acuerdos financieros materiales (Item 1.01):",
+  "Emisión de preferentes",
   "Emisión de preferentes o venta de minoritarios (+ fuente, ≥ 50M).",
   "Empieza por la cuenta de resultados:",
   "Empleados",
@@ -4369,6 +4372,7 @@
   "venta",
   "Venta",
   "Venta de inmovilizado material",
+  "Venta de participaciones",
   "Venta de valores negociables y de renta variable",
   "Ventas",
   "Ventas (Revenue / Top-Line)",
@@ -4497,5 +4501,11 @@
   "Zoom del gráfico",
   "Δ vs año anterior",
   "ΔCaja = -(Caja actual - Caja anterior)",
-  "ΔDeuda = Deuda actual - Deuda anterior"
+  "ΔDeuda = Deuda actual - Deuda anterior",
+  "efectivo restringido (consignaciones o liberaciones)",
+  "deuda no monetaria (recompras o amortizaciones anticipadas de deuda con ganancia o pérdida, efecto divisa)",
+  "No cuadra: quedan {amount} sin explicar entre el capital libre y los usos detectados. La tabla solo incluye movimientos de caja; los siguientes no pasan por caja y explican el descuadre: {list}. {tail}",
+  "Con ellos, el resto sin explicar sería {net}, dentro del margen razonable.",
+  "Con ellos, el resto sin explicar sería {net}, que corresponde a partidas no mapeadas o reclasificaciones pendientes de revisar en las notas del informe.",
+  "La tabla solo incluye movimientos de caja; los siguientes no pasan por caja: {list}. {tail}"
 ]

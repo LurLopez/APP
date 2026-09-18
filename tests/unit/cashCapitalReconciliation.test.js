@@ -5,6 +5,9 @@ import {
   normalizeCapitalBlock,
   buildCashFlowAdjustmentChain,
 } from '../../src/agents/analyst/analystCashCapitalProcessor.js';
+import { visibleCapitalRows } from '../../src/utils/capitalRows.js';
+import { buildCapitalAllocationFromBalance } from '../../src/agents/analyst/capitalAllocationHelpers.js';
+import { rederiveCashValues } from '../../src/services/edgar/rederiveStatements.js';
 
 function buildAnnualHorizon() {
   return {
@@ -78,7 +81,7 @@ test('normalizeCashFlowBlock cierra la cadena de los dos ajustes en la nota *2 y
   assert.match(taxNote, /se cancelan en gran medida/i);
 });
 
-test('normalizeCapitalBlock añade la fila de efectivo restringido y cuadra el caso Pepsi 2018 (SodaStream escrow)', () => {
+test('normalizeCapitalBlock no pinta el efectivo restringido como fila (Pepsi 2018, SodaStream escrow)', () => {
   const horizon = {
     label: 'EN TODO EL AÑO (12 MESES)',
     cashFlow: { rows: [{ name: 'Libre', values: ['1.211', '1.211'] }] },
@@ -102,27 +105,331 @@ test('normalizeCapitalBlock añade la fila de efectivo restringido y cuadra el c
 
   normalizeCapitalBlock(horizon, extracted);
 
-  const restrictedRow = horizon.capital.rows.find((r) => /restringid/i.test(r.name));
-  assert.ok(restrictedRow, 'Debe añadirse la fila de efectivo restringido');
-  assert.equal(restrictedRow.name, 'Efectivo restringido*3');
-  assert.equal(restrictedRow.value, '-1997');
+  assert.ok(!horizon.capital.rows.some((r) => /restringid/i.test(r.name)), 'El efectivo restringido no se pinta como fila');
 
   const divestitureRow = horizon.capital.rows.find((r) => /desinver/i.test(r.name));
   assert.equal(divestitureRow.value, '639', 'Desinversiones debe sumar ventas de negocios (505) y de activos (134)');
 
-  const totalIdx = horizon.capital.rows.findIndex((r) => /total/i.test(r.name));
-  const restrictedIdx = horizon.capital.rows.findIndex((r) => /restringid/i.test(r.name));
-  assert.ok(restrictedIdx < totalIdx, 'La fila debe ir antes de En total');
-
-  const note = horizon.capital.notes.find((n) => n.startsWith('*3:'));
-  assert.ok(note, 'Debe existir la nota del efectivo restringido');
-  assert.match(note, /0M a 1997M/);
-  assert.match(note, /-1997M/);
-  assert.match(note, /escrow|restringido/i);
-
   const totalRow = horizon.capital.rows.find((r) => /total/i.test(r.name));
-  assert.equal(totalRow.value, '-13');
+  assert.equal(totalRow.value, '1984', 'El cuadre incluye el hueco del escrow, que no se pinta como fila');
   assert.match(horizon.capital.verification, /Más o menos cuadra/);
+  assert.match(horizon.capital.verification, /efectivo restringido \(consignaciones o liberaciones\) -1997M/);
+  assert.match(horizon.capital.verification, /Con ellos, el resto sin explicar sería -13M, dentro del margen razonable/);
+});
+
+test('normalizeCapitalBlock elimina las filas a 0 y la deuda asumida inventada (caso CAG 2026)', () => {
+  const horizon = {
+    label: 'EN TODO EL AÑO (12 MESES)',
+    cashFlow: { rows: [{ name: 'Libre', values: ['309'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '309' },
+        { name: 'Inversiones a corto plazo', value: '0' },
+        { name: 'Desinversiones', value: '648,9' },
+        { name: 'Adquisiciones', value: '0' },
+        { name: 'Recompras', value: '-15,3' },
+        { name: 'Efectivo restringido', value: '0' },
+        { name: 'Emisión de preferentes', value: '0' },
+        { name: 'Venta de participaciones', value: '0' },
+        { name: 'Deuda asumida (no-cash)', value: '-799,2' },
+        { name: 'Caja', value: '-150' },
+        { name: 'Deuda', value: '-799,2' },
+        { name: 'En total', value: '-805,8' },
+      ],
+      notes: ['*1: Deuda asumida (no-cash): se asume con la compra.'],
+      verification: '',
+    },
+  };
+  const extracted = {
+    capitalAllocationData: {
+      ytd: {
+        deuda: -799.2,
+        caja: -150,
+        inversionesCortoPlazo: 0,
+        divestitures: 648.9,
+        assetSales: 0,
+        buybacks: -15.3,
+        acquisitions: 0,
+        preferredIssuance: 0,
+        nonControllingSale: 0,
+        assumedDebt: 0,
+      },
+    },
+  };
+
+  normalizeCapitalBlock(horizon, extracted);
+
+  assert.deepEqual(horizon.capital.rows.map((r) => r.name.replace(/\*\d+/g, '').trim()), [
+    'Libre', 'Desinversiones', 'Caja', 'Deuda', 'En total',
+  ]);
+  const totalRow = horizon.capital.rows.find((r) => /total/i.test(r.name));
+  assert.equal(totalRow.value, '8,7', 'El total no debe duplicar la variación de deuda');
+  assert.match(horizon.capital.verification, /Más o menos cuadra/);
+  assert.ok(!horizon.capital.notes.some((n) => /asumida/i.test(n)), 'La nota de la fila eliminada no debe quedar huérfana');
+});
+
+test('normalizeCapitalBlock añade la deuda asumida (no-cash) del sistema con su nota cuando existe', () => {
+  const horizon = {
+    label: 'EN TODO EL AÑO (12 MESES)',
+    cashFlow: { rows: [{ name: 'Libre', values: ['255'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '255' },
+        { name: 'Adquisiciones', value: '-16615' },
+        { name: 'Caja', value: '-491' },
+        { name: 'Deuda', value: '13839' },
+        { name: 'En total', value: '-3012' },
+      ],
+      notes: [],
+      verification: '',
+    },
+  };
+  const extracted = {
+    capitalAllocationData: {
+      ytd: {
+        deuda: 13839,
+        caja: -491,
+        acquisitions: -16615,
+        divestitures: 0,
+        assetSales: 0,
+        buybacks: 0,
+        preferredIssuance: 4395,
+        nonControllingSale: 3899,
+        inversionesCortoPlazo: 0,
+        assumedDebt: 4819,
+      },
+    },
+  };
+
+  normalizeCapitalBlock(horizon, extracted);
+
+  const assumedRow = horizon.capital.rows.find((r) => /asumid/i.test(r.name));
+  assert.ok(assumedRow, 'Debe existir la fila de deuda asumida');
+  assert.equal(assumedRow.value, '-4819');
+  assert.match(assumedRow.name, /\*\d+$/);
+  const note = horizon.capital.notes.find((n) => /asumid/i.test(n));
+  assert.ok(note, 'Debe existir la nota de la deuda asumida');
+  assert.match(note, /4819M/);
+  const totalRow = horizon.capital.rows.find((r) => /total/i.test(r.name));
+  assert.equal(totalRow.value, '463');
+  assert.match(horizon.capital.verification, /Más o menos cuadra/);
+});
+
+test('normalizeCapitalBlock fuerza los valores del sistema y elimina filas que el sistema calcula a 0', () => {
+  const horizon = {
+    label: 'EN TODO EL AÑO (12 MESES)',
+    cashFlow: { rows: [{ name: 'Libre', values: ['100'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '100' },
+        { name: 'Emisión de preferentes', value: '999' },
+        { name: 'Caja', value: '-1' },
+        { name: 'Deuda', value: '5' },
+        { name: 'En total', value: '0' },
+      ],
+      notes: [],
+      verification: '',
+    },
+  };
+  const extracted = {
+    capitalAllocationData: {
+      ytd: { deuda: -200, caja: -50, preferredIssuance: 0, nonControllingSale: 0, buybacks: 0, acquisitions: 0 },
+    },
+  };
+
+  normalizeCapitalBlock(horizon, extracted);
+
+  assert.ok(!horizon.capital.rows.some((r) => /preferent/i.test(r.name)), 'La fila inventada debe eliminarse');
+  assert.equal(horizon.capital.rows.find((r) => /^deuda/i.test(r.name)).value, '-200');
+  assert.equal(horizon.capital.rows.find((r) => /^caja/i.test(r.name)).value, '-50');
+});
+
+test('normalizeCapitalBlock elimina la fila Recompras cuando son inmateriales (< 50M)', () => {
+  const horizon = {
+    label: 'EN TODO EL AÑO (12 MESES)',
+    cashFlow: { rows: [{ name: 'Libre', values: ['309'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '309' },
+        { name: 'Desinversiones', value: '687,8' },
+        { name: 'Recompras', value: '-15,3' },
+        { name: 'Caja', value: '-150' },
+        { name: 'Deuda', value: '-799,2' },
+        { name: 'En total', value: '-805,8' },
+      ],
+      notes: [],
+    },
+  };
+  const extracted = { capitalAllocationData: { ytd: { deuda: -799.2, caja: -150, buybacks: -15.3, divestitures: 687.8, assetSales: 0 } } };
+
+  normalizeCapitalBlock(horizon, extracted);
+
+  assert.ok(!horizon.capital.rows.some((r) => /recompra/i.test(r.name)), 'La recompra inmaterial no debe aparecer');
+  assert.equal(horizon.capital.rows.find((r) => /total/i.test(r.name)).value, '47,6');
+  assert.match(horizon.capital.verification, /Más o menos cuadra/);
+});
+
+test('el efectivo restringido suma las partes corriente y no corriente (caso KHC 2026)', () => {
+  const rows = [
+    { periodEnd: '2026-03-28', values: { cash: 3308e6, restrictedCashCurrent: 165e6, restrictedCashNoncurrent: 143e6 } },
+    { periodEnd: '2026-06-27', values: { cash: 2419e6, restrictedCashCurrent: 164e6, restrictedCashNoncurrent: 106e6 } },
+  ];
+  rederiveCashValues([], rows);
+  assert.equal(rows[0].values.restrictedCash, 308e6);
+  assert.equal(rows[1].values.restrictedCash, 270e6);
+
+  const totalRow = [{ periodEnd: '2026-03-28', values: { restrictedCash: 500e6, restrictedCashCurrent: 200e6, restrictedCashNoncurrent: 300e6 } }];
+  rederiveCashValues([], totalRow);
+  assert.equal(totalRow[0].values.restrictedCash, 500e6, 'Si el total ya cubre las partes, no se duplica');
+});
+
+test('buildCapitalAllocationFromBalance detecta el movimiento no monetario de deuda (caso KHC 2026-Q2)', () => {
+  const extracted = {
+    fiscalQuarter: 2,
+    fiscalYear: 2026,
+    balance: {
+      totalDebt: 19001,
+      totalDebtPreviousQuarter: 21133,
+      cash: 2419,
+      cashPreviousQuarter: 3308,
+      shortTermInvestments: 262,
+      shortTermInvestmentsPreviousQuarter: 783,
+      restrictedCash: 270,
+      restrictedCashPreviousQuarter: 308,
+    },
+    systemDebtCash: { ytd: -1829, quarter: -1829 },
+  };
+  const data = buildCapitalAllocationFromBalance(extracted);
+  assert.equal(data.threeMonths.deuda, -2132);
+  assert.equal(data.threeMonths.nonCashDebt, -303, '2.132M de caída de balance frente a 1.829M de caja: 303M no monetarios');
+  assert.equal(data.threeMonths.restrictedCashMovement, 0, 'La variación de efectivo restringido (38M) queda por debajo del umbral de 50M');
+});
+
+test('buildCapitalAllocationFromBalance no inventa la deuda no monetaria si la divergencia no es explicable', () => {
+  const base = {
+    fiscalQuarter: 2,
+    balance: { totalDebt: 19001, totalDebtPreviousQuarter: 21133 },
+  };
+  const tiny = buildCapitalAllocationFromBalance({
+    ...base,
+    systemDebtCash: { ytd: -1829, quarter: -1829 },
+  });
+  assert.equal(tiny.threeMonths.nonCashDebt, -303);
+
+  // Divergencia pequeña (3,8 % de la variación): caso TAP 2026-Q2.
+  const small = buildCapitalAllocationFromBalance({
+    ...base,
+    balance: { totalDebt: 7709.6, totalDebtPreviousQuarter: 6271.9 },
+    systemDebtCash: { ytd: 1465.9, quarter: 1492.6 },
+  });
+  assert.equal(small.threeMonths.nonCashDebt, 0);
+
+  // Signos opuestos (el balance sube y el flujo de deuda baja): caso PEP 2026-Q2.
+  const opposite = buildCapitalAllocationFromBalance({
+    ...base,
+    balance: { totalDebt: 53214, totalDebtPreviousQuarter: 52728 },
+    systemDebtCash: { ytd: 753, quarter: -582 },
+  });
+  assert.equal(opposite.threeMonths.nonCashDebt, 0);
+
+  // Divergencia demasiado grande (posible fuente incompleta): caso PEP acumulado.
+  const tooBig = buildCapitalAllocationFromBalance({
+    ...base,
+    balance: { totalDebt: 53214, totalDebtBeginningOfYear: 49182 },
+    systemDebtCash: { ytd: 753, quarter: -582 },
+  });
+  assert.equal(tooBig.ytd.nonCashDebt, 0);
+});
+
+test('normalizeCapitalBlock explica la deuda no monetaria bajo la tabla y no como fila (caso KHC)', () => {
+  const horizon = {
+    label: 'ÚLTIMOS 3 MESES',
+    cashFlow: { rows: [{ name: 'Libre', values: ['418'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '418' },
+        { name: 'Inversiones a corto plazo', value: '521' },
+        { name: 'Caja', value: '889' },
+        { name: 'Deuda', value: '-2132' },
+      ],
+      notes: [],
+      verification: '',
+    },
+  };
+  const extracted = {
+    capitalAllocationData: {
+      threeMonths: {
+        deuda: -2132,
+        caja: 889,
+        inversionesCortoPlazo: 521,
+        nonCashDebt: -303,
+        debtDelta: -2132,
+        debtCashFlow: -1829,
+      },
+    },
+  };
+
+  normalizeCapitalBlock(horizon, extracted);
+
+  assert.ok(!horizon.capital.rows.some((r) => /no monetaria/i.test(r.name)), 'La deuda no monetaria no se pinta como fila');
+  const totalRow = horizon.capital.rows.find((r) => /total/i.test(r.name));
+  assert.equal(totalRow.value, '-304', '418 + 521 + 889 - 2.132 = -304 (sin movimientos no monetarios)');
+  // El hueco de 304M queda dentro del umbral (10 % de la suma bruta = 396M), pero se explica igualmente.
+  assert.match(horizon.capital.verification, /Más o menos cuadra/);
+  assert.match(horizon.capital.verification, /deuda no monetaria/i);
+  assert.match(horizon.capital.verification, /\+303M/);
+  assert.match(horizon.capital.verification, /Con ellos, el resto sin explicar sería -1M, dentro del margen razonable/);
+});
+
+test('normalizeCapitalBlock explica el descuadre con los movimientos que no pasan por caja cuando supera el umbral', () => {
+  const horizon = {
+    label: 'ÚLTIMOS 3 MESES',
+    cashFlow: { rows: [{ name: 'Libre', values: ['100'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '100' },
+        { name: 'Caja', value: '200' },
+        { name: 'Deuda', value: '-800' },
+      ],
+      notes: [],
+      verification: '',
+    },
+  };
+  const extracted = {
+    capitalAllocationData: {
+      threeMonths: {
+        deuda: -800,
+        caja: 200,
+        nonCashDebt: -500,
+        debtDelta: -800,
+        debtCashFlow: -300,
+      },
+    },
+  };
+
+  normalizeCapitalBlock(horizon, extracted);
+
+  assert.ok(!horizon.capital.rows.some((r) => /no monetaria/i.test(r.name)));
+  const totalRow = horizon.capital.rows.find((r) => /total/i.test(r.name));
+  assert.equal(totalRow.value, '-500');
+  assert.match(horizon.capital.verification, /No cuadra/);
+  assert.match(horizon.capital.verification, /-500M/);
+  assert.match(horizon.capital.verification, /deuda no monetaria/i);
+  assert.match(horizon.capital.verification, /\+500M/);
+  assert.match(horizon.capital.verification, /Con ellos, el resto sin explicar sería \+0M, dentro del margen razonable/i);
+});
+
+test('visibleCapitalRows oculta las filas a 0 y conserva Libre y En total', () => {
+  const rows = [
+    { name: 'Libre', value: '0' },
+    { name: 'Inversiones a corto plazo', value: '0' },
+    { name: 'Recompras', value: '0,0' },
+    { name: 'Desinversiones', value: '+648,9' },
+    { name: 'Caja*1', value: '-150' },
+    { name: 'En total', value: '0' },
+    { name: 'Deuda', value: '—' },
+  ];
+  assert.deepEqual(visibleCapitalRows(rows).map((r) => r.name), ['Libre', 'Desinversiones', 'Caja*1', 'En total', 'Deuda']);
 });
 
 test('normalizeCapitalBlock indica el importe exacto del descuadre y su causa no monetaria', () => {

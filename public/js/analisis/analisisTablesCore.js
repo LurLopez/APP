@@ -114,6 +114,14 @@
     return i18n.t ? i18n.t(text, params) : text;
   }
 
+  function isVisibleCapitalRow(row) {
+    const name = String(row?.name ?? '').replace(/\*\d+/g, '').trim().toLowerCase();
+    if (/^(libre|free)\b/.test(name) || name.includes('total')) return true;
+    const raw = String(row?.value ?? '').trim().replace(/[$€£\s+]/g, '');
+    if (!raw || raw === '—') return true;
+    return !/^-?0+(?:[.,]0+)?$/.test(raw);
+  }
+
   function renderHorizon(horizon) {
     const label = escapeHtml(horizon.label ?? tr('Periodo'));
     let html = `<div class="report-block"><h5>${label}</h5>`;
@@ -157,9 +165,10 @@
     }
 
     const capital = horizon.capital ?? {};
-    if (Array.isArray(capital.rows) && capital.rows.length) {
+    const capitalRows = Array.isArray(capital.rows) ? capital.rows.filter(isVisibleCapitalRow) : [];
+    if (capitalRows.length) {
       html += `<p class="report-extras">${tr('3. ASIGNACIÓN DE CAPITAL')}</p>`;
-      html += renderTable([tr('Métrica'), tr('Valor')], capital.rows.map((r) => [r.name, r.value]), [], { isCapital: true, valueColumn: 1 });
+      html += renderTable([tr('Métrica'), tr('Valor')], capitalRows.map((r) => [r.name, r.value]), [], { isCapital: true, valueColumn: 1 });
       if (capital.verification) html += `<p class="report-extras">${escapeHtml(capital.verification)}</p>`;
       html += renderNotes(capital.notes);
     }

@@ -1,0 +1,16 @@
+{
+  "filing": {
+    "ticker": "HELE",
+    "name": "Helen of Troy Limited",
+    "formType": "10-K",
+    "period": "2025-02-28",
+    "periodLabel": "FY 2025",
+    "filedAt": "2025-04-24",
+    "accession": "0000916789-25-000012",
+    "documentUrl": "https://www.sec.gov/Archives/edgar/data/916789/000091678925000012/hele-20250228.htm"
+  },
+  "provider": "deepseek",
+  "status": "error",
+  "code": "NOT_DEFENSIVE_CONSUMER",
+  "error": "Este informe no corresponde al sector de consumo defensivo."
+}

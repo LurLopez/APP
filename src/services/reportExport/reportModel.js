@@ -82,7 +82,7 @@ function buildConclusionCards(conc, report, language = 'es') {
 
   if (conc.debt) {
     const debt = conc.debt;
-    const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear, lang);
+    const maturityChart = buildDebtMaturityModel(debt, report?.fiscalYear, lang, report?.reportingPeriod ?? null);
     const historyChart = buildDebtHistoryModel(debt, report);
     const refinancingModel = buildDebtRefinancingModel(debt, report);
     const details = [

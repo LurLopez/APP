@@ -22,7 +22,7 @@ import {
   parseLooseAmount,
 } from './financialParsers.js';
 import { buildDividendHistoryFromEdgar } from './historyBuilders.js';
-import { buildMaturityScheduleFromDebtTable, normalizeMaturityPayload, maturityItemsLookBucketed, shouldRecoverMaturitySchedule } from './debtMaturityFallback.js';
+import { buildMaturityScheduleFromDebtTable, buildMaturityScheduleFromFilingText, normalizeMaturityPayload, maturityItemsLookBucketed, maturityTableLooksIncomplete, pickCoveringMaturitySchedule, weightedAverageRateFromItems } from './debtMaturityFallback.js';
 import { buildDebtMaturityPrompt } from './debtMaturityPrompt.js';
 import { buildDebtRefinancingPrompt } from './debtRefinancingPrompt.js';
 import { loadKnowledgeRules, buildAnalysisText, extractDebtFilingText, extractRefinancingFilingText } from './filingExtractor.js';
@@ -196,10 +196,19 @@ function applyEdgarPeriodFallbacks(extracted, values, isAnnual) {
   if (values.netIncome != null) assignIfMissing(periodTarget, 'netIncome', toMillions(values.netIncome));
 }
 
-function applyEdgarBalanceFallbacks(extracted, values) {
+export function applyEdgarBalanceFallbacks(extracted, values) {
   extracted.balance = extracted.balance || {};
   if (values.cash != null) assignIfMissing(extracted.balance, 'cash', toMillions(values.cash));
-  if (values.totalDebt != null) assignIfMissing(extracted.balance, 'totalDebt', toMillions(values.totalDebt));
+  const edgarDebt = values.totalDebt != null ? toMillions(values.totalDebt) : null;
+  if (edgarDebt != null) {
+    const aiDebt = extracted.balance.totalDebt != null ? Number(extracted.balance.totalDebt) : null;
+    const shortTerm = values.shortTermLoans != null ? toMillions(values.shortTermLoans) : null;
+    // La IA a veces suma dos veces los préstamos a corto plazo cuando el balance los presenta
+    // en una línea combinada con la porción corriente y la nota los desglosa aparte.
+    const duplicatedShortTerm = Number.isFinite(aiDebt) && shortTerm != null
+      && Math.abs(aiDebt - edgarDebt - shortTerm) < 0.1;
+    if (!Number.isFinite(aiDebt) || duplicatedShortTerm) extracted.balance.totalDebt = edgarDebt;
+  }
   if (values.shortTermInvestments != null) {
     assignIfMissing(extracted.balance, 'shortTermInvestments', toMillions(values.shortTermInvestments));
   }
@@ -257,6 +266,25 @@ function deduceQuarterCashFlow(extracted, prevFlow) {
   return deduced;
 }
 
+/**
+ * Elige la deuda del trimestre previo entre la versión con y sin porción corriente de largo plazo.
+ * Cuando `longTermDebtCurrent` es una etiqueta narrativa ya incluida en `shortTermLoans`
+ * (p. ej. PepsiCo), la composición sin porción corriente es la que reproduce la deuda que la IA
+ * leyó del balance del trimestre actual; en ese caso se usa también para el trimestre previo.
+ */
+export function pickPreviousQuarterDebt(prevFlow, currentDebt) {
+  const withCurrentPortion = prevFlow?.balanceSheetDebt ?? null;
+  const withoutCurrentPortion = prevFlow?.balanceSheetDebtWithoutCurrentPortion ?? null;
+  if (withCurrentPortion == null || withoutCurrentPortion == null) return withCurrentPortion;
+  const current = toOptionalNumber(currentDebt);
+  if (current == null) return withCurrentPortion;
+  const matches = (candidate) => candidate != null && Math.abs(current - candidate) < 0.5;
+  if (matches(prevFlow.currentBalanceSheetDebtWithoutCurrentPortion) && !matches(prevFlow.currentBalanceSheetDebt)) {
+    return withoutCurrentPortion;
+  }
+  return withCurrentPortion;
+}
+
 function storePreviousQuarterCashFlow(extracted, prevFlow, deduced) {
   extracted.previousQuarterCashFlow = {
     period: prevFlow.period,
@@ -266,6 +294,8 @@ function storePreviousQuarterCashFlow(extracted, prevFlow, deduced) {
     dividendsYtd: prevFlow.dividendsYtd,
     buybacksYtd: prevFlow.buybacksYtd,
     workingCapitalChangeYtd: prevFlow.workingCapitalChangeYtd,
+    netDebtChangeYtd: prevFlow.netDebtChangeYtd,
+    hasDebtMovement: prevFlow.hasDebtMovement === true,
   };
   if (Object.keys(deduced).length > 0) extracted.deducedQuarterCashFlow = deduced;
 
@@ -273,11 +303,18 @@ function storePreviousQuarterCashFlow(extracted, prevFlow, deduced) {
   const previousBalances = {
     cashPreviousQuarter: prevFlow.cash,
     shortTermInvestmentsPreviousQuarter: prevFlow.shortTermInvestments,
-    totalDebtPreviousQuarter: prevFlow.balanceSheetDebt,
+    totalDebtPreviousQuarter: pickPreviousQuarterDebt(prevFlow, extracted.balance?.totalDebt),
     restrictedCashPreviousQuarter: prevFlow.previousRestrictedCash,
   };
   for (const [key, value] of Object.entries(previousBalances)) {
     if (extracted.balance[key] == null && value != null) extracted.balance[key] = value;
+  }
+
+  const currentQuarter = prevFlow.currentQuarterData;
+  if (currentQuarter) {
+    const ytd = toOptionalNumber(currentQuarter.debtCashFlowYtd);
+    const quarter = toOptionalNumber(currentQuarter.debtCashFlow3M);
+    if (ytd != null || quarter != null) extracted.systemDebtCash = { ytd, quarter };
   }
 
   extracted.workingCapital = extracted.workingCapital || {};
@@ -353,15 +390,15 @@ export async function loadAnnualEdgarData({ edgarResults, ticker, isAnnual, fisc
   }
 }
 
-async function recoverDebtMaturitiesFromText(rawText, fiscalYear) {
+async function recoverDebtMaturitiesFromText(rawText, fiscalYear, reportingPeriod) {
   const debtText = extractDebtFilingText(rawText);
   if (!debtText) return null;
   try {
     const payload = await chatJson([
-      { role: 'system', content: buildDebtMaturityPrompt(fiscalYear) },
+      { role: 'system', content: buildDebtMaturityPrompt(fiscalYear, reportingPeriod) },
       { role: 'user', content: debtText.slice(0, 32000) },
     ]);
-    const recovered = normalizeMaturityPayload(payload, fiscalYear);
+    const recovered = normalizeMaturityPayload(payload, fiscalYear, reportingPeriod);
     if (recovered) console.info('[analyst] Calendario de vencimientos recuperado con pasada focalizada.');
     return recovered;
   } catch (error) {
@@ -387,30 +424,68 @@ function buildEdgarMaturitySchedule(edgarDebtMaturities) {
 
 /**
  * Reconstruye el calendario de vencimientos año a año cuando la IA lo trajo agregado
- * en rangos ("1-3 years", "2024 and beyond") o directamente no lo extrajo.
+ * en rangos ("1-3 years", "2024 and beyond"), directamente no lo extrajo, o la tabla
+ * de la nota llegó resumida con importes materiales sin año de vencimiento.
  */
-export async function recoverAnnualMaturities(debtDetails, { rawText, fiscalYear, edgarDebtMaturities }) {
+export async function recoverAnnualMaturities(debtDetails, { rawText, fiscalYear, reportingPeriod, totalDebt, edgarDebtMaturities }) {
   const maturityItems = Array.isArray(debtDetails?.maturityItems) ? debtDetails.maturityItems : [];
   const maturitySchedule = Array.isArray(debtDetails?.maturitySchedule) ? debtDetails.maturitySchedule : [];
-  if (!debtDetails || !shouldRecoverMaturitySchedule(maturityItems, maturitySchedule, fiscalYear)) return;
+  if (!debtDetails) return;
 
-  const wasBucketed = maturityItemsLookBucketed(maturityItems, fiscalYear)
-    || maturityItemsLookBucketed(maturitySchedule, fiscalYear);
-  const recovered = buildMaturityScheduleFromDebtTable(debtDetails.secTable, fiscalYear)
-    || buildEdgarMaturitySchedule(edgarDebtMaturities)
-    || await recoverDebtMaturitiesFromText(rawText, fiscalYear);
-  if (!recovered) return;
+  const currentItems = maturityItems.length ? maturityItems : maturitySchedule;
+  const wasBucketed = maturityItemsLookBucketed(maturityItems, fiscalYear, reportingPeriod)
+    || maturityItemsLookBucketed(maturitySchedule, fiscalYear, reportingPeriod);
+  const totalDebtNum = Number(totalDebt);
+  const debtText = extractDebtFilingText(rawText);
+  const tableSchedule = buildMaturityScheduleFromDebtTable(debtDetails.secTable, fiscalYear, reportingPeriod);
+  const tableLooksIncomplete = maturityTableLooksIncomplete(debtDetails.secTable);
+  const textSchedule = buildMaturityScheduleFromFilingText(debtText, fiscalYear, reportingPeriod);
+  const edgarSchedule = buildEdgarMaturitySchedule(edgarDebtMaturities);
+  const ordered = (tableLooksIncomplete || !tableSchedule)
+    ? [textSchedule, tableSchedule, edgarSchedule]
+    : [tableSchedule, textSchedule, edgarSchedule];
+
+  // 1) La nota de deuda manda: si una fuente determinista (texto de la nota o tabla SEC) cubre la
+  //    deuda total, sustituye al calendario de la IA (que no debe inventarse los vencimientos).
+  let recovered = pickCoveringMaturitySchedule(ordered, totalDebtNum);
+  // 2) Sin fuente determinista suficiente: se conserva el calendario de la IA si no viene agregado;
+  //    si viene agregado o no existe, se intenta la pasada focalizada de IA y, como último recurso, el XBRL.
+  if (!recovered && !(currentItems.length && !wasBucketed)) {
+    recovered = await recoverDebtMaturitiesFromText(rawText, fiscalYear, reportingPeriod) ?? ordered.find(Boolean);
+  }
+
+  const shouldOverrideRate = debtDetails.allDebtAverageRate == null
+    || edgarDebtMaturities?.weightedAverageRateSource === 'instrument';
+  if (!recovered) {
+    if (shouldOverrideRate) {
+      const currentRate = weightedAverageRateFromItems(currentItems);
+      if (currentRate) {
+        debtDetails.allDebtAverageRate = currentRate.rate;
+        debtDetails.allDebtAverageRateEstimated = true;
+        debtDetails.allDebtAverageRateSource = 'cupones de la nota ponderados por saldo';
+      }
+    }
+    return;
+  }
 
   debtDetails.maturityItems = recovered.items;
-  if (maturityItemsLookBucketed(maturitySchedule, fiscalYear)) delete debtDetails.maturitySchedule;
+  if (maturityItemsLookBucketed(maturitySchedule, fiscalYear, reportingPeriod)) delete debtDetails.maturitySchedule;
   if (recovered.afterYearFive != null) debtDetails.maturityAfterFive = recovered.afterYearFive;
-  if (debtDetails.allDebtAverageRate == null && edgarDebtMaturities?.weightedAverageRate != null) {
-    debtDetails.allDebtAverageRate = edgarDebtMaturities.weightedAverageRate;
-    debtDetails.allDebtAverageRateEstimated = true;
+  // Tipo medio: se prefiere el de los cupones reales de la nota cuando el XBRL solo aporta
+  // el cupón de una emisión concreta (no representa la deuda total).
+  if (shouldOverrideRate) {
+    const itemsRate = recovered.weightedAverageRate ?? weightedAverageRateFromItems(recovered.items);
+    if (itemsRate) {
+      debtDetails.allDebtAverageRate = itemsRate.rate;
+      debtDetails.allDebtAverageRateEstimated = true;
+      debtDetails.allDebtAverageRateSource = 'cupones de la nota ponderados por saldo';
+    } else if (edgarDebtMaturities?.weightedAverageRate != null && edgarDebtMaturities.weightedAverageRateSource !== 'instrument') {
+      debtDetails.allDebtAverageRate = edgarDebtMaturities.weightedAverageRate;
+      debtDetails.allDebtAverageRateEstimated = true;
+      debtDetails.allDebtAverageRateSource = 'SEC XBRL (tipo medio ponderado)';
+    }
   }
-  if (wasBucketed) {
-    console.info(`[analyst] Calendario de vencimientos reconstruido año a año: ${recovered.items.length} tramos.`);
-  }
+  console.info(`[analyst] Calendario de vencimientos reconstruido año a año: ${recovered.items.length} tramos${wasBucketed ? ' (venía agregado)' : ''}.`);
 }
 
 function toOptionalNumber(value) {
@@ -510,7 +585,7 @@ export function applyAnnualConclusion(result, extracted, edgarData, fiscalYear, 
   processRepurchasesSection(result.conclusion, rawAnnual, extracted, language);
   processExecutiveChangesSection(result.conclusion, rawAnnual, language);
   processOutlookSection(result.conclusion, rawAnnual, result, language);
-  processDebtSection(result.conclusion, rawAnnual, edgarData, fiscalYear, language);
+  processDebtSection(result.conclusion, rawAnnual, edgarData, fiscalYear, language, extracted.reportingPeriod ?? null);
   processAcquisitionsDividendsAndWatchlist(result.conclusion, rawAnnual, extracted, edgarData, fiscalYear, language);
   renumberConclusionSections(result.conclusion, language);
 }

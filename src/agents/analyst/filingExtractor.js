@@ -154,7 +154,7 @@ function isDebtCoverOrIndexEntry(source, index) {
 
 function maturityWindowScore(source, range) {
   const snippet = source.slice(range.start, range.end);
-  const yearRows = (snippet.match(/(?:due|maturing(?:\s+in)?)\s+(?:19|20)\d{2}/gi) || []).length;
+  const yearRows = (snippet.match(/(?:due|maturing(?:\s+in)?)\s+(?:[A-Za-z]+\s+)?(?:19|20)\d{2}/gi) || []).length;
   const amounts = (snippet.match(/\d{1,3}(?:,\d{3})+|\$\s?\d/g) || []).length;
   return yearRows * 3 + amounts * 10;
 }
@@ -172,7 +172,7 @@ export function extractDebtFilingText(text) {
   const source = String(text ?? '');
   if (!source) return '';
 
-  const rowPattern = /(?:(?:due|maturing(?:\s+in)?)\s+(?:19|20)\d{2}|(?:maturities of (?:long-term )?debt|contractual maturities|scheduled maturities)[\s\S]{0,300}?\b20[2-4]\d\b)/gi;
+  const rowPattern = /(?:(?:due|maturing(?:\s+in)?)\s+(?:[A-Za-z]+\s+)?(?:19|20)\d{2}|(?:maturities of (?:long-term )?debt|contractual maturities|scheduled maturities)[\s\S]{0,300}?\b20[2-4]\d\b)/gi;
   const windows = [];
   let match;
   while ((match = rowPattern.exec(source)) !== null && windows.length < 10) {

@@ -5,6 +5,7 @@
 
 import { cell, headerCell, getHighlight, noteNumberOf, sanitize, COLORS } from './exportColors.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { visibleCapitalRows } from '../../utils/capitalRows.js';
 
 export function isPctHeader(header) {
   return ['% Aj.', '% N.', '% Ajustado', '% Normal', '%', '% Adj.', '% N.', '% Adjusted', '% Normal'].includes(String(header).trim());
@@ -117,7 +118,7 @@ export function buildCapitalSection(capital, language = 'es') {
   const columns = [t('Métrica', null, lang), t('Valor', null, lang)];
   const widths = [150, 365];
   const headers = columns.map(headerCell);
-  const rows = (capital.rows ?? []).map((row, index) => {
+  const rows = visibleCapitalRows(capital.rows).map((row, index) => {
     const stripeBg = index % 2 === 0 ? COLORS.stripe : null;
     const nameText = sanitize(row.name);
     const nameNoteMatch = nameText.match(/\*(\d+)/);

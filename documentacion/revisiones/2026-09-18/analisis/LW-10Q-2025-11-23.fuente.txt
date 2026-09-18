@@ -1,0 +1,1415 @@
+[COMIENZO DEL INFORME]
+Table of Contents
+UNITED STATES
+SECURITIES AND EXCHANGE COMMISSION
+WASHINGTON, D.C. 20549
+_________________________________________________________________
+FORM 10-Q
+_________________________________________________________________
+(Mark One)
+x QUARTERLY REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934
+For the quarterly period ended November 23, 2025
+OR
+o TRANSITION REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934
+For the transition period from 	to
+Commission File Number: 1-37830
+_________________________________________________________________
+LAMB WESTON HOLDINGS, INC.
+(Exact name of registrant as specified in its charter)
+Delaware 	61-1797411
+(State or other jurisdiction of
+incorporation or organization)
+(I.R.S. Employer
+Identification No.)
+599 S. Rivershore Lane
+Eagle, Idaho 	83616
+(Address of principal executive offices) 	(Zip Code)
+(208) 938-1047
+(Registrant’s telephone number, including area code)
+N/A
+(Former name, former address and former fiscal year, if changed since last report)
+Securities registered pursuant to Section 12(b) of the Act:
+Title of each class 	Trading Symbol(s) 	Name of each exchange on which registered
+Common Stock, $1.00 par value 	LW 	New York Stock Exchange
+Indicate by check mark whether the registrant (1) has filed all reports required to be filed by Section 13 or 15(d) of the Securities Exchange Act of 1934 during the preceding 12 months (or for
+such shorter period that the registrant was required to file such reports), and (2) has been subject to such filing requirements for the past 90 days. Yes x No o
+Indicate by check mark whether the registrant has submitted electronically every Interactive Data File required to be submitted pursuant to Rule 405 of Regulation S-T (232.405 of this chapter)
+during the preceding 12 months (or for such shorter period that the registrant was required to submit such files). Yes x No o
+Indicate by check mark whether the registrant is a large accelerated filer, an accelerated filer, a non-accelerated filer, a smaller reporting company, or an emerging growth company. See the
+definitions of “large accelerated filer,” “accelerated filer,” “smaller reporting company,” and “emerging growth company” in Rule 12b-2 of the Exchange Act.:
+Large accelerated filer 	x 	Accelerated filer 	o
+Non-accelerated filer 	o 	Smaller reporting company 	o
+Emerging growth company 	o
+If an emerging growth company, indicate by check mark if the registrant has elected not to use the extended transition period for complying with any new or revised financial accounting
+standards provided pursuant to Section 13(a) of the Exchange Act. o
+Indicate by check mark whether the registrant is a shell company (as defined in Rule 12b-2 of the Exchange Act). Yes o No x
+
+-- 1 of 46 --
+
+As of December 12, 2025, the Registrant had 138,879,884 shares of common stock, par value $1.00 per share, outstanding.
+
+-- 2 of 46 --
+
+Table of Contents
+Table of Contents
+Part I. FINANCIAL INFORMATION
+Item 1 	Financial Statements (Unaudited)
+Consolidated Statements of Earnings 	3
+Consolidated Statements of Comprehensive Income 	4
+Consolidated Balance Sheets 	5
+Consolidated Statements of Stockholders’ Equity 	6
+Consolidated Statements of Cash Flows 	7
+Condensed Notes to Consolidated Financial Statements (Unaudited) 	8
+Item 2 	Management’s Discussion and Analysis of Financial Condition and Results of Operations 	19
+Item 3 	Quantitative and Qualitative Disclosures About Market Risk 	28
+Item 4 	Controls and Procedures 	29
+Part II. OTHER INFORMATION 	29
+Item 1 	Legal Proceedings 	29
+Item 1A 	Risk Factors 	29
+Item 2 	Unregistered Sales of Equity Securities and Use of Proceeds 	30
+Item 3 	Defaults Upon Senior Securities 	30
+Item 4 	Mine Safety Disclosures 	30
+Item 5 	Other Information 	30
+Item 6 	Exhibits 	31
+Signature 	32
+2
+
+-- 3 of 46 --
+
+Table of Contents
+PART I — FINANCIAL INFORMATION
+ITEM 1. FINANCIAL STATEMENTS (Unaudited)
+Lamb Weston Holdings, Inc.
+Consolidated Statements of Earnings
+(unaudited, in millions, except per share amounts)
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Net sales 	$ 	1,618.1 $ 	1,600.9 $ 	3,277.3 $ 	3,255.0
+Cost of sales 	1,293.8 	1,323.1 	2,610.6 	2,621.2
+Gross profit 	324.3 	277.8 	666.7 	633.8
+Selling, general and administrative expenses 	171.0 	184.7 	324.6 	328.6
+Restructuring expense 	14.1 	74.6 	46.4 	74.6
+Income from operations 	139.2 	18.5 	295.7 	230.6
+Interest expense, net 	44.3 	43.3 	88.0 	88.5
+Income (loss) before income taxes and equity method
+earnings 	94.9 	(24.8) 	207.7 	142.1
+Income tax expense 	36.0 	13.4 	83.9 	64.2
+Equity method investment earnings 	3.2 	2.1 	2.6 	13.4
+Net income (loss) 	$ 	62.1 $ 	(36.1) $ 	126.4 $ 	91.3
+Earnings per share:
+Basic 	$ 	0.45 $ 	(0.25) $ 	0.91 $ 	0.64
+Diluted 	$ 	0.44 $ 	(0.25) $ 	0.90 $ 	0.64
+Weighted average common shares outstanding:
+Basic 	139.4 	142.8 	139.4 	143.2
+Diluted 	139.6 	143.2 	139.7 	143.7
+See Condensed Notes to Consolidated Financial Statements.
+3
+
+-- 4 of 46 --
+
+Table of Contents
+Lamb Weston Holdings, Inc.
+Consolidated Statements of Comprehensive Income
+(unaudited, dollars in millions)
+Thirteen weeks ended
+November 23, 2025
+Thirteen weeks ended
+November 24, 2024
+Pre-Tax
+Amount
+Tax
+(Expense)
+Benefit
+After-Tax
+Amount
+Pre-Tax
+Amount
+Tax
+(Expense)
+Benefit
+After-Tax
+Amount
+Net income (loss) 	$ 	98.1 $ 	(36.0) $ 	62.1 $ 	(22.7) $ 	(13.4) $ 	(36.1)
+Other comprehensive income (loss):
+Unrealized pension and post-
+retirement benefit obligations loss 	(0.1) 	— 	(0.1) 	— 	— 	—
+Unrealized currency translation
+losses 	(19.4) 	— 	(19.4) 	(117.8) 	1.1 	(116.7)
+Other 	— 	— 	— 	(0.1) 	— 	(0.1)
+Comprehensive income (loss) 	$ 	78.6 $ 	(36.0) $ 	42.6 $ 	(140.6) $ 	(12.3) $ 	(152.9)
+Twenty-Six Weeks Ended
+November 23, 2025
+Twenty-Six Weeks Ended
+November 24, 2024
+Pre-Tax
+Amount
+Tax
+(Expense)
+Benefit
+After-Tax
+Amount
+Pre-Tax
+Amount
+Tax
+(Expense)
+Benefit
+After-Tax
+Amount
+Net income 	$ 	210.3 $ 	(83.9) $ 	126.4 $ 	155.5 $ 	(64.2) $ 	91.3
+Other comprehensive income (loss):
+Unrealized pension and post-
+retirement benefit obligations gain
+(loss) 	6.2 	(1.0) 	5.2 	(0.2) 	— 	(0.2)
+Unrealized currency translation
+gains (losses) 	21.9 	— 	21.9 	(61.2) 	0.5 	(60.7)
+Other 	— 	— 	— 	(0.3) 	0.1 	(0.2)
+Comprehensive income 	$ 	238.4 $ 	(84.9) $ 	153.5 $ 	93.8 $ 	(63.6) $ 	30.2
+See Condensed Notes to Consolidated Financial Statements.
+4
+
+-- 5 of 46 --
+
+Table of Contents
+Lamb Weston Holdings, Inc.
+Consolidated Balance Sheets
+(unaudited, dollars in millions, except share data)
+November 23,
+2025 	May 25, 2025
+ASSETS
+Current assets:
+Cash and cash equivalents 	$ 	82.7 $ 	70.7
+Receivables, net of allowances of $1.0 and $0.9 	742.2 	781.6
+Inventories 	1,117.8 	1,035.4
+Prepaid expenses and other current assets 	68.3 	145.0
+Total current assets 	2,011.0 	2,032.7
+Property, plant and equipment, net 	3,652.9 	3,687.9
+Operating lease assets 	118.2 	113.2
+Goodwill 	1,099.5 	1,090.2
+Intangible assets, net 	110.9 	114.0
+Other assets 	338.5 	354.6
+Total assets 	$ 	7,331.0 $ 7,392.6
+LIABILITIES AND STOCKHOLDERS’ EQUITY
+Current liabilities:
+Short-term borrowings 	$ 	187.0 $ 	370.8
+Current portion of long-term debt and financing obligations 	82.7 	77.8
+Accounts payable 	709.2 	616.4
+Accrued liabilities 	424.2 	411.0
+Total current liabilities 	1,403.1 	1,476.0
+Long-term liabilities:
+Long-term debt and financing obligations, excluding current portion 	3,648.9 	3,682.8
+Deferred income taxes 	273.3 	253.5
+Other noncurrent liabilities 	251.3 	242.6
+Total long-term liabilities 	4,173.5 	4,178.9
+Commitments and contingencies
+Stockholders’ equity:
+Common stock of $1.00 par value, 600,000,000 shares authorized; 152,006,164 and 151,390,267
+shares issued 	152.0 	151.4
+Treasury stock, at cost, 13,126,699 and 12,152,507 common shares 	(897.4) 	(838.0)
+Additional distributed capital 	(453.7) 	(479.1)
+Retained earnings 	2,871.9 	2,848.9
+Accumulated other comprehensive income 	81.6 	54.5
+Total stockholders’ equity 	1,754.4 	1,737.7
+Total liabilities and stockholders’ equity 	$ 	7,331.0 $ 7,392.6
+See Condensed Notes to Consolidated Financial Statements.
+
+-- 6 of 46 --
+
+5
+
+-- 7 of 46 --
+
+Table of Contents
+Lamb Weston Holdings, Inc.
+Consolidated Statements of Stockholders’ Equity
+(unaudited, dollars in millions, except share and per share data)
+Thirteen Weeks Ended November 23, 2025 and November 24, 2024
+Common Stock,
+net of Treasury
+Shares
+Common
+Stock
+Amount
+Treasury
+Stock
+Amount
+Additional
+Paid-in
+(Distributed)
+Capital
+Retained
+Earnings
+Accumulated
+Other
+Comprehensive
+Income (Loss)
+Total
+Stockholders’
+Equity
+Balance at August 24, 2025 	139,335,411 $ 151.8 $ (856.7) $ 	(468.2) $ 2,861.8 $ 	101.1 $ 	1,789.8
+Dividends declared, $0.37 per share 	— 	— 	— 	— 	(51.4) 	— 	(51.4)
+Common stock issued 	173,322 	0.2 	— 	4.3 	— 	— 	4.5
+Stock-settled, stock-based compensation
+expense — 	— 	— 	9.5 	— 	— 	9.5
+Repurchase of common stock and common
+stock withheld to cover taxes (629,268) 	— 	(40.4) 	— 	— 	— 	(40.4)
+Other 	— 	— 	(0.3) 	0.7 	(0.6) 	— 	(0.2)
+Comprehensive income (loss) 	— 	— 	— 	— 	62.1 	(19.5) 	42.6
+Balance at November 23, 2025 	138,879,465 $ 152.0 $ (897.4) $ 	(453.7) $ 2,871.9 $ 	81.6 $ 	1,754.4
+Balance at August 25, 2024 	142,595,357 $ 151.3 $ (633.7) $ 	(499.0) $ 2,775.3 $ 	42.8 $ 	1,836.7
+Dividends declared, $0.36 per share 	— 	— 	— 	— 	(51.3) 	— 	(51.3)
+Common stock issued 	54,070 	— 	— 	— 	— 	— 	—
+Stock-settled, stock-based compensation
+expense — 	— 	— 	12.3 	— 	— 	12.3
+Repurchase of common stock and common
+stock withheld to cover taxes 	(8,791) 	— 	(0.7) 	— 	— 	— 	(0.7)
+Other 	— 	— 	— 	(10.6) 	(0.7) 	— 	(11.3)
+Comprehensive loss 	— 	— 	— 	— 	(36.1) 	(116.8) 	(152.9)
+Balance at November 24, 2024 	142,640,636 $ 151.3 $ (634.4) $ 	(497.3) $ 2,687.2 $ 	(74.0) $ 	1,632.8
+Twenty-Six weeks ended November 23, 2025 and November 24, 2024
+Common Stock,
+net of Treasury
+Shares
+Common
+Stock
+Amount
+Treasury
+Stock
+Amount
+Additional
+Paid-in
+(Distributed)
+Capital
+Retained
+
+[SECCIÓN DE ESTADOS FINANCIEROS Y NOTAS]
+rant is a large accelerated filer, an accelerated filer, a non-accelerated filer, a smaller reporting company, or an emerging growth company. See the
+definitions of “large accelerated filer,” “accelerated filer,” “smaller reporting company,” and “emerging growth company” in Rule 12b-2 of the Exchange Act.:
+Large accelerated filer 	x 	Accelerated filer 	o
+Non-accelerated filer 	o 	Smaller reporting company 	o
+Emerging growth company 	o
+If an emerging growth company, indicate by check mark if the registrant has elected not to use the extended transition period for complying with any new or revised financial accounting
+standards provided pursuant to Section 13(a) of the Exchange Act. o
+Indicate by check mark whether the registrant is a shell company (as defined in Rule 12b-2 of the Exchange Act). Yes o No x
+
+-- 1 of 46 --
+
+As of December 12, 2025, the Registrant had 138,879,884 shares of common stock, par value $1.00 per share, outstanding.
+
+-- 2 of 46 --
+
+Table of Contents
+Table of Contents
+Part I. FINANCIAL INFORMATION
+Item 1 	Financial Statements (Unaudited)
+Consolidated Statements of Earnings 	3
+Consolidated Statements of Comprehensive Income 	4
+Consolidated Balance Sheets 	5
+Consolidated Statements of Stockholders’ Equity 	6
+Consolidated Statements of Cash Flows 	7
+Condensed Notes to Consolidated Financial Statements (Unaudited) 	8
+Item 2 	Management’s Discussion and Analysis of Financial Condition and Results of Operations 	19
+Item 3 	Quantitative and Qualitative Disclosures About Market Risk 	28
+Item 4 	Controls and Procedures 	29
+Part II. OTHER INFORMATION 	29
+Item 1 	Legal Proceedings 	29
+Item 1A 	Risk Factors 	29
+Item 2 	Unregistered Sales of Equity Securities and Use of Proceeds 	30
+Item 3 	Defaults Upon Senior Securities 	30
+Item 4 	Mine Safety Disclosures 	30
+Item 5 	Other Information 	30
+Item 6 	Exhibits 	31
+Signature 	32
+2
+
+-- 3 of 46 --
+
+Table of Contents
+PART I — FINANCIAL INFORMATION
+ITEM 1. FINANCIAL STATEMENTS (Unaudited)
+Lamb Weston Holdings, Inc.
+Consolidated Statements of Earnings
+(unaudited, in millions, except per share amounts)
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Net sales 	$ 	1,618.1 $ 	1,600.9 $ 	3,277.3 $ 	3,255.0
+Cost of sales 	1,293.8 	1,323.1 	2,610.6 	2,621.2
+Gross profit 	324.3 	277.8 	666.7 	633.8
+Selling, general and administrative expenses 	171.0 	184.7 	324.6 	328.6
+Restructuring expense 	14.1 	74.6 	46.4 	74.6
+Income from operations 	139.2 	18.5 	295.7 	230.6
+Interest expense, net 	44.3 	43.3 	88.0 	88.5
+Income (loss) before income taxes and equity method
+earnings 	94.9 	(24.8) 	207.7 	142.1
+Income tax expense 	36.0 	13.4 	83.9 	64.2
+Equity method investment earnings 	3.2 	2.1 	2.6 	13.4
+Net income (loss) 	$ 	62.1 $ 	(36.1) $ 	126.4 $ 	91.3
+Earnings per share:
+Basic 	$ 	0.45 $ 	(0.25) $ 	0.91 $ 	0.64
+Diluted 	$ 	0.44 $ 	(0.25) $ 	0.90 $ 	0.64
+Weighted average common shares outstanding:
+Basic 	139.4 	142.8 	139.4 	143.2
+Diluted 	139.6 	143.2 	139.7 	143.7
+See Condensed Notes to Consolidated Financial Statements.
+3
+
+-- 4 of 46 --
+
+Table of Contents
+Lamb Weston Holdings, Inc.
+Consolidated Statements of Comprehensive Income
+(unaudited, dollars in millions)
+Thirteen weeks ended
+November 23, 2025
+Thirteen weeks ended
+November 24, 2024
+Pre-Tax
+Amount
+Tax
+(Expense)
+Benefit
+After-Tax
+Amount
+Pre-Tax
+Amount
+Tax
+(Expense)
+Benefit
+After-Tax
+Amount
+Net income (loss) 	$ 	98.1 $ 	(36.0) $ 	62.1 $ 	(22.7) $ 	(13.4) $ 	(36.1)
+Other comprehensive income (loss):
+Unrealized pension and post-
+retirement benefit obligations loss 	(0.1) 	— 	(0.1) 	— 	— 	—
+Unrealized currency translation
+losses 	(19.4) 	— 	(19.4) 	(117.8) 	1.1 	(116.7)
+Other 	— 	— 	— 	(0.1) 	— 	(0.1)
+Comprehensive income (loss) 	$ 	78.6 $ 	(36.0) $ 	42.6 $ 	(140.6) $ 	(12.3) $ 	(152.9)
+Twenty-Six Weeks Ended
+November 23, 2025
+Twenty-Six Weeks Ended
+November 24, 2024
+Pre-Tax
+Amount
+Tax
+(Expense)
+Benefit
+After-Tax
+Amount
+Pre-Tax
+Amount
+Tax
+(Expense)
+Benefit
+After-Tax
+Amount
+Net income 	$ 	210.3 $ 	(83.9) $ 	126.4 $ 	155.5 $ 	(64.2) $ 	91.3
+Other comprehensive income (loss):
+Unrealized pension and post-
+retirement benefit obligations gain
+(loss) 	6.2 	(1.0) 	5.2 	(0.2) 	— 	(0.2)
+Unrealized currency translation
+gains (losses) 	21.9 	— 	21.9 	(61.2) 	0.5 	(60.7)
+Other 	— 	— 	— 	(0.3) 	0.1 	(0.2)
+Comprehensive income 	$ 	238.4 $ 	(84.9) $ 	153.5 $ 	93.8 $ 	(63.6) $ 	30.2
+See Condensed Notes to Consolidated Financial Statements.
+4
+
+-- 5 of 46 --
+
+Table of Contents
+Lamb Weston Holdings, Inc.
+Consolidated Balance Sheets
+(unaudited, dollars in millions, except share data)
+November 23,
+2025 	May 25, 2025
+ASSETS
+Current assets:
+Cash and cash equivalents 	$ 	82.7 $ 	70.7
+Receivables, net of allowances of $1.0 and $0.9 	742.2 	781.6
+Inventories 	1,117.8 	1,035.4
+Prepaid expenses and other current assets 	68.3 	145.0
+Total current assets 	2,011.0 	2,032.7
+Property, plant and equipment, net 	3,652.9 	3,687.9
+Operating lease assets 	118.2 	113.2
+Goodwill 	1,099.5 	1,090.2
+Intangible assets, net 	110.9 	114.0
+Other assets 	338.5 	354.6
+Total assets 	$ 	7,331.0 $ 7,392.6
+LIABILITIES AND STOCKHOLDERS’ EQUITY
+Current liabilities:
+Short-term borrowings 	$ 	187.0 $ 	370.8
+Current portion of long-term debt and financing obligations 	82.7 	77.8
+Accounts payable 	709.2 	616.4
+Accrued liabilities 	424.2 	411.0
+Total current liabilities 	1,403.1 	1,476.0
+Long-term liabilities:
+Long-term debt and financing obligations, excluding current portion 	3,648.9 	3,682.8
+Deferred income taxes 	273.3 	253.5
+Other noncurrent liabilities 	251.3 	242.6
+Total long-term liabilities 	4,173.5 	4,178.9
+Commitments and contingencies
+Stockholders’ equity:
+Common stock of $1.00 par value, 600,000,000 shares authorized; 152,006,164 and 151,390,267
+shares issued 	152.0 	151.4
+Treasury stock, at cost, 13,126,699 and 12,152,507 common shares 	(897.4) 	(838.0)
+Additional distributed capital 	(453.7) 	(479.1)
+Retained earnings 	2,871.9 	2,848.9
+Accumulated other comprehensive income 	81.6 	54.5
+Total stockholders’ equity 	1,754.4 	1,737.7
+Total liabilities and stockholders’ equity 	$ 	7,331.0 $ 7,392.6
+See Condensed Notes to Consolidated Financial Statements.
+
+-- 6 of 46 --
+
+5
+
+-- 7 of 46 --
+
+Table of Contents
+Lamb Weston Holdings, Inc.
+Consolidated Statements of Stockholders’ Equity
+(unaudited, dollars in millions, except share and per share data)
+Thirteen Weeks Ended November 23, 2025 and November 24, 2024
+Common Stock,
+net of Treasury
+Shares
+Common
+Stock
+Amount
+Treasury
+Stock
+Amount
+Additional
+Paid-in
+(Distributed)
+Capital
+Retained
+Earnings
+Accumulated
+Other
+Comprehensive
+Income (Loss)
+Total
+Stockholders’
+Equity
+Balance at August 24, 2025 	139,335,411 $ 151.8 $ (856.7) $ 	(468.2) $ 2,861.8 $ 	101.1 $ 	1,789.8
+Dividends declared, $0.37 per share 	— 	— 	— 	— 	(51.4) 	— 	(51.4)
+Common stock issued 	173,322 	0.2 	— 	4.3 	— 	— 	4.5
+Stock-settled, stock-based compensation
+expense — 	— 	— 	9.5 	— 	— 	9.5
+Repurchase of common stock and common
+stock withheld to cover taxes (629,268) 	— 	(40.4) 	— 	— 	— 	(40.4)
+Other 	— 	— 	(0.3) 	0.7 	(0.6) 	— 	(0.2)
+Comprehensive income (loss) 	— 	— 	— 	— 	62.1 	(19.5) 	42.6
+Balance at November 23, 2025 	138,879,465 $ 152.0 $ (897.4) $ 	(453.7) $ 2,871.9 $ 	81.6 $ 	1,754.4
+Balance at August 25, 2024 	142,595,357 $ 151.3 $ (633.7) $ 	(499.0) $ 2,775.3 $ 	42.8 $ 	1,836.7
+Dividends declared, $0.36 per share 	— 	— 	— 	— 	(51.3) 	— 	(51.3)
+Common stock issued 	54,070 	— 	— 	— 	— 	— 	—
+Stock-settled, stock-based compensation
+expense — 	— 	— 	12.3 	— 	— 	12.3
+Repurchase of common stock and common
+stock withheld to cover taxes 	(8,791) 	— 	(0.7) 	— 	— 	— 	(0.7)
+Other 	— 	— 	— 	(10.6) 	(0.7) 	— 	(11.3)
+Comprehensive loss 	— 	— 	— 	— 	(36.1) 	(116.8) 	(152.9)
+Balance at November 24, 2024 	142,640,636 $ 151.3 $ (634.4) $ 	(497.3) $ 2,687.2 $ 	(74.0) $ 	1,632.8
+Twenty-Six weeks ended November 23, 2025 and November 24, 2024
+Common Stock,
+net of Treasury
+Shares
+Common
+Stock
+Amount
+Treasury
+Stock
+Amount
+Additional
+Paid-in
+(Distributed)
+Capital
+Retained
+Earnings
+Accumulated
+Other
+Comprehensive
+Income (Loss)
+Total
+Stockholders’
+Equity
+Balance at May 25, 2025 	139,237,760 $ 151.4 $ (838.0) $ 	(479.1) $ 2,848.9 $ 	54.5 $ 	1,737.7
+Dividends declared, $0.74 per share 	— 	— 	— 	— 	(103.0) 	— 	(103.0)
+Common stock issued 	615,897 	0.6 	— 	3.9 	— 	— 	4.5
+Stock-settled, stock-based compensation expense 	— 	— 	— 	20.1 	— 	— 	20.1
+Repurchase of common stock and common stock
+withheld to cover taxes 	(974,192) 	— 	(59.1) 	— 	— 	— 	(59.1)
+Other 	— 	— 	(0.3) 	1.4 	(0.4) 	— 	0.7
+Comprehensive income 	— 	— 	— 	— 	126.4 	27.1 	153.5
+Balance at November 23, 2025 	138,879,465 $ 152.0 $ (897.4) $ 	(453.7) $ 2,871.9 $ 	81.6 $ 	1,754.4
+Balance at May 26, 2024 	143,666,656 $ 150.7 $ (540.9) $ 	(508.9) $ 2,699.8 $ 	(12.9) $ 	1,787.8
+Dividends declared, $0.72 per share 	— 	— 	— 	— 	(102.9) 	— 	(102.9)
+Common stock issued 	574,564 	0.6 	— 	(0.6) 	— 	— 	—
+Stock-settled, stock-based compensation expense 	— 	— 	— 	21.8 	— 	— 	21.8
+Repurchase of common stock and common stock
+withheld to cover taxes 	(1,600,584) 	— 	(92.9) 	— 	— 	— 	(92.9)
+Other 	— 	— 	(0.6) 	(9.6) 	(1.0) 	— 	(11.2)
+Comprehensive income (loss) 	— 	— 	— 	— 	91.3 	(61.1) 	30.2
+Balance at November 24, 2024 	142,640,636 $ 151.3 $ (634.4) $ 	(497.3) $ 2,687.2 $ 	(74.0) $ 	1,632.8
+See Condensed Notes to Consolidated Financial Statements.
+
+-- 8 of 46 --
+
+6
+
+-- 9 of 46 --
+
+Table of Contents
+Lamb Weston Holdings, Inc.
+Consolidated Statements of Cash Flows
+(unaudited, dollars in millions)
+Twenty-Six Weeks Ended
+November 23,
+2025
+November 24,
+2024
+Cash flows from operating activities
+Net income 	$ 	126.4 $ 	91.3
+Adjustments to reconcile net income to net cash provided by operating activities:
+Depreciation and amortization of intangibles and debt issuance costs 	191.5 	211.0
+Stock-settled, stock-based compensation expense 	20.1 	21.9
+Equity method investment (earnings) loss, net of distributions 	(2.8) 	11.5
+Deferred income taxes 	19.0 	1.4
+Pension expense, net of contributions 	14.2 	1.2
+Blue chip swap transaction gains 	— 	(19.9)
+Other 	11.8 	14.4
+Changes in operating assets and liabilities:
+Receivables 	43.8 	39.0
+Inventories 	(79.5) 	(198.2)
+Income taxes payable/receivable, net 	(6.5) 	(25.1)
+Prepaid expenses and other current assets 	67.5 	75.2
+Accounts payable 	117.3 	216.8
+Accrued liabilities 	7.6 	(11.2)
+Net cash provided by operating activities 	$ 	530.4 $ 	429.3
+Cash flows from investing activities
+Additions to property, plant and equipment 	(155.0) 	(474.6)
+Additions to other long-term assets 	(0.7) 	(31.7)
+Proceeds from sale of property, plant and equipment 	14.7 	1.5
+Proceeds from blue chip swap transactions, net of purchases 	— 	19.9
+Other 	3.7 	—
+Net cash used for investing activities 	$ 	(137.3) $ 	(484.9)
+Cash flows from financing activities
+Proceeds from short-term borrowings 	374.8 	811.6
+Repayments of short-term borrowings 	(562.4) 	(813.8)
+Proceeds from issuance of debt 	— 	520.2
+Repayments of debt and financing obligations 	(35.7) 	(245.4)
+Dividends paid 	(103.3) 	(103.3)
+Repurchase of common stock and common stock withheld to cover taxes 	(59.1) 	(92.8)
+Other 	3.9 	(13.2)
+Net cash (used for) provided by financing activities 	$ 	(381.8) $ 	63.3
+Effect of exchange rate changes on cash and cash equivalents 	0.7 	(0.1)
+Net increase in cash and cash equivalents 	12.0 	7.6
+Cash and cash equivalents, beginning of period 	70.7 	71.4
+Cash and cash equivalents, end of period 	$ 	82.7 $ 	79.0
+
+-- 10 of 46 --
+
+See Condensed Notes to Consolidated Financial Statements.
+7
+
+-- 11 of 46 --
+
+Table of Contents
+Lamb Weston Holdings, Inc.
+Condensed Notes to Consolidated Financial Statements
+(Unaudited)
+1. NATURE OF OPERATIONS AND SUMMARY OF SIGNIFICANT ACCOUNTING POLICIES
+Lamb Weston Holdings, Inc. (“we,” “us,” “our,” the “Company,” or “Lamb Weston”) is a leading global producer, distributor,
+and marketer of value-added frozen potato products; headquartered in Eagle, Idaho. We have two reportable segments: North America
+and International. See Note 13, Segments, for additional information on our reportable segments.
+Basis of Presentation
+The accompanying unaudited Consolidated Financial Statements present the financial results of Lamb Weston and its
+consolidated subsidiaries for the thirteen and twenty-six weeks ended November 23, 2025 and November 24, 2024, and have been
+prepared in accordance with generally accepted accounting principles (“GAAP”) in the United States of America (“U.S.”).
+These consolidated financial statements are unaudited and include all adjustments that we consider necessary for a fair
+presentation of such financial statements and consist only of normal recurring adjustments. The preparation of financial statements
+involves the use of estimates and accruals. The actual results that we experience may differ materially from those estimates. Results for
+interim periods should not be considered indicative of results for our full fiscal year, which ends the last Sunday in May.
+These financial statements and related condensed notes should be read together with the consolidated financial statements and
+notes in our Annual Report on Form 10-K for the fiscal year ended May 25, 2025 (the “Form 10-K”), where we include additional
+information on our critical accounting estimates, policies, and the methods and assumptions used in our estimates. We filed the Form
+10-K with the Securities and Exchange Commission (the “SEC”) on July 23, 2025.
+Certain amounts from prior period consolidated financial statements have been reclassified to conform with current period
+presentation. These reclassifications had no financial impact on previously reported net income, cash flows, or stockholders’ equity.
+Accounting Pronouncements
+In December 2023, the Financial Accounting Standards Board (“FASB”) issued Accounting Standards Update (“ASU”) 2023-
+09, Income Taxes (Topic 740): Improvements to Income Tax Disclosures, to enhance transparency and decision usefulness of income tax
+disclosures, particularly around rate reconciliations and income taxes paid information. ASU 2023-09 is effective for our Annual Report
+on Form 10-K for the fiscal year ending May 31, 2026, on a prospective basis, with early adoption permitted. We adopted this guidance
+as of May 26, 2025, and will update disclosures within our fiscal 2026 Annual Report on Form 10-K.
+In November 2024, the FASB issued ASU 2024-03, Income Statement - Reporting Comprehensive Income - Expense
+Disaggregation Disclosures (Subtopic 220-40), which requires companies to provide more detailed information of certain income
+statement expenses within the footnotes to the financial statements. ASU 2024-03 is effective for our Annual Report on Form 10-K for
+the fiscal year ending May 28, 2028, and for our quarterly reports beginning fiscal year 2029, on a prospective basis, with early
+adoption permitted. We are evaluating the impact of adopting this ASU on our consolidated financial statements and related disclosures.
+In September 2025, the FASB issued ASU 2025-06, Intangibles - Goodwill and Other - Internal - Use Software (Subtopic 350-
+40): Targeted Improvements to Accounting for Internal-Use Software. This guidance provides criteria that must be met for entities to
+capitalize software development costs and factors to consider if there is significant uncertainty associated with the development
+activities of software. This guidance is effective for our annual reporting periods beginning with fiscal 2029 and interim periods within
+that fiscal year. Early adoption is permitted. We are currently evaluating the impact of adopting this ASU on our consolidated financial
+statements and related disclosures.
+There were no other accounting pronouncements recently issued that had or are expected to have a material impact on our
+consolidated financial statements.
+8
+
+-- 12 of 46 --
+
+Table of Contents
+2. EARNINGS PER SHARE
+The following table sets forth the computation of basic and diluted earnings per common share for the periods presented:
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+(in millions, except per share amounts)
+November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Numerator:
+Net income (loss) 	$ 	62.1 $ 	(36.1) $ 	126.4 $ 	91.3
+Denominator:
+Basic weighted average common shares outstanding 	139.4 	142.8 	139.4 	143.2
+Add: Dilutive effect of employee incentive plans (a) 	0.2 	0.4 	0.3 	0.5
+Diluted weighted average common shares outstanding 	139.6 	143.2 	139.7 	143.7
+Earnings per share:
+Basic 	$ 	0.45 $ 	(0.25) $ 	0.91 $ 	0.64
+Diluted 	$ 	0.44 $ 	(0.25) $ 	0.90 $ 	0.64
+___________________________________________
+(a) Potential dilutive shares of common stock under employee incentive plans are determined by applying the treasury stock method to the assumed
+exercise of outstanding stock options and the assumed vesting of outstanding restricted stock units and performance awards. As of November 23,
+2025 and November 24, 2024, we excluded 1.0 million and 0.6 million, respectively, of shares of stock-based awards from the computation of
+diluted earnings per share because they would be antidilutive.
+3. INCOME TAXES
+Income tax expense for the periods presented were as follows:
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+(in millions)
+November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Income (loss) before income taxes and equity method
+earnings 	$ 	94.9 $ 	(24.8) $ 	207.7 $ 	142.1
+Equity method investment earnings 	$ 	3.2 $ 	2.1 $ 	2.6 $ 	13.4
+Income tax expense 	$ 	36.0 $ 	13.4 $ 	83.9 $ 	64.2
+Effective tax rate (a) 	36.7% 	(59.0)% 	39.9% 	41.3%
+___________________________________________
+(a) The effective income tax rate is calculated as the ratio of income tax expense to pre-tax income, inclusive of equity method investment earnings.
+The effective tax rate varies from the U.S. statutory tax rate of 21% principally due to the impact of U.S. state taxes, foreign taxes and currency,
+permanent differences, and discrete items.
+Income Taxes Paid
+Income taxes paid, net of refunds, were $69.9 million and $86.4 million during the twenty-six weeks ended November 23,
+2025 and November 24, 2024, respectively.
+9
+
+-- 13 of 46 --
+
+Table of Contents
+4. RESTRUCTURING
+We announced a cost savings program (the “Cost Savings Program”) in July 2025 and a restructuring plan (the “Restructuring
+Plan”) in October 2024, (collectively referred to as the “Plans”). Items classified as “Restructuring expense” on our Consolidated
+Statement of Earnings that were incurred in fiscal 2026 primarily relate to the Cost Savings Program while expenses incurred in fiscal
+2025 relate solely to the Restructuring Plan. We do not expect any future costs in connection with the Restructuring Plan. Costs
+associated with these initiatives are presented in the table below.
+We expect to recognize total pre-tax cash charges of $70 million to $100 million, most of which will be recognized in fiscal
+2026, related to the Cost Savings Program. The charges in the thirteen and twenty-six weeks ended November 23, 2025 largely relate to
+professional service fees and employee severance and other one-time termination benefits related to headcount reductions.
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+(in millions)
+November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Cost Savings Program and Restructuring Plan expenses
+related to:
+Accelerated depreciation, retirement of assets, and other
+plant charges (a) 	$ 	— $ 	45.8 $ 	1.8 $ 	45.8
+Potato contract terminations (b) 	— 	64.7 	— 	64.7
+Inventory write-off (b) 	— 	19.8 	— 	19.8
+Employee-related costs (c) 	0.9 	16.2 	9.0 	16.2
+Professional services and other (d) 	13.2 	12.6 	35.2 	12.6
+$ 	14.1 $ 	159.1 $ 	46.0 $ 	159.1
+___________________________________________
+(a) Includes charges related to accelerating depreciation of the manufacturing facility permanently closed under the Restructuring Plan, other asset
+retirements, and plant charges.
+(b) Includes the cost of contracted raw potatoes that were not used due to curtailed production and the write-off of inventories, including spare parts,
+related to the production curtailment under the Restructuring Plan.
+(c) Includes employee severance and other one-time termination benefits related to reductions in headcount under the Plans.
+(d) Includes professional services and other charges related to the Plans.
+The following amounts related to the Plans are included within the following financial statement captions in the Company’s
+Consolidated Statements of Earnings:
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+(in millions)
+November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Cost Savings Program and Restructuring Plan expenses
+included in:
+Cost of sales 	$ 	— $ 	75.5 $ 	(0.4) $ 	75.5
+Restructuring expense 	14.1 	74.6 	46.4 	74.6
+Equity method investment earnings 	— 	9.0 	— 	9.0
+$ 	14.1 $ 	159.1 $ 	46.0 $ 	159.1
+10
+
+-- 14 of 46 --
+
+Table of Contents
+Accruals remaining under the Plans are recorded as current liabilities within “Accounts payable” and “Accrued liabilities” in
+the accompanying Consolidated Balance Sheet at November 23, 2025. The following is a roll-forward of accrued restructuring
+liabilities related to the Plans:
+(in millions)
+Restructuring
+Plan
+Cost Savings
+Program 	Total
+Accrued restructuring liability, May 25, 2025 	$ 	21.5 $ 	— $ 	21.5
+Additions 	1.8 	44.2 	46.0
+Payments 	(23.3) 	(32.1) 	(55.4)
+Accrued restructuring liability, November 23, 2025 	$ 	— $ 	12.1 $ 	12.1
+5. INVENTORIES
+Inventories are valued at the lower of cost (determined using the first-in, first-out method) or net realizable value and include
+all costs directly associated with manufacturing products: materials, labor, and manufacturing overhead. The components of inventories
+were as follows:
+(in millions)
+November 23,
+2025
+May 25,
+2025
+Raw materials and packaging 	$ 	312.5 $ 	171.5
+Finished goods 	686.1 	755.7
+Supplies and other 	119.2 	108.2
+Inventories 	$ 	1,117.8 $ 	1,035.4
+6. PROPERTY, PLANT AND EQUIPMENT
+The components of property, plant and equipment were as follows:
+(in millions)
+November 23,
+2025
+May 25,
+2025
+Land and land improvements 	$ 	209.1 $ 	191.6
+Buildings, machinery and equipment 	5,574.6 	5,136.3
+Furniture, fixtures, office equipment and other 	154.5 	161.9
+Construction in progress 	222.3 	551.7
+Property, plant and equipment, at cost 	6,160.5 	6,041.5
+Less accumulated depreciation 	(2,507.6) 	(2,353.6)
+Property, plant and equipment, net 	$ 	3,652.9 $ 	3,687.9
+At November 23, 2025 and May 25, 2025, purchases of property, plant and equipment included in accounts payable were
+$59.1 million and $85.4 million, respectively.
+11
+
+-- 15 of 46 --
+
+Table of Contents
+The table below presents a breakdown of depreciation and amortization between Cost of sales (“COS”) and Selling, general
+and administrative expense (“SG&A”) for the thirteen and twenty-six weeks ended November 23, 2025 and November 24, 2024.
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+(in millions) November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Depreciation - COS 	$ 	86.2 $ 	79.6 $ 	168.9 $ 	158.1
+Depreciation - SG&A 	3.2 	3.7 	6.7 	7.0
+Depreciation - Restructuring expense (a) 	— 	28.9 	— 	28.9
+$ 	89.4 $ 	112.2 $ 	175.6 $ 	194.0
+Amortization 	$ 	7.9 $ 	7.2 $ 	15.9 $ 	14.7
+Interest capitalized within construction in progress for the thirteen weeks ended November 23, 2025 and November 24, 2024,
+was $1.6 million and $8.2 million, respectively; and $7.0 million and $14.9 million for the twenty-six weeks ended November 23, 2025
+and November 24, 2024, respectively.
+7. GOODWILL AND OTHER IDENTIFIABLE INTANGIBLE ASSETS
+The following table presents changes in goodwill balances, by segment, for the twenty-six weeks ended November 23, 2025:
+(in millions) 	North America 	International 	Total
+Balance at May 25, 2025 	$ 	753.2 $ 	337.0 $ 	1,090.2
+Foreign currency translation adjustment 	6.5 	2.8 	9.3
+Balance at November 23, 2025 	$ 	759.7 $ 	339.8 $ 	1,099.5
+Other identifiable intangible assets were as follows:
+November 23, 2025 	May 25, 2025
+(in millions, except useful lives)
+Weighted
+Average
+Useful Life
+(in years)
+Gross
+Carrying
+Amount
+Accumulated
+Amortization
+Intangible
+Assets, Net
+Weighted
+Average
+Useful Life
+(in years)
+Gross
+Carrying
+Amount
+Accumulated
+Amortization
+Intangible
+Assets, Net
+Non-amortizing intangible assets
+(a) 	n/a 	$ 18.0 $ 	— $ 	18.0 	n/a 	$ 18.0 $ 	— $ 	18.0
+Amortizing intangible assets (b) 	13 	142.1 	(49.2) 	92.9 	13 	140.8 	(44.8) 	96.0
+$ 160.1 $ 	(49.2) $ 110.9 	$ 158.8 $ 	(44.8) $ 114.0
+___________________________________________
+(a) Non-amortizing intangible assets represent brands and trademarks.
+(b) Amortizing intangible assets are principally composed of licensing agreements, brands, and customer relationships. Foreign intangible assets are
+affected by foreign currency translation.
+8. OTHER ASSETS
+The components of other assets were as follows:
+
+-- 16 of 46 --
+
+(in millions)
+November 23,
+2025
+May 25,
+2025
+Capitalized software costs 	$ 	192.3 $ 	208.7
+Equity method investments 	51.2 	47.5
+Property, plant and equipment deposits 	24.7 	30.3
+Other 	70.3 	68.1
+Other assets 	$ 	338.5 $ 	354.6
+12
+
+-- 17 of 46 --
+
+Table of Contents
+9. ACCRUED LIABILITIES
+The components of accrued liabilities were as follows:
+(in millions)
+November 23,
+2025
+May 25,
+2025
+Compensation and benefits 	$ 	120.1 $ 	104.5
+Accrued trade promotions 	97.1 	88.2
+Dividends payable to shareholders 	51.4 	51.7
+Accrued interest 	35.0 	36.3
+Taxes payable 	27.2 	37.3
+Current portion of operating lease obligations 	26.1 	23.9
+Plant accruals 	20.4 	23.0
+Derivative liabilities and payables 	6.1 	7.0
+Other 	40.8 	39.1
+Accrued liabilities 	$ 	424.2 $ 	411.0
+10. DEBT AND FINANCING OBLIGATIONS
+The components of our debt, including financing obligations, were as follows:
+
+-- 18 of 46 --
+
+(in millions) 	November 23, 2025 	May 25, 2025
+Amount 	Interest Rate 	Amount 	Interest Rate
+Short-term borrowings:
+Revolving credit facility 	$ 	149.7 	3.830 % $ 	333.2 	5.940 %
+Other credit facilities (a) 	37.3 	37.6
+187.0 	370.8
+Long-term debt:
+Term A-3 loan facility, due January 2030 (b) 	393.8 	6.350 	405.0 	6.900
+Term A-4 loan facility, due May 2029 (b) 	304.7 	6.690 	312.8 	6.630
+Term A-5 loan facility, due September 2031 (b) 	481.3 	5.660 	493.8 	5.650
+RMB loan facility, due February 2027 	142.2 	3.800 	143.8 	4.040
+RMB loan facility, due September 2029 	19.7 	3.800 	19.6 	3.960
+Euro term loan facility, due May 2029 	230.3 	3.440 	227.2 	4.510
+4.875% senior notes, due May 2028 	500.0 	4.875 	500.0 	4.875
+4.125% senior notes, due January 2030 	970.0 	4.125 	970.0 	4.125
+4.375% senior notes, due January 2032 	700.0 	4.375 	700.0 	4.375
+3,742.0 	3,772.2
+Financing obligations:
+Lease financing obligations due on various dates through
+2040 	4.5 	5.2
+Total debt and financing obligations 	3,933.5 	4,148.2
+Debt issuance costs (c) 	(14.9) 	(16.8)
+Short-term borrowings 	(187.0) 	(370.8)
+Current portion of long-term debt and financing
+obligations 	(82.7) 	(77.8)
+Long-term debt and financing obligations, excluding
+current portion 	$ 	3,648.9 	$ 	3,682.8
+___________________________________________
+13
+
+-- 19 of 46 --
+
+Table of Contents
+(a) Other credit facilities consist of short-term facilities at our subsidiaries used for working capital purposes. Borrowings under these facilities bear
+interest at various rates.
+(b) The interest rates applicable to the Term A-3, A-4, and A-5 loans do not include anticipated patronage dividends. We have received and expect to
+continue receiving patronage dividends under these term loan facilities.
+(c) Excludes debt issuance costs of $3.4 million and $3.9 million as of November 23, 2025 and May 25, 2025, respectively, related to our Revolving
+credit facility, which are recorded in “Other assets” on our Consolidated Balance Sheets.
+As of November 23, 2025, we had $1,350.3 million of available liquidity under our committed revolving credit facility.
+For the twenty-six weeks ended November 23, 2025 and November 24, 2024, we paid $100.5 million and $97.1 million of
+interest on debt, respectively.
+For more information about our debt and financing obligations, interest rates, and debt covenants, see Note 8, Debt and
+Financing Obligations, of the Notes to Consolidated Financial Statements in “Part II, Item 8. Financial Statements and Supplementary
+Data” of the Form 10-K.
+11. FAIR VALUE MEASUREMENTS
+The fair values of cash equivalents, receivables, accounts payable, and short-term debt approximate their carrying amounts due
+to their short duration.
+The following table presents our financial assets and liabilities measured at fair value on a recurring basis based upon the level
+within the fair value hierarchy in which the fair value measurements fall:
+As of November 23, 2025
+(in millions) 	Level 1 	Level 2 	Level 3
+Fair Value
+of Assets
+(Liabilities)
+Derivative assets (a) 	$ 	— $ 	2.8 $ 	— $ 	2.8
+Derivative liabilities (a) 	— 	(6.1) 	— 	(6.1)
+Deferred compensation liabilities (b) 	— 	(30.0) 	— 	(30.0)
+Fair value, net 	$ 	— $ 	(33.3) $ 	— $ 	(33.3)
+As of May 25, 2025
+(in millions) 	Level 1 	Level 2 	Level 3
+Fair Value
+of Assets
+(Liabilities)
+Derivative assets (a) 	$ 	— $ 	10.2 $ 	— $ 	10.2
+Derivative liabilities (a) 	— 	(7.0) 	— 	(7.0)
+Deferred compensation liabilities (b) 	— 	(27.0) 	— 	(27.0)
+Fair value, net 	$ 	— $ 	(23.8) $ 	— $ 	(23.8)
+___________________________________________
+(a) Derivative assets and liabilities included in Level 2 primarily represent commodity swaps, option contracts, interest rate swaps and currency
+contracts. The fair value of these derivatives were determined using valuation models that use market observable inputs including both forward
+and spot prices. Derivative assets are presented within “Prepaid expenses and other current assets” on our Consolidated Balance Sheets and
+derivative liabilities are presented within “Accrued liabilities” on our Consolidated Balance Sheets.
+(b) The fair values of our Level 2 deferred compensation liabilities were valued using third-party valuations, which are based on the net asset values
+of mutual funds in our retirement plans. While the underlying assets are actively traded on an exchange, the funds are not. Deferred compensation
+liabilities are primarily presented within “Other noncurrent liabilities” on our Consolidated Balance Sheets.
+14
+
+-- 20 of 46 --
+
+Table of Contents
+As of November 23, 2025, we had $2,956.0 million of fixed-rate and $973.0 million of variable-rate debt outstanding. Based
+on current market rates, the fair value of our fixed-rate debt was estimated to be $2,885 million as of November 23, 2025. Any
+differences between the book value and fair value are due to the difference between the period-end market interest rate and the stated
+rate of our fixed-rate debt. The fair value of our variable-rate term debt approximates the carrying amount and approximates current
+market prices.
+12. STOCKHOLDERS’ EQUITY
+Share Repurchase Program
+Our Board of Directors (the “Board”) has authorized a program, with no expiration date, to repurchase up to $750.0 million of
+our common stock. During the thirteen weeks ended November 23, 2025, we repurchased 617,623 shares of our common stock for an
+aggregate purchase price of $39.6 million, or a weighted-average price of $64.18 per share. During the twenty-six weeks ended
+November 23, 2025, we repurchased 804,882 shares of our common stock for an aggregate purchase price of $50.0 million, or a
+weighted-average price of $62.12 per share. As of November 23, 2025, approximately $308 million remained authorized for repurchase
+under our share repurchase program.
+Dividends
+During the twenty-six weeks ended November 23, 2025, we paid $103.3 million of cash dividends to our common
+stockholders. In addition, on November 28, 2025, we paid $51.4 million of cash dividends to common stockholders of record as of the
+close of business on October 31, 2025. On December 17, 2025, the Board declared a cash dividend of $0.38 per share of our common
+stock. This dividend will be paid on February 27, 2026, to common stockholders of record as of the close of business on January 30,
+2026.
+Accumulated Other Comprehensive Income
+Changes in accumulated other comprehensive income, net of taxes, as of November 23, 2025 were as follows:
+(in millions)
+Foreign
+Currency
+Translation
+Gain
+Pension and
+Post-Retirement
+Benefits 	Other
+Accumulated
+Other
+Comprehensive
+Income
+Balance as of May 25, 2025 	$ 	58.9 $ 	(4.6) $ 	0.2 $ 	54.5
+Other comprehensive income before reclassifications, net of
+tax 	21.9 	5.2 	— 	27.1
+Net current-period other comprehensive income 	21.9 	5.2 	— 	27.1
+Balance as of November 23, 2025 	$ 	80.8 $ 	0.6 $ 	0.2 $ 	81.6
+13. SEGMENTS
+We manage our operations in two business segments, North America and International. As a result of how we manage the
+business, we have two operating segments, each of which is a reportable segment: North America and International. North America
+includes activity that occurs in the United States, Canada, and Mexico. International includes all activity that does not occur within the
+North America segment. Both segments primarily manufacture frozen potato products for sale to our customers. These reportable
+segments are each managed by a general manager and supported by a cross-functional team assigned to support the segment.
+Our president and chief executive officer is our chief operating decision maker (the “CODM”). The CODM assesses the
+performance of our reportable segments and decides how to allocate resources based on segment adjusted earnings before interest,
+taxes, depreciation, and amortization (“EBITDA”). The adjustments to EBITDA include unrealized mark-to-market derivative gains
+and losses (which are a component of both cost of sales and selling, general and administrative expenses), foreign currency exchange
+gains and losses (which are a component of selling, general and administrative expenses), blue chip swap transaction gains (which are a
+component of selling, general and administrative expenses), stock-based compensation (which is a component of selling, general and
+administrative expenses), and other items impacting comparability (which are a component of both cost of sales and selling, general
+and administrative expenses) that are described below (“Segment Adjusted EBITDA”).
+
+-- 21 of 46 --
+
+15
+
+-- 22 of 46 --
+
+Table of Contents
+Net sales and Segment Adjusted EBITDA inform operating decisions, performance assessment, and resource allocation
+decisions at the segment level. Our CODM uses net sales and Segment Adjusted EBITDA in the annual operating plan and forecasting
+process and considers actual versus plan variances in assessing the performance of each segment. Total asset information by segment is
+not regularly provided to our CODM or utilized for purposes of assessing performance or allocating resources by segment and, as a
+result, such information has not been presented below.
+The following table illustrates reportable segment net sales and Segment Adjusted EBITDA for the thirteen and twenty-six
+weeks ended November 23, 2025 and November 24, 2024, respectively.
+Thirteen Weeks Ended
+November 23,
+2025
+November 24,
+2024
+(in millions) 	North America International 	Total 	North America International 	Total
+Net Sales 	$ 1,069.5 $ 	548.6 $ 1,618.1 $ 1,072.1 $ 	528.8 $ 1,600.9
+Other segment items (a) 	781.7 	521.4 	1,303.1 	802.9 	480.2 	1,283.1
+Segment Adjusted EBITDA 	$ 	287.8 $ 	27.2 $ 	315.0 $ 	269.2 $ 	48.6 $ 	317.8
+Unallocated corporate costs (b) 	(29.3) 	(23.6)
+Depreciation and amortization (c) 	99.7 	92.5
+Unrealized derivative gains 	12.1 	3.0
+Foreign currency exchange losses 	6.8 	9.6
+Blue chip swap gains (d) 	— 	(3.3)
+Stock-based compensation 	9.5 	12.3
+Items impacting comparability:
+Cost Savings Program, Restructuring Plan,
+and other expenses (e) 	14.1 	159.1
+Shareholder activism expense (f) 	— 	0.4
+Pension settlement (g) 	1.1 	—
+Interest expense, net 	44.3 	43.3
+Income before income taxes 	98.1 	(22.7)
+Income tax expense 	36.0 	13.4
+Net income (loss) 	$ 	62.1 	$ 	(36.1)
+___________________________________________
+(a) Other segment items include cost of sales, selling, general and administrative expenses, and equity method investment income or loss for each
+segment.
+(b) Unallocated corporate costs include costs related to corporate support staff and support services, which include, but are not limited to, our
+administrative, information technology, human resources, finance, and accounting functions that are not specifically allocated to the segments. In
+the table, unallocated corporate costs exclude unrealized derivative gains and losses, foreign currency exchange gains and losses, blue chip swap
+transaction gains, and other items impacting comparability. These items are added back to reconcile Segment Adjusted EBITDA to net income.
+(c) Depreciation and amortization includes interest expense, income tax expense, and depreciation and amortization relating to equity method
+investments of $2.2 million and $2.0 million for the thirteen weeks ended November 23, 2025 and November 24, 2024, respectively.
+(d) We entered into blue chip swap transactions to transfer U.S. dollars into Argentina primarily related to funding our capacity expansion in
+Argentina, which is now substantially complete. The blue chip swap rate can diverge significantly from Argentina’s official exchange rate.
+(e) Cost Savings Program, Restructuring Plan, and other expenses relate to costs incurred under the Plans. See Note 4, Restructuring, of these
+Condensed Notes to Consolidated Financial Statements for additional information
+(f) Represents advisory fees related to shareholder activism matters.
+(g) The Pension settlement charge was to fully fund the Company’s defined benefit pension plan, enabling lump sum payments to participants and
+transferring the remaining obligations and related plan assets to an insurer through a group annuity contract.
+
+-- 23 of 46 --
+
+16
+
+-- 24 of 46 --
+
+Table of Contents
+Twenty-Six Weeks Ended
+November 23,
+2025
+November 24,
+2024
+(in millions) 	North America International 	Total 	North America International 	Total
+Net Sales 	$ 2,154.0 $ 	1,123.3 $ 3,277.3 $ 2,175.8 $ 	1,079.2 $ 3,255.0
+Other segment items (a) 	1,606.2 	1,038.9 	2,645.1 	1,628.6 	979.2 	2,607.8
+Segment Adjusted EBITDA (b) 	$ 	547.8 $ 	84.4 $ 	632.2 $ 	547.2 $ 	100.0 $ 	647.2
+Unallocated corporate costs (c) 	(44.4) 	(53.6)
+Depreciation and amortization (d) 	195.9 	183.9
+Unrealized derivative gains and losses 	7.2 	(5.9)
+Foreign currency exchange losses 	2.1 	10.2
+Blue chip swap gains (e) 	— 	(19.9)
+Stock-based compensation 	20.1 	21.8
+Items impacting comparability:
+Cost Savings Program, Restructuring Plan,
+and other expenses (f) 	46.0 	159.1
+Shareholder activism expense (g) 	4.0 	0.4
+Pension settlement (h) 	14.2 	—
+Interest expense, net 	88.0 	88.5
+Income before income taxes 	210.3 	155.5
+Income tax expense 	83.9 	64.2
+Net income 	$ 	126.4 	$ 	91.3
+___________________________________________
+(a) Other segment items include cost of sales, selling, general and administrative expenses, and equity method investment income or loss for each
+segment.
+(b) Segment Adjusted EBITDA for the twenty-six weeks ended November 24, 2024 includes an estimated $39 million loss related to a voluntary
+product withdrawal that was initiated in the fourth quarter of fiscal 2024. The total charge to reporting segments was approximately $21 million
+to the North America segment and appr
+
+[SECCIONES CLAVE ADICIONALES DEL INFORME]
+### OPERACIONES: REESTRUCTURACIONES Y AHORRO DE COSTES
+urrency,
+permanent differences, and discrete items.
+Income Taxes Paid
+Income taxes paid, net of refunds, were $69.9 million and $86.4 million during the twenty-six weeks ended November 23,
+2025 and November 24, 2024, respectively.
+9
+
+-- 13 of 46 --
+
+Table of Contents
+4. RESTRUCTURING
+We announced a cost savings program (the “Cost Savings Program”) in July 2025 and a restructuring plan (the “Restructuring
+Plan”) in October 2024, (collectively referred to as the “Plans”). Items classified as “Restructuring expense” on our Consolidated
+Statement of Earnings that were incurred in fiscal 2026 primarily relate to the Cost Savings Program while expenses incurred in fiscal
+2025 relate solely to the Restructuring Plan. We do not expect any future costs in connection with the Restructuring Plan. Costs
+associated with these initiatives are presented in the table below.
+We expect to recognize total pre-tax cash charges of $70 million to $100 million, most of which will be recognized in fiscal
+2026, related to the Cost Savings Program. The charges in the thirteen and twenty-six weeks ended November 23, 2025 largely relate to
+professional service fees and employee severance and other one-time termination benefits related to headcount reductions.
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+(in millions)
+November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Cost Savings Program and Restructuring Plan expenses
+related to:
+Accelerated depreciation, retirement of assets, and other
+plant charges (a) 	$ 	— $ 	45.8 $ 	1.8 $ 	45.8
+Potato contract terminations (b) 	— 	64.7 	— 	64.7
+Inventory write-off (b) 	— 	19.8 	— 	19.8
+Employee-related costs (c) 	0.9 	16.2 	9.0 	16.2
+Professional services and other (d) 	13.2 	12.6 	35.2 	12.6
+$ 	14.1 $ 	159.1 $ 	46.0 $ 	159.1
+___________________________________________
+(a) Includes charges related to accelerating depreciation of the manufacturing facility permanently closed under the Restructuring Plan, other asset
+retirements, and plant charges.
+(b) Includes the cost of contracted raw potatoes that were not used due to curtailed production and the write-off of inventories, including spare parts,
+related to the production curtailment under the Restructuring Plan.
+(c) Includes employee severance and other one-time termination benefits related to reductions in headcount under the Plans.
+(d) Includes professional services and other charges related to the Plans.
+The following amounts related to the Plans are included within the following financial statement captions in the Company’s
+Consolidated Statements of Earnings:
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+(in millions)
+November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Cost Savings Program and Restructuring Plan expenses
+included in:
+Cost of sales 	$ 	— $ 	75.5 $ 	(0.4) $ 	75.5
+Restructuring expense 	14.1 	74.6 	46.4 	74.6
+Equity method investment earnings 	— 	9.0 	— 	9.0
+$ 	14.1 $ 	159.1 $ 	46.0 $ 	159.1
+10
+
+-- 14 of 46 --
+
+Table of Contents
+Accruals remaining under the Plans are recorded as current liabilities within “Accounts payable” and “Accrued liabilities” in
+the accompanying Consolidated Balance Sheet at November 23, 2025. The following is a roll-forward of accrued restructuring
+liabilities related to the Plans:
+(in millions)
+Restructuring
+Plan
+Cost Savings
+Program 	Total
+Accrued restructuring liability, May 25, 2025 	$ 	21.5 $ 	— $ 	21.5
+Additions 	1.8 	44.2 	46.0
+Payments 	(23.3) 	(32.1) 	(55.4)
+Accrued restructuring liability, November 23, 2025 	$ 	— $ 	12.1 $ 	12.1
+5. INVENTORIES
+Inventories are valued at the lower of cost (determined using the first-in, first-out method) or net realizable value and include
+all costs directly associated with manufacturing products: materials, labor, and manufacturing overhead. The components of inventories
+were as follows:
+(in millions)
+November 23,
+2025
+May 25,
+2025
+Raw materials and packaging 	$ 	312.5 $ 	171.5
+Finished goods 	686.1 	755.7
+Supplies and other 	119.2 	108.2
+Inventories 	$ 	1,117.8 $ 	1,035.4
+6. PROPERTY, PLANT AND EQUIPMENT
+The components of property, plant and equipment were as follows:
+(in millions)
+November 23,
+2025
+May 25,
+2025
+Land and land improvements 	$ 	209.1 $ 	191.6
+Buildings, machinery and equipment 	5,574.6 	5,136.3
+Furniture, fixtures, office equipment and other 	154.5 	161.9
+Construction in progress 	222.3 	551.7
+Property, plant and equipment, at cost 	6,160.5 	6,041.5
+Less accumulated depreciation 	(2,507.6) 	(2,353.6)
+Property, plant and equipment, net 	$ 	3,652.9 $ 	3,687.9
+At November 23, 2025 and May 25, 2025, purchases of property, plant and equipment included in accounts payable were
+$59.1 million and $85.4 million, respectively.
+11
+
+-- 15 of 46 --
+
+Table of Contents
+The table below presents a breakdown of depreciation and amortization between Cost of sales (“COS”) and Selling, general
+and administrative expense (“SG&A”) for the thirteen and twenty-six weeks ended November 23, 2025 and November 24, 2024.
+Thirteen Weeks Ended 	Twenty-Six Weeks Ended
+(in millions) November 23,
+2025
+November 24,
+2024
+November 23,
+2025
+November 24,
+2024
+Depreciation - COS 	$ 	86.2 $ 	79.6 $ 	168.9 $ 	158.1
+Depreciation - SG&A 	3.2 	3.7 	6.7 	7.0
+Depreciation - Restructuring expense (a) 	— 	28.9 	— 	28.9
+$ 	89.4 $ 	112.2 $ 	175.6 $
+
+### RECOMPRAS: PROGRAMA Y REMANENTE
+nces between the book value and fair value are due to the difference between the period-end market interest rate and the stated
+rate of our fixed-rate debt. The fair value of our variable-rate term debt approximates the carrying amount and approximates current
+market prices.
+12. STOCKHOLDERS’ EQUITY
+Share Repurchase Program
+Our Board of Directors (the “Board”) has authorized a program, with no expiration date, to repurchase up to $750.0 million of
+our common stock. During the thirteen weeks ended November 23, 2025, we repurchased 617,623 shares of our common stock for an
+aggregate purchase price of $39.6 million, or a weighted-average price of $64.18 per share. During the twenty-six weeks ended
+November 23, 2025, we repurchased 804,882 shares of our common stock for an aggregate purchase price of $50.0 million, or a
+weighted-average price of $62.12 per share. As of November 23, 2025, approximately $308 million remained authorized for repurchase
+under our share repurchase program.
+Dividends
+During the twenty-six weeks ended November 23, 2025, we paid $103.3 million of cash dividends to our common
+stockholders. In addition, on November 28, 2025, we paid $51.4 million of cash dividends to common stockholders of record as of the
+close of business on October 31, 2025. On December 17, 2025, the Board declared a cash dividend of $0.38 per share of our common
+stock. This dividend will be paid on February 27, 2026, to common stockholders of record as of the close of business on January 30,
+2026.
+Accumulated Other Comprehensive Income
+Changes in accumulated other comprehensive income, net of taxes, as of November 23, 2025 were as follows:
+(in millions)
+Foreign
+Currency
+Translation
+Gain
+Pension and
+Post-Retirement
+Benefits 	Other
+Accumulated
+Other
+Comprehensive
+Income
+Balance as of May 25, 2025 	$ 	58.9 $ 	(4.6) $ 	0.2 $ 	54.5
+Other comprehensive income before reclassifications, net of
+tax 	21.9 	5.2 	— 	27.1
+Net current-period other comprehensive income 	21.9 	5.2 	— 	27.1
+Balance as of November 23, 2025 	$ 	80.8 $ 	0.6 $ 	0.2 $ 	81.6
+13. SEGMENTS
+We manage our operations in two business segments, North America and International. As a result of how we manage the
+business, we have two operating segments, each of which is a reportable segment: North America and International. North America
+includes activity that occurs in the United States, Canada, and Mexico. International includes all activity that does not occur within the
+North America segment. Both segments primarily manufacture frozen potato products for sale to our customers. These reportable
+segments are each managed by a general manager and supported by a cross-functional team assigned to support the segment.
+Our president and chief executive officer is our chief operating decision maker (the “CODM”). The CODM assesses the
+performance of our reportable segments and decides how to allocate resources based on segment adjusted earnings before interest,
+taxes, depreciation, and amortization (“EBITDA”). The adjustments to EBITDA include unrealized mark-to-market derivative gains
+and losses (which are a component of both cost of sales and selling, general and administrative expenses), foreign currency exchange
+gains and losses (which are a component of selling, general and administrative expenses), blue chip swap transaction gains (which are a
+component of selling, general and administrative expenses), stock-based compensation (which is a component of selling, general and
+administrative expenses), and other items impacting comparability (which are a component of both cost of sales and selling, general
+and administrative expenses) that are described below (“Segment Adjusted EBITDA”).
+
+-- 21 of 46 --
+
+15
+
+-- 22 of 46 --
+
+Table of Contents
+Net sales and Segment Adjusted EBITDA inform operating decisions, performance assessment, and resource allocation
+decisions at the segment level. Our CODM uses net sales and Segment Adjusted EBITDA in the annual operating plan and forecasting
+process and considers actual versus plan variances in assessing the performance of each segment. Total asset information by segment is
+not regularly provided to our CODM or utilized for purposes of assessing performance or allocating resources by segment and, as a
+result, such information has not been presented below.
+The following table illustrates reportable segment net sales and Segment Adjusted EBITDA for the thirteen and twenty-six
+weeks ended November 23, 2025 and November 24, 2024, respectively.
+Thirteen Weeks Ended
+November 23,
+2025
+November 24,
+2024
+(in millions) 	North America International 	Total 	North America International 	Total
+Net Sales 	$ 1,069.5 $ 	548.6 $ 1,618.1 $ 1,072.1 $ 	528.8 $ 1,600.9
+Other segment items (a) 	781.7 	521.4 	1,303.1 	802.9 	480.2 	1,283.1
+Segment Adjusted EBITDA 	$ 	287.8 $ 	27.2 $ 	315.0 $ 	269.2 $ 	48.6 $ 	317.8
+Unallocated corporate costs (b) 	(29.3) 	(23.6)
+Depreciation and amortization (c) 	99.7 	92.5
+Unrealized derivative gains 	12.1 	3.0
+Foreign currency exchange losses 	6.8 	9.6
+Blue chip swap gains (d) 	— 	(3.3)
+Stock-based compensation 	9.5 	12.3
+Items impacting comparability:
+Cost Savings Program, Restructuring Plan,
+and other expenses (e) 	14.1 	159.1
+Shareholder activism expense (f) 	— 	0.4
+Pension settlement (g) 	1.1 	—
+Interest expens
+
+[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]
+### DOCUMENTO COMPLEMENTARIO: lw-20251123x8kxexx9912q26.htm [CONTIENE SECCIÓN DE GUIDANCE / OUTLOOK]
+EX-99.1 2 lw-20251123x8kxexx9912q26.htm EX-99.1 Document Exhibit 99.1 News Release For more information, please contact&#58; Investors&#58; Debbie Hancock 208-202-7259 investors&#64;lambweston.com Media&#58; Erin Gardiner 208-202-7257 communication&#64;lambweston.com Lamb Weston Reports Second Quarter Fiscal 2026 Results&#59; Reaffirms Fiscal Year 2026 Outlook Board of Directors Authorizes 3% Increase in Quarterly Dividend EAGLE, ID (December&#160;19, 2025) &#8211; Lamb Weston Holdings, Inc. (NYSE&#58; LW) announced today its results for the second quarter of fiscal 2026 and updated its full year financial targets for fiscal 2026. Summary of Second Quarter FY 2026 Results ($ in millions, except per share) Q2 2026 Year-Over-Year Growth Rates YTD 2026 Year-Over-Year Growth Rates Net sales $ 1,618.1&#160; 1&#160; % $ 3,277.3&#160; 1&#160; % Income from operations $ 139.2&#160; 652&#160; % $ 295.7&#160; 28&#160; % Net income $ 62.1&#160; 272&#160; % $ 126.4&#160; 38&#160; % Diluted EPS $ 0.44&#160; 276&#160; % $ 0.90&#160; 41&#160; % Adjusted Income from Operations (1) $ 182.8&#160; (4) % $ 389.3&#160; 1&#160; % Adjusted Net Income (1) $ 96.7&#160; (8) % $ 199.7&#160; (8) % Adjusted Diluted EPS (1) $ 0.69&#160; (5) % $ 1.43&#160; (5) % Adjusted EBITDA (1) $ 285.7&#160; (3) % $ 587.8&#160; (1) % Capital returned to shareholders $ 91.2&#160; $ 153.3&#160; &#8220;Our performance this quarter reflects the positive momentum we are building across the business,&#8221; said Mike Smith, Lamb Weston president and CEO. &#8220;We delivered robust volume growth and gained share in priority markets and key categories, demonstrating Lamb Weston&#8217;s commitment to deliver quality, innovation, and value. Our team is executing at a high level, and we remain on track to achieve our $100 million cost savings program target for fiscal 2026. In addition, the board approved a 3 percent increase to the quarterly dividend, which has increased each year since Lamb Weston went public.&#8221; Q2 2026 Commentary Q2 Results of Operations Net sales increased $17.2 million, to $1,618.1 million versus the prior year quarter, and included a favorable foreign currency impact of $24.4 million. Net sales at constant currency (2) was essentially flat, as an 8 percent increase in volume was offset by an 8 percent decline in price&#47;mix. Volume growth was driven by customer wins, share gains and retention, particularly in North America and Asia. The decline in price&#47;mix reflects the ongoing support of customers through price and trade, including the carryover impact of fiscal 2025 pricing, in a competitive global market environment. 1 Gross profit increased $46.5 million versus the prior year quarter to $324.3 million. Adjusted Gross Profit (1) declined $15.6 million to $327.9 million, primarily due to unfavorable price&#47;mix. Total manufacturing cost per pound was lower, reflecting the benefits from cost savings initiatives and improved operating efficiencies in the North America segment. These initiatives more than offset inflationary pressures in key input categories other than raw product and higher manufacturing costs per pound in the International segment due to less favorable operating conditions and elevated production expenses. Selling, general and administrative expenses (&#8220;SG&#38;A&#8221;) declined $13.7 million versus the prior year quarter to $171.0 million. Adjusted SG&#38;A (1) declined $7.8 million versus the prior year quarter to $145.1 million, reflecting the benefits of ongoing cost savings initiatives, partially offset by compensation and benefits accruals. Net income increased to $62.1 million from a prior year quarter net loss of $36.1 million. Diluted EPS increased to $0.44 versus a prior year quarter diluted loss per share of $0.25. Adjusted Net Income (1) declined $8.2 million over the prior year quarter to $96.7 million, and Adjusted Diluted EPS (1) declined $0.04 from the prior year quarter to $0.69. The decline in Adjusted Net Income (1) and Adjusted Diluted EPS (1) largely reflects the lower Adjusted Gross Profit (1) , partially offset by lower Adjusted SG&#38;A (1) . Adjusted EBITDA (1) declined $8.5 million from the prior year quarter to $285.7 million. Lower Adjusted Gross Profit (1) and Adjusted Equity Method Investment Earnings were partially offset by lower Adjusted SG&#38;A (1) . The Company&#8217;s effective tax rate (3) in the second quarter of 2026 was 36.7 percent, versus (59.0) percent in the second quarter of fiscal 2025. The results in both periods reflect the impact of items outlined in the Reconciliations of Non-GAAP Financial Measures in the tables accompanying this press release. In addition, the Company recorded $14.4 million of discrete tax expense in the second quarter of fiscal 2025, primarily related to the establishment of a full valuation allowance against certain international deferred tax assets. Excluding these items, the Company&#8217;s effective tax rate (3) was 31.8 percent in the second quarter of 2026, versus 24.7 percent in the prior year quarter. Compared to the
+
+[...]
+
+ter of fiscal 2026, the Company returned $51.6 million to shareholders through cash dividends and repurchased $39.6 million of common stock under its share repurchase program, consisting of 617,623 shares at an average price of $64.18 per share. Approximately $308 million remains authorized and available for repurchase under the share repurchase program. On December&#160;17, 2025, the Board of Directors authorized a 3% increase in the quarterly dividend, or $0.01, to $0.38 per share of Lamb Weston common stock. The dividend is payable on February&#160;27, 2026 to shareholders of record as of the close of business on January&#160;30, 2026. Fiscal 2026 Outlook The Company reaffirmed its financial targets for fiscal 2026 as follows&#58; Fiscal 2026 Guidance Net Sales $6.35 billion to $6.55 billion Adjusted EBITDA $1.00 billion to $1.20 billion Cash Used for Capital Expenditures Approximately $500 million The Company&#8217;s guidance includes its current view of the anticipated impact of enacted tariffs by the U.S. and other countries but does not include potential effects of evolving trade policies, such as future changes in tariffs or other trade policies, including retaliatory measures or countermeasures. End Notes (1) Adjusted Gross Profit, Adjusted SG&#38;A, Adjusted Income from Operations, Adjusted Net Income, Adjusted Diluted EPS, Adjusted Equity Method Investment Earnings, and Adjusted EBITDA, are non-GAAP financial measures. Please see the discussion of non-GAAP financial measures, including a discussion of guidance provided on a non-GAAP basis, and the associated reconciliations at the end of this press release for more information. 3 (2) Net sales and price&#47;mix growth at constant currency are non-GAAP financial measures that show results as if foreign currency exchange rates had remained constant between the current and prior year periods. These measures are calculated by translating current year financial data into United States dollars using the prior year average exchange rates, which is the same basis used for the prior year results. See the discussion of non-GAAP financial measures in this press release as well as the associated reconciliations under Segment Information and Reconciliation of Net Sales at Constant Currency in the accompanying tables for more information. (3) The effective tax rate is calculated as the ratio of income tax expense to pre-tax income, inclusive of equity method investment earnings. Webcast and Conference Call Information Lamb Weston will host a conference call to review its second quarter fiscal 2026 results at 10&#58;00 a.m. ET on December&#160;19, 2025. Participants in the U.S. and Canada may access the conference call by dialing 1-800-330-6710 and participants outside the U.S. and Canada should dial +1 213-279-1505. The conference ID is 1670388. The conference call and accompanying presentation also may be accessed live on the internet. Participants can register for the event at&#58; https&#58;&#47;&#47;investors.lambweston.com&#47;events-and-presentations. A rebroadcast of the conference call will be available beginning on Friday, December&#160;19, 2025, after 2&#58;00 p.m. ET at https&#58;&#47;&#47;investors.lambweston.com&#47;events-and-presentations . About Lamb Weston Lamb Weston is a leading supplier of frozen potato products to restaurants and retailers around the world. For 75 years, Lamb Weston has led the industry in innovation, introducing inventive products that simplify back-of-house management for its customers and make things more delicious for their customers. From the fields where Lamb Weston potatoes are grown to proactive customer partnerships, Lamb Weston always strives for more and never settles. Because, when we look at a potato, we see possibilities. Learn more about us at lambweston.com. Non-GAAP Financial Measures To supplement the financial information included in this press release, the Company has presented Adjusted Gross Profit, Adjusted SG&#38;A, Adjusted Restructuring Expense, Adjusted Income from Operations, Adjusted Income Tax Expense, Adjusted Net Income, Adjusted Diluted EPS, Adjusted Equity Method Investment Earnings, and Adjusted EBITDA, each of which is considered a non-GAAP financial measure. The Company also presents net sales and price&#47;mix growth at constant currency, which provide information on the percentage change in net sales and price&#47;mix growth, respectively, as if foreign currency exchange rates had remained constant between the prior and current periods. The non-GAAP financial measures presented in this press release should be viewed in addition to, and not as an alternative for, financial measures prepared in accordance with accounting principles generally accepted in the United States of America (&#8220;GAAP&#8221;) that are also presented in this press release. These measures are not substitutes for their comparable GAAP financial measures, such as gross profit, SG&#38;A, income from operations, income tax expense, net income, diluted earnings per share, net sales, and other measures prescribed by GAAP, and there are limitations to using non-GAAP financial measures. For example, the non-GAAP financial measures presented in this press relea
+
+[...]
+
+tems that are included in reported GAAP results, including items such as costs and other charges relating to the Company&#8217;s previously announced Cost Savings Program and Restructuring Plan or other cost savings initiatives&#59; strategic developments&#59; impacts of unrealized mark-to-market derivative gains and losses&#59; impacts of foreign currency exchange gains and losses&#59; impacts of blue chip swap transactions&#59; other non-recurring items such as shareholder activism expenses&#59; and other items impacting comparability. This list is not inclusive of all potential items, and the Company intends to update the list as appropriate as these items are evaluated on an ongoing basis. In addition, the items that cannot be predicted can be highly variable and could potentially have significant impacts on the Company&#8217;s GAAP financial measures. As such, prospective quantification of these items is not feasible without unreasonable efforts, and a reconciliation of forward-looking Adjusted EBITDA to net income has not been provided. Forward-Looking Statements This press release contains forward-looking statements within the meaning of the federal securities laws. Words such as &#8220;deliver,&#8221; &#8220;execute,&#8221; &#8220;remain,&#8221; &#8220;achieve,&#8221; &#8220;increase,&#8221; &#8220;support,&#8221; &#8220;mitigate,&#8221; &#8220;expect,&#8221; &#8220;target,&#8221; &#8220;anticipate,&#8221; and variations of such words and similar expressions are intended to identify forward-looking statements. Examples of forward-looking statements include, but are not limited to, statements regarding&#58; the Company&#8217;s business and financial outlook and prospects&#59; the Company&#8217;s plans and strategies and anticipated benefits therefrom, including with respect to the Company&#8217;s cost savings initiatives&#59; anticipated capital expenditures and investments and other costs&#59; anticipated conditions in the Company&#8217;s industry&#59; and global economic conditions. These forward-looking statements are based on management&#8217;s current expectations and are subject to uncertainties and
+
+[...]
+
+f raw materials and other commodities&#59; operational challenges&#59; the Company&#8217;s ability to successfully implement its previously announced Cost Savings Program and Restructuring Plan or other cost savings or efficiency initiatives, including achieving the benefits of those activities and possible changes in the size and timing of related charges&#59; difficulties, disruptions or delays in implementing new technology&#59; levels of labor and people-related expenses&#59; the Company&#8217;s ability to successfully execute its long-term value creation strategies, including Focus to Win&#59; the Company&#8217;s ability to execute on large capital projects, including construction of new production lines or facilities&#59; the competitive environment and related conditions in the markets in which the Company operates&#59; political and economic conditions in the countries in which the Company conducts business and other factors related to its international operations&#59; disruptions in the global economy caused by conflicts such as the war in Ukraine and conflicts in the Middle East and the possible related heightening of the Company&#8217;s other known risks&#59; the ultimate outcome of litigation or any product recalls or withdrawals&#59; changes in the Company&#8217;s relationships with its growers or significant customers&#59; impacts on the Company&#8217;s business due to health pandemics or other contagious outbreaks, such as the COVID-19 pandemic, including impacts on demand for its products, increased costs, disruption of supply, other constraints in the availability of key commodities and other necessary services or restrictions imposed by public health authorities or governments&#59; disruption of the Company&#8217;s access to export mechanisms&#59; risks associated with integrating acquired businesses&#59; risks associated with other possible acquisitions&#59; the Company&#8217;s debt levels&#59; actions of governments and regulatory factors affecting the Company&#8217;s businesses&#59; the Company&#8217;s ability to pay regular quarterly cash dividends and the amounts and timing of any future di
+
+[...]
+
+to Consolidated Financial Statements (Unaudited) within the Company&#8217;s Form 10-Q filed on December 19, 2025 for more information related to the Cost Savings Program and Restructuring Plan. a. Charges associated with the Cost Savings Program for the thirteen weeks ended November&#160;23, 2025 include total pre-tax cash charges of $14.1 million ($10.8 million after-tax, or $0.08 per share). Net income for the twenty-six weeks ended November&#160;23, 2025 reflects total pre-tax cash charges of $46.0 million ($35.0 million after-tax , or $0.26 per share) related to the Cost Savings Program and Restructuring Plan. Substantially all of the costs for the thirteen and twenty-six weeks ended November 23, 2025, are included in Restructuring expense&#59; b. Charges associated with the Restructuring Plan for the thirteen and twenty-six weeks ended November&#160;24, 2024 include total pre-tax charges of $159.1 million ($123.6 million after-tax, or $0.86 per share), of which $114.5 million was cash and $44.6 million was non-cash. Included in these amounts are the following items&#58; i. Cost of sales includes a $75.5 million ($57.4 million after-tax, or $0.40 per share) charge for contracted raw potatoes that were not used due to production line curtailments, as well as other inventory write-offs for both the thirteen and twenty-six weeks ended November&#160;24, 2024&#59; ii. Restructuring expense includes a $74.6 million ($59.3 million after-tax, or $0.41 per share) charge related to accelerating depreciation of a manufacturing facility closed in connection with the Restructuring Plan and other asset retirements, and employee severance and benefits-related headcount reductions in connection with the Restructuring Plan for both the thirteen and twenty-six weeks ended November&#160;24, 2024&#59; and iii. Equity method investment earnings for the thirteen and twenty-six weeks ended November&#160;24, 2024 includes pre-tax charges of $9.0 million ($6.9 million after-tax, or $0.05 per share) related to the Restructuring Plan. (2) Cost of sales includes unrealized losses related to mark-to-market adjustments associated with commodity hedging contracts of $3.6 million ($2.8 million after-tax, or $0.02 per share) and unrealized gains of $9.8 million ($7.3 million after-tax, $0.05 per share), for the thirteen weeks ended November&#160;23, 2025 and November&#160;24, 2024, respectively. Unrealized losses related to mark-to-market adjustments associated with commodity hedging contracts of $0.5 million ($0.4 million after-tax, or zero per share) and unr
+
+[...]
+
+ion (4) &#8212;&#160; (9.5) &#8212;&#160; 9.5&#160; &#8212;&#160; 1.6&#160; &#8212;&#160; 7.9&#160; 0.05&#160; Items impacting comparability&#58; (2) Cost Savings Program, Restructuring Plan, and other expenses &#8212;&#160; &#8212;&#160; (14.1) 14.1&#160; &#8212;&#160; 3.3&#160; &#8212;&#160; 10.8&#160; 0.08&#160; Pension settlement &#8212;&#160; (1.1) &#8212;&#160; 1.1&#160; &#8212;&#160; 0.2&#160; &#8212;&#160; 0.9&#160; 0.01&#160; Total adjustments 3.6&#160; (25.9) (14.1) 43.6&#160; &#8212;&#160; 9.0&#160; &#8212;&#160; 34.6&#160; 0.25&#160; Adjusted (3) $ 327.9&#160; $ 145.1&#160; $ &#8212;&#160; $ 182.8&#160; $ 44.3&#160; $ 45.0&#160; $ 3.2&#160; $ 96.7&#160; $ 0.69&#160; Thirteen Weeks Ended November 24, 2024 As reported $ 277.8&#160; $ 184.7&#160; $ 74.6&#160; $ 18.5&#160; $ 43.3&#160; $ 13.4&#160; $ 2.1&#160; $ (36.1) $ (0.25) Unrealized derivative gains and losses (2) (9.8) (12.8) &#8212;&#160; 3.0&#160; &#8212;&#160; 0.8&#160; &#8212;&#160; 2.2&#160; 0.02&#160; Foreign currency exchange losses (2) &#8212;&#160; (9.6) &#8212;&#160; 9.6&#160; &#8212;&#160; 2.4&#160; &#8212;&#160; 7.2&#160; 0.05&#160; Blue chip swap transaction gains (2) &#8212;&#160; 3.3&#160; &#8212;&#160; (3.3) &#8212;&#160; (0.6) &#8212;&#160; (2.7) (0.02) Stock-based compensation (4) &#8212;&#160; (12.3) &#8212;&#160; 12.3&#160; &#8212;&#160; 1.9&#160; &#8212;&#160; 10.4&#160; 0.07&#160; Item impacting comparability&#58; (2) Restructuring Plan and other expenses 75.5&#160; &#8212;&#160; (74.6) 150.1&#160; &#8212;&#160; 35.5&#160; 9.0&#160; 123.6&#160; 0.86&#160; Shareholder activism expense &#8212;&#160; (0.4) &#8212;&#160; 0.4&#160; &#8212;&#160; 0.1&#160; &#8212;&#160; 0.3&#160; &#8212;&#160; Total adjustments 65.7&#160; (31.8) (74.6) 172.1&#160; &#8212;&#160; 40.1&#160; 9.0&#160; 141.0&#160; 0.98&#160; Adjusted (3) $ 343.5&#160; $ 152.9&#160; $ &#8212;&#160; $ 190.6&#160; $ 43.3&#160; $ 53.5&#160; $ 11.1&#160; $ 104.9&#160; $ 0.73&#160; 11 Twenty-Six Weeks Ended November 23, 2025 Gross Profit SG&#38;A Restructuring Expense Income From Operations Interest Expense Income Tax Expense (Benefit) (1) Equity Method Investment Earnings Ne
+
+[...]
+
+(4) &#8212;&#160; (20.1) &#8212;&#160; 20.1&#160; &#8212;&#160; 3.2&#160; &#8212;&#160; 16.9&#160; 0.12&#160; Items impacting comparability&#58; (2) Cost Savings Program, Restructuring Plan, and other expenses (0.4) &#8212;&#160; (46.4) 46.0&#160; &#8212;&#160; 11.0&#160; &#8212;&#160; 35.0&#160; 0.26&#160; Shareholder activism expense &#8212;&#160; (4.0) &#8212;&#160; 4.0&#160; &#8212;&#160; 0.9&#160; &#8212;&#160; 3.1&#160; 0.02&#160; Pension settlement &#8212;&#160; (14.2) &#8212;&#160; 14.2&#160; &#8212;&#160; 3.2&#160; &#8212;&#160; 11.0&#160; 0.08&#160; Total adjustments 0.1&#160; (47.1) (46.4) 93.6&#160; &#8212;&#160; 20.3&#160; &#8212;&#160; 73.3&#160; 0.53&#160; Adjusted (3) $ 666.8&#160; $ 277.5&#160; $ &#8212;&#160; $ 389.3&#160; $ 88.0&#160; $ 104.2&#160; $ 2.6&#160; $ 199.7&#160; $ 1.43&#160; Twenty-Six Weeks Ended November 24, 2024 As reported $ 633.8&#160; $ 328.6&#160; $ 74.6&#160; $ 230.6&#160; $ 88.5&#160; $ 64.2&#160; $ 13.4&#160; $ 91.3&#160; $ 0.64&#160; Unrealized derivative gains and losses (2) (12.7) (6.8) &#8212;&#160; (5.9) &#8212;&#160; (1.6) &#8212;&#160; (4.3) (0.02) Foreign currency exchange losses (2) &#8212;&#160; (10.2) &#8212;&#160; 10.2&#160; &#8212;&#160; 2.6&#160; &#8212;&#160; 7.6&#160; 0.05&#160; Blue chip swap transaction gains (2) &#8212;&#160; 19.9&#160; &#8212;&#160; (19.9) &#8212;&#160; (0.6) &#8212;&#160; (19.3) (0.13) Stock-based compensation (4) &#8212;&#160; (21.8) &#8212;&#160; 21.8&#160; &#8212;&#160; 3.4&#160; &#8212;&#160; 18.4&#160; 0.11&#160; Items impacting comparability&#58; (2) Restructuring Plan and other expenses 75.5&#160; &#8212;&#160; (74.6) 150.1&#160; &#8212;&#160; 35.5&#160; 9.0&#160; 123.6&#160; 0.86&#160; Shareholder activism expense &#8212;&#160; (0.4) &#8212;&#160; 0.4&#160; &#8212;&#160; 0.1&#160; &#8212;&#160; 0.3&#160; &#8212;&#160; Total adjustments 62.8&#160; (19.3) (74.6) 156.7&#160; &#8212;&#160; 39.4&#160; 9.0&#160; 126.3&#160; 0.87&#160; Adjusted (3) $ 696.6&#160; $ 309.3&#160; $ &#8212;&#160; $ 387.3&#160; $ 88.5&#160; $ 103.6&#160; $ 22.4&#160; $ 217.6&#160; $ 1.51&#160; ______________________________________________ (1) Items are ta
+
+[...]
+
+8212;&#160; (3.3) &#8212;&#160; (19.9) Stock-based compensation (1) 9.5&#160; 12.3&#160; 20.1&#160; 21.8&#160; Items impacting comparability&#58; (1) Cost Savings Program, Restructuring Plan, and other expenses 14.1&#160; 159.1&#160; 46.0&#160; 159.1&#160; Shareholder activism expense &#8212;&#160; 0.4&#160; 4.0&#160; 0.4&#160; Pension settlement 1.1&#160; &#8212;&#160; 14.2&#160; &#8212;&#160; Adjusted EBITDA (4) $ 285.7&#160; $ 294.2&#160; $ 587.8&#160; $ 593.6&#160; Segment Adjusted EBITDA North America $ 287.8&#160; $ 269.2&#160; $ 547.8&#160; $ 547.2&#160; International 27.2&#160; 48.6&#160; 84.4&#160; 100.0&#160; Unallocated corporate costs (5) (29.3) (23.6) (44.4) (53.6) Adjusted EBITDA $ 285.7&#160; $ 294.2&#160; $ 587.8&#160; $ 593.6&#160; _______________________________________________ (1) See footnotes (1) - (4) to the Consolidated Statements of Earnings for more information. (2) Lamb Weston holds a 50 percent equity interest in a U.S. potato processing joint venture, Lamb-Weston&#47;RDO Frozen (&#8220;Lamb Weston RDO&#8221;). Lamb Weston accounts for its investment in Lamb Weston RDO under the equity method of accounting. See Note 6, Other Assets, of the Notes to Consolidated Financial Statements in the Company&#8217;s Form 10-K for the fiscal year ended May&#160;25, 2025, filed with the SEC on July&#160;23, 2025, for more information about this joint venture. (3) Depreciation and amortization includes interest expense, income tax expense, and depreciation and amortization relating to equity method investments of $2.2 million and $2.0 million for the thirteen weeks ended November&#160;23, 2025 and November&#160;24, 2024, respectively, and $4.4 million and $4.1 million for the twenty-six weeks ended November&#160;23, 2025 and November&#160;24, 2024, respectively. (4) See &#8220;Non-GAAP Financial Measures&#8221; in this press release for additional information. (5) Results for the Company&#8217;s two operating segments reflect corporate support staff and services that are directly allocable to those segments. Unallocated corporate costs include costs related to corporate support staff and other support

@@ -4,6 +4,7 @@ import { buildSeries } from '../../src/services/edgar/factsSeries.js';
 import {
   extractTaxCashFlowAdjustment,
   extractIncomeTaxesPaid,
+  extractDebtCashFlow,
   extractCapitalCashFlowFacts,
   extractRemainingAuthorization,
   extractRepurchaseProgramTerms,
@@ -11,6 +12,7 @@ import {
   extractExecutiveChangesFromText,
 } from '../../src/agents/analyst/financialParsersExtract.js';
 import { buildWorkingCapitalDataFallback } from '../../src/agents/analyst/capitalAllocationHelpers.js';
+import { getTaxNormalizationData } from '../../src/agents/analyst/dividendHistoryBuilders.js';
 import { normalizeCashFlowBlock } from '../../src/agents/analyst/analystCashCapitalProcessor.js';
 import { normalizeSalesBlock } from '../../src/agents/analyst/analystSalesProcessor.js';
 import { buildMaturityScheduleFromDebtTable } from '../../src/agents/analyst/debtMaturityFallback.js';
@@ -110,6 +112,79 @@ test('extractIncomeTaxesPaid y extractTaxCashFlowAdjustment reconocen variantes 
   const taxAdj = extractTaxCashFlowAdjustment(textSample);
   assert.equal(taxesPaid, 245);
   assert.equal(taxAdj, -78);
+});
+
+test('extractIncomeTaxesPaid toma el total de la tabla ASU y no el año de la cabecera', () => {
+  const asuTable = `
+    Income taxes paid, net of refunds, were:
+    2026 \t2025 \t2024
+    US federal \t$ \t112.2 $ \t150.3 $ \t263.7
+    US state and local \t36.8 \t31.2 \t46.8
+    Foreign
+    Canada \t4.1 \t23.1 \t*
+    Mexico \t20.0 \t22.5 \t21.4
+    Other \t0.3 \t0.7 \t11.4
+    24.4 \t46.3 \t32.8
+    Total \t$ \t173.4 $ \t227.8 $ \t343.3
+    * The amount of income taxes paid in this jurisdiction during the year were less than 5%
+  `;
+  assert.equal(extractIncomeTaxesPaid(asuTable), 173.4);
+});
+
+test('extractIncomeTaxesPaid no confunde el año de la cabecera con el importe pagado', () => {
+  assert.equal(extractIncomeTaxesPaid('Income taxes paid, net of refunds, were: 2026 2025 2024'), null);
+});
+
+test('getTaxNormalizationData descarta un valor de impuestos igual al año fiscal (caso CAG FY2026)', () => {
+  const asuTable = `
+    Income taxes paid, net of refunds, were:
+    2026 \t2025 \t2024
+    US federal \t$ \t112.2 $ \t150.3 $ \t263.7
+    Total \t$ \t173.4 $ \t227.8 $ \t343.3
+  `;
+  const horizon = {
+    sales: {
+      rows: [
+        { name: 'EBT', normal: '1148,3', adjusted: '1148,3' },
+        { name: 'Beneficio Neto', normal: '900', adjusted: '900' },
+      ],
+    },
+  };
+  const extracted = {
+    facts: { incomeTaxesPaidYtd: 2026 },
+    fiscalYear: 2026,
+    reportingPeriod: '2026-05-31',
+    _rawText: asuTable,
+  };
+  const result = getTaxNormalizationData({ extracted, horizon, isTrimestral: false });
+  assert.ok(result);
+  assert.equal(result.cashTaxesPaid, 173.4);
+  assert.equal(result.normalizedCashTaxes, 264.1);
+  assert.equal(result.adjustment, -90.7);
+});
+
+test('extractDebtCashFlow localiza la sección con encabezado en mayúsculas y neto "provided by/(used for)"', () => {
+  const sample = `
+    (in millions, except per share data)
+    CASH FLOWS FROM FINANCING ACTIVITIES:
+    Repayments of long-term debt \t(2,981) \t(676)
+    Proceeds from issuance of long-term debt \t1,152 \t1,620
+    Dividends paid \t(949) \t(951)
+    Other financing activities, net \t(77) \t19
+    Net cash provided by/(used for) financing activities \t(2,882) \t(423)
+  `;
+  assert.equal(extractDebtCashFlow(sample), -1829);
+});
+
+test('extractDebtCashFlow convierte a millones cuando el estado va en miles (caso HRL)', () => {
+  const sample = `
+    CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOWS (In thousands)
+    Financing Activities
+    Repayments of Long-term Debt and Finance Leases \t(5,425) \t(6,250)
+    Dividends Paid on Common Stock \t(481,401) \t(473,692)
+    Net Cash Provided by (Used in) Financing Activities \t(488,435) \t(455,884)
+  `;
+  assert.equal(extractDebtCashFlow(sample), -5.4);
 });
 
 test('extractRemainingAuthorization reconoce remanentes bajo el programa de recompra', () => {
@@ -291,6 +366,56 @@ test('processRepurchasesSection preserva las recompras si hay remanente o compra
   processRepurchasesSection(conclusion, rawAnn, extracted);
   assert.ok(conclusion.repurchases, 'No debe eliminarse el programa de recompras');
   assert.equal(conclusion.repurchases.programRemaining, 1200);
+});
+
+test('processRepurchasesSection omite la sección cuando las recompras son marginales (caso CAG FY2026)', () => {
+  const conclusion = {
+    repurchases: {
+      text: 'Durante el ejercicio 2026 la compañía destinó 15,3M$ a la recompra de acciones propias.',
+      authorizationRemaining: 'Unos 837,6M de $ pendientes de ejecución',
+      secSnippet: { title: 'Share Repurchase Program', rows: [['Aggregate cost (in millions)', '$15.3']] },
+    },
+  };
+  const rawAnn = {
+    repurchases: {
+      sharesRepurchasedAnnual: 0.8,
+      averagePrice: 19.1,
+      aggregateCost: 15.3,
+      programRemaining: 837.6,
+      sharesHistory: [
+        { year: 2022, shares: 470 },
+        { year: 2023, shares: 465 },
+        { year: 2024, shares: 458 },
+        { year: 2025, shares: 455 },
+        { year: 2026, shares: 450 },
+      ],
+    },
+  };
+  const extracted = {
+    facts: { shareBuybacks: 15.3 },
+    capitalAllocationData: { ytd: { buybacks: -15.3 } },
+  };
+
+  processRepurchasesSection(conclusion, rawAnn, extracted);
+  assert.equal(conclusion.repurchases, undefined, 'Las recompras marginales (< 1 % del capital) deben omitirse');
+});
+
+test('processRepurchasesSection mantiene la sección si hay un programa nuevo o cancelado aunque las recompras sean marginales', () => {
+  const conclusion = {
+    repurchases: { text: 'La compañía lanzó un nuevo programa.', programChanges: 'Nuevo programa de 2.000M autorizado en febrero de 2026' },
+  };
+  const rawAnn = {
+    repurchases: {
+      sharesRepurchasedAnnual: 0.8,
+      averagePrice: 19.1,
+      aggregateCost: 15.3,
+      sharesHistory: [{ year: 2025, shares: 455 }, { year: 2026, shares: 450 }],
+    },
+  };
+  const extracted = { facts: { shareBuybacks: 15.3 }, capitalAllocationData: { ytd: { buybacks: -15.3 } } };
+
+  processRepurchasesSection(conclusion, rawAnn, extracted);
+  assert.ok(conclusion.repurchases, 'Un cambio de programa mantiene la sección');
 });
 
 test('processExecutiveChangesSection normaliza transiciones de CEO, CFO y cúpula directiva sin perder datos', () => {

@@ -6,6 +6,7 @@
 import { escapeHtml } from './seoConstants.js';
 import { getExecutiveChanges, getExecutiveFieldLabels } from '../reportExport/executiveChanges.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { visibleCapitalRows } from '../../utils/capitalRows.js';
 
 /**
  * Obtiene la clase CSS para resaltar notas numéricas.
@@ -169,7 +170,7 @@ export function renderHorizonSsr(horizon, language = 'es') {
     html += `<p class="report-extras">${escapeHtml(t('3. ASIGNACIÓN DE CAPITAL', null, lang))}</p>`;
     html += renderTableSsr(
       [t('Métrica', null, lang), t('Valor', null, lang)],
-      capital.rows.map((row) => [row.name, row.value]),
+      visibleCapitalRows(capital.rows).map((row) => [row.name, row.value]),
       [],
       { isCapital: true, boldColumns: [1] },
     );

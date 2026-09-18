@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMaturityScheduleFromDebtTable, normalizeMaturityPayload, maturityItemsLookBucketed, shouldRecoverMaturitySchedule } from '../../src/agents/analyst/debtMaturityFallback.js';
+import { buildMaturityScheduleFromDebtTable, buildMaturityScheduleFromFilingText, normalizeMaturityPayload, maturityItemsLookBucketed, maturityTableLooksIncomplete, maturityWindowBounds, pickCoveringMaturitySchedule, shouldRecoverMaturitySchedule } from '../../src/agents/analyst/debtMaturityFallback.js';
 import { processDebtSection, processAcquisitionsDividendsAndWatchlist } from '../../src/agents/analyst/annualConclusionSections.js';
 import { extractDebtFilingText } from '../../src/agents/analyst/filingExtractor.js';
 import { buildDebtMaturityModel } from '../../src/services/reportExport/debtMaturityModel.js';
@@ -230,4 +230,138 @@ test('normalizeMaturityPayload promedia los dos cupones de una fila aunque la IA
   const result = normalizeMaturityPayload(payload, 2018);
   assert.equal(result.items[0].rate, 2.6);
   assert.equal(result.items[0].estimated, true);
+});
+
+// Tabla real de Conagra 10-K FY2026 (nota 4. LONG-TERM DEBT), ordenada por año de vencimiento.
+const CAG_TABLE = {
+  headers: ['Obligación', 'Vencimiento', 'May 31, 2026', 'May 25, 2025'],
+  rows: [
+    ['5.4% senior debt due November 2048', '', '$1,000.0', '$1,000.0'],
+    ['4.65% senior debt due January 2043', '', '$176.7', '$176.7'],
+    ['6.625% senior debt due August 2039', '', '$91.4', '$91.4'],
+    ['5.3% senior debt due November 2038', '', '$1,000.0', '$1,000.0'],
+    ['5.75% senior debt due August 2035', '', '$500.0', '—'],
+    ['8.25% senior debt due September 2030', '', '$300.0', '$300.0'],
+    ['5.0% senior debt due August 2030', '', '$500.0', '—'],
+    ['4.85% senior debt due November 2028', '', '$1,300.0', '$1,300.0'],
+    ['7.0% senior debt due October 2028', '', '$382.2', '$382.2'],
+    ['1.375% senior debt due November 2027', '', '$1,000.0', '$1,000.0'],
+    ['6.7% senior debt due August 2027', '', '$9.2', '$9.2'],
+    ['7.125% senior debt due October 2026', '', '$262.5', '$262.5'],
+    ['5.3% senior debt due October 2026', '', '$500.0', '$500.0'],
+    ['4.6% senior debt due November 2025', '', '—', '$1,000.0'],
+    ['0.89% to 13.22% lease financing obligations due on various dates through 2043', '', '$240.4', '$267.2'],
+    ['Total face value of debt', '', '$7,262.4', '$7,289.2'],
+    ['Less current installments', '', '($778.2)', '($1,028.8)'],
+    ['Total long-term debt', '', '$6,456.0', '$6,234.1'],
+  ],
+};
+
+test('la ventana de 5 años incluye el año de cierre cuando el ejercicio no termina en diciembre', () => {
+  assert.deepEqual(maturityWindowBounds(2026, '2026-05-31'), { minYear: 2026, maxYear: 2030 });
+  assert.deepEqual(maturityWindowBounds(2025, '2025-12-31'), { minYear: 2026, maxYear: 2030 });
+  assert.deepEqual(maturityWindowBounds(2018), { minYear: 2019, maxYear: 2023 });
+});
+
+test('deriva el calendario completo de Conagra FY2026 incluyendo los vencimientos del año de cierre', () => {
+  const result = buildMaturityScheduleFromDebtTable(CAG_TABLE, 2026, '2026-05-31');
+  assert.ok(result);
+  assert.deepEqual(result.items.map((item) => [item.year, item.amount]), [
+    [2030, 300],
+    [2030, 500],
+    [2028, 1300],
+    [2028, 382.2],
+    [2027, 1000],
+    [2027, 9.2],
+    [2026, 262.5],
+    [2026, 500],
+  ]);
+  assert.equal(result.afterYearFive, 3008.5);
+  assert.ok(!result.items.some((item) => /2025|face value|current installments|total long-term/i.test(item.label)));
+});
+
+test('maturityTableLooksIncomplete detecta tablas resumidas con importes materiales sin año', () => {
+  assert.equal(maturityTableLooksIncomplete(CAG_TABLE), false);
+  assert.equal(maturityTableLooksIncomplete(PEPSI_TABLE), false);
+  const summarized = {
+    headers: ['Obligación', 'Vencimiento', 'May 31, 2026', 'May 25, 2025'],
+    rows: [
+      ['Notas sénior no garantizadas al 5.3%', 'Octubre 2026', '$500.0', '$500.0'],
+      ['Notas sénior no garantizadas al 7.125%', 'Octubre 2026', '$262.5', '$262.5'],
+      ['Notas sénior no garantizadas al 5.00%', 'Agosto 2030', '$500.0', '$0'],
+      ['Notas sénior no garantizadas al 5.75%', 'Agosto 2035', '$500.0', '$0'],
+      ['Otras notas sénior no garantizadas', 'Varios', '$5,257.5', '$6,500.0'],
+      ['Total deuda a largo plazo', '', '$7,020.0', '$7,262.5'],
+    ],
+  };
+  assert.equal(maturityTableLooksIncomplete(summarized), true);
+  assert.equal(maturityTableLooksIncomplete(null), false);
+});
+
+test('shouldRecoverMaturitySchedule reconstruye cuando la tabla de deuda llega resumida', () => {
+  const yearByYear = [{ year: 2026, label: 'Senior debt due October 2026', amount: 762.5, type: 'Senior Notes' }];
+  assert.equal(shouldRecoverMaturitySchedule(yearByYear, [], 2026, '2026-05-31'), false);
+  assert.equal(shouldRecoverMaturitySchedule(yearByYear, [], 2018), false);
+});
+
+test('extractDebtFilingText localiza las filas "due <mes> <año>" de la nota de deuda', () => {
+  const filingText = `4. LONG-TERM DEBT
+May 31, 2026 May 25, 2025
+5.4% senior debt due November 2048 $ 1,000.0 $ 1,000.0
+4.65% senior debt due January 2043 176.7 176.7
+5.75% senior debt due August 2035 500.0 —
+Total long-term debt $ 6,456.0 $ 6,234.1`;
+  const debtText = extractDebtFilingText(filingText);
+  assert.ok(debtText.includes('due November 2048'));
+  assert.ok(debtText.includes('due August 2035'));
+});
+
+const CAG_DEBT_TEXT = `4. LONG-TERM DEBT
+5.4% senior debt due November 2048 \t$ \t1,000.0 $ \t1,000.0
+4.65% senior debt due January 2043 \t176.7 \t176.7
+5.75% senior debt due August 2035 \t500.0 \t—
+8.25% senior debt due September 2030 \t300.0 \t300.0
+5.0% senior debt due August 2030 \t500.0 \t—
+1.375% senior debt due November 2027 \t1,000.0 \t1,000.0
+7.125% senior debt due October 2026 \t262.5 \t262.5
+5.3% senior debt due October 2026 \t500.0 \t500.0
+4.6% senior debt due November 2025 \t— \t1,000.0
+0.89% to 13.22% lease financing obligations due on various dates through
+2043 \t240.4 \t267.2
+Total face value of debt \t7,262.4 \t7,289.2
+Less current installments \t(778.2) \t(1,028.8)
+Total long-term debt \t$ \t6,456.0 $ \t6,234.1`;
+
+test('buildMaturityScheduleFromFilingText parsea la nota y une las filas partidas del PDF', () => {
+  const result = buildMaturityScheduleFromFilingText(CAG_DEBT_TEXT, 2026, '2026-05-31');
+  assert.ok(result);
+  assert.deepEqual(result.items.map((item) => [item.year, item.amount]), [
+    [2030, 300],
+    [2030, 500],
+    [2027, 1000],
+    [2026, 262.5],
+    [2026, 500],
+  ]);
+  assert.equal(result.afterYearFive, 1917.1);
+  assert.equal(result.weightedAverageRate.rate, 4.84);
+});
+
+test('buildMaturityScheduleFromFilingText descarta índices de exhibits y líneas narrativas', () => {
+  const noisy = `4.5.8 Form of 3.440% Senior Notes due 2026. 8-K 4.10 July 7, 2016
+senior notes due 2026, 4.2% senior notes due 2046 and 1.25% senior notes due 2032
+CAD 500 million 3.44% senior notes due July 2026 347.6 377.6`;
+  const result = buildMaturityScheduleFromFilingText(noisy, 2024, '2024-12-31');
+  assert.ok(result);
+  assert.deepEqual(result.items.map((item) => [item.year, item.amount]), [[2026, 347.6]]);
+  assert.equal(result.afterYearFive, null);
+});
+
+test('pickCoveringMaturitySchedule elige el candidato más cercano a la deuda total', () => {
+  const partial = { items: [{ year: 2026, amount: 500 }], afterYearFive: null };
+  const complete = { items: [{ year: 2026, amount: 500 }], afterYearFive: 6500 };
+  const inflated = { items: [{ year: 2026, amount: 12000 }], afterYearFive: null };
+  assert.equal(pickCoveringMaturitySchedule([partial, complete, inflated], 7000), complete);
+  assert.equal(pickCoveringMaturitySchedule([partial], 7000), null);
+  assert.equal(pickCoveringMaturitySchedule([partial, complete], null), partial);
+  assert.equal(pickCoveringMaturitySchedule([], 7000), null);
 });

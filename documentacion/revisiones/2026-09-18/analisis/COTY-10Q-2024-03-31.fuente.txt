@@ -1,0 +1,1859 @@
+[COMIENZO DEL INFORME]
+UNITED STATES
+SECURITIES AND EXCHANGE COMMISSION
+WASHINGTON, D.C. 20549
+Form 10-Q
+(Mark One)
+☒ QUARTERLY REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934
+FOR THE QUARTERLY PERIOD ENDED MARCH 31, 2024
+OR
+☐ TRANSITION REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934
+FOR THE TRANSITION PERIOD FROM 	TO
+COMMISSION FILE NUMBER 001-35964
+COTY INC.
+(Exact name of registrant as specified in its charter)
+Delaware 	13-3823358
+(State or other jurisdiction of incorporation or organization) 	(I.R.S. Employer Identification No.)
+350 Fifth Avenue,
+New York, NY 	10118
+(Address of principal executive offices) 	(Zip Code)
+(212) 389-7300
+Registrant’s telephone number, including area code
+Indicate by check mark whether the registrant (1) has filed all reports required to be filed by Section 13 or 15(d) of the Securities Exchange
+Act of 1934 during the preceding 12 months (or for such shorter period that the registrant was required to file such reports), and (2) has been
+subject to such filing requirements for the past 90 days. Yes ý No ¨
+Indicate by check mark whether the registrant has submitted electronically every Interactive Data File required to be submitted pursuant to
+Rule 405 of Regulation S-T (§232.405 of this chapter) during the preceding 12 months (or for such shorter period that the registrant was required
+to submit such files). Yes ý No ¨
+Indicate by check mark whether the registrant is a large accelerated filer, an accelerated filer, a non-accelerated filer, a smaller reporting
+company or an emerging growth company. See the definitions of “large accelerated filer,” “accelerated filer,” “smaller reporting company” and
+“emerging growth company” in Rule 12b-2 of the Exchange Act.
+Large accelerated filer 	☒ 	Accelerated filer 	☐
+Non-accelerated filer 	☐ 	Smaller reporting company 	☐
+Emerging growth company 	☐
+If an emerging growth company, indicate by check mark if the registrant has elected not to use the extended transition period for complying
+with any new or revised financial accounting standards provided pursuant to Section 13(a) of the Exchange Act. ¨
+Indicate by check mark whether the registrant is a shell company (as defined in Rule 12b-2 of the Exchange Act). Yes ☐ No ý
+Securities Registered Pursuant to Section 12(b) of the Act:
+Title of each class 	Trading symbol(s) 	Name of each exchange on which registered
+Class A Common Stock, $0.01 par value 	COTY 	New York Stock Exchange
+At April 30, 2024, 867,838,983 shares of the registrant’s Class A Common Stock, $0.01 par value, were outstanding.
+
+-- 1 of 72 --
+
+COTY INC.
+INDEX TO FORM 10-Q
+Page
+Part I: 	FINANCIAL INFORMATION
+Item 1. 	Condensed Consolidated Financial Statements (Unaudited) 	1
+Condensed Consolidated Statements of Operations for the three and nine months ended March 31, 2024 and 2023 	1
+Condensed Consolidated Statements of Comprehensive Income (Loss) for the three and nine months ended March
+31, 2024 and 2023 	2
+Condensed Consolidated Balance Sheets as of March 31, 2024 and June 30, 2023 	3
+Condensed Consolidated Statements of Equity for the three and nine months ended March 31, 2024 and 2023 	4
+Condensed Consolidated Statements of Cash Flows for the nine months ended March 31, 2024 and 2023 	8
+Notes to Condensed Consolidated Financial Statements 	10
+Item 2. 	Management’s Discussion and Analysis of Financial Condition and Results of Operations 	34
+Item 3. 	Quantitative and Qualitative Disclosures About Market Risk 	62
+Item 4. 	Controls and Procedures 	62
+Part II: OTHER INFORMATION
+Item 1. 	Legal Proceedings 	63
+Item 1A. Risk Factors 	63
+Item 2. 	Unregistered Sales of Equity Securities and Use of Proceeds 	63
+Item 5. 	Other Information 	63
+Item 6. 	Exhibits 	64
+Signatures 	65
+
+-- 2 of 72 --
+
+Table of Contents
+PART I. FINANCIAL INFORMATION
+Item 1. Condensed Consolidated Financial Statements
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED STATEMENTS OF OPERATIONS
+(In millions, except per share data)
+(Unaudited)
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+2024 	2023 	2024 	2023
+Net revenues 	$ 	1,385.6 $ 	1,288.9 $ 	4,754.6 $ 	4,202.5
+Cost of sales 	487.8 	478.1 	1,690.8 	1,504.7
+Gross profit 	897.8 	810.8 	3,063.8 	2,697.8
+Selling, general and administrative expenses 	770.6 	720.4 	2,371.4 	2,145.4
+Amortization expense 	48.5 	48.2 	145.4 	143.1
+Restructuring costs 	0.9 	(1.3) 	35.0 	(5.4)
+Operating income 	77.8 	43.5 	512.0 	414.7
+Interest expense, net 	60.4 	58.8 	190.3 	185.7
+Other expense (income), net 	14.0 	(156.9) 	9.8 	(397.0)
+Income before income taxes 	3.4 	141.6 	311.9 	626.0
+(Benefit) provision for income taxes 	(5.4) 	29.8 	106.9 	138.3
+Net income 	8.8 	111.8 	205.0 	487.7
+Net income (loss) attributable to noncontrolling interests 	2.4 	1.0 	4.0 	(0.4)
+Net income attributable to redeemable noncontrolling interests 	2.6 	2.4 	14.7 	12.8
+Net income attributable to Coty Inc. 	$ 	3.8 $ 	108.4 $ 	186.3 $ 	475.3
+Amounts attributable to Coty Inc.
+Net income attributable to Coty Inc. 	3.8 	108.4 	186.3 	475.3
+Convertible Series B Preferred Stock dividends 	(3.3) 	(3.3) 	(9.9) 	(9.9)
+Net income attributable to common stockholders 	$ 	0.5 $ 	105.1 $ 	176.4 $ 	465.4
+Earnings per common share:
+Earnings per common share - basic 	$ 	— $ 	0.12 	0.20 	0.55
+Earnings per common share - diluted 	— 	0.12 	0.20 	0.54
+Weighted-average common shares outstanding:
+Basic 	883.1 	851.6 	876.7 	848.1
+Diluted 	892.0 	865.2 	886.1 	885.8
+See notes to Condensed Consolidated Financial Statements.
+1
+
+-- 3 of 72 --
+
+Table of Contents
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED STATEMENTS OF COMPREHENSIVE INCOME (LOSS)
+(In millions)
+(Unaudited)
+Three Months Ended
+March 31, Nine Months Ended
+March 31,
+2024 	2023 	2024 	2023
+Net income 	$ 	8.8 $ 	111.8 $ 	205.0 $ 	487.7
+Other comprehensive income (loss):
+Foreign currency translation adjustment 	(104.1) 	80.8 	(47.1) 	35.7
+Net unrealized derivative gain (loss) on cash flow hedges, net of
+taxes of $(0.2) and $0.9, and $(0.6) and $1.6 during the three and
+nine months ended, respectively 	0.1 	(2.1) 	0.5 	(5.1)
+Pension and other post-employment benefits adjustment, net of tax
+of $0.9 and $0.4, and $1.4 and $0.4 during the three and nine
+months ended, respectively 	(2.2) 	(0.6) 	(3.7) 	(2.3)
+Total other comprehensive (loss) income, net of tax 	(106.2) 	78.1 	(50.3) 	28.3
+Comprehensive (loss) income 	(97.4) 	189.9 	154.7 	516.0
+Comprehensive income attributable to noncontrolling
+interests:
+Net income (loss) 	2.4 	1.0 	4.0 	(0.4)
+Foreign currency translation adjustment 	(0.1) 	(0.2) 	(0.1) 	0.1
+Total comprehensive income (loss) attributable to noncontrolling
+interests 	2.3 	0.8 	3.9 	(0.3)
+Comprehensive income attributable to redeemable
+noncontrolling interests:
+Net income 	2.6 	2.4 	14.7 	12.8
+Foreign currency translation adjustment 	(0.1) 	— 	— 	0.1
+Total comprehensive income attributable to noncontrolling
+interests 	2.5 	2.4 	14.7 	12.9
+Comprehensive (loss) income attributable to Coty Inc. 	$ 	(102.2) $ 	186.7 $ 	136.1 $ 	503.4
+See notes to Condensed Consolidated Financial Statements.
+2
+
+-- 4 of 72 --
+
+Table of Contents
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED BALANCE SHEETS
+(In millions, except per share data)
+(Unaudited)
+March 31,
+2024
+June 30,
+2023
+ASSETS
+Current assets:
+Cash and cash equivalents 	$ 	260.2 $ 	246.9
+Restricted cash 	26.0 	36.9
+Trade receivables—less allowances of $26.3 and $23.2, respectively 	479.9 	360.9
+Inventories 	759.7 	853.4
+Prepaid expenses and other current assets 	459.8 	553.6
+Total current assets 	1,985.6 	2,051.7
+Property and equipment, net 	703.4 	712.9
+Goodwill 	3,965.1 	3,987.9
+Other intangible assets, net 	3,632.6 	3,798.0
+Equity investments 	1,086.5 	1,068.9
+Operating lease right-of-use assets 	270.5 	286.7
+Deferred income taxes 	580.9 	589.9
+Other noncurrent assets 	97.6 	165.6
+TOTAL ASSETS 	$ 	12,322.2 $ 	12,661.6
+LIABILITIES, MEZZANINE EQUITY AND STOCKHOLDERS’ EQUITY
+Current liabilities:
+Accounts payable 	$ 	1,250.1 $ 	1,444.7
+Accrued expenses and other current liabilities 	1,092.1 	1,042.0
+Short-term debt and current portion of long-term debt 	4.4 	57.9
+Current operating lease liabilities 	58.8 	65.6
+Income and other taxes payable 	70.8 	126.6
+Total current liabilities 	2,476.2 	2,736.8
+Long-term debt, net 	3,902.3 	4,178.2
+Long-term operating lease liabilities 	232.6 	247.5
+Pension and other post-employment benefits 	275.9 	280.7
+Deferred income taxes 	688.8 	659.7
+Other noncurrent liabilities 	328.0 	325.4
+Total liabilities 	7,903.8 	8,428.3
+COMMITMENTS AND CONTINGENCIES (See Note 17)
+CONVERTIBLE SERIES B PREFERRED STOCK, $0.01 par value; 1.0 shares authorized; 0.1 issued and
+outstanding at March 31, 2024 and June 30, 2023 	142.4 	142.4
+REDEEMABLE NONCONTROLLING INTERESTS 	94.2 	93.5
+EQUITY:
+Preferred Stock, $0.01 par value; 20.0 shares authorized, 1.0 issued and outstanding at March 31, 2024 and June 30, 2023 	— 	—
+Class A Common Stock, $0.01 par value; 1,250.0 shares authorized, 962.1 and 919.3 issued and 867.9 and 852.8 outstanding
+at March 31, 2024 and June 30, 2023, respectively 	9.6 	9.1
+Additional paid-in capital 	11,294.1 	10,898.6
+Accumulated deficit 	(4,801.6) 	(4,987.9)
+Accumulated other comprehensive loss 	(712.6) 	(662.4)
+Treasury stock—at cost, shares: 94.2 and 66.5 at March 31, 2024 and June 30, 2023, respectively 	(1,796.9) 	(1,446.3)
+Total Coty Inc. stockholders’ equity 	3,992.6 	3,811.1
+Noncontrolling interests 	189.2 	186.3
+Total equity 	4,181.8 	3,997.4
+TOTAL LIABILITIES, MEZZANINE EQUITY AND STOCKHOLDERS’ EQUITY 	$ 	12,322.2 $ 	12,661.6
+See notes to Condensed Consolidated Financial Statements.
+
+-- 5 of 72 --
+
+3
+
+-- 6 of 72 --
+
+Table of Contents
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED STATEMENTS OF EQUITY
+For the Three and Nine Months Ended March 31, 2024
+(In millions, except per share data)
+(Unaudited)
+
+-- 7 of 72 --
+
+Preferred Stock Class A
+Common Stock Stock
+to be
+issued
+Additional
+Paid-in
+Capital
+Receivable
+from sale
+of stock
+(Accumulated
+Deficit)
+Accumulated
+Other
+Comprehensive
+(L
+
+[SECCIÓN DE ESTADOS FINANCIEROS Y NOTAS]
+ging growth company, indicate by check mark if the registrant has elected not to use the extended transition period for complying
+with any new or revised financial accounting standards provided pursuant to Section 13(a) of the Exchange Act. ¨
+Indicate by check mark whether the registrant is a shell company (as defined in Rule 12b-2 of the Exchange Act). Yes ☐ No ý
+Securities Registered Pursuant to Section 12(b) of the Act:
+Title of each class 	Trading symbol(s) 	Name of each exchange on which registered
+Class A Common Stock, $0.01 par value 	COTY 	New York Stock Exchange
+At April 30, 2024, 867,838,983 shares of the registrant’s Class A Common Stock, $0.01 par value, were outstanding.
+
+-- 1 of 72 --
+
+COTY INC.
+INDEX TO FORM 10-Q
+Page
+Part I: 	FINANCIAL INFORMATION
+Item 1. 	Condensed Consolidated Financial Statements (Unaudited) 	1
+Condensed Consolidated Statements of Operations for the three and nine months ended March 31, 2024 and 2023 	1
+Condensed Consolidated Statements of Comprehensive Income (Loss) for the three and nine months ended March
+31, 2024 and 2023 	2
+Condensed Consolidated Balance Sheets as of March 31, 2024 and June 30, 2023 	3
+Condensed Consolidated Statements of Equity for the three and nine months ended March 31, 2024 and 2023 	4
+Condensed Consolidated Statements of Cash Flows for the nine months ended March 31, 2024 and 2023 	8
+Notes to Condensed Consolidated Financial Statements 	10
+Item 2. 	Management’s Discussion and Analysis of Financial Condition and Results of Operations 	34
+Item 3. 	Quantitative and Qualitative Disclosures About Market Risk 	62
+Item 4. 	Controls and Procedures 	62
+Part II: OTHER INFORMATION
+Item 1. 	Legal Proceedings 	63
+Item 1A. Risk Factors 	63
+Item 2. 	Unregistered Sales of Equity Securities and Use of Proceeds 	63
+Item 5. 	Other Information 	63
+Item 6. 	Exhibits 	64
+Signatures 	65
+
+-- 2 of 72 --
+
+Table of Contents
+PART I. FINANCIAL INFORMATION
+Item 1. Condensed Consolidated Financial Statements
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED STATEMENTS OF OPERATIONS
+(In millions, except per share data)
+(Unaudited)
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+2024 	2023 	2024 	2023
+Net revenues 	$ 	1,385.6 $ 	1,288.9 $ 	4,754.6 $ 	4,202.5
+Cost of sales 	487.8 	478.1 	1,690.8 	1,504.7
+Gross profit 	897.8 	810.8 	3,063.8 	2,697.8
+Selling, general and administrative expenses 	770.6 	720.4 	2,371.4 	2,145.4
+Amortization expense 	48.5 	48.2 	145.4 	143.1
+Restructuring costs 	0.9 	(1.3) 	35.0 	(5.4)
+Operating income 	77.8 	43.5 	512.0 	414.7
+Interest expense, net 	60.4 	58.8 	190.3 	185.7
+Other expense (income), net 	14.0 	(156.9) 	9.8 	(397.0)
+Income before income taxes 	3.4 	141.6 	311.9 	626.0
+(Benefit) provision for income taxes 	(5.4) 	29.8 	106.9 	138.3
+Net income 	8.8 	111.8 	205.0 	487.7
+Net income (loss) attributable to noncontrolling interests 	2.4 	1.0 	4.0 	(0.4)
+Net income attributable to redeemable noncontrolling interests 	2.6 	2.4 	14.7 	12.8
+Net income attributable to Coty Inc. 	$ 	3.8 $ 	108.4 $ 	186.3 $ 	475.3
+Amounts attributable to Coty Inc.
+Net income attributable to Coty Inc. 	3.8 	108.4 	186.3 	475.3
+Convertible Series B Preferred Stock dividends 	(3.3) 	(3.3) 	(9.9) 	(9.9)
+Net income attributable to common stockholders 	$ 	0.5 $ 	105.1 $ 	176.4 $ 	465.4
+Earnings per common share:
+Earnings per common share - basic 	$ 	— $ 	0.12 	0.20 	0.55
+Earnings per common share - diluted 	— 	0.12 	0.20 	0.54
+Weighted-average common shares outstanding:
+Basic 	883.1 	851.6 	876.7 	848.1
+Diluted 	892.0 	865.2 	886.1 	885.8
+See notes to Condensed Consolidated Financial Statements.
+1
+
+-- 3 of 72 --
+
+Table of Contents
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED STATEMENTS OF COMPREHENSIVE INCOME (LOSS)
+(In millions)
+(Unaudited)
+Three Months Ended
+March 31, Nine Months Ended
+March 31,
+2024 	2023 	2024 	2023
+Net income 	$ 	8.8 $ 	111.8 $ 	205.0 $ 	487.7
+Other comprehensive income (loss):
+Foreign currency translation adjustment 	(104.1) 	80.8 	(47.1) 	35.7
+Net unrealized derivative gain (loss) on cash flow hedges, net of
+taxes of $(0.2) and $0.9, and $(0.6) and $1.6 during the three and
+nine months ended, respectively 	0.1 	(2.1) 	0.5 	(5.1)
+Pension and other post-employment benefits adjustment, net of tax
+of $0.9 and $0.4, and $1.4 and $0.4 during the three and nine
+months ended, respectively 	(2.2) 	(0.6) 	(3.7) 	(2.3)
+Total other comprehensive (loss) income, net of tax 	(106.2) 	78.1 	(50.3) 	28.3
+Comprehensive (loss) income 	(97.4) 	189.9 	154.7 	516.0
+Comprehensive income attributable to noncontrolling
+interests:
+Net income (loss) 	2.4 	1.0 	4.0 	(0.4)
+Foreign currency translation adjustment 	(0.1) 	(0.2) 	(0.1) 	0.1
+Total comprehensive income (loss) attributable to noncontrolling
+interests 	2.3 	0.8 	3.9 	(0.3)
+Comprehensive income attributable to redeemable
+noncontrolling interests:
+Net income 	2.6 	2.4 	14.7 	12.8
+Foreign currency translation adjustment 	(0.1) 	— 	— 	0.1
+Total comprehensive income attributable to noncontrolling
+interests 	2.5 	2.4 	14.7 	12.9
+Comprehensive (loss) income attributable to Coty Inc. 	$ 	(102.2) $ 	186.7 $ 	136.1 $ 	503.4
+See notes to Condensed Consolidated Financial Statements.
+2
+
+-- 4 of 72 --
+
+Table of Contents
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED BALANCE SHEETS
+(In millions, except per share data)
+(Unaudited)
+March 31,
+2024
+June 30,
+2023
+ASSETS
+Current assets:
+Cash and cash equivalents 	$ 	260.2 $ 	246.9
+Restricted cash 	26.0 	36.9
+Trade receivables—less allowances of $26.3 and $23.2, respectively 	479.9 	360.9
+Inventories 	759.7 	853.4
+Prepaid expenses and other current assets 	459.8 	553.6
+Total current assets 	1,985.6 	2,051.7
+Property and equipment, net 	703.4 	712.9
+Goodwill 	3,965.1 	3,987.9
+Other intangible assets, net 	3,632.6 	3,798.0
+Equity investments 	1,086.5 	1,068.9
+Operating lease right-of-use assets 	270.5 	286.7
+Deferred income taxes 	580.9 	589.9
+Other noncurrent assets 	97.6 	165.6
+TOTAL ASSETS 	$ 	12,322.2 $ 	12,661.6
+LIABILITIES, MEZZANINE EQUITY AND STOCKHOLDERS’ EQUITY
+Current liabilities:
+Accounts payable 	$ 	1,250.1 $ 	1,444.7
+Accrued expenses and other current liabilities 	1,092.1 	1,042.0
+Short-term debt and current portion of long-term debt 	4.4 	57.9
+Current operating lease liabilities 	58.8 	65.6
+Income and other taxes payable 	70.8 	126.6
+Total current liabilities 	2,476.2 	2,736.8
+Long-term debt, net 	3,902.3 	4,178.2
+Long-term operating lease liabilities 	232.6 	247.5
+Pension and other post-employment benefits 	275.9 	280.7
+Deferred income taxes 	688.8 	659.7
+Other noncurrent liabilities 	328.0 	325.4
+Total liabilities 	7,903.8 	8,428.3
+COMMITMENTS AND CONTINGENCIES (See Note 17)
+CONVERTIBLE SERIES B PREFERRED STOCK, $0.01 par value; 1.0 shares authorized; 0.1 issued and
+outstanding at March 31, 2024 and June 30, 2023 	142.4 	142.4
+REDEEMABLE NONCONTROLLING INTERESTS 	94.2 	93.5
+EQUITY:
+Preferred Stock, $0.01 par value; 20.0 shares authorized, 1.0 issued and outstanding at March 31, 2024 and June 30, 2023 	— 	—
+Class A Common Stock, $0.01 par value; 1,250.0 shares authorized, 962.1 and 919.3 issued and 867.9 and 852.8 outstanding
+at March 31, 2024 and June 30, 2023, respectively 	9.6 	9.1
+Additional paid-in capital 	11,294.1 	10,898.6
+Accumulated deficit 	(4,801.6) 	(4,987.9)
+Accumulated other comprehensive loss 	(712.6) 	(662.4)
+Treasury stock—at cost, shares: 94.2 and 66.5 at March 31, 2024 and June 30, 2023, respectively 	(1,796.9) 	(1,446.3)
+Total Coty Inc. stockholders’ equity 	3,992.6 	3,811.1
+Noncontrolling interests 	189.2 	186.3
+Total equity 	4,181.8 	3,997.4
+TOTAL LIABILITIES, MEZZANINE EQUITY AND STOCKHOLDERS’ EQUITY 	$ 	12,322.2 $ 	12,661.6
+See notes to Condensed Consolidated Financial Statements.
+
+-- 5 of 72 --
+
+3
+
+-- 6 of 72 --
+
+Table of Contents
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED STATEMENTS OF EQUITY
+For the Three and Nine Months Ended March 31, 2024
+(In millions, except per share data)
+(Unaudited)
+
+-- 7 of 72 --
+
+Preferred Stock Class A
+Common Stock Stock
+to be
+issued
+Additional
+Paid-in
+Capital
+Receivable
+from sale
+of stock
+(Accumulated
+Deficit)
+Accumulated
+Other
+Comprehensive
+(Loss) Income
+Treasury Stock
+Total Coty
+Inc.
+Stockholders’
+Equity
+Noncontrolling
+Interests
+Total
+Equity
+Redeemable
+Noncontrolling
+Interests
+Convertible
+Series B
+Preferred
+Stock	Shares Amount Shares Amount 	Shares Amount
+BALANCE—
+July 1, 2023 1.0 $ — 919.3 $ 9.1 $ — $10,898.6 $ — $ (4,987.9) $ (662.4) 66.5 $(1,446.3) $ 3,811.1 $ 186.3 $3,997.4 $ 	93.5 $ 142.4
+Issuance of
+Class A
+Common
+Stock in
+connection
+with global
+offering, net of
+offering costs 	30.0 	0.3 31.5 	311.2 (348.5) 	(5.5) 	(5.5)
+Exercise of
+employee
+stock options
+and restricted
+stock units 	5.2 	0.1 	(0.1) 	— 	—
+Shares
+withheld for
+employee
+taxes 	(0.8) 	(0.8) 	(0.8)
+Share-based
+compensation
+expense 	30.2 	30.2 	30.2
+Equity
+Investment
+contribution
+for share-
+based
+compensation 	0.7 	0.7 	0.7
+Changes in
+dividends
+accrued 	— 	— 	—
+Dividends
+Accrued -
+Convertible
+Series B
+Preferred
+Stock 	(3.3) 	(3.3) 	(3.3) 	3.3
+Dividends
+Paid -
+Convertible
+Series B
+Preferred
+Stock 	— 	— 	(3.3)
+Net income 	1.6 	1.6 	1.1 	2.7 	7.5
+Other
+comprehensive
+loss 	(115.0) 	(115.0) 	— (115.0) 	(0.1)
+Adjustment of
+redeemable
+noncontrolling
+interests to
+redemption
+value 	2.3 	2.3 	2.3 	(2.3)
+BALANCE—
+September
+30, 2023 	1.0 $ — 954.5 $ 9.5 $31.5 $11,238.8 $ (348.5) $ (4,986.3) $ (777.4) 66.5 $(1,446.3) $ 3,721.3 $ 187.4 $3,908.7 $ 	98.6 $ 142.4
+Issuance of
+Class A
+Common
+Stock in
+connection
+with global
+offering, net of
+offering costs 	3.0 	(31.5) 	30.9 	348.5 	347.9 	347.9
+Reacquired
+Class A
+Common
+Stock for
+employee
+taxes 	0.1 	— 	—
+Exercise of
+employee
+stock options
+and restricted
+stock units 	4.2 	0.1 	11.2 	11.3 	11.3
+Shares
+withheld for
+employee
+taxes 	(17.3) 	(17.3) 	(17.3)
+Share-based
+compensation
+expense 	19.9 	19.9 	19.9
+Equity
+Investment
+contribution
+for share-
+based
+compensation 	0.6 	0.6 	0.6
+Changes in
+dividends
+accrued 	— 	— 	—
+Dividends
+Accrued -
+Convertible
+Series B
+Preferred
+Stock 	(3.3) 	(3.3) 	(3.3) 	3.3
+Dividends
+Paid
+
+-- 8 of 72 --
+
+Paid -
+Convertible
+Series B
+Preferred
+Stock 	— 	— 	(3.3)
+Net income 	180.9 	180.9 	0.5 	181.4 	4.6
+Other
+comprehensive
+income 	170.8 	170.8 	170.8 	0.2
+Distribution to
+noncontrolling
+interests, net 	— 	— 	(8.5)
+Adjustment of
+redeemable
+noncontrolling
+interests to
+redemption
+value 	(7.3) 	(7.3) 	(7.3) 	7.3
+BALANCE—
+December 31,
+2023 	1.0 $ — 961.7 $ 9.6 $ — $11,273.5 $ — $ (4,805.4) $ (606.6) 66.6 $(1,446.3) $ 4,424.8 $ 187.9 $4,612.7 $ 102.2 $ 142.4
+4
+
+-- 9 of 72 --
+
+Table of Contents
+Preferred Stock
+Class A
+Common Stock Stock
+to be
+issued
+Additional
+Paid-in
+Capital
+Receivable
+from sale
+of stock
+(Accumulated
+Deficit)
+Accumulated
+Other
+Comprehensive
+(Loss) Income
+Treasury Stock
+Total Coty
+Inc.
+Stockholders’
+Equity
+Noncontrolling
+Interests
+Total
+Equity
+Redeemable
+Noncontrolling
+Interests
+Convertible
+Series B
+Preferred
+Stock	Shares Amount Shares Amount 	Shares Amount
+Repurchase of
+Class A
+Common
+Stock pursuant
+to forward
+repurchase
+contracts 	27.0 (350.6) 	(350.6) 	(350.6)
+Reacquired
+Class A
+Common
+Stock for
+employee
+taxes and
+cancellation of
+restricted
+stock 	0.6 	— 	— 	—
+Exercise of
+employee
+stock options
+and restricted
+stock units and
+issuance of
+restricted
+stock 	0.4 	— 	2.3 	2.3 	2.3
+Shares
+withheld for
+employee
+taxes 	(1.0) 	(1.0) 	(1.0)
+Share-based
+compensation
+expense 	20.2 	20.2 	20.2
+Equity
+Investment
+contribution
+for share-
+based
+compensation 	0.5 	0.5 	0.5
+Changes in
+dividends
+accrued 	— 	— 	—
+Dividends
+Accrued -
+Convertible
+Series B
+Preferred
+Stock 	(3.3) 	(3.3) 	(3.3) 	3.3
+Dividends
+Paid -
+Convertible
+Series B
+Preferred
+Stock 	— 	— 	— 	(3.3)
+Net income 	3.8 	3.8 	2.4 	6.2 	2.6
+Other
+comprehensive
+income 	(106.0) 	(106.0) 	(0.1) (106.1) 	(0.1)
+Distributions
+to
+noncontrolling
+interests, net 	— 	(1.0) 	(1.0) 	(8.6)
+Adjustment of
+redeemable
+noncontrolling
+interests to
+redemption
+value 	1.9 	1.9 	1.9 	(1.9)
+BALANCE—
+March 31,
+2024 	1.0 $ — 962.1 $ 9.6 	$11,294.1 	$ (4,801.6) $ (712.6) 94.2 $(1,796.9) $ 3,992.6 $ 189.2 $4,181.8 $ 	94.2 $ 142.4
+See notes to Condensed Consolidated Financial Statements.
+5
+
+-- 10 of 72 --
+
+Table of Contents
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED STATEMENTS OF EQUITY
+For the Three and Nine Months Ended March 31, 2023
+(In millions, except per share data)
+(Unaudited)
+Preferred Stock Class A
+Common Stock Additional
+Paid-in
+Capital (Accumulated
+Deficit)
+Accumulated
+Other
+Comprehensive
+(Loss) Income
+Treasury Stock
+Total Coty
+Inc.
+Stockholders’
+Equity Noncontrolling
+Interests Total
+Equity
+Redeemable
+Noncontrolling
+Interests
+Convertible
+Series B
+Preferred
+Stock	Shares Amount Shares Amount 	Shares Amount
+BALANCE—July 1, 2022 1.5 $ — 905.5 $ 9.0 $10,805.8 $ (5,496.1) $ (717.9) 66.3 $(1,446.3) $ 3,154.5 $ 191.3 $3,345.8 $ 	69.8 $ 142.4
+Reacquired Class A Common
+Stock for employee taxes 	0.1 	— 	—
+Exercise of employee stock
+options and restricted stock
+units 	10.2 	— 	— 	—
+Shares withheld for
+employee taxes 	(1.1) 	(1.1) 	(1.1)
+Share-based compensation
+expense 	31.4 	31.4 	31.4
+Dividends accrued-
+Convertible Series B
+Preferred Stock 	(3.3) 	(3.3) 	(3.3) 	3.3
+Dividends paid - Convertible
+Series B Preferred Stock 	— 	— 	(3.3)
+Net (loss) income 	128.6 	128.6 	— 	128.6 	5.9
+Other comprehensive loss 	(266.2) 	(266.2) 	— (266.2) 	(0.2)
+Adjustment of redeemable
+noncontrolling interests to
+redemption value 	6.2 	6.2 	6.2 	(6.2)
+Equity investment
+contribution for share-based
+compensation 	1.7 	1.7 	1.7
+BALANCE—September
+30, 2022 	1.5 $ — 915.7 $ 9.0 $10,840.7 $ (5,367.5) $ (984.1) 66.4 $(1,446.3) $ 3,051.8 $ 191.3 $3,243.1 $ 	69.3 $ 142.4
+Exercise of employee stock
+options and restricted stock
+units 	3.2 	0.1 	(0.1) 	— 	—
+Shares withheld for
+employee taxes 	(10.5) 	(10.5) 	(10.5)
+Share-based compensation
+expense 	33.6 	33.6 	33.6
+Changes in dividends
+accrued 	0.1 	0.1 	0.1
+Dividends accrued-
+Convertible Series B
+Preferred Stock 	(3.3) 	(3.3) 	(3.3) 	3.3
+Dividends paid - Convertible
+Series B Preferred Stock 	— 	— 	(3.3)
+Net income (loss) 	238.3 	238.3 	(1.4) 236.9 	4.5
+Other comprehensive loss 	216.0 	216.0 	0.3 	216.3 	0.3
+Distribution to
+noncontrolling interests, net 	— 	— 	— 	—
+Adjustment of redeemable
+noncontrolling interests to
+redemption value 	4.4 	4.4 	4.4 	(4.4)
+Equity investment
+contribution for share-based
+compensation 	1.0 	1.0 	1.0
+BALANCE—December 31,
+2022 	1.5 $ — 918.9 $ 9.1 $10,865.9 $ (5,129.2) $ (768.1) 66.4 $(1,446.3) $ 3,531.4 $ 190.2 $3,721.6 $ 	69.7 $ 142.4
+Exercise of employee stock
+options and restricted stock
+units 	0.2 	— 	— 	— 	—
+Shares withheld for
+employee taxes 	(0.2) 	(0.2) 	(0.2)
+Share-based compensation
+expense 	32.7 	32.7 	32.7
+Dividends accrued-
+Convertible Series B
+Preferred Stock 	(3.3) 	(3.3) 	(3.3) 	3.3
+6
+
+-- 11 of 72 --
+
+Table of Contents
+Preferred Stock Class A
+Common Stock Additional
+Paid-in
+Capital
+(Accumulated
+Deficit)
+Accumulated
+Other
+Comprehensive
+(Loss) Income
+Treasury Stock
+Total Coty
+Inc.
+Stockholders’
+Equity
+Noncontrolling
+Interests
+Total
+Equity
+Redeemable
+Noncontrolling
+Interests
+Convertible
+Series B
+Preferred
+Stock	Shares Amount Shares Amount 	Shares Amount
+Dividends paid - Convertible
+Series B Preferred Stock 	— 	— 	— 	(3.3)
+Net income (loss) 	108.4 	108.4 	1.0 	109.4 	2.4
+Other comprehensive loss 	78.3 	78.3 	(0.2) 	78.1 	—
+Distribution to
+noncontrolling interests, net 	— 	(3.6) 	(3.6) 	(13.8)
+Adjustment of redeemable
+noncontrolling interests to
+redemption value 	(10.8) 	(10.8) 	(10.8) 	10.8
+Equity investment
+contribution for share-based
+compensation 	1.1 	1.1 	1.1
+BALANCE—March 31,
+2023 	1.5 $ — 919.1 $ 9.1 $10,885.4 $ (5,020.8) $ (689.8) 66.4 $(1,446.3) $ 3,737.6 $ 187.4 $3,925.0 $ 	69.1 $ 142.4
+See notes to Condensed Consolidated Financial Statements.
+7
+
+-- 12 of 72 --
+
+Table of Contents
+COTY INC. & SUBSIDIARIES
+CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOWS
+(In millions)
+(Unaudited)
+Nine Months Ended
+March 31,
+2024 	2023
+CASH FLOWS FROM OPERATING ACTIVITIES:
+Net income 	$ 	205.0 $ 	487.7
+Adjustments to reconcile net income to net cash provided by operating activities:
+Depreciation and amortization 	316.6 	317.8
+Non-cash lease expense 	46.7 	48.0
+Deferred income taxes 	39.0 	89.3
+Provision (releases) for bad debt, net 	3.5 	(12.8)
+Provision for pension and other post-employment benefits 	7.6 	6.9
+Share-based compensation 	70.4 	98.9
+Losses on disposals of long-term assets, net 	1.7 	4.9
+Realized and unrealized gains from equity investments, net 	(17.6) 	(207.2)
+Foreign exchange effects 	17.6 	27.5
+Unrealized gains on forward repurchase contracts, net 	(15.9) 	(185.5)
+Other 	40.1 	28.5
+Change in operating assets and liabilities
+Trade receivables 	(131.9) 	(10.5)
+Inventories 	83.5 	(123.9)
+Prepaid expenses and other current assets 	8.4 	(51.1)
+Accounts payable 	(165.5) 	114.9
+Accrued expenses and other current liabilities 	47.4 	(9.8)
+Operating lease liabilities 	(44.4) 	(47.3)
+Income and other taxes payable 	(69.1) 	12.4
+Other noncurrent assets 	(4.9) 	(9.6)
+Other noncurrent liabilities 	(0.1) 	(58.3)
+Net cash provided by operating activities 	438.1 	520.8
+CASH FLOWS FROM INVESTING ACTIVITIES:
+Capital expenditures 	(185.4) 	(156.0)
+Proceeds from license termination, contingent consideration and sale of other long-term assets 	23.9 	58.3
+Net cash used in investing activities 	(161.5) 	(97.7)
+CASH FLOWS FROM FINANCING ACTIVITIES:
+Proceeds from revolving loan facilities 	1,745.2 	1,109.7
+Repayments of revolving loan facilities 	(1,704.0) 	(1,129.6)
+Proceeds from issuance of other long-term debt 	1,284.3 	—
+Repayments of term loans and other long-term debt 	(1,613.6) 	(194.5)
+Proceeds from issuance of Class A Common Stock in connection with global offering, net of offering costs 	342.4 	—
+Dividend payments on Common Stock and Convertible Series B Preferred Stock 	(10.1) 	(10.4)
+Net proceeds from issuance of Class A Common Stock 	13.1 	—
+Net payments of foreign currency contracts 	(2.8) 	(139.3)
+Settlement and other payments related to forward repurchase contracts 	(234.0) 	—
+Distributions to noncontrolling interests and redeemable noncontrolling interests 	(18.1) 	(17.4)
+Payment of deferred financing fees 	(40.4) 	—
+All other 	(26.1) 	(16.1)
+Net cash used in financing activities 	(264.1) 	(397.6)
+8
+
+-- 13 of 72 --
+
+Table of Contents
+EFFECT OF EXCHANGE RATES ON CASH, CASH EQUIVALENTS AND RESTRICTED CASH 	(10.1) 	(12.3)
+NET INCREASE IN CASH, CASH EQUIVALENTS AND RESTRICTED CASH 	2.4 	13.2
+CASH, CASH EQUIVALENTS AND RESTRICTED CASH—Beginning of period 	283.8 	263.8
+CASH, CASH EQUIVALENTS AND RESTRICTED CASH—End of period 	$ 	286.2 $ 	277.0
+SUPPLEMENTAL DISCLOSURE OF CASH FLOWS INFORMATION:
+Cash paid during the period for interest 	$ 	148.8 $ 	157.9
+Net cash paid for income taxes 	121.4 	45.8
+SUPPLEMENTAL DISCLOSURE OF NON-CASH INVESTING AND FINANCING ACTIVITIES:
+Accrued capital expenditure additions 	$ 	85.6 $ 	93.1
+Non-cash exchange of June 2022 forward repurchase contracts for treasury stock 	$ 	150.6 $ 	—
+See notes to Condensed Consolidated Financial Statements.
+9
+
+-- 14 of 72 --
+
+Table of Contents
+COTY INC. & SUBSIDIARIES
+NOTES TO CONDENSED CONSOLIDATED FINANCIAL STATEMENTS
+($ in millions, except per share data)
+(Unaudited)
+1. DESCRIPTION OF BUSINESS
+Coty Inc. and its subsidiaries (collectively, the “Company” or “Coty”) manufacture, market, sell and distribute branded beauty products,
+including fragrances, color cosmetics and skin & body related products throughout the world. Coty is a global beauty company with a rich
+entrepreneurial history and an iconic portfolio of brands.
+The Company operates on a fiscal year basis with a year-end of June 30. Unless otherwise noted, any reference to a year preceded by the
+word “fiscal” refers to the fiscal year ended June 30 of that year. For example, references to “fiscal 2024” refer to the fiscal year ending June 30,
+2024. When used in this Quarterly Report on Form 10-Q, the term “includes” and “including” means, unless the context otherwise indicates,
+including without limitation.
+The Company’s sales generally increase during the second fiscal quarter as a result of increased demand associated with the winter holiday
+season. Financial performance, working capital requirements, sales, cash flows and borrowings generally experience variability during the three
+to six months preceding the holiday season. Product innovations, new product launches and the size and timing of orders from the Company’s
+customers may also result in variability.
+2. SUMMARY OF SIGNIFICANT ACCOUNTING POLICIES
+Basis of Presentation
+The unaudited interim Condensed Consolidated Financial Statements are presented in accordance with accounting principles generally
+accepted in the United States of America (“GAAP”) for interim financial information and include the Company’s consolidated domestic and
+international subsidiaries. Certain information and disclosures normally included in consolidated financial statements prepared in accordance
+with GAAP have been condensed or omitted. Accordingly, these unaudited interim Condensed Consolidated Financial Statements and
+accompanying footnotes should be read in conjunction with the Company’s Consolidated Financial Statements as of and for the year ended
+June 30, 2023. In the opinion of management, all adjustments, of a normal recurring nature, considered necessary for a fair presentation have
+been included in the Condensed Consolidated Financial Statements. The results of operations for the three and nine months ended March 31,
+2024 are not necessarily indicative of the results of operations to be expected for the full fiscal year ending June 30, 2024. All dollar amounts
+(other than per share amounts) in the following discussion are in millions of United States (“U.S.”) dollars, unless otherwise indicated.
+Restricted Cash
+Restricted cash represents funds that are not readily available for general purpose cash needs due to contractual limitations. Restricted cash
+is classified as a current or long-term asset based on the timing and nature of when or how the cash is expected to be used or when the
+restrictions are expected to lapse. As of March 31, 2024 and June 30, 2023, the Company had restricted cash of $26.0 and $36.9, respectively,
+included in Restricted cash in the Condensed Consolidated Balance Sheets. The Restricted cash balance as of March 31, 2024 primarily provides
+collateral for certain bank guarantees on rent, customs and duty accounts and also consists of collections on factored receivables that remain
+unremitted to the factor as of March 31, 2024. Restricted cash is included as a component of Cash, cash equivalents and restricted cash in the
+Condensed Consolidated Statement of Cash Flows.
+Equity Investments
+The Company elected the fair value option to account for its investment in Rainbow JVCO LTD and subsidiaries (together, "Wella" or the
+“Wella Company”) to align with the Company’s strategy for this investment. The fair value is updated on a quarterly basis. The investment is
+classified within Level 3 in the fair value hierarchy because the Company estimates the fair value of the investment using a combination of the
+income approach, the market approach and private transactions, when applicable. Changes in the fair value of equity investment under the fair
+value option are recorded in Other expense (income), net within the Condensed Consolidated Statements of Operations (see Note 6—Equity
+Investments).
+Use of Estimates
+The preparation of financial statements in conformity with GAAP requires management to make estimates and assumptions that affect the
+reported amounts of assets and liabilities and disclosure of contingent assets and liabilities at the date of the financial statements and revenues
+and expenses during the period reported. Significant accounting policies that contain subjective management estimates and assumptions include
+those related to revenue recognition, the net realizable value of inventory, the fair value of equity investments, the assessment of goodwill, other
+intangible assets and long-lived assets for
+10
+
+-- 15 of 72 --
+
+Table of Contents
+impairment and income taxes. Management evaluates its estimates and assumptions on an ongoing basis using historical experience and other
+factors, including the current economic environment, and makes adjustments when facts and circumstances dictate. As future events and their
+effects cannot be determined with precision, actual results could differ significantly from those estimates and assumptions. Significant changes, if
+any, in those estimates and assumptions will be reflected in the Condensed Consolidated Financial Statements in future periods.
+Tax Information
+The effective income tax rate for the three and nine months ended March 31, 2024 and 2023 was (158.8)% and 21.0%, respectively, and
+34.3% and 22.1%, respectively.
+The effective tax rate of (158.8)% for the three months ended March 31, 2024 was primarily due to a benefit of $8.5 on the resolution of
+foreign uncertain tax positions compared to $3.4 of income in the period.
+The effective tax rate of 21.0% in the three months ended March 31, 2023 was increased due to a large limitation on the deductibility of
+executive stock compensation offset by large fair value gains related to the investment in the Wella business taxed at a rate below the statutory
+tax rate of 21% as well as a foreign exchange loss recognized on the repatriation of funds that were previously taxed.
+The effective tax rate of 34.3% in the nine months ended March 31, 2024 was driven up from the statutory tax rate of 21% due to an expense
+of $24.3 recognized in the current period on the revaluation of the Company's deferred tax liabilities due to a tax rate increase enacted in
+Switzerland, as well as the limitation on the deductibility of executive stock compensation.
+The effective tax rate of 22.1% in the nine months ended March 31, 2023 was increased from the statutory tax rate of 21% due to a large
+limitation on the deductibility of executive stock compensation. This increase was then offset by large fair value gains related to the investment
+in the Wella business taxed at a rate below the statutory tax rate of 21% as well as a foreign exchange loss recognized on repatriation of funds
+that were previously taxed.
+The effective income tax rates vary from the U.S. federal statutory rate of 21% due to the effect of (i) jurisdictions with different statutory
+rates, including impacts of rate changes, (ii) adjustments to the Company’s unrealized tax benefits (“UTBs”) and accrued interest, (iii) non-
+deductible expenses, (iv) audit settlements and (v) valuation allowance changes.
+As of March 31, 2024 and June 30, 2023, the gross amount of UTBs was $219.0 and $235.5, respectively. As of March 31, 2024, the total
+amount of UTBs that, if recognized, would impact the effective income tax rate is $174.5. As of March 31, 2024 and June 30, 2023, the liability
+associated with UTBs, including accrued interest and penalties, was $210.2 and $218.6, respectively, which was recorded in Income and other
+taxes payable and Other noncurrent liabilities in the Condensed Consolidated Balance Sheets. The total interest and penalties recorded in the
+Condensed Consolidated Statements of Operations related to UTBs was $0.0 and $3.5 for the three months ended March 31, 2024 and 2023,
+respectively, and $2.0 and $4.9 for the nine months ended March 31, 2024 and 2023, respectively. The total gross accrued interest and penalties
+recorded in the Condensed Consolidated Balance Sheets as of March 31, 2024 and June 30, 2023 was $35.1 and $33.1, respectively. On the basis
+of the information available as of March 31, 2024, it is reasonably possible that a decrease of up to $32.2 in UTBs may occur within twelve
+months as a result of projected resolutions of global tax examinations and a potential lapse of the applicable statutes of limitations.
+Recent Accounting Pronouncements
+In December 2023, the Financial Accounting Standards Board ("FASB") issued Accounting Standards Update ("ASU") 2023-09, Income
+Taxes (Topic 740): Improvements to Income Tax Disclosures, which expands income tax disclosure requirements to include additional
+information related to the rate reconciliation of our effective tax rates to statutory rates, as well as additional disaggregation of taxes paid. The
+amendments in the ASU also remove disclosures related to certain unrecognized tax benefits and deferred taxes. ASU 2023-09 is effective for the
+Company in fiscal 2026. The amendments may be applied prospectively or retrospectively, and early adoption is permitted. The Company will
+adopt the standard and make the additional required disclosures beginning in the first quarter of fiscal 2026.
+In November 2023, the FASB issued ASU 2023-07, Segment Reporting (Topic 280): Improvements to Reportable Segment Disclosures,
+which expands reportable segment disclosure requirements, primarily through enhanced disclosures about significant segment expenses. The
+amendments in the ASU require that a public entity discloses, on an annual and interim basis, significant segment expenses that are regularly
+provided to an entity's chief operating decision maker ("CODM"), a description of other segment items by reportable segment, and any additional
+measures of a segment's profit or loss used by the CODM when deciding how to allocate resources. Annual disclosures are required for the
+Company in fiscal 2025. Interim disclosures are required for periods within fiscal years beginning in the first quarter of fiscal 2026.
+Retrospective application is required for all prior periods presented, and early adoption is permitted. The Company will adopt the standard and
+make the additional required disclosures beginning in the fourth quarter of fiscal 2025.
+11
+
+-- 16 of 72 --
+
+Table of Contents
+3. SEGMENT REPORTING
+Operating and reportable segments (referred to as “segments”) reflect the way the Company is managed and for which separate financial
+information is available and evaluated regularly by the Company's CODM in deciding how to allocate resources and assess performance. The
+Company has designated its Chief Executive Officer ("CEO") as the CODM.
+Certain income and shared costs and the results of corporate initiatives are managed by Corporate. Corporate primarily includes stock
+compensation expense, restructuring and realignment costs, costs related to acquisition, divestiture and early license termination activities, and
+impairments of long-lived assets, goodwill and intangibles that are not attributable to ongoing operating activities of the segments. Corporate
+costs are not used by the CODM to measure the underlying performance of the segments.
+With the exception of goodwill, the Company does not identify or monitor assets by segment. The Company does not present assets by
+reportable segment since various assets are shared between reportable segments. The allocation of goodwill by segment is presented in Note 7—
+Goodwill and Other Intangible Assets, net.
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+SEGMENT DATA 	2024 	2023 	2024 	2023
+Net revenues:
+Prestige 	$ 	867.2 $ 	799.7 $ 	3,054.5 $ 	2,620.9
+Consumer Beauty 	518.4 	489.2 	1,700.1 	1,581.6
+Total 	$ 	1,385.6 $ 	1,288.9 $ 	4,754.6 $ 	4,202.5
+Operating income (loss):
+Prestige 	108.7 	102.4 	531.0 	437.3
+Consumer Beauty 	(13.3) 	(27.9) 	79.0 	53.3
+Corporate 	(17.6) 	(31.0) 	(98.0) 	(75.9)
+Total 	$ 	77.8 $ 	43.5 $ 	512.0 $ 	414.7
+Reconciliation:
+Operating income 	77.8 	43.5 	512.0 	414.7
+Interest expense, net 	60.4 	58.8 	190.3 	185.7
+Other expense (income), net 	14.0 	(156.9) 	9.8 	(397.0)
+Income before income taxes 	$ 	3.4 $ 	141.6 $ 	311.9 $ 	626.0
+Presented below are the percentage of revenues associated with the Company’s product categories:
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+PRODUCT CATEGORY 	2024 	2023 	2024 	2023
+Fragrance 	59.5 % 	59.2 % 	62.6 % 	60.3 %
+Color Cosmetics 	28.4 	29.2 	25.5 	27.4
+Body Care, Skin & Other 	12.1 	11.6 	11.9 	12.3
+Total 	100.0 % 	100.0 % 	100.0 % 	100.0 %
+12
+
+-- 17 of 72 --
+
+Table of Contents
+4. RESTRUCTURING COSTS
+Restructuring costs for the three and nine months ended March 31, 2024 and 2023 are presented below:
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+2024 	2023 	2024 	2023
+Current Restructuring Actions 	$ 	1.2 $ 	— $ 	35.9 $ 	—
+Transformation Plan 	(0.3) 	(1.3) 	(0.9) 	(5.4)
+Total 	$ 	0.9 $ 	(1.3) $ 	35.0 $ 	(5.4)
+Current Restructuring Actions
+The Company continues to analyze our cost structure and evaluate opportunities to streamline operations through a range of smaller
+initiatives and other cost reduction activities to optimize operations in select businesses. The Company has incurred cumulative restructuring
+charges of $37.2 related to approved initiatives through March 31, 2024, which have been recorded in Corporate. The liability balances were
+$36.3 (including certain actions that were accrued during fiscal 2023) and $0.0 at March 31, 2024 and June 30, 2023 respectively. The Company
+currently estimates that the total remaining accrual of $36.3 will result in cash expenditures of approximately $2.8, $15.6 and $17.9 in fiscal
+2024, 2025 and thereafter, respectively.
+Transformation Plan
+The Company previously announced a four-year plan to drive substantial improvement and optimization in the Company's businesses, under
+which the Company expected to incur restructuring and related costs (the “Transformation Plan”), which is now substantially complete. Of the
+expected costs, the Company has incurred cumulative restructuring charges of $214.6 related to approved initiatives through March 31, 2024,
+which have been recorded in Corporate. The related liability balances were $5.4 and $10.0 at March 31, 2024 and June 30, 2023, respectively.
+The Company currently estimates that the total remaining accrual of $5.4 will result in cash expenditures of approximately $0.9 and $4.5 in fiscal
+2024 and 2025, respectively.
+5. INVENTORIES
+Inventories as of March 31, 2024 and June 30, 2023 are presented below:
+March 31,
+2024 June 30,
+2023
+Raw materials 	$ 	210.0 $ 	224.1
+Work-in-process 	14.3 	15.6
+Finished goods 	535.4 	613.7
+Total inventories 	$ 	759.7 $ 	853.4
+13
+
+-- 18 of 72 --
+
+Table of Contents
+6. EQUITY INVESTMENTS
+The Company's equity investments, classified as Equity investments in the Condensed Consolidated Balance Sheets are represented by the
+following:
+March 31,
+2024
+June 30,
+2023
+Equity method investments:
+KKW Holdings 	$ 	6.5 $ 	8.9
+Equity investments at fair value:
+Wella 	1,080.0 	1,060.0
+Total equity investments 	$ 	1,086.5 $ 	1,068.9
+On January 4, 2021, the Company completed its purchase of 20% of the outstanding equity of KKW Holdings. The Company accounts for this minority
+investment under the equity method, given it has the ability to exercise significant influence over, but not control, the investee. The carrying value of the
+Company’s investment includes basis differences allocated to amortizable intangible assets.
+The Company recognized $0.7 and $0.8, respectively, during the three months ended March 31, 2024 and 2023 and $2.4 and $2.8, respectively, during the nine
+months ended March 31, 2024 and 2023 representing its share of the investee’s net loss in Other expense (income), net within the Condensed Consolidated
+Statements of Operations.
+As of March 31, 2024 and June 30, 2023, the Company's stake in Wella was 25.84% and 25.85%, respectively.
+The following table presents summarized financial information of the Company’s equity method investees for the period ending March 31,
+2024. Amounts presented represent combined totals at the investee level and not the Company’s proportionate share:
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+2024 	2023 	2024 	2023
+Summarized Statements of Operations information:
+Net revenues 	$ 	597.5 $ 	587.0 $ 	1,938.7 $ 	1,844.2
+Gross profit 	401.0 	382.7 	1,299.9 	1,197.6
+Operating income 	28.5 	16.5 	153.0 	133.0
+(Loss) before income taxes 	(28.0) 	(33.5) 	(10.6) 	(13.2)
+Net income (loss) 	(40.3) 	(27.5) 	17.2 	(13.0)
+The following table summarizes movements in equity investments with fair value option that are classified within Level 3 for the period
+ended March 31, 2024. There were no internal movements to or from Level 3 and Level 1 or Level 2 for the period ended March 31, 2024.
+Equity investments at fair value:
+Balance as of June 30, 2023 	$ 	1,060.0
+Total gains included in earnings 	20.0
+Balance as of March 31, 2024 	$ 	1,080.0
+(a)
+(b)
+(a)
+(b)
+14
+
+-- 19 of 72 --
+
+Table of Contents
+Level 3 significant unobservable inputs sensitivity
+The following table summarizes the significant unobservable inputs used in Level 3 valuation of the Company's investments carried at fair
+value as of March 31, 2024. Included in the table are the inputs or range of possible inputs that have an effect on the overall valuation of the
+financial instruments.
+Fair value 	Valuation technique
+Unobservable
+input 	Range
+Equity investments at fair value 	$ 	1,080.0
+Discounted cash flows Discount rate 	9.50%
+Growth rate 	1.8% - 7.1%
+Market multiple Revenue multiple 	2.4x – 2.6x
+EBITDA multiple 	10.0x – 12.0x
+The primary unobservable inputs used in the fair value measurement of the Company's equity investments with fair value option, when using a discounted
+cash flow method, are the discount rate and revenue growth rate. Significant increases (decreases) in the discount rate in isolation would result in a
+significantly lower (higher) fair value measurement. The Company estimates the discount rate based on the investees' projected cost of equity and debt. The
+revenue growth rate is forecasted for future years by the investee based on their best estimates. Significant increases (decreases) in the revenue growth rate in
+isolation would result in a significantly higher (lower) fair value measurement.
+The primary unobservable inputs used in the fair value measurement of the Company's equity investments with fair value option, when using a market
+multiple method, are the revenue multiple and EBITDA multiple. Significant increases (decreases) in the revenue multiple or EBITDA multiple in isolation
+would result in a significantly higher (lower) fair value measurement. The market multiples are derived from a group of guideline public companies.
+7. GOODWILL AND OTHER INTANGIBLE ASSETS, NET
+Goodwill
+Goodwill as of March 31, 2024 and June 30, 2023 is presented below:
+Prestige 	Consumer Beauty 	Total
+Gross balance at June 30, 2023 	$ 	6,279.2 $ 	1,748.8 $ 	8,028.0
+Accumulated impairments 	(3,110.3) 	(929.8) 	(4,040.1)
+Net balance at June 30, 2023 	$ 	3,168.9 $ 	819.0 $ 	3,987.9
+Changes during the period ended March 31, 2024
+Foreign currency translation 	(18.1) 	(4.7) 	(22.8)
+Gross balance at March 31, 2024 	$ 	6,261.1 $ 	1,744.1 $ 	8,005.2
+Accumulated impairments 	(3,110.3) 	(929.8) 	(4,040.1)
+Net balance at March 31, 2024 	$ 	3,150.8 $ 	814.3 $ 	3,965.1
+(a)
+(a)
+(b)
+(b)
+(a)
+(b)
+15
+
+-- 20 of 72 --
+
+Table of Contents
+Other Intangible Assets, net
+Other intangible assets, net as of March 31, 2024 and June 30, 2023 are presented below:
+March 31,
+2024 June 30,
+2023
+Indefinite-lived other intangible assets 	$ 	947.6 $ 	950.8
+Finite-lived other intangible assets, net 	2,685.0 	2,847.2
+Total Other intangible assets, net 	$ 	3,632.6 $ 	3,798.0
+The changes in the carrying amount of indefinite-lived other intangible assets are presented below:
+Trademarks 	Total
+Gross balance at June 30, 2023 	$ 	1,895.7 $ 	1,895.7
+Accumulated impairments 	(944.9) 	(944.9)
+Net balance at June 30, 2023 	$ 	950.8 $ 	950.8
+Changes during the period ended March 31, 2024
+Foreign currency translation 	(3.2) 	(3.2)
+Gross balance at March 31, 2024 	$ 	1,892.5 $ 	1,892.5
+Accumulated impairments 	(944.9) 	(944.9)
+Net balance at March 31, 2024 	$ 	947.6 $ 	947.6
+Intangible assets subject to amortization are presented below:
+Cost
+Accumulated
+Amortization
+Accumulated
+Impairment 	Net
+June 30, 2023
+License agreements and collaboration agreements 	$ 	3,756.2 $ 	(1,282.6) $ 	(19.6) $ 	2,454.0
+Customer relationships 	750.6 	(505.9) 	(5.5) 	239.2
+Trademarks 	313.0 	(180.6) 	(0.5) 	131.9
+Product formulations and technology 	85.6 	(63.5) 	— 	22.1
+Total 	$ 	4,905.4 $ 	(2,032.6) $ 	(25.6) $ 	2,847.2
+March 31, 2024
+License agreements and collaboration agreements 	$ 	3,734.9 $ 	(1,391.1) $ 	(19.6) $ 	2,324.2
+Customer relationships 	747.0 	(524.0) 	(5.5) 	217.5
+Trademarks 	312.3 	(189.6) 	(0.5) 	122.2
+Product formulations and technology 	84.9 	(63.8) 	— 	21.1
+Total 	$ 	4,879.1 $ 	(2,168.5) $ 	(25.6) $ 	2,685.0
+Amortization expense was $48.5 and $48.2 for the three months ended March 31, 2024 and 2023, respectively and $145.4 and $143.1 for the
+nine months ended March 31, 2024 and 2023, respectively.
+8. LEASES
+The Company leases office facilities under non-cancelable operating leases with terms generally ranging between 4 and 25 years. The
+Company utilizes these leased office facilities for use by its employees in countries in which the Company conducts its business. Leases are
+negotiated with third parties and, in some instances contain renewal, expansion and termination options. The Company also subleases certain
+office facilities to third parties when the Company no longer intends to utilize the space. None of the Company’s leases restricts the payment of
+dividends or the incurrence of debt or additional lease obligations, or contain significant purchase options.
+16
+
+-- 21 of 72 --
+
+Table of Contents
+The following chart provides additional information about the Company’s operating leases:
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+Lease Cost: 	2024 	2023 	2024 	2023
+Operating lease cost 	$ 	18.8 $ 	19.0 $ 	56.6 	$ 	57.5
+Short-term lease cost 	1.2 	0.1 	2.0 	0.6
+Variable lease cost 	11.5 	10.8 	31.1 	27.6
+Sublease income 	(4.2) 	(4.3) 	(12.6) 	(12.0)
+Net lease cost 	$ 	27.3 $ 	25.6 $ 	77.1 	$ 	73.7
+Other information:
+Operating cash outflows from operating leases 	$ 	(18.0) $ 	(16.8) $ 	(55.2) $ 	(57.2)
+Right-of-use assets obtained in exchange for lease obligations $ 	(2.0) $ 	0.4 $ 	30.7 	$ 	14.2
+Weighted-average remaining lease term - real estate 	6.9 years 	7.4 years
+Weighted-average discount rate - real estate leases 	4.51 % 	4.09 %
+Future minimum lease payments for the Company’s operating leases are as follows:
+Fiscal Year Ending June 30,
+2024, remaining 	$ 	19.2
+2025 	66.8
+2026 	56.3
+2027 	49.4
+2028 	37.4
+Thereafter 	114.0
+Total future lease payments 	343.1
+Less: imputed interest 	(51.7)
+Total present value of lease liabilities 	291.4
+Current operating lease liabilities 	58.8
+Long-term operating lease liabilities 	232.6
+Total operating lease liabilities 	$ 	291.4
+Table excludes obligations for leases with original terms of twelve months or less, which have not been recognized as right-of-use assets or liabilities in the
+Condensed Consolidated Balance Sheets.
+17
+
+-- 22 of 72 --
+
+Table of Contents
+9. DEBT
+The Company’s debt balances consisted of the following as of March 31, 2024 and June 30, 2023, respectively:
+March 31,
+2024
+June 30,
+2023
+Short-term debt 	$ 	1.5 $ 	—
+Senior Secured Notes
+2026 Dollar Senior Secured Notes due April 2026 	650.0 	900.0
+2026 Euro Senior Secured Notes due April 2026 	754.3 	761.0
+2028 Euro Senior Secured Notes due September 2028 	538.8 	—
+2029 Dollar Senior Secured Notes due January 2029 	500.0 	500.0
+2030 Dollar Senior Secured Notes due July 2030 	750.0 	—
+2018 Coty Credit Agreement
+2023 Coty Revolving Credit Facility due July 2028 	255.4 	—
+2021 Coty Revolving Credit Facility due April 2025 	— 	228.9
+2018 Coty Term B Facility due April 2025 	— 	1,183.7
+Senior Unsecured Notes
+2026 Dollar Notes due April 2026 	323.0 	473.0
+2026 Euro Notes due April 2026 	194.3 	196.0
+Brazilian Credit Facilities 	— 	31.9
+Finance lease obligations 	5.0 	7.1
+Total debt 	3,972.3 	4,281.6
+Less: Short-term debt and current portion of long-term debt 	(4.4) 	(57.9)
+Total Long-term debt 	3,967.9 	4,223.7
+Less: Unamortized financing fees and discounts on long-term debt 	(65.6) 	(45.5)
+Total Long-term debt, net 	$ 	3,902.3 $ 	4,178.2
+Short-Term Debt
+The Company maintains short-term lines of credit and other short-term debt with financial institutions around the world. As of March 31,
+2024, total short-term debt increased by $1.5 from nil as of June 30, 2023. In addition, the Company had undrawn letters of
+credit of $4.1 and $7.2, and bank guarantees of $21.1 and $16.3 as of March 31, 2024 and June 30, 2023, respectively.
+Long-Term Debt
+Recent Developments
+Cash Tender Offers
+On December 7, 2023, the Company completed its previously announced cash tender offers and redeemed $150.0 of the Company's 2026
+Dollar Notes (as defined below) and $250.0 of the Company's 2026 Dollar Senior Secured Notes (as defined below).
+Refinancing Amendment
+On July 11, 2023, the Company entered into an amendment to the 2018 Coty Credit Agreement that (i) refinanced all of the existing
+$2,000.0 of revolving credit commitments and the outstanding loans made pursuant thereto (the "2021 Coty Revolving Credit Facility") with two
+new tranches of senior secured revolving credit commitments, one in an aggregate principal amount of $1,670.0 available in U.S. dollars and
+certain other currencies and the other in an aggregate principal amount of €300.0 million available in euros, maturing in July 2028 (together, the
+"2023 Coty Revolving Credit Facility"), (ii) provided for a credit spread adjustment of 0.10% for all interest periods, with respect to Secured
+Overnight Financing Rate ("SOFR") loans,
+18
+
+-- 23 of 72 --
+
+Table of Contents
+(iii) added Fitch as a relevant rating agency for purposes of the collateral release provisions and determining applicable interest rates and fees and
+(iv) provided that certain covenants will cease to apply during a collateral release period.
+Offering of Senior Secured Not
+
+[SECCIONES CLAVE ADICIONALES DEL INFORME]
+### OPERACIONES: DESINVERSIONES Y VENTAS DE NEGOCIOS
+The
+Company has designated its Chief Executive Officer ("CEO") as the CODM.
+Certain income and shared costs and the results of corporate initiatives are managed by Corporate. Corporate primarily includes stock
+compensation expense, restructuring and realignment costs, costs related to acquisition, divestiture and early license termination activities, and
+impairments of long-lived assets, goodwill and intangibles that are not attributable to ongoing operating activities of the segments. Corporate
+costs are not used by the CODM to measure the underlying performance of the segments.
+With the exception of goodwill, the Company does not identify or monitor assets by segment. The Company does not present assets by
+reportable segment since various assets are shared between reportable segments. The allocation of goodwill by segment is presented in Note 7—
+Goodwill and Other Intangible Assets, net.
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+SEGMENT DATA 	2024 	2023 	2024 	2023
+Net revenues:
+Prestige 	$ 	867.2 $ 	799.7 $ 	3,054.5 $ 	2,620.9
+Consumer Beauty 	518.4 	489.2 	1,700.1 	1,581.6
+Total 	$ 	1,385.6 $ 	1,288.9 $ 	4,754.6 $ 	4,202.5
+Operating income (loss):
+Prestige 	108.7 	102.4 	531.0 	437.3
+Consumer Beauty 	(13.3) 	(27.9) 	79.0 	53.3
+Corporate 	(17.6) 	(31.0) 	(98.0) 	(75.9)
+Total 	$ 	77.8 $ 	43.5 $ 	512.0 $ 	414.7
+Reconciliation:
+Operating income 	77.8 	43.5 	512.0 	414.7
+Interest expense, net 	60.4 	58.8 	190.3 	185.7
+Other expense (income), net 	14.0 	(156.9) 	9.8 	(397.0)
+Income before income taxes 	$ 	3.4 $ 	141.6 $ 	311.9 $ 	626.0
+Presented below are the percentage of revenues associated with the Company’s product categories:
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+PRODUCT CATEGORY 	2024 	2023 	2024 	2023
+Fragrance 	59.5 % 	59.2 % 	62.6 % 	60.3 %
+Color Cosmetics 	28.4 	29.2 	25.5 	27.4
+Body Care, Skin & Other 	12.1 	11.6 	11.9 	12.3
+Total 	100.0 % 	100.0 % 	100.0 % 	100.0 %
+12
+
+-- 17 of 72 --
+
+Table of Contents
+4. RESTRUCTURING COSTS
+Restructuring costs for the three and nine months ended March 31, 2024 and 2023 are presented below:
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+2024 	2023 	2024 	2023
+Current Restructuring Actions 	$ 	1.2 $ 	— $ 	35.9 $ 	—
+Transformation Plan 	(0.3) 	(1.3) 	(0.9) 	(5.4)
+Total 	$ 	0.9 $ 	(1.3) $ 	35.0 $ 	(5.4)
+Current Restructuring Actions
+The Company continues to analyze our cost structure and evaluate opportunities to streamline operations through a range of smaller
+initiatives and other cost reduction activities to optimize operations in select businesses. The Company has incurred cumulative restructuring
+charges of $37.2 related to approved initiatives through March 31, 2024, which have been recorded in Corporate. The liability balances were
+$36.3 (including certain actions that were accrued during fiscal 2023) and $0.0 at March 31, 2024 and June 30, 2023 respectively. The Company
+currently estimates that the total remaining accrual of $36.3 will result in cash expenditures of approximately $2.8, $15.6 and $17.9 in fiscal
+2024, 2025 and thereafter, respectively.
+Transformation Plan
+The Company previously announced a four-year plan to drive substantial improvement and optimization in the Company's businesses, under
+which the Company expected to incur restructuring and related costs (the “Transformation Plan”), which is now substantially complete. Of the
+expected costs, the Company has incurred cumulative restructuring charges of $214.6 related to approved initiatives through March 31, 2024,
+which have been recorded in Corporate. The related liability balances were $5.4 and $10.0 at March 31, 2024 and June 30, 2023, respectively.
+The Company currently estimates that the total remaining accrual of $5.4 will result in cash expenditures of approximately $0.9 and $4.5 in fiscal
+2024 and 2025, respectively.
+5. INVENTORIES
+Inventories as of March 31, 2024 and June 30, 2023 are presented below:
+March 31,
+2024 June 30,
+2023
+Raw materials 	$ 	210.0 $ 	224.1
+Work-in-process 	14.3 	15.6
+Finished goods 	535.4 	613.7
+Total inventories 	$ 	759.7 $ 	853.4
+13
+
+-- 18 of 72 --
+
+Table of Contents
+6. EQUITY INVESTMENTS
+The Company's equity investments, classified as Equity investments in the Condensed Consolidated Balance Sheets are represented by the
+following:
+March 31,
+2024
+June 30,
+2023
+Equity method investments:
+KKW Holdings 	$ 	6.5 $ 	8.9
+Equity investments at fair value:
+Wella 	1,080.0 	1,060.0
+Total equity investments 	$ 	1,086.5 $ 	1,068.9
+On January 4, 2021, the Company completed its purchase of 20% of the outstanding equity of KKW Holdings. The Company accounts for this minority
+investment under the equity method, given it has the ability to exercise significant influence over, but not control, the investee. The carrying value of the
+Company’s investment includes basis differences allocated to amortizable intangible assets.
+The Company recognized $0.7 and $0.8, respectively, during the three months ended March 31, 2024 and 2023 and $2.4 and $2.8, respectively, during the nine
+months ended March 31, 2024 and 2023 representing its share of the investee’s net loss in Other expense (income), net within the Condensed Consolidated
+Statements of Operations.
+As of March 31, 2024 and June 30, 2023, the Company's stake in Wella was 25.84% and 25.85%, respectively.
+The following table presents summarized financial information of the Company’s equity method investees for the period ending March 31,
+2024. Amounts presented represent combined totals at the investee level and not the Company’s proportionate share:
+Three Months Ended
+March 31,
+Nine Months Ended
+March 31,
+2024 	2023 	2024 	2023
+Summarized Statements of Operations information:
+Net revenues 	$ 	597.5 $ 	587.0 $ 	1,938.7 $ 	1,844.2
+Gross profit 	401.0 	382.7 	1,299.9 	1,197.6
+Operating income 	28.5 	16.5 	153.0 	133.0
+(Loss) before income taxes 	(28.0) 	(33.5) 	(10.6) 	(13.2)
+Net income (loss) 	(40.3) 	(27.5) 	17.2 	(13.0)
+The following table summarizes movements in equity investments with fair value option that are classified within Level 3 for the period
+ended March 31, 2024. There were no internal movements to or from Level 3 and Level 1 or Level 2 for the period ended March 31, 2024.
+Equity investments at fair value:
+Balance as of June 30, 2023 	$ 	1,060.0
+Tot
+
+### RECOMPRAS: PROGRAMA Y REMANENTE
+.
+During the nine months ended March 31, 2024 and 2023, the Board of Directors declared dividends on the Series B Preferred Stock of $9.9 and
+paid accrued dividends of $9.9. As of March 31, 2024 and June 30, 2023, the Series B Preferred Stock had outstanding accrued dividends of
+$3.3.
+Treasury Stock
+Share Repurchase Program
+Since February 2014, the Board has authorized the Company to repurchase its Class A Common Stock under approved repurchase programs.
+On February 3, 2016, the Board authorized the Company to repurchase up to $500.0 of its Class A Common Stock, and on November 13, 2023,
+the Board increased the Company's share repurchase authorization by an additional $600.0 (the “Share Repurchase Program”). Repurchases may
+be made from time to time at the Company’s discretion, based on ongoing assessments of the capital needs of the business, the market price of its
+Class A Common Stock, and general market conditions. As of March 31, 2024, the Company had authority for $796.8 remaining under the Share
+Repurchase Program.
+In June 2022, December 2022 and November 2023, the Company entered into forward repurchase contracts (the “Forward” and together the
+“Forwards”) with three large financial institutions (“Counterparties”) to start hedging for potential $200.0, $196.0 and $294.0 share buyback
+programs in 2024, 2025 and 2026, respectively.
+In February 2024, the Company elected to physically settle the June 2022 Forward for a cash payment of $200.0 in exchange for
+27.0 million shares of its Class A Common Stock. The fair value of the shares repurchased was approximately $350.6, which was recorded as an
+increase to Treasury stock in the Condensed Consolidated Balance Sheets and Condensed Consolidated Statements of Equity.
+As part of the Forward agreements, the Company will pay interest on the outstanding underlying notional amount of the Forwards held by
+the Counterparties during the contract periods. The interest rates are variable, based on the United States
+27
+
+-- 32 of 72 --
+
+Table of Contents
+secured overnight funding rate (“SOFR”) plus a spread. The weighted average interest rate plus applicable spread for the December 2022 and
+November 2023 Forward transactions were 9.8% and 8.2%, respectively, as of March 31, 2024.
+Since the Forwards permit a net cash settlement alternative in addition to the physical settlement, the Company accounted for the Forwards
+initially and subsequently at their fair value, with changes in the fair value recorded in Other expense (income), net in the Condensed
+Consolidated Statement of Operations. See Note 12—Derivative Instruments for additional information.
+Dividends
+On April 29, 2020, the Board of Directors suspended the payment of dividends on Common Stock. No dividends on Common Stock were
+declared for the period ended March 31, 2024.
+The change in dividends accrued recorded to APIC in the Condensed Consolidated Balance Sheet as of March 31, 2024 and 2023 was nil
+and $0.1, respectively, which represent dividends no longer expected to vest as a result of forfeitures of outstanding restricted stock units
+(“RSUs”). In addition, the Company made payments of $0.3 and $0.7, of which $0.1 and $0.2 related to employee taxes, for the previously
+accrued dividends on RSUs that vested during the nine months ended March 31, 2024 and 2023, respectively.
+Total accrued dividends on unvested RSUs and phantom units included in Accrued expenses and other current liabilities are $0.8 and $1.0 as
+of March 31, 2024 and June 30, 2023, respectively. In addition, accrued dividends of $0.0 and $0.1 are included in Other noncurrent liabilities as
+of March 31, 2024 and June 30, 2023, respectively.
+Accumulated Other Comprehensive Income (Loss)
+Foreign Currency Translation
+Adjustments
+Gain on Cash
+Flow Hedges
+(Loss) gain on
+Net Investment
+Hedge
+Other Foreign
+Currency
+Translation
+Adjustments
+Pension and
+Other Post-
+Employment
+Benefit Plans 	Total
+Balance—July 1, 2023 	$ 	0.7 $ 	(49.8) $ 	(667.9) $ 	54.6 $ 	(662.4)
+Other comprehensive income (loss) before reclassifications 	0.1 	12.2 	(59.2) 	(0.6) 	(47.5)
+Net amounts reclassified from AOCI/(L) 	0.4 	— 	— 	(3.1) 	(2.7)
+Net current-period other comprehensive income (loss) 	0.5 	12.2 	(59.2) 	(3.7) 	(50.2)
+Balance—March 31, 2024 	$ 	1.2 $ 	(37.6) $ 	(727.1) $ 	50.9 $ 	(712.6)
+For the nine months ended March 31, 2024, other comprehensive loss before reclassifications of $0.6 and net amounts reclassified from AOCI/(L) related to
+pensions and other post-employment benefit plans included amortization of prior service credits and actuarial losses of $4.5, net of tax of $1.4.
+Foreign Currency Translation
+Adjustments
+Loss on Cash
+Flow Hedges
+Gain (loss) on
+Net Investment
+Hedge
+Other Foreign
+Currency
+Translation
+Adjustments
+Pension and
+Other Post-
+Employment
+Benefit Plans 	Total
+Balance—July 1, 2022 	$ 	4.3 $ 	4.1 $ 	(770.8) $ 	44.5 $ 	(717.9)
+Other comprehensive income (loss) before reclassifications 	0.1 	(52.9) 	88.4 	1.8 	37.4
+Net amounts reclassified from AOCI/(L) 	(5.2) 	— 	— 	(4.1) 	(9.3)
+Net current-period other comprehensive (loss) income 	(5.1) 	(52.9) 	88.4 	(2.3) 	28.1
+Balance—March 31, 2023 	$ 	(0.8) $ 	(48.8) $ 	(682.4) $ 	42.2 $ 	(689.8)
+(a)
+(a)
+28
+
+-- 33 of 72 --
+
+Table of Contents
+14. SHARE-BASED COMPENSATION PLANS
+Share-based compensation ex
+
+### CAMBIO DE DIRECTIVOS: CÚPULA DIRECTIVA
+European Union General Data Protection Regulation (the “GDPR”), the California Consumer Privacy
+Act and similar state laws, the Brazil General Data Protection Law, and the China Data Security Law and Personal Information
+Protection Law) or to protect against theft of customer, employee and corporate sensitive information;
+• our ability to attract and retain key personnel and the impact of senior management transitions;
+36
+
+-- 42 of 72 --
+
+Table of Contents
+• the distribution and sale by third parties of counterfeit and/or gray market versions of our products;
+• the impact of our ongoing strategic transformation agenda and continued process improvements on our relationships with key customers
+and suppliers and certain material contracts;
+• our relationship with JAB Beauty B.V., as our majority stockholder, and its affiliates, and any related conflicts of interest or litigation;
+• our relationship with KKR, whose affiliate KKR Bidco, is an investor in the Wella Business, and any related conflicts of interest or
+litigation;
+• future sales of a significant number of shares by our majority stockholder or the perception that such sales could occur; and
+• other factors described elsewhere in this document and in documents that we file with the SEC from time to time.
+More information about potential risks and uncertainties that could affect our business and financial results is included under the heading
+“Risk Factors” and “Management’s Discussion and Analysis of Financial Condition and Results of Operations” in this Quarterly Report on Form
+10-Q and other periodic reports we have filed and may file with the SEC from time to time.
+All forward-looking statements made in this document are qualified by these cautionary statements. These forward-looking statements are
+made only as of the date of this document, and we do not undertake any obligation, other than as may be required by applicable law, to update or
+revise any forward-looking or cautionary statements to reflect changes in assumptions, the occurrence of events, unanticipated or otherwise, or
+changes in future operating results over time or otherwise.
+Comparisons of results for current and any prior periods are not intended to express any future trends or indications of future performance
+unless expressed as such, and should only be viewed as historical data.
+Industry, Ranking and Market Data
+Unless otherwise indicated, information contained in this Quarterly Report on Form 10-Q concerning our industry and the markets in which
+we operate, including our general expectations about our industry, market position, market opportunity and market sizes, is based on data from
+various sources including internal data and estimates as well as third-party sources widely available to the public, such as independent industry
+publications, government publications, reports by market research firms or other published independent sources and on our assumptions based on
+that data and other similar sources. We did not fund and are not otherwise affiliated with the third-party sources that we cite. Industry
+publications and other published sources generally state that the information contained therein has been obtained from third-party sources
+believed to be reliable. Internal data and estimates are based upon information obtained from trade and business organizations and other contacts
+in the markets in which we operate and management’s understanding of industry conditions, and such information has not been verified by any
+independent sources. These data involve a number of assumptions and limitations, and you are cautioned not to give undue weight to such
+estimates. While we generally believe the market, industry and other information included in this Quarterly Report on Form 10-Q to be the most
+recently available and to be reliable, such information is inherently imprecise and we have not independently verified any third-party information
+or verified that more recent information is not available.
+Our fiscal year ends on June 30. Unless otherwise noted, any reference to a year preceded by the word “fiscal” refers to the fiscal year ended
+June 30 of that year. For example, references to “fiscal 2024” refer to the fiscal year ending June 30, 2024. Any reference to a year not preceded
+by “fiscal” refers to a calendar year.
+OVERVIEW
+We are one of the world’s largest beauty companies, with an iconic portfolio of brands across fragrance, color cosmetics, and skin and body
+care. Our brands empower people to express themselves freely, creating their own visions of beauty; and we are committed to making a positive
+impact on the planet. Our strategic priorities include stabilizing and growing our Consumer Beauty brands through leading innovation and
+improved execution, accelerating our Prestige fragrance business and ongoing expansion into Prestige cosmetics, building a comprehensive
+skincare portfolio over the mid-to-long term leveraging existing brands, enhancing our organizational growth capabilities including digital and
+research and development, expanding our presence in China, the Travel Retail channel and growth markets, and establishing Coty as an industry
+leader in sustainability.
+37
+
+-- 43 of 72 --
+
+Table of Contents
+We have been making progress on our strategic priorities. In Consumer Beauty, we have implemented the relaunch of our top brands and
+returned to stable grow
+
+### OPERACIONES: SPIN-OFFS Y SEPARACIONES
+was due to increases in net revenue and a slowdown in collections, partially offset by lower factoring.
+Additionally, offsetting activity was due to lower year over year payments for restructuring and a net inflow of $35.0 as a reimbursement from
+Wella for working capital financed by Coty since the separation of the Wella business.
+60
+
+-- 67 of 72 --
+
+Table of Contents
+Net cash used in investing activities
+Net cash used in investing activities was $161.5 and $97.7 for the nine months ended March 31, 2024 and 2023, respectively. The increase in
+cash used in investing activities of $63.8 was primarily due to lower current year proceeds related to an early license termination, and the impact
+of timing and increased capital expenditures. The collection of contingent consideration and proceeds from the sale of other long-term assets in
+the current year helped to partially offset the year over year increase in cash used in investing activities.
+Net cash used in financing activities
+Net cash used in financing activities during the nine months ended March 31, 2024 and 2023 was $264.1 and $397.6, respectively. The
+decrease in cash used in financing activities of $133.5 was primarily driven by the net proceeds from the issuance of Class A Common Stock
+mainly in connection with the global offering and lower cash payments in the current year compared to the prior year from realized net losses on
+the Company’s financing related foreign currency contracts. The decrease in cash used for financing activities was partially offset by higher
+outflows in the current year related to the Company’s forward repurchase contracts which includes a cash payment for the settlement of the June
+2022 forward repurchase contract, higher year over year net cash repayments from the Company’s debt related activities, as well as cash
+payments for associated deferred financing fees.
+Dividends
+On April 29, 2020, the Board of Directors suspended the payment of dividends on Common Stock. As previously disclosed, we expect to
+suspend the payment of dividends until we approach a Net debt to Adjusted earnings before interest, taxes, depreciation and amortization
+(“Adjusted EBITDA”) target of 2x. We expect to consider any future resumption of dividends in line with that target while continuing to pursue
+our deleveraging agenda and implementing our strategic initiatives. Any determination to pay dividends in the future will be at the discretion of
+our Board of Directors.
+Dividends on the Convertible Series B Preferred Stock are payable in cash, or by increasing the amount of accrued dividends on Convertible
+Series B Preferred Stock, or any combination thereof, at the sole discretion of the Company. We expect to pay such dividends in cash on a
+quarterly basis, subject to the declaration thereof by our Board of Directors. The terms of the Convertible Series B Preferred Stock restrict our
+ability to declare cash dividends on our common stock until all accrued dividends on the Convertible Series B Preferred Stock have been
+declared and paid in cash.
+For additional information on our dividends, see Note 13—Equity and Convertible Preferred Stock in the notes to our Condensed
+Consolidated Financial Statements.
+Treasury Stock - Share Repurchase Program
+For information on our Share Repurchase Program, see Note 13—Equity and Convertible Preferred Stock in the notes to our Condensed
+Consolidated Financial Statements.
+Commitments and Contingencies
+See Note 16—Redeemable Noncontrolling Interests in the notes to our Condensed Consolidated Financial Statements for information on our
+subsidiary in the Middle East.
+Legal Contingencies
+For information on our litigation matters and Brazilian tax assessments, see Note 17—Commitments and Contingencies in the notes to our
+Condensed Consolidated Financial Statements. In relation to the appeal of our Brazilian tax assessments, we have entered into surety bonds of
+R$464.3 million (approximately $92.6) as of March 31, 2024.
+Off-Balance Sheet Arrangements
+We had undrawn letters of credit of $4.1 and $7.2 and bank guarantees of $21.1 and $16.3 as of March 31, 2024 and June 30, 2023,
+respectively.
+61
+
+-- 68 of 72 --
+
+Table of Contents
+Contractual Obligations
+Our principal contractual obligations and commitments as of June 30, 2023 are summarized in Item 7 - “Management’s Discussion and
+Analysis of Financial Condition and Results of Operations - Liquidity and Capital Resources - Contractual Obligations and Commitments,” of
+our Fiscal 2023 Form 10-K. Refer to Item 2 - “Management’s Discussion and Analysis of Financial Condition and Results of Operations -
+Liquidity and Capital Resources - Share Repurchases” above for discussion of the obligations related to our announced share repurchase during
+fiscal 2024. For the nine months ended March 31, 2024, there have been no other material changes in our contractual obligations outside the
+ordinary course of business.
+Critical Accounting Policies
+We believe that the critical accounting policies listed below involve our more significant judgments, assumptions and estimates and,
+therefore, could have the greatest potential impact on our Condensed Consolidated Financial Statements:
+• Revenue Recognition;
+• Equity Investments;
+• Goodwill, Other Intangible Assets and Long-Lived Assets;
+• Inventory; and
+• Income Taxes.
+As of March 31, 2024, there have been no material changes to the items disclosed as critical accounting policies and estimates in
+“Management’s Discussion and Analysis of Financial Condition and Results of Operations” in Part II—Item 7 of our Fiscal 2023 Form 10-K.
+Item 3. Quantitative and Qualitative Disclosures About Market Risk
+See Note 12—Derivative Instruments for updates to our foreign currency risk management and interest rate risk management. There have
+been no material changes in market risk from the information provided in Item 7A. Quantitative and Qualitative Disclosures About Market Risk
+of our Fiscal 2023 Form 10-K.
+Item 4. Controls and Procedures.
+Evaluation of Disclosure Controls and Procedures
+We maintain “disclosure controls and procedures,” as defined in Rules 13a-15(e) under the Exchange Act, that are designed to ensure that
+information required to be disclosed by a company in the reports that it files or submits under the Exchange Act i
+
+[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]
+### DOCUMENTO COMPLEMENTARIO: coty post 3q24 group investor call with bank of america slides vf web [CONTIENE SECCIÓN DE GUIDANCE / OUTLOOK]
+1
+COTY GROUP
+INVESTOR CALL
+WITH BANK OF
+AMERICA
+MAY 22, 2024
+
+-- 1 of 8 --
+
+U.S. BEAUTY MARKET CONTINUES TO PREMIUMIZE
+2
+MAKEUP
+6%
+15%
+Circana, U.S. Beauty Market YoY Sales Growth by Category (Jan-Dec 2023)
+11%
+14%
+SKINCARE
+Prestige
+Mass
+4%
+12%
+FRAGRANCE
+U.S. BEAUTY MARKET CY23 SALES GROWTH BY CATEGORY
+
+-- 2 of 8 --
+
+PRESTIGE VOLUMES 2-YR CAGR REMAINS CONSISTENT INTO 4Q24
+3
+Q2 Q3 Q4 (est.)
+~3-4 % ~3-4% ~3-4%
+PRESTIGE LFL REVENUE GROWTH AND VOLUME GROWTH ACCELERATED BY MSD % BETWEEN 3Q23 AND 4Q23 FULLY
+DUE TO RETAILER REBUILDING INVENTORY POST SUPPLY SHORTAGES IN 1H23 (LFL VOLUME GROWTH INCLUDED IN
+APPENDIX)
+➢ 4Q24 PRESTIGE OUTLOOK REFLECTS THE DIFFICULT REVENUE/VOLUME COMPARISONS OF THE PRIOR YEAR FROM THIS
+RETAILER RESTOCKING TO RESTORE NORMAL INVENTORY LEVELS, WHILE CATEGORY DEMAND REMAINS ROBUST
+➢ NOT SEEING ANY UNDERLYING RETAILER INVENTORY BUILD OR DESTOCK IN 4Q24
+➢ ON A 2-YEAR CAGR VS. FY22, WHICH REMOVES THE FY23 DESTOCKING/RESTOCKING IMPACTS, PRESTIGE LFL VOLUMES
+GREW BY 3-4% IN 2Q24 AND 3Q24 AND TRACKING TO SIMILAR LEVELS IN 4Q24
+* LFL Volumes excluding Lacoste divestiture and Russia exit
+QUARTERLY PRESTIGE LFL VOLUMES 2-YEAR CAGR VS. FY22
+
+-- 3 of 8 --
+
+UNDERLYING PRESTIGE TRENDS REMAIN CONSISTENT INTO 1Q25
+4
+1Q22 1Q23 1Q24 1Q25E
+~LSD-MSD% LFL VOLUME
+CAGR VS. 1Q22
+1Q25 OUTLOOK EMBEDS CONSISTENT PRESTIGE LFL VOLUME OF LSD-MSD% CAGR VS. 1Q22, BUT IMPLIES SOME
+SEQUENTIAL IMPROVEMENT IN YOY GROWTH IN PRESTIGE REVENUES AND VOLUMES
+➢ 1Q25 / 1H25 PRESTIGE TRENDS TO BENEFIT FROM:
+➢ NEW FALL FRAGRANCE LAUNCHES
+➢ CONTINUED BENEFIT FROM SPRING FY24 LAUNCHES – MARC JACOBS DAISY WILD AND COSMIC KYLIE JENNER
+➢ FUTHER ACCELERATION IN PRESTIGE MAKEUP
+Supply shortages
+PRESTIGE LFL VOLUMES
+* LFL Volumes excluding Lacoste divestiture and Russia exit
+
+-- 4 of 8 --
+
+APPENDIX
+
+-- 5 of 8 --
+
+PRESTIGE & CONSUMER BEAUTY VOLUMES BY QUARTER
+FY22 – FY24 QUARTERLY CORE LFL VOLUMES BY SEGMENT
+6
+FY22
+Q1
+FY22
+Q2
+FY22
+Q3
+FY22
+Q4
+FY23
+Q1
+FY23
+Q2
+FY23
+Q3
+FY23
+Q4
+FY24
+Q1
+FY24
+Q2
+FY24
+Q3
+PRESTIGE CORE LFL
+VOLUMES
+(EX. RUSSIA & LACOSTE)
+MID 20S % HSD % LOW 20S % MID 20S % FLAT - LSD % MSD % HSD % LDD % HSD % LSD %
+CONSUMER BEAUTY
+CORE LFL VOLUMES
+(EX. RUSSIA)
+- LSD % HSD % HSD % MSD % MSD % - LSD % LSD % LSD % LSD % LSD % MSD %
+Prestige volumes exclude all impact from Russia and Lacoste in comparative periods
+Consumer Beauty volumes exclude all impact from Russia in comparative periods
+
+-- 6 of 8 --
+
+Forward-Looking Statements
+Certain statements in this presentation are forward-looking statements. These forward-looking statements reflect Coty Inc.’s (“Coty,” “we,” “us,” “our” or the “Company”) current views with respect to, among other things, strategic planning,
+targets and outlook for future reporting periods (including the extent, timing and concentration of revenue, expense and profit trends, gross margin trends, changes in operating cash flows and cash flows from operating activities and investing
+activities, expected drivers of sales and/or profitability in future periods, volume and mix trends, savings targets, expected future tax rates, the impact of currency exchange rate volatility, the impact of inflationary pressures, and the expected
+timing and impact of pricing and other measures to offset inflationary pressures), the Company’s future operations and strategy including the expected implementation and related impact of its strategic priorities), allocation and amount of
+advertising and consumer promotion costs, expected impact of social media advocacy strategy, expected shelf space, restocking and sell-out trends, plans with respect to research and development and innovation pipeline, allocation, amount
+and timing of research and development investments and expected impact thereof, allocation and amount of investments in growth capabilities and teams (including skincare, digital and DTC) and expected impact thereof, plans for growth in
+emerging markets and other white spaces, licenses and portfolio changes, product launches and relaunches or rebranding (including their expected timing and impact), ongoing and future cost efficiency, optimization and restructuring initiatives
+and programs and related savings targets, strategic transactions (including their expected timing and impact), and synergies, savings, performance, cost, timing and integration of acquisitions and investments, plans with respect to opportunities
+to leverage assets including through public offerings, expectations and/or plans with respect to joint ventures (including Wella, any potential future divestiture, and the timing and size of any related divestiture, distribution or return of capital or
+other use of proceeds), the Company’s capital allocation strategy and payment of dividends (including suspension of dividend payments and the duration thereof, and any plans to resume cash dividends on common stock or continue to pay
+dividends in cash on preferred stock), future share repurchases and costs thereof and timing and amount of expected future outstanding share count reductions, future cash flows, liquidity and borrowing capacity (including any debt refinancing or
+deleveraging activities), timing and size of cash outflows and debt deleveraging, the timing and extent of any future impairments, synergies, savings, impact, cost, timing and implementation of the Company’s ongoing transformation agenda
+(including operational execution and simplification initiatives, cost reductions and supply chain changes), expected impact, cost, timing and implementation of e-commerce and digital initiatives, expected impact, cost, timing and implementation
+of sustainability initiatives (including progress, plans and goals and its ability to achieve its targets), the wind down of the Company’s operations in Russia (including timing and expected impact), the expected impact of geopolitical risks including
+the ongoing war in Ukraine and/or the armed conflict in the Middle East on our business operations, sales outlook and strategy, the expected impact of global supply chain challenges and/or inflationary pressures (including as a result of the war in
+Ukraine and/or armed conflict in the Middle East) and expectations regarding future service levels (including expectations of impacts from the Red Sea conflict and Baltimore port closure), inventory levels and excess & obsolescence trends,
+expectations regarding economic recovery in Asia, the impact of the dual-listing on Euronext Paris, the priorities of senior management, and the Company’s ability to support its planned business operations in the near-term and long-term basis.
+These forward-looking statements are generally identified by words or phrases, such as “anticipate”, “are going to”, “estimate”, “plan”, “project”, “expect”, “believe”, “intend”, “foresee”, “forecast”, “will”, “may”, “should”, “outlook”, “continue”,
+“temporary”, “target”, “aim”, “potential”, “goal” and similar words or phrases. These statements are based on certain assumptions and estimates that we consider reasonable, but are subject to a number of risks and uncertainties, many of which
+are beyond the control of the Company, which could cause actual results to differ materially from such statements. Such risks and uncertainties are identified in the periodic reports Coty has filed and may file with the Securities and Exchange
+Commission (the “SEC”) including, but not limited to: the Company’s ability successfully implement its multi-year strategic transformation agenda and to develop and achieve its global business strategies and strategic priorities, compete
+effectively in the beauty industry and achieve the benefits contemplated by its strategic initiatives within the expected time frame or at all; the timing, costs and impacts of future divestitures (and the amount and use of proceeds from any such
+transactions); the integration of acquisitions with the Company’s business, operations, systems, financial data and culture and the ability to realize synergies, avoid future supply chain and other business disruptions, reduce costs and realize other
+potential efficiencies and benefits (including through its restructuring initiatives) at the levels and at the costs and within the time frames contemplated or at all; disruptions in the availability and distribution of raw materials and components
+needed to manufacture the Company's products or disruptions in the international flow of goods; managerial, operational, regulatory, legal and financial risks, including diversion of management attention to and management of cash flows,
+expenses and costs associated with multiple ongoing and future strategic initiatives, internal reorganizations and restructuring activities, including its strategic transformation agenda; any unanticipated problems, liabilities or integration or other
+challenges associated with a past or future acquired business, joint ventures or strategic partnerships which could result in increased risk or new, unanticipated or unknown liabilities, including with respect to environmental, competition and other
+regulatory, compliance or legal matters and litigation or investigations by governmental authorities; currency exchange rate volatility and currency devaluation and/or inflation; changes in the demand for the Company’s products due to declining
+or depressed global or regional economic conditions, and declines in consumer confidence or spending; the impact of public health events; global political and/or economic uncertainties, disruptions or major regulatory or policy changes (including
+related to taxation) and/or the enforcement thereof that affect the Company’s business, financial performance, operations or products, including the impact of the war in Ukraine and/or armed conflict in the Middle East and any related
+escalation or expansion thereof (including the Red Sea conflict); the Company’s ability to retain and attract key personnel; the Company’s ability to adapt its business to address climate change concerns and to respond to increasing governmental
+and regulatory measures relating to ESG matters; and the impact of senior management transitions and organizational structure changes.
+The foregoing review of important factors should not be construed as exhaustive and should be read in conjunction with the other cautionary statements that are included elsewhere. More information about potential risks and uncertainties that
+could affect Coty’s business and financial results is included under “Risk Factors” and “Management’s Discussion and Analysis of Financial Condition and Results of Operations” in Coty’s Annual Report on Form 10-K for the year ended June 30,
+2023, subsequent Quarterly Reports on Form 10-Q and other periodic reports Coty has filed and may file with the SEC from time to time. Any forward-looking statements made in this presentation are qualified in their entirety by these cautionary
+statements. All forward-looking statements are made only as of the date of this presentation, and, Coty undertakes no obligation, other than as may be required by applicable law, update or revise any forward-looking or cautionary statements to
+reflect changes in assumptions, the occurrence of events, unanticipated or otherwise, or changes in future operating results over time or otherwise.
+Additional Information; No Offer or Solicitation
+The information contained in this presentation is not a substitute for your independent evaluation and analysis. By attending this presentation, you acknowledge that you will be solely responsible for your own assessment of the Company and its
+market position, and that you will conduct your own analysis and be solely responsible for forming your own view of the potential future performance of the Company's business. No representations or warranties, express or implied, are made as to
+the accuracy or completeness of the statements, estimates, projections or assumptions contained in this presentation, and neither the Company nor any of its directors, officers, employees, affiliates, agents, advisors or representatives shall have
+any liability relating thereto. This presentation does not constitute an offer to sell or the solicitation of an offer to buy any securities, and shall not constitute an offer, solicitation or sale in any jurisdiction in which such an offer, solicitation or sale
+would be unlawful prior to registration or qualification under the securities laws of that jurisdiction.
+DISCLAIMER THIS PRESENTATION IS MEANT TO PROVIDE MORE GRANULARITY ON OUR PRESTIGE OUTLOOK AND COTY IS NOT UPDATING OR REAFFIRMING ITS PREVIOUSLY ANNOUNCED GUIDANCE.
+
+-- 7 of 8 --
+
+Non-GAAP Financial Measures
+In this presentation, Coty presents certain non-GAAP financial measures that we believe enable management and investors to analyze and compare the underlying business results from period to period, including organic like-for-like (LFL) metrics.
+The term “like-for-like” describes the Coty's core operating performance, excluding the financial impact of (i) acquired brands or businesses in the current year period until Coty has twelve months of comparable financial results, (ii) divested brands
+or businesses or early terminated brands , generally, in the prior year non-comparable periods, to maintain comparable financial results with the current fiscal year period and (iii) foreign currency exchange translations to the extent applicable.
+These non-GAAP financial measures should not be considered in isolation, or as a substitute for, or superior to, financial measures calculated in accordance with GAAP. To the extent that Coty provides guidance, it does so only on a non-GAAP
+basis and does not provide reconciliations of such forward-looking non-GAAP measures to GAAP due to the inherent difficulty in forecasting and quantifying certain amounts that are necessary for such reconciliation, including adjustments that
+could be made for restructuring, integration and acquisition-related expenses, amortization expenses, adjustments to inventory, and other charges reflected in our reconciliation of historic numbers, the amount of which, based on historical
+experience, could be significant. Reconciliation of these non-GAAP financial measures to the nearest comparable GAAP financial measures are contained in the press release attached as Exhibit 99.1 to the Form 8-K filed with the SEC on May 6,
+2024.
+Forward Basis of Presentation
+In this presentation, Coty presents outlook information as of May 6, 2024. This presentation is meant to provide more granularity on our Prestige outlook and Coty is not updating or reaffirming its previously announced guidance. Fiscal year
+represents Coty’s fiscal year ended June 30. We have completed various transactions (sale of the Wella Business, the King Kylie Transaction and the KKW Transaction) and the resulting changes in our operations from each transaction are included
+in our historical financial information from the applicable transaction date. Accordingly, our operating results for the periods following each acquisition may not be comparable to the periods prior to each such acquisition.
+Industry, Ranking and Market Data
+Unless otherwise indicated, information contained in this presentation concerning our industry and the market in which we operate, including our general expectations about our industry, market position, market opportunity and market size, is
+based on data from various sources, including internal data and estimates as well as third party sources widely available to the public such as independent industry publications, government publications, reports by market research firms or other
+published independent sources and on our assumptions based on that data and other similar sources. While we believe the market, industry and other information included in this presentation to be most recently available and to be generally
+reliable, such information is inherently imprecise and we have not independently verified any third-party information or verified that more recent information is not available.
+DISCLAIMER CONTINUED
+
+-- 8 of 8 --
+
+---
+
+### DOCUMENTO COMPLEMENTARIO: exhibit991-earningsrelease.htm [CONTIENE SECCIÓN DE GUIDANCE / OUTLOOK]
+EX-99.1 2 exhibit991-earningsrelease.htm EX-99.1 Document Coty Reports Strong Results Ahead of Beauty Market, with Double-Digit Growth FYTD Q3 Sales Exceed Expectations on Prestige Share Gains and Strength in Beauty Demand Continuing Expansion in Operating Income and Margin FY24 Outlook Raised to High End of Guidance Range NEW YORK - May 6, 2024-- Coty Inc. (NYSE&#58; COTY) (Paris&#58; COTY) (&#34;Coty&#34; or &#34;the Company&#34;) today announced its results for the third quarter of fiscal year 2024, ended March&#160;31, 2024. The Company's strong above-market sales growth, reported and adjusted operating income growth, and reported and adjusted gross and operating margin expansion in Q3 solidifies nearly four years of Coty reporting results in-line to ahead of expectations. In 3Q24, Coty's net revenues grew 8% on a reported basis and 10% on a LFL basis, with reported and LFL results supported by growth in fragrances, color cosmetics, skin care and body care. These results trended above the Company's guidance of +6-8% LFL for the second half of FY24. On a year-to-date basis, net revenues grew 13% on both a reported and LFL basis. In 3Q24 and year-to-date, the Company continued to deliver balanced reported net revenue growth, including growth in both Prestige and Consumer Beauty, across all regions and in each of its core categories partially offset by a 2% headwind in Q3 from the divestiture of the Lacoste license. In Q3 and year-to-date, Coty delivered a healthy reported growth mix with low to mid-single-digit percentage volume growth and estimated high-single-digit percentage pricing contribution, with the estimated impact from mix &#38; other slightly negative in Q3, but a positive low-single-digit contribution fiscal year-to-date. In 3Q24, Prestige net revenues increased 8% on a reported basis and 13% on a LFL basis. On a year-to-date basis, Prestige net revenues grew a strong 17% on both a reported and LFL basis. In 3Q24 and year-to-date, reported net revenue growth in Prestige remained strong in fragrances, cosmetics and skin care, but Q3 included a 4% negative impact from the divestiture of the Lacoste license and a 1% negative impact from FX. In 3Q24, Consumer Beauty net revenues increased 6% on a reported and LFL basis. On a year-to-date basis, Consumer Beauty revenues increased 8% on a reported basis and 7% on a LFL basis. In 3Q24 and year-to-date, Consumer Beauty's reported net revenues grew in color cosmetics, mass fragrances and mass skin &#38; body care in most countries, offsetting the market weakness in U.S. mass cosmetics. Strong reported net sales momentum in 3Q24 was supported by high-single-digit percentage growth in all regions, and on a year-to-date basis, all regions generated double-digit percentage reported net revenue growth. In Prestige, Coty gained market share in all three regions in Q3. Americas net revenues rose 8% on a reported basis and 11% on a LFL basis in Q3. Reported net revenue growth in Americas was driven by strong double-digit percentage growth in Latin America, Canada and the Travel Retail channel partially offset by a 2% negative impact from FX and a 1% headwind from the divestiture of the Lacoste license. In Q3, EMEA's net revenues increased 7% on a reported basis and 9% on a LFL basis. Reported net revenue growth in EMEA was driven by continued growth across most markets and the Travel Retail channel, coupled with a 2% FX benefit partially offset by a 4% headwind from the divestiture of the Lacoste license. In Q3, Asia Pacific sales grew 7% on a reported basis and 11% on a LFL basis. Reported net revenue growth in Asia Pacific was driven by double-digit percentage growth in Asia excluding China and the Travel Retail channel, and triple-digit percentage growth in Hainan, partially offset by a 3% negative impact from FX. Coty delivered strong gross margin expansion in the quarter. 3Q24 reported and adjusted gross margin of 64.8% increased 190 basis points year-over-year. Coty's Q3 reported gross margin improvement was driven by the benefit from premiumization, carryover pricing and easing inflation, as well as supply chain productivity savings. Coty generated reported operating income of $77.8&#160;million, up 79% year-over-year, supported by strong sales and gross profit, resulting in 220 basis points of reported operating margin expansion to 5.6%. Coty's Q3 adjusted operating income of $143.9&#160;million grew 17% year-over-year resulting in 90 basis points of adjusted operating margin ex
+
+[...]
+
+including India, and Africa. We are achieving these strong results and milestones all while delivering robust profit growth and margin expansion. This is enabling us to raise the midpoint of our FY24 guidance for the third time this year. Our focus is to continue to fuel this flywheel, delivering steady margin expansion, cash flow improvement and deleveraging progress. In sum, we continue to see a strong and dynamic beauty market, with our diversified portfolio and strong execution enabling Coty to once again outperform the underlying market. As we continue to reinforce our position as a beauty powerhouse, in our 120th anniversary year, we remain excited by the many opportunities ahead.&#34; 1 For Scope 1 and 2 emissions. *Adjusted financial metrics used in this release are non-GAAP. See reconciliations of GAAP results to Adjusted results in the accompanying tables. 3 RESULTS AT A GLANCE Three Months Ended March 31, 2024 Nine Months Ended March 31, 2024 (in millions, except per share data) Change YoY Change YoY COTY, INC. Reported Basis (LFL) Reported Basis (LFL) Net revenues $ 1,385.6 &#160; 8&#160; % 10&#160; % $ 4,754.6 &#160; 13&#160; % 13&#160; % Operating income - reported 77.8 &#160; 79&#160; % 512.0 &#160; 23&#160; % Net income attributable to common shareholders - reported ** 0.5 &#160; (100&#160; %) 176.4 (62) % Operating income - adjusted* 143.9 &#160; 17&#160; % 755.4 19&#160; % Net income attributable to common shareholders - adjusted* ** 43.8 &#160; (74&#160; %) 347.0 (23) % EBITDA - adjusted 199.9 &#160; 10&#160; % 926.6 15&#160; % EPS attributable to common shareholders (diluted) - reported $ 0.00 &#160; (100&#160; %) $ 0.20 &#160; (63) % EPS attributable to common shareholders (diluted) - adjusted* $ 0.05 &#160; (74&#160; %) $ 0.39 &#160; (25&#160; %) *&#160;&#160;&#160;&#160;These measures, as well as &#8220;free cash flow,&#8221; &#8220;adjusted earnings before interest, taxes, depreciation and amortization (adjusted EBITDA),&#8221; &#8220;financial net debt,&#8221; and &#34;economic net debt&#34; are Non-GAAP Financial Measures. Refer to &#8220;Non-GAAP Financial Measures&#8221; for discussion of these measures. Reconciliations from reported to adjusted results can be found at the end of this release. **&#160;&#160;&#160;&#160;Net income for Coty Inc. is net of the Convertible Series B Preferred Stock dividends. Financial Highlights &#8226; 3Q24 net revenues increased 8% on a reported basis and 10% LFL driven by growth in Prestige net revenues of 8% reported and 13% LFL, an increase in Consumer Beauty net revenues of 6% reported and LFL and includes a 2% headwind from the divestiture of the Lacoste license. Year-to-date net revenues increased 13% on a reported basis fueled by a 17% increase in Prestige reported net revenues and an 8% increase in Consumer Beauty reported net revenues. Year-to-date net revenues increased 13% LFL. &#8226; 3Q24 reported operating income grew 79% to $77.8&#160;million with a reported operating margin of 5.6% reflecting 220 basis points of margin expansion. Year-to-date reported operated income increased 23% to $512.0&#160;million with a reported operating margin of 10.8% reflecting 90 basis points of margin expansion. &#8226; 3Q24 reported net income of $0.5&#160;million decreased from net income of $105.1&#160;million in the prior year driven by a large benefit in the prior year from the mark-to-market on the equity swap. In 3Q24, reported net income margin was breakeven. Year-to-date reported net income of $176.4&#160;million decreased from $465.4&#160;million in the prior year and reported net income margin was 3.7%. &#8226; 3Q24 reported EPS was $0.00 and year-to-date reported EPS
+
+[...]
+
+Coty's economic net debt of $2,632.1 million. &#8226; The Company repurchased 27 million shares on February 22, 2024 as part of the first tranche of its previously announced equity swap agreement. 4 Outlook The global beauty market remains strong with demand for prestige fragrances continuing to grow at a double-digit percentage pace and above historical levels, while the mass beauty market is performing consistent with historical levels, growing at a mid-single-digit percentage. Coty continues to benefit from this attractive market dynamic with momentum across its core categories, strong launch results and early wins in key white spaces. The Company now expects FY24 LFL revenue growth to be at the high end of its prior guidance range of +9-11%, which includes expectations for low-to-mid single-digit percentage LFL revenue growth in Q4 reflecting an estimated mid-single-digit percentage headwind in its Prestige business from difficult prior year comparisons, when retailers restocked inventory as Coty's fragrance service levels recovered from earlier shortages. Reported revenues in Q4 are expected to include a 1-2% headwind from FX and an approximately 2% scope headwind from the divestiture of the Lacoste license. At the same time, the strong continued sell-out in Coty's business supports expected LFL revenue growth acceleration sequentially into first half FY25 from the levels expected in Q4. Coty also expects FY24 adjusted EBITDA margin expansion to be at the upper of end of its previous guidance range of 10 to 30 basis points. At the same time, FX headwinds in Q4 are contributing to Coty's expectations for FY24 adjusted EBITDA to remain within its prior guidance range of $1,080 to $1,090 million based on current FX rates. In total, the Company continues to expect modest FY24 gross margin expansion year-over-year. Coty now expects FY24 adjusted EPS to be at the high end of the prior guidance range, excluding the equity swap, of $0.44 to $0.47, implying strong growth at the upper end of the +16-25% guidance range. Factoring in the timing of certain deferred payments of taxes and working capital phasing, the Company continues to expect FY24 free cash flow of roughly $400 million, with expected free cash flow growth in FY25. Having reached its leverage target of approximately 3x exiting CY23, Coty remains fully on track to drive its leverage towards approximately 2.5x exiting CY24 and towards approximately 2x exiting CY25 driven by its free cash flow generation and EBITDA expansion. Coty continues to target the divestiture of its Wella stake by end of CY25. Financial Results* Refer to &#8220;Non-GAAP Financial Measures&#8221; for discussion of the non-GAAP financial measures used in this release&#59; reconciliations from reported to adjusted results can be found at the end of this release. Revenues&#58; &#8226; 3Q24 reported net revenues of $1,385.6 increased 8% year-over-year driven by an 8% increase in Prestige reported net revenues, a 6% increase in Consumer Beauty reported net revenues and includes a 2% headwind from the divestiture of the Lacoste license. On a LFL basis, net revenues increased 10% driven by a 13% LFL increase in Prestige and a 6% LFL increase in Consumer Beauty net revenues. &#8226; Year-to-date reported net revenues of $4,754.6 million increased 13% year-over-year driven by a 17% increase in Prestige reported net revenues and an 8% increase in Consumer Beauty reported net revenue. On a LFL basis, net revenues grew 13% driven by a 17% LFL increase in Prestige net revenues and a 7% LFL increase in Consumer Beauty net revenues. Gross Margin&#58; &#8226; 3Q24 reported gross margin of 64.8% increased 190 basis points year-over-year. The improvement in reported gross margin was mainly driven by premiumization, carryover pricing, easing inflation, and supply chain productivity savings. 3Q24 adjusted gross margin of 64.8% increased by 190 basis points from 62.9% in the prior year. &#8226; Year-to-date reported gross margin of 64.4% increased 20 basis points year-over-year. The rise in reported gross margin reflected a positive impact from premiumization, pricing and supply chain productivity savings partially offset by a negative impact from higher excess &#38; obsolescence, which continued to improve over the course of the year. Year-to-date adjusted gross margin of 64.4% increased from 64.2% in the prior year. 5 Reported Profit&#58; &#8226; 3Q24 reported operating income of $77.8&#160;million increased by 79% from $43.5&#160;million the prior year driven by higher sales and gross profit. 3Q24 reported operating margin was 5.6% reflecting 220 basis points of margin expansion year-over-year. The improvement in reported operating margin was driven by the strong gross margin expansion partially offset by higher A&#38;CP and fixed costs as the Company reinvested in its strategic growth capabilities. &#8226; Year-to-date reported operating income of $512.0&#160;million increased by 23% from $414.7&#160;million in the prior year driven by higher sales and gross profit. Year-to-date reported operating margin was 10.8% reflecting 90 basis points of margin expansion year-over-year. The improvement in reported operating margin was driven by the strong gross margin expansion. &#8226; 3Q24 reported net income of $0.5&#160;million decreased from net income of $105.1&#160;million in the prior year as the profit expansion was more than offset by a $133

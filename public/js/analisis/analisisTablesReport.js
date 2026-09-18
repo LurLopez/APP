@@ -207,7 +207,7 @@
         <div class="annual-deepdive-card">
           <h5 class="annual-card-title">${escapeHtml(debt.title || '4: Deuda')}</h5>
           ${debt.text ? `<p class="annual-card-text">${formatAnnualRichText(debt.text)}</p>` : ''}
-          ${window.AnalisisCharts.renderDebtMaturityChart(debt, report?.fiscalYear)}
+          ${window.AnalisisCharts.renderDebtMaturityChart(debt, report?.fiscalYear, report?.reportingPeriod)}
           ${window.AnalisisCharts.renderDebtHistoryChart(debt, report)}
           ${window.AnalisisCharts.renderDebtRefinancingCard(debt, report)}
         </div>

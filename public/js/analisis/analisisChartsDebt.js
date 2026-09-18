@@ -78,15 +78,16 @@
     return `<div class="shares-chart"><div class="sc-title">${escapeHtml(chartTitle)}</div><svg class="sc-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${escapeHtml(chartTitle)}" preserveAspectRatio="xMidYMid meet">${parts.join('')}</svg></div>`;
   }
 
-  function renderDebtMaturityChart(debt, fiscalYear) {
+  function renderDebtMaturityChart(debt, fiscalYear, periodEnd) {
     if (!debt) return '';
     let baseYear = Number(fiscalYear);
     if (!Number.isFinite(baseYear) || baseYear < 2000) {
       const fromSnippet = String(debt?.secSnippet?.title || debt?.title || '').match(/20\d\d/);
       baseYear = fromSnippet ? parseInt(fromSnippet[0], 10) : 2025;
     }
-    const minYear = baseYear + 1;
-    const maxYear = baseYear + 5;
+    const periodMonth = Number(String(periodEnd ?? '').slice(5, 7));
+    const minYear = Number.isFinite(periodMonth) && periodMonth >= 1 && periodMonth <= 11 ? baseYear : baseYear + 1;
+    const maxYear = minYear + 4;
 
     const parseAmount = (val) => {
       if (val == null) return NaN;
@@ -143,7 +144,10 @@
     const allAmount = filtered.reduce((s, it) => s + it.amount, 0);
     const allRatedItems = rawItems.filter((it) => it.interestRate != null);
     const allRatedAmount = allRatedItems.reduce((s, it) => s + it.amount, 0);
-    const totalAverageRate = allRatedAmount > 0 ? allRatedItems.reduce((s, it) => s + it.amount * it.interestRate, 0) / allRatedAmount : null;
+    const systemRate = Number(debt.allDebtAverageRate);
+    const hasSystemRate = Number.isFinite(systemRate) && systemRate > 0;
+    const itemsAverageRate = allRatedAmount > 0 ? allRatedItems.reduce((s, it) => s + it.amount * it.interestRate, 0) / allRatedAmount : null;
+    const totalAverageRate = hasSystemRate ? systemRate : itemsAverageRate;
 
     const yearsMap = new Map();
     filtered.forEach((it) => {
@@ -211,7 +215,7 @@
     const bannerY = H - 28;
     parts.push(`<rect x="${padL}" y="${bannerY}" width="${plotW}" height="22" rx="4" fill="#1e293b"/>`);
     const afterText = Number.isFinite(afterYearFive) ? ` · Después del año 5: ${fmtM(afterYearFive)}` : '';
-    const anyEstimated = allRatedItems.some((it) => it.estimated === true);
+    const anyEstimated = hasSystemRate ? debt.allDebtAverageRateEstimated !== false : allRatedItems.some((it) => it.estimated === true);
     const rateLabel = anyEstimated ? 'Tipo de interés medio estimado de la deuda' : 'Tipo de interés medio total de la deuda';
     const ratePrefix = anyEstimated ? '~' : '';
     const bannerText = totalAverageRate != null
