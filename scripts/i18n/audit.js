@@ -19,10 +19,30 @@ const OUTPUT = path.join(ROOT, 'public/locales/_missing.json');
 const BASE = process.env.AUDIT_BASE_URL || 'http://localhost:3000';
 const urls = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ['/', '/empresa/KHC', '/guias', '/guias/que-es-un-informe-10-k', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', '/legal/terminos'];
+  : ['/en', '/en/empresa/KHC', '/en/guias', '/en/guias/que-es-un-informe-10-k', '/en/legal/aviso-legal', '/en/legal/privacidad', '/en/legal/cookies', '/en/legal/terminos'];
 
 const SPANISH_WORDS = ['el', 'la', 'los', 'las', 'un', 'una', 'del', 'que', 'con', 'para', 'por', 'sin', 'más', 'está', 'hay', 'como', 'muy', 'este', 'esta', 'todo', 'todos', 'otro', 'nuevo', 'desde', 'hasta', 'cuando', 'porque', 'también', 'solo', 'sobre', 'entre'];
 const SPANISH_WORD_RE = new RegExp(`\\b(${SPANISH_WORDS.join('|')})\\b`, 'i');
+
+const HTML_ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…', mdash: '—',
+  ndash: '–', laquo: '«', raquo: '»', times: '×', minus: '−', le: '≤', ge: '≥', middot: '·',
+  bull: '•', check: '✓', euro: '€', deg: '°', copy: '©', reg: '®', trade: '™',
+  rarr: '→', larr: '←', uarr: '↑', darr: '↓',
+};
+
+/**
+ * Decodifica entidades HTML para que el texto extraído coincida con el diccionario,
+ * que usa los caracteres reales y no sus entidades (`&amp;`, `&lt;`, `&#39;`...).
+ * @param {string} text
+ * @returns {string}
+ */
+function decodeHtmlEntities(text) {
+  return String(text)
+    .replace(/&#(\d+);/g, (match, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&([a-z]+);/gi, (match, name) => HTML_ENTITIES[name.toLowerCase()] ?? match);
+}
 
 function looksSpanish(text) {
   const clean = String(text ?? '').replace(/\s+/g, ' ').trim();
@@ -37,12 +57,15 @@ function extractTexts(html) {
   const withoutScripts = html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ');
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    // El motor i18n de cliente no traduce los bloques `data-i18n-skip`: los pinta
+    // el servidor en el idioma de la ruta, así que no son candidatos de auditoría.
+    .replace(/<details[^>]*data-i18n-skip[\s\S]*?<\/details>/gi, ' ');
   const texts = [];
   const re = />([^<>]+)</g;
   let match;
   while ((match = re.exec(withoutScripts)) !== null) {
-    const text = match[1].replace(/\s+/g, ' ').trim();
+    const text = decodeHtmlEntities(match[1].replace(/\s+/g, ' ').trim());
     if (looksSpanish(text)) texts.push(text);
   }
   return texts;

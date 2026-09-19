@@ -159,7 +159,7 @@ function renderQuarterlyBlock2() {
                     </p>
 
                     <p class="guias-line-desc">
-                      Lo más importante de esta parte son <strong>tres ajustes</strong>: las <strong>stock options</strong> (diluyen al accionista aunque no salga caja), los <strong>impuestos</strong> (lo que de verdad se ha pagado en efectivo frente a lo que debería pagarse) y el <strong>WK</strong> o circulante (el dinero atrapado en inventarios y cobros).
+                      Lo más importante de esta parte son <strong>tres ajustes</strong>: las <strong>stock options</strong> (diluyen al accionista aunque no salga caja), los <strong>impuestos</strong> (lo que de verdad se ha pagado en efectivo frente a lo que debería pagarse) y el <strong>WC</strong> o circulante (el dinero atrapado en inventarios y cobros).
                     </p>
 
                     <!-- ALGORITMO 1: DEDUCCIÓN TRIMESTRAL -->
@@ -197,13 +197,13 @@ function renderQuarterlyBlock2() {
                     <div class="guias-line-rule-box green" style="margin-bottom: 10px;">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                       <div>
-                        <strong>3. El Circulante o WK (Working Capital):</strong>
+                        <strong>3. El Circulante o WC (Working Capital):</strong>
                         el circulante es el dinero que el negocio tiene <em>atrapado</em> para poder operar. Se calcula con las tres partidas que ya vimos en la guía de Datos Financieros: las <strong>cuentas por cobrar</strong> (lo que los clientes nos deben), los <strong>inventarios</strong> (el stock en almacén) menos las <strong>cuentas por pagar</strong> (lo que financian los proveedores). El ejemplo de Nike lo dejaba claro: si un negocio tiene <strong>10.000M atrapados</strong> (3.000M de clientes + 8.000M de inventario − 1.000M de proveedores) y sus precios y volúmenes crecen un 10 %, necesita atar <strong>1.000M más de caja</strong> solo para funcionar igual. Eso es exactamente lo que estima esta fórmula:
                         <div style="margin: 6px 0; font-weight: 700; color: var(--ink);">
-                          <code>WK = (Cuentas por pagar − Inventarios − Cuentas por cobrar) × (inflación + volumen)</code>
+                          <code>WC = (Cuentas por pagar − Inventarios − Cuentas por cobrar) × (inflación + volumen)</code>
                         </div>
                         <em>Importante:</em> esto <strong>no es una ciencia cierta</strong>; es una <strong>fórmula de estimación propia</strong>, inventada por el autor de Cifra, y no un estándar contable. No pretende ser exacta: solo sirve para hacerse una idea de cuánto <em>debería</em> haber gastado (o liberado) el negocio en circulante en un año normal y tener una referencia razonable contra la que medir lo que la empresa reporta.
-                        <br>Se ajusta el flujo descontando la diferencia entre lo reportado y lo teórico: <code>Cash Flow Ajustado = Cash Flow Normal − (WK_reportado − WK_teórico)</code>, recalculando FCF, FCF/Acción y Capital Libre.
+                        <br>Se ajusta el flujo descontando la diferencia entre lo reportado y lo teórico: <code>Cash Flow Ajustado = Cash Flow Normal − (WC_reportado − WC_teórico)</code>, recalculando FCF, FCF/Acción y Capital Libre.
                         <br><em>Ejemplo real (KHC 2026 Q2):</em> la fórmula daba <strong>−8,4M</strong> para el trimestre, pero la empresa reportó <strong>+115M</strong> de liberación de circulante; esa desviación de 123,4M se resta en la columna Ajustado (1082M &rarr; 958,6M).
                       </div>
                     </div>
@@ -365,7 +365,7 @@ function renderAnnualIntro(activeTabId) {
                     Parte 1: Exactamente lo Mismo que el Trimestral, pero con Todo el Año
                   </h4>
                   <p>
-                    La primera parte es <strong>idéntica a la de los informes trimestrales</strong>: los mismos bloques de Cuenta de Resultados, Cash Flow y Asignación de Capital, con los mismos ajustes (deterioros de fondo de comercio e intangibles, impuestos normalizados al 23 %, stock options al 120 % y WK). La única diferencia es el <strong>horizonte único de 12 meses</strong>: el año completo, sin fragmentar en trimestres.
+                    La primera parte es <strong>idéntica a la de los informes trimestrales</strong>: los mismos bloques de Cuenta de Resultados, Cash Flow y Asignación de Capital, con los mismos ajustes (deterioros de fondo de comercio e intangibles, impuestos normalizados al 23 %, stock options al 120 % y WC). La única diferencia es el <strong>horizonte único de 12 meses</strong>: el año completo, sin fragmentar en trimestres.
                     <br><br>
                     <a href="#analisis-ia/trimestral" style="font-weight: 700; color: var(--accent);">Ver la guía del análisis trimestral (10-Q) →</a>
                   </p>

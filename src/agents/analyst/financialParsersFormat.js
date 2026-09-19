@@ -96,6 +96,8 @@ const EXTRACTED_FACT_MONEY_KEYS = [
   'acquisitionsQuarter', 'acquisitionsYtd', 'assetSalesQuarter', 'assetSalesYtd', 'brandDivestitures',
   'impairmentsQuarter', 'impairmentsPrevQuarter', 'impairmentsYtd', 'impairmentsPrevYtd',
   'intangiblesAmortization', 'incomeTaxExpenseQuarter', 'incomeTaxExpenseYtd',
+  'intangiblesAmortizationQuarter', 'intangiblesAmortizationYtd',
+  'incomeTaxesPaidQuarter', 'incomeTaxesPaidYtd',
   'taxCashFlowAdjustmentQuarter', 'taxCashFlowAdjustmentYtd', 'netChangeInCash', 'totalDebt',
   'preferredIssuanceQuarter', 'preferredIssuanceYtd', 'nonControllingSaleQuarter', 'nonControllingSaleYtd',
   'debtCashFlowYtd',

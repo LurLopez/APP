@@ -62,13 +62,13 @@ export async function getCompanyMarkdown(ticker, lang = 'es') {
     lines.push(`## ${isEn ? 'Annual Financial Results (Recent Fiscal Years)' : 'Resultados Financieros Anuales (Últimos Ejercicios)'}`);
     lines.push('');
     if (isEn) {
-      lines.push('| Fiscal Year | Revenue | Net Income | Free Cash Flow (FCF) | Diluted EPS |');
+      lines.push('| Fiscal Year | Revenue | Operating Income | Net Income | Free Cash Flow (FCF) | Diluted EPS |');
     } else {
-      lines.push('| Ejercicio | Ventas (Revenue) | Beneficio Neto | Flujo de Caja Libre (FCF) | EPS Diluido |');
+      lines.push('| Ejercicio | Ventas (Revenue) | Beneficio Operativo | Beneficio Neto | Flujo de Caja Libre (FCF) | EPS Diluido |');
     }
-    lines.push('|---|---|---|---|---|');
+    lines.push('|---|---|---|---|---|---|');
     for (const row of content.annual) {
-      lines.push(`| ${row.year} | ${formatUsdMillions(row.revenue) ?? '—'} | ${formatUsdMillions(row.netIncome) ?? '—'} | ${formatUsdMillions(row.freeCashFlow) ?? '—'} | ${formatUsdShare(row.epsDiluted) ?? '—'} |`);
+      lines.push(`| ${row.year} | ${formatUsdMillions(row.revenue) ?? '—'} | ${formatUsdMillions(row.operatingIncome) ?? '—'} | ${formatUsdMillions(row.netIncome) ?? '—'} | ${formatUsdMillions(row.freeCashFlow) ?? '—'} | ${formatUsdShare(row.epsDiluted) ?? '—'} |`);
     }
     lines.push('');
   }

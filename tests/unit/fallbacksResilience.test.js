@@ -477,3 +477,57 @@ test('extractRepurchaseFactsFromText y extractExecutiveChangesFromText extraen d
   assert.equal(execChanges[0].oldExecutive?.name, 'Richard Roe');
   assert.equal(execChanges[0].reason, 'Retiro / Jubilación');
 });
+
+test('getExecutiveChanges descarta los rellenos de "sin información" en los bloques de directivos', async () => {
+  const { getExecutiveChanges, isNoInfoValue } = await import('../../src/services/reportExport/executiveChanges.js');
+  assert.equal(isNoInfoValue('No public information available'), true);
+  assert.equal(isNoInfoValue('No se dispone de información pública verificada'), true);
+  assert.equal(isNoInfoValue('No consta'), true);
+  assert.equal(isNoInfoValue('N/A'), true);
+  assert.equal(isNoInfoValue('Dejará el Consejo y participará como inversor a largo plazo'), false);
+
+  const section = getExecutiveChanges({
+    executiveChanges: {
+      title: '2: Management changes',
+      changes: [{
+        role: 'CEO',
+        text: 'Effective **December 1, 2025**, Athina Kanikura was appointed CEO.',
+        oldExecutive: {
+          name: 'No public information available',
+          role: 'N/A',
+          salesDuringTenure: 'No public information available',
+          whereTheyGo: 'No public information available',
+          policies: 'No public information available',
+        },
+        newExecutive: {
+          name: 'Athina Kanikura',
+          origin: 'PepsiCo, Executive Vice President',
+          trackRecord: 'No public information available',
+          commitments: 'No se dispone de información pública verificada',
+        },
+      }],
+    },
+  }, 'en');
+
+  assert.ok(section);
+  assert.equal(section.changes.length, 1);
+  assert.equal(section.changes[0].oldExecutive, null, 'Un bloque solo con rellenos desaparece por completo');
+  assert.deepEqual(section.changes[0].newExecutive, {
+    name: 'Athina Kanikura',
+    origin: 'PepsiCo, Executive Vice President',
+  });
+});
+
+test('getExecutiveChanges omite la sección si todos los cambios solo traen rellenos', async () => {
+  const { getExecutiveChanges } = await import('../../src/services/reportExport/executiveChanges.js');
+  const section = getExecutiveChanges({
+    executiveChanges: {
+      changes: [{
+        role: 'CFO',
+        oldExecutive: { name: 'N/A', whereTheyGo: 'No public information available' },
+        newExecutive: { name: null, trackRecord: 'No consta' },
+      }],
+    },
+  });
+  assert.equal(section, null);
+});

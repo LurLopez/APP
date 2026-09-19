@@ -89,13 +89,13 @@ export function buildCashMovementDetails({ prev, curr, caja, periodYear, prevLab
 
 export function buildWcDeviationSentence({ reported, wcReq, deviation, cfo, adjusted, language = 'es' }) {
   const lang = normalizeLanguage(language);
-  const base = t('Desviación del circulante reportado ({reported}M) frente al WK teórico ({wcReq}M): {deviation}M.', {
+  const base = t('Desviación del circulante reportado ({reported}M) frente al WC teórico ({wcReq}M): {deviation}M.', {
     reported: formatWcNumber(reported, lang),
     wcReq: formatWcNumber(wcReq, lang),
     deviation: formatWcNumber(deviation, lang),
   }, lang);
   if (Number.isFinite(Number(cfo)) && Number.isFinite(Number(adjusted))) {
-    return t('{base} El Cash Flow ajustado resta esa desviación: {cfo}M - ({deviation}M) = {adjusted}M.', {
+    return t('{base} El Cash Flow tras el ajuste de circulante queda en: {cfo}M - ({deviation}M) = {adjusted}M.', {
       base,
       cfo: formatWcNumber(cfo, lang),
       deviation: formatWcNumber(deviation, lang),
@@ -138,11 +138,19 @@ export function buildCapitalAllocationFromBalance(extracted, language = 'es') {
   const debtDeltaYtd = (bal.totalDebt != null && bal.totalDebtBeginningOfYear != null)
     ? Number(bal.totalDebt) - Number(bal.totalDebtBeginningOfYear)
     : null;
-  const assumedDebtYtd = (debtDeltaYtd != null && Number.isFinite(debtCashYtdRaw) && acquisitionsYtd >= 50)
+  const assumedDebtCandidate = (debtDeltaYtd != null && Number.isFinite(debtCashYtdRaw) && acquisitionsYtd >= 50)
     ? Math.round((debtDeltaYtd - debtCashYtdRaw) * 10) / 10
     : 0;
+  // Si la divergencia explica casi toda la variación de deuda del balance, lo más probable es
+  // que sea deuda nueva captada en efectivo (con su flujo mal leído) y no deuda asumida de la
+  // empresa adquirida: en ese caso no se pinta la fila (evita inventar cientos de millones).
+  const assumedDebtRatio = debtDeltaYtd ? Math.abs(assumedDebtCandidate) / Math.abs(debtDeltaYtd) : 1;
+  const assumedDebtYtd = assumedDebtRatio <= 0.85 ? assumedDebtCandidate : 0;
   const restrictedCurr = toFiniteNumber(extracted.balance?.restrictedCash);
-  const restrictedPreviousRaw = toFiniteNumber(extracted.balance?.restrictedCashPreviousQuarter);
+  // En Q1 no hay trimestre previo (applyPreviousQuarterCashFlow no se ejecuta): el saldo de
+  // partida es el de inicio de año, que sí viene en el balance comparativo del 10-Q.
+  const restrictedPreviousRaw = toFiniteNumber(extracted.balance?.restrictedCashPreviousQuarter)
+    ?? (Number(extracted.fiscalQuarter) === 1 ? toFiniteNumber(extracted.balance?.restrictedCashBeginningOfYear) : null);
   const restrictedStart = toFiniteNumber(extracted.balance?.restrictedCashBeginningOfYear);
   const restrictedPrevious = (restrictedPreviousRaw === 0 && ((restrictedStart ?? 0) > 0 || (restrictedCurr ?? 0) > 0))
     ? null
@@ -341,7 +349,7 @@ export function buildWorkingCapitalDataFallback(extracted, language = 'es') {
   const quarterWcReq = Math.round(annualWcReq / 4 * 10) / 10;
   const deviationSentenceYtd = buildWcDeviationSentence({ reported: repYtd, wcReq: ytdWcReq, deviation: wcDiffYtd, cfo, adjusted: cfoAdjYtd, language: lang });
   const explanationYtd = hasWcInputs
-    ? t('WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = ({pay} - {inv} - {rec}) × ({inflation}% + {volume}%) = {annual}M en todo el año -> en {months} meses = {ytd}M. {deviation}', {
+    ? t('WC = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = ({pay} - {inv} - {rec}) × ({inflation}% + {volume}%) = {annual}M en todo el año -> en {months} meses = {ytd}M. {deviation}', {
       pay: formatWcNumber(pay, lang),
       inv: formatWcNumber(inv, lang),
       rec: formatWcNumber(rec, lang),
@@ -352,9 +360,9 @@ export function buildWorkingCapitalDataFallback(extracted, language = 'es') {
       ytd: formatWcNumber(ytdWcReq, lang),
       deviation: deviationSentenceYtd,
     }, lang)
-    : t('WK: no se dispone de inventarios, cuentas por pagar y cuentas por cobrar completas; se utiliza WK=0M y no se aplica ajuste de capital circulante. Volumen asumido: {volume}%; inflación sectorial estimada: {inflation}%.', { volume, inflation }, lang);
+    : t('WC: no se dispone de inventarios, cuentas por pagar y cuentas por cobrar completas; se utiliza WC=0M y no se aplica ajuste de capital circulante. Volumen asumido: {volume}%; inflación sectorial estimada: {inflation}%.', { volume, inflation }, lang);
   const result = {
-    ytdScenarios: [`${t('Normal', null, lang)} (WC=${Math.round(repYtd)})`, `${t('Ajustado', null, lang)} (WC=${Math.round(ytdWcReq)})`],
+    ytdScenarios: [`${t('Normal', null, lang)} (WC=${Math.round(repYtd)})`, `${t('Ajustado', null, lang)}*1 (WC=${Math.round(ytdWcReq)})`],
     ytdValues,
     explanationYtd,
   };
@@ -370,7 +378,7 @@ export function buildWorkingCapitalDataFallback(extracted, language = 'es') {
   const dividendsQuarterRaw = toFiniteNumber(quarterly?.dividends);
   const dividendsQuarter = dividendsQuarterRaw != null ? Math.abs(dividendsQuarterRaw) : 0;
 
-  result.quarterScenarios = [`${t('Normal', null, lang)} (WC=${Math.round(reportedQuarter)})`, `${t('Ajustado', null, lang)} (WC=${Math.round(quarterWcReq)})`];
+  result.quarterScenarios = [`${t('Normal', null, lang)} (WC=${Math.round(reportedQuarter)})`, `${t('Ajustado', null, lang)}*1 (WC=${Math.round(quarterWcReq)})`];
   if (months <= 3) {
     result.quarterValues = ytdValues;
   } else if (cfoQuarter != null && capexQuarter != null) {
@@ -398,7 +406,7 @@ export function buildWorkingCapitalDataFallback(extracted, language = 'es') {
     language: lang,
   });
   result.explanation3M = hasWcInputs
-    ? t('WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = ({pay} - {inv} - {rec}) × ({inflation}% + {volume}%) = {annual}M en todo el año -> en 3 meses = {quarter}M. {deviation}', {
+    ? t('WC = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = ({pay} - {inv} - {rec}) × ({inflation}% + {volume}%) = {annual}M en todo el año -> en 3 meses = {quarter}M. {deviation}', {
       pay: formatWcNumber(pay, lang),
       inv: formatWcNumber(inv, lang),
       rec: formatWcNumber(rec, lang),

@@ -6,10 +6,29 @@
 
 const NOVEDADES_DATA = [
   {
+    version: 'v0.1.0',
+    fecha: '18 de Septiembre, 2026',
+    titulo: 'Primera versión estable',
+    esUltima: true,
+    explicacion: 'Primera versión estable de Cifra Research. Esta actualización incorpora el multi-idioma, una IA más rápida y precisa, mejoras en los datos financieros y una renovación de la interfaz y los gráficos de la cartera.',
+    cambios: [
+      { tipo: 'nuevo', texto: 'Multi-idioma: la interfaz y los análisis ya están disponibles en español e inglés.' },
+      { tipo: 'mejora', texto: 'Mejora de la interfaz y de los gráficos de la cartera.' },
+      { tipo: 'mejora', texto: 'Optimización de los recursos al analizar con IA.' },
+      { tipo: 'mejora', texto: 'Mejora de la calidad de los análisis con IA.' },
+      { tipo: 'nuevo', texto: 'Nueva pestaña de ratios en los datos financieros.' },
+      { tipo: 'nuevo', texto: 'Nueva pestaña de guías, para ver qué es cada cosa y cómo analiza la IA.' },
+      { tipo: 'nuevo', texto: 'Añadidas las versiones de los análisis con IA.' },
+      { tipo: 'correccion', texto: 'Corrección de errores generales de la aplicación.' },
+      { tipo: 'correccion', texto: 'Corrección de algunos fallos en los datos financieros.' },
+      { tipo: 'correccion', texto: 'Solución del problema del calendario.' },
+    ],
+  },
+  {
     version: 'v0.0.1',
     fecha: '11 de Septiembre, 2026',
     titulo: 'Generación de la web básica',
-    esUltima: true,
+    esUltima: false,
     explicacion: 'Primera generación de la web básica de Cifra Research.',
     cambios: [],
   },
@@ -17,7 +36,7 @@ const NOVEDADES_DATA = [
 
 const NovedadesModule = {
   data: NOVEDADES_DATA,
-  expandedVersions: new Set(['v0.0.1']),
+  expandedVersions: new Set(['v0.1.0']),
 
   init() {
     this.render();
@@ -120,7 +139,12 @@ const NovedadesModule = {
 
     const topBadge = document.querySelector('#novedades-version-badge');
     if (topBadge && this.data[0]) {
-      topBadge.textContent = `${this.data[0].version} · Actual`;
+      // El estado va en su propio nodo para que el motor i18n lo traduzca
+      // («Actual» → «Current») sin depender de la versión que lo precede.
+      topBadge.textContent = `${this.data[0].version} · `;
+      const status = document.createElement('span');
+      status.textContent = 'Actual';
+      topBadge.append(status);
     }
 
     root.innerHTML = window.NovedadesRender.renderContainer(this.data.length);

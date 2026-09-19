@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMaturityScheduleFromDebtTable, buildMaturityScheduleFromFilingText, normalizeMaturityPayload, maturityItemsLookBucketed, maturityTableLooksIncomplete, maturityWindowBounds, pickCoveringMaturitySchedule, shouldRecoverMaturitySchedule } from '../../src/agents/analyst/debtMaturityFallback.js';
+import { buildMaturityScheduleFromDebtTable, buildMaturityScheduleFromFilingText, normalizeMaturityPayload, maturityItemsLookBucketed, maturityTableLooksIncomplete, maturityWindowBounds, pickCoveringMaturitySchedule, shouldRecoverMaturitySchedule, hasWideRangeLabels } from '../../src/agents/analyst/debtMaturityFallback.js';
 import { processDebtSection, processAcquisitionsDividendsAndWatchlist } from '../../src/agents/analyst/annualConclusionSections.js';
 import { extractDebtFilingText } from '../../src/agents/analyst/filingExtractor.js';
 import { buildDebtMaturityModel } from '../../src/services/reportExport/debtMaturityModel.js';
@@ -316,6 +316,35 @@ Total long-term debt $ 6,456.0 $ 6,234.1`;
   assert.ok(debtText.includes('due August 2035'));
 });
 
+test('extractDebtFilingText descarta el índice de exhibiciones con fechas 8-K (caso KDP 10-K FY2025)', () => {
+  const exhibitIndex = `EXHIBIT INDEX Incorporated by Reference No. Exhibit Description Form Date of Filing 4.3 4.50% Senior Note due 2045 (in global form) 8-K 11/10/2015 4.2 4.5 2.55% Senior Note due 2026 (in global form) 8-K 9/16/2016 4.2`;
+  assert.equal(extractDebtFilingText(exhibitIndex), '');
+});
+
+test('extractDebtFilingText localiza la nota con columna Maturity Date (caso KDP 10-K FY2025)', () => {
+  const note = `Note 5. Long-term Obligations and Borrowing Arrangements SENIOR UNSECURED NOTES Our Notes consisted of the following: (in millions) December 31, Issuance Maturity Date Rate 2025 2024 2026 Notes September 15, 2026 2.550 % 400 400`;
+  const debtText = extractDebtFilingText(note);
+  assert.ok(debtText.includes('SENIOR UNSECURED NOTES'));
+  assert.ok(debtText.includes('Maturity Date Rate'));
+});
+
+// Nota real de KDP 10-K FY2025: columna "Issuance Maturity Date Rate" con cada emisión y sus dos columnas de saldo.
+const KDP_DATED_DEBT_TEXT = `SENIOR UNSECURED NOTES Our Notes consisted of the following: (in millions) December 31, Issuance Maturity Date Rate 2025 2024 2025 Merger Notes May 25, 2025 4.417 % $ &#8212; &#160; $ 529 &#160; 2026 Notes September 15, 2026 2.550 % 400 &#160; 400 &#160; 2026-B Notes November 15, 2026 Floating (2) 500 &#160; &#8212; &#160; 2027 Notes June 15, 2027 3.430 % 500 &#160; 500 &#160; 2028 Merger Notes May 25, 2028 4.597 % 1,112 &#160; 1,112 &#160; 2030 Notes May 1, 2030 3.200 % 750 &#160; 750 &#160; 2031 Notes March 15, 2031 2.250 % 500 &#160; 500 &#160; 2052 Notes April 15, 2052 4.500 % 1,150 &#160; 1,150 &#160; 2025 Revolving Credit Agreement (1) March 31, 2030 $ 4,300 &#160; $ &#8212; &#160; Principal amount 14,064 &#160; 13,093 &#160;`;
+
+test('buildMaturityScheduleFromFilingText lee las tablas con columna Maturity Date (caso KDP 10-K FY2025)', () => {
+  const result = buildMaturityScheduleFromFilingText(KDP_DATED_DEBT_TEXT, 2025, '2025-12-31');
+  assert.ok(result, 'Debe reconstruir el calendario desde las fechas de vencimiento');
+  assert.deepEqual(result.items.map((item) => [item.year, item.amount, item.rate]), [
+    [2026, 400, 2.55],
+    [2026, 500, null],
+    [2027, 500, 3.43],
+    [2028, 1112, 4.597],
+    [2030, 750, 3.2],
+  ]);
+  assert.equal(result.afterYearFive, 1650, '2031 (500) y 2052 (1.150) van a vencimientos posteriores al año 5');
+  assert.ok(!result.items.some((item) => /revolving|credit agreement/i.test(item.label)), 'El revólver no es deuda dispuesta');
+});
+
 const CAG_DEBT_TEXT = `4. LONG-TERM DEBT
 5.4% senior debt due November 2048 \t$ \t1,000.0 $ \t1,000.0
 4.65% senior debt due January 2043 \t176.7 \t176.7
@@ -364,4 +393,94 @@ test('pickCoveringMaturitySchedule elige el candidato más cercano a la deuda to
   assert.equal(pickCoveringMaturitySchedule([partial], 7000), null);
   assert.equal(pickCoveringMaturitySchedule([partial, complete], null), partial);
   assert.equal(pickCoveringMaturitySchedule([], 7000), null);
+});
+
+// Tabla real de Coca-Cola 10-K FY2023 (Note 11): las filas de deuda agrupan emisiones por
+// rangos amplios ("due 2024-2093") y la nota publica aparte la tabla año a año de vencimientos.
+const KO_DEBT_TABLE = {
+  headers: ['Obligation', 'Maturity', 'December 31, 2023', 'December 31, 2022'],
+  rows: [
+    ['U.S. dollar notes due 2024-2093', '2024-2093', '$21,982', '$21,966'],
+    ['U.S. dollar debentures due 2023-2098', '2023-2098', '$788', '$891'],
+    ['Australian dollar notes due 2024', '2024', '$374', '$374'],
+    ['Euro notes due 2024-2041', '2024-2041', '$12,888', '$12,485'],
+    ['Swiss franc notes due 2028', '2028', '$684', '$623'],
+    ['Other, due through 2098', 'through 2098', '$1,763', '$1,906'],
+    ['Fair value adjustments', 'N/A', '($972)', '($1,469)'],
+    ['Total', '', '$37,507', '$36,776'],
+    ['Less: Current portion', '', '$1,960', '$399'],
+    ['Long-term debt', '', '$35,547', '$36,377'],
+  ],
+};
+
+const KO_MATURITY_TEXT = `The following table summarizes the maturities of long-term debt for the five years succeeding December 31, 2023 (in millions):
+Maturities of
+Long-Term Debt
+2024 \t$ \t1,960
+2025 \t1,070
+2026 \t1,810
+2027 \t4,616
+2028 \t2,770
+NOTE 12: COMMITMENTS AND CONTINGENCIES`;
+
+test('buildMaturityScheduleFromDebtTable descarta las filas con rangos amplios (KO 10-K FY2023)', () => {
+  assert.equal(buildMaturityScheduleFromDebtTable(KO_DEBT_TABLE, 2023, '2023-12-31'), null);
+});
+
+test('hasWideRangeLabels distingue agregados de rangos cortos', () => {
+  assert.equal(hasWideRangeLabels([{ label: 'U.S. dollar notes due 2024-2093' }]), true);
+  assert.equal(hasWideRangeLabels([{ label: 'Euro notes due 2024-2041' }]), true);
+  assert.equal(hasWideRangeLabels([{ label: 'Notes due 2024-2047' }]), true);
+  assert.equal(hasWideRangeLabels([{ label: 'Vencimientos 2026-2027 (resto)' }]), false);
+  assert.equal(hasWideRangeLabels([{ label: 'Long-term debt obligations due 2020-2021' }]), false);
+  assert.equal(hasWideRangeLabels([]), false);
+});
+
+test('buildMaturityScheduleFromFilingText lee la tabla "maturities of long-term debt" (KO 10-K FY2023)', () => {
+  const result = buildMaturityScheduleFromFilingText(KO_MATURITY_TEXT, 2023, '2023-12-31');
+  assert.ok(result);
+  assert.equal(result.authoritative, true);
+  assert.deepEqual(result.items.map((item) => [item.year, item.amount]), [
+    [2024, 1960],
+    [2025, 1070],
+    [2026, 1810],
+    [2027, 4616],
+    [2028, 2770],
+  ]);
+  assert.equal(result.afterYearFive, null);
+});
+
+test('la tabla año a año no confunde la tabla de arrendamientos operativos', () => {
+  const leases = `The following table summarizes the maturities of our operating lease liabilities as of December 31, 2023 (in millions):
+Maturities of
+Operating Lease
+Liabilities
+2024 \t$ \t395
+2025 \t254
+2026 \t197
+2027 \t153
+2028 \t111
+Thereafter \t412`;
+  assert.equal(buildMaturityScheduleFromFilingText(leases, 2023, '2023-12-31'), null);
+});
+
+test('la tabla año a año respeta la fila Thereafter para los vencimientos posteriores', () => {
+  const text = `As of December 31, 2024, the aggregate principal debt maturities of long-term debt and short-term borrowings are as follows (in millions):
+2025 \t20.4
+2026 \t2,350
+2027 \t14.1
+2028 \t0.5
+2029 \t1.7
+Thereafter \t3,730.8`;
+  const result = buildMaturityScheduleFromFilingText(text, 2024, '2024-12-31');
+  assert.ok(result);
+  assert.equal(result.authoritative, true);
+  assert.deepEqual(result.items.map((item) => [item.year, item.amount]), [
+    [2025, 20.4],
+    [2026, 2350],
+    [2027, 14.1],
+    [2028, 0.5],
+    [2029, 1.7],
+  ]);
+  assert.equal(result.afterYearFive, 3730.8);
 });

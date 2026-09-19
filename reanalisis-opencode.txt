@@ -1,0 +1,26 @@
+REANÁLISIS CONTINUO CON OPENCODE (thinking desactivado)
+Inicio: 18/9/2026, 12:40:56 · Proveedor: opencode
+Estado: DETENIDO (tiempo máximo alcanzado (1 min))
+Pasadas completadas: 1 · Análisis nuevos: 5 · Fallos: 0
+
+Cada análisis nuevo se guarda junto a los anteriores para comparar versiones.
+
+Ticker | Tipo | Acceso | Versión anterior | Versión nueva
+-------|------|--------|------------------|--------------
+KDP | 10-K | 0001418135-26-000016 | #743 opencode nota 6 | #746 opencode nota 6
+KDP | 10-Q | 0001418135-26-000026 | #742 opencode sin nota | #745 opencode sin nota
+KDP | 10-Q | 0001418135-26-000051 | #716 opencode sin nota | #744 opencode sin nota
+
+EVENTOS (últimas 80 líneas)
+18/9/2026, 12:40:57 — ── INICIO — 2 análisis en paralelo — 3 informes en rotación ──
+18/9/2026, 12:40:57 — [W1] [ANALIZANDO] KDP 10-K (0001418135-26-000016)...
+18/9/2026, 12:40:57 — [W2] [ANALIZANDO] KDP 10-Q (0001418135-26-000026)...
+18/9/2026, 12:41:30 — [W2] [OK] KDP 10-Q guardado (ID 742, 32.5s).
+18/9/2026, 12:41:30 — [W2] [ANALIZANDO] KDP 10-Q (0001418135-26-000051)...
+18/9/2026, 12:41:46 — [W1] [OK] KDP 10-K guardado (ID 743, 48.3s).
+18/9/2026, 12:41:46 — [W1] [ANALIZANDO] KDP 10-K (0001418135-26-000016)...
+18/9/2026, 12:41:52 — [W2] [OK] KDP 10-Q guardado (ID 744, 22.1s).
+18/9/2026, 12:41:52 — [W2] [ANALIZANDO] KDP 10-Q (0001418135-26-000026)...
+18/9/2026, 12:42:07 — [W2] [OK] KDP 10-Q guardado (ID 745, 15.1s).
+18/9/2026, 12:42:19 — [W1] [OK] KDP 10-K guardado (ID 746, 33.0s).
+18/9/2026, 12:42:19 — FIN — tiempo máximo alcanzado (1 min). Análisis nuevos: 5, fallos: 0, intentos: 5. Resumen en reanalisis-opencode.txt

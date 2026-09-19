@@ -18,6 +18,7 @@ import {
   withCompliance,
 } from './seoConstants.js';
 import { injectCompanyMeta, applyNoIndex } from './companyMeta.service.js';
+import { safeJsonForScript } from './jsonLd.service.js';
 
 export function isPrivatePath(pathname) {
   for (const privatePath of PRIVATE_PATHS) {
@@ -87,6 +88,10 @@ export function serveHtml(res, fileName, { pathname = null, noIndex = false, com
     html = html.replace('</head>', `  ${langScript}\n</head>`);
   }
 
+  if (isEn) {
+    html = setMetaTag(html, /<meta property="og:image:alt" content="[\s\S]*?">/, '<meta property="og:image:alt" content="Cifra — AI financial report analysis">');
+  }
+
   if (noIndex) html = applyNoIndex(html);
   if (companyMeta) html = injectCompanyMeta(html, companyMeta);
   if (headExtras) html = html.replace('</head>', `${headExtras}\n</head>`);
@@ -132,6 +137,57 @@ export function serveStandalone(res, html, { cacheControl = 'public, max-age=180
 
   if (contentIsEn) {
     out = out.replace('<html lang="es">', '<html lang="en">');
+    out = setMetaTag(out, /<meta property="og:image:alt" content="[\s\S]*?">/, `<meta property="og:image:alt" content="Cifra — ${escapeHtml(title || 'AI financial analysis')}">`);
+    out = out.replace(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/, (match, jsonText) => {
+      try {
+        const data = JSON.parse(jsonText);
+        const localizeNode = (node) => {
+          if (!node || typeof node !== 'object') return;
+          if (node.inLanguage) node.inLanguage = 'en';
+          if (typeof node.url === 'string' && !node.url.includes('/en/')) {
+            node.url = node.url.replace(/(\/)(guias|legal)/, '$1en/$2');
+          }
+          if (typeof node.mainEntityOfPage === 'string' && !node.mainEntityOfPage.includes('/en/')) {
+            node.mainEntityOfPage = node.mainEntityOfPage.replace(/(\/)(guias|legal)/, '$1en/$2');
+          }
+          if (node['@type'] === 'Article' || node['@type'] === 'WebPage' || node['@type'] === 'CollectionPage') {
+            if (title) {
+              if (node.headline) node.headline = title;
+              if (node.name) node.name = title;
+            }
+            if (description && node.description) {
+              node.description = description;
+            }
+          }
+          if (node['@type'] === 'BreadcrumbList' && Array.isArray(node.itemListElement)) {
+            node.itemListElement = node.itemListElement.map((item) => {
+              if (typeof item.item === 'string') {
+                if (item.item === `${config.siteUrl}/` || item.item === config.siteUrl || item.item.replace(/^https?:\/\/[^/]+/, '') === '/' || item.item.replace(/^https?:\/\/[^/]+/, '') === '') {
+                  return { ...item, item: `${config.siteUrl}/en` };
+                }
+                if (item.item.endsWith('/guias') || item.item.endsWith('/guias/')) {
+                  return { ...item, name: 'Guides', item: item.item.replace(/\/guias\/?$/, '/en/guias') };
+                }
+                if (/\/legal(\/|$)/.test(item.item) && !item.item.includes('/en/legal')) {
+                  return { ...item, item: item.item.replace(/(\/)legal/, '$1en/legal') };
+                }
+              }
+              if (item.position === 3 && title) {
+                return { ...item, name: title, item: canonicalUrl };
+              }
+              return item;
+            });
+          }
+          for (const key of Object.keys(node)) {
+            if (typeof node[key] === 'object') localizeNode(node[key]);
+          }
+        };
+        localizeNode(data);
+        return `<script type="application/ld+json">\n${safeJsonForScript(data)}\n</script>`;
+      } catch {
+        return match;
+      }
+    });
   }
 
   if (title) {
@@ -176,7 +232,7 @@ export function serveStandalone(res, html, { cacheControl = 'public, max-age=180
   }
 
   if (!out.includes('js/shared/i18n.js')) {
-    const i18nScript = '<script src="/js/shared/i18n.js?v=9"></script>';
+    const i18nScript = '<script src="/js/shared/i18n.js?v=10"></script>';
     out = out.includes('</body>')
       ? out.replace('</body>', `  ${i18nScript}\n</body>`)
       : `${out}\n${i18nScript}\n`;

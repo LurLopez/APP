@@ -22,6 +22,7 @@
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
   <link rel="canonical" href="{{SITE_URL}}/">
   <link rel="alternate" hreflang="es" href="{{SITE_URL}}/">
+  <link rel="alternate" hreflang="en" href="{{SITE_URL}}/en">
   <link rel="alternate" hreflang="x-default" href="{{SITE_URL}}/">
   <link rel="alternate" type="text/plain" href="{{SITE_URL}}/llms.txt" title="Resumen para modelos de lenguaje (LLMs)">
   <link rel="alternate" type="text/plain" href="{{SITE_URL}}/llms-full.txt" title="Documentación completa para modelos de lenguaje (LLMs)">
@@ -48,7 +49,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
 
 
-  <link rel="stylesheet" href="/styles.css?v=124">
+  <link rel="stylesheet" href="/styles.css?v=125">
 </head>
 <body class="company-page">
   <div class="app-shell">
@@ -451,7 +452,7 @@
                 <h2>Novedades y versiones</h2>
                 <p class="section-subtitle">Consulta las mejoras, correcciones y nuevas funcionalidades introducidas en cada versión.</p>
               </div>
-              <span class="scope-badge" id="novedades-version-badge">v0.0.1 · Actual</span>
+              <span class="scope-badge" id="novedades-version-badge">v0.1.0 · Actual</span>
             </div>
             <div id="novedades-section"></div>
           </section>
@@ -766,6 +767,32 @@
                       </svg>
                       <span>Medir</span>
                     </button>
+                    <div class="chart-ma-control" id="val-ma-control">
+                      <div class="chart-ma-chips" id="val-ma-chips"></div>
+                      <button type="button" id="val-ma-config-btn" class="chart-ma-config-btn" title="Configurar medias móviles (cambiar sesiones, añadir nuevas)">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                        <span>MA</span>
+                      </button>
+                      <div class="chart-ma-popover" id="val-ma-popover" hidden>
+                        <div class="chart-ma-popover-head">
+                          <strong>Medias móviles</strong>
+                          <button type="button" class="chart-ma-popover-close" id="val-ma-popover-close" title="Cerrar">&times;</button>
+                        </div>
+                        <div class="chart-ma-list" id="val-ma-list"></div>
+                        <form class="chart-ma-add-form" id="val-ma-add-form">
+                          <div class="chart-ma-add-row">
+                            <input type="number" id="val-ma-add-input" class="chart-ma-add-input" min="2" max="5000" placeholder="Nº sesiones (ej. 200)" required />
+                            <button type="submit" class="chart-ma-add-submit">+ Añadir</button>
+                          </div>
+                          <div class="chart-ma-quick-presets">
+                            <span>Frecuentes:</span>
+                            <button type="button" data-val-preset="100">100</button>
+                            <button type="button" data-val-preset="500">500</button>
+                            <button type="button" data-val-preset="1000">1000</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
                     <button type="button" id="val-fullscreen" class="chart-fs pf-chart-fullscreen-btn" aria-label="Pantalla completa (F)" title="Pantalla completa (F)">
                       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg>
                     </button>
@@ -1453,7 +1480,7 @@
   </div>
 
   <script src="/js/shared/htmlUtils.js"></script>
-  <script src="/js/shared/i18n.js?v=9"></script>
+  <script src="/js/shared/i18n.js?v=10"></script>
   <script src="/js/auth/authUI.js?v=2"></script>
   <script src="/authFlow.js"></script>
 
@@ -1575,7 +1602,7 @@
   <script src="/js/analisis/analisisTablesReport.js?v=3"></script>
 
   <script src="/js/analisis/analisisTables.js?v=35"></script>
-  <script src="/js/analisis/analisisHistory.js?v=1"></script>
+  <script src="/js/analisis/analisisHistory.js?v=2"></script>
   <script src="/js/analisis/analisisVersions.js?v=1"></script>
   <script src="/analisisState.js"></script>
 
@@ -1593,12 +1620,12 @@
 
   <script src="/js/analisis/analisisHistoryWiring.js"></script>
 
-  <script src="/js/analisis/analisisInit.js"></script>
+  <script src="/js/analisis/analisisInit.js?v=2"></script>
   <script src="/js/analisis/analisisAdminChat.js"></script>
 
   <script src="/analisis.js?v=36"></script>
   <script src="/js/novedades/novedadesRender.js"></script>
-  <script src="/novedades.js?v=6"></script>
+  <script src="/novedades.js?v=8"></script>
   <script src="/guias.js?v=15" type="module"></script>
   <script src="/donations.js?v=3"></script>
   <script src="/js/empresa/empresaFormatting.js?v=76"></script>
@@ -1650,14 +1677,15 @@
   <script src="/js/empresa/empresaPriceChartTimeline.js?v=1"></script>
   <script src="/js/empresa/empresaPriceChartMa.js?v=1"></script>
   <script src="/js/empresa/empresaPriceChartHover.js?v=1"></script>
-  <script src="/js/empresa/empresaValuationChartData.js?v=2"></script>
+  <script src="/js/empresa/empresaValuationChartData.js?v=4"></script>
   <script src="/js/empresa/empresaValuationChartBars.js?v=2"></script>
-  <script src="/js/empresa/empresaValuationChartRender.js?v=2"></script>
-  <script src="/js/empresa/empresaValuationChartHover.js?v=1"></script>
+  <script src="/js/empresa/empresaValuationChartRender.js?v=3"></script>
+  <script src="/js/empresa/empresaValuationChartHover.js?v=2"></script>
   <script src="/js/empresa/empresaValuationChartMeasure.js?v=1"></script>
   <script src="/js/empresa/empresaValuationChartCompare.js?v=1"></script>
   <script src="/js/empresa/empresaValuationChartTimeline.js?v=1"></script>
-  <script src="/js/empresa/empresaValuationChart.js?v=2"></script>
+  <script src="/js/empresa/empresaValuationChartMa.js?v=1"></script>
+  <script src="/js/empresa/empresaValuationChart.js?v=3"></script>
   <script src="/js/empresa/empresaPriceChart.js?v=2"></script>
   <script src="/js/empresa/empresaCore.js?v=1"></script>
 
@@ -1669,7 +1697,7 @@
 
   <script src="/js/empresa/empresaBoot.js?v=81"></script>
 
-  <script src="/empresa.js?v=80"></script>
+  <script src="/empresa.js?v=81"></script>
 
   <!-- Mini-chat de administración con DeepSeek para iterar el informe -->
   <div class="admin-ai-chat-drawer" id="admin-ai-chat-drawer" hidden aria-hidden="true">

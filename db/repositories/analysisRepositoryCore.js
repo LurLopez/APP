@@ -166,6 +166,23 @@ export async function findLatestDoneAnalysis({ ticker, accession, userId = null,
   return rows[0] ?? null;
 }
 
+export async function findDoneAnalysisByFilename({ filename, language = null, userId = null }) {
+  if (!filename) return null;
+  const { rows } = await query(
+    `SELECT ${ANALYSIS_COLUMNS}
+     FROM analyses
+     WHERE filename = $1
+        AND status = 'done'
+        AND report IS NOT NULL
+        AND (is_public = true OR ($2::int IS NOT NULL AND user_id = $2))
+        AND ($3::text IS NULL OR language = $3)
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1`,
+    [filename, userId, language || null],
+  );
+  return rows[0] ?? null;
+}
+
 export async function findUserAnalysis({ userId, ticker, accession }) {
   if (!userId || !ticker || !accession) return null;
   const filename = `${ticker}-${accession}.pdf`;

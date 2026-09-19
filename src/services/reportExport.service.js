@@ -96,3 +96,12 @@ export {
 export {
   buildReportOdt,
 } from './reportExport/odtExporter.js';
+
+export {
+  BRAND_URL,
+  BRAND_LABEL,
+  BRAND_LOGO_PATH,
+  BRAND_LOGO_RATIO,
+  readBrandLogo,
+  hasBrandLogo,
+} from './reportExport/reportBranding.js';

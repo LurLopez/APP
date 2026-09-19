@@ -42,10 +42,16 @@ export function sanitizeValuationSeries(points) {
   }
 }
 
-export async function getValuationSeries(ticker, rangeKey = '5y') {
+export async function getValuationSeries(ticker, rangeKey = '5y', { bufferDays = 0 } = {}) {
   const days = VALUATION_RANGES[rangeKey] ?? VALUATION_RANGES['5y'];
+  // Días extra de histórico previos al rango: permiten calcular medias móviles
+  // largas con lookback completo (el cliente filtra los puntos del rango).
+  const extraDays = Math.max(0, Math.min(7305, Math.round(Number(bufferDays) || 0)));
   const to = new Date().toISOString().slice(0, 10);
-  const from = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const rangeFrom = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const from = extraDays > 0
+    ? new Date(Date.now() - (days + extraDays) * 86400000).toISOString().slice(0, 10)
+    : rangeFrom;
   const [company, prices] = await Promise.all([
     getCompanyByTicker(ticker),
     getHistoricalPrices(ticker, { from, to }).catch(() => []),
@@ -176,6 +182,7 @@ export async function getValuationSeries(ticker, rangeKey = '5y') {
   return {
     range: VALUATION_RANGES[rangeKey] ? rangeKey : '5y',
     currency: 'USD',
+    rangeFrom,
     points,
     source: 'SEC EDGAR + Yahoo Finance',
   };

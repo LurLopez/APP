@@ -13,6 +13,7 @@ import { handleEdgarError } from './screener.controller.js';
 import { serveExistingAnalysis } from './filing.versions.controller.js';
 import { resolveAnalysisLanguage } from '../../utils/analysisLanguage.js';
 import { translateAnalysisVariant } from '../../services/translation/analysisTranslation.service.js';
+import { joinAutoTranslation, scheduleLanguageVariants } from '../../services/translation/autoTranslate.service.js';
 import { SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE } from '../../utils/i18n.js';
 
 export const TICKER_PATTERN = /^[A-Z0-9.-]{1,10}$/;
@@ -80,6 +81,14 @@ export async function analyzeFilingHandler(req, res, next) {
         return;
       }
 
+      // Traducción automática del análisis nuevo en curso hacia este idioma:
+      // se espera a que termine y se sirve sin gastar cupo.
+      const autoVariant = await joinAutoTranslation({ ticker, accession, targetLanguage: language, userId: user?.id ?? null });
+      if (autoVariant?.report) {
+        await serveExistingAnalysis(autoVariant, ticker, accession, user, res);
+        return;
+      }
+
       // Variante de idioma: si el análisis existe en otro idioma, se pide confirmación
       // explícita antes de gastar cupo generando la versión en el idioma pedido.
       if (!confirmLanguage) {
@@ -110,8 +119,9 @@ export async function analyzeFilingHandler(req, res, next) {
       return;
     }
 
-    // Variante de idioma confirmada: se traduce el informe ya existente (mismos
-    // datos, coste mínimo) en lugar de volver a analizar el filing desde cero.
+    // Variante de idioma confirmada por el usuario: se traduce el informe ya
+    // existente (mismos datos, coste mínimo) en lugar de volver a analizar el
+    // filing desde cero. Consume una generación del cupo diario.
     if (!force && !upgrade && confirmLanguage) {
       const variant = await findLanguageVariant({ ticker, accession, userId: user.id, language });
       if (variant?.report) {
@@ -142,7 +152,16 @@ export async function analyzeFilingHandler(req, res, next) {
       }
     }
 
+    if (confirmLanguage && !force && !upgrade) {
+      const stale = await findLatestDoneAnalysis({ ticker, accession, userId: user.id, language });
+      if (stale?.report) {
+        await serveExistingAnalysis(stale, ticker, accession, user, res);
+        return;
+      }
+    }
+
     const usageId = await reserveAiQuota(user);
+    const filename = `${ticker}-${accession}.pdf`;
     let result;
 
     try {
@@ -165,7 +184,7 @@ export async function analyzeFilingHandler(req, res, next) {
         userId: user.id,
         actor: user.username || user.email,
         isPublic: true,
-        filename: `${ticker}-${accession}.pdf`,
+        filename,
         ticker,
         accession,
         sourceUrl: content.filing?.documentUrl ?? null,
@@ -180,6 +199,17 @@ export async function analyzeFilingHandler(req, res, next) {
     } catch (generationError) {
       await refundAiQuota(usageId);
       throw generationError;
+    }
+
+    if (!force && !upgrade) {
+      scheduleLanguageVariants({
+        ticker,
+        accession,
+        filename,
+        language: result.language ?? language,
+        isPublic: true,
+        userId: user.id,
+      });
     }
 
     const quota = await getAiQuota(user);

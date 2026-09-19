@@ -13,17 +13,20 @@ function renderValuationChart() {
   const timelineWrap = document.querySelector('#val-timeline-wrap');
   const zoomGroup = document.querySelector('#val-zoom-group');
   const measureBtn = document.querySelector('#val-measure-btn');
+  const maControl = document.querySelector('#val-ma-control');
 
   if (valChartMetric === 'netDebtToEbitda') {
     if (timelineWrap) timelineWrap.hidden = true;
     if (zoomGroup) zoomGroup.style.display = 'none';
     if (measureBtn) measureBtn.style.display = 'none';
+    if (maControl) maControl.style.display = 'none';
     renderAnnualNetDebtEbitdaChart();
     return;
   }
   if (timelineWrap) timelineWrap.hidden = false;
   if (zoomGroup) zoomGroup.style.display = '';
   if (measureBtn) measureBtn.style.display = '';
+  if (maControl) maControl.style.display = '';
 
   const svg = document.querySelector('#val-chart');
   const wrap = document.querySelector('#val-chart-body');
@@ -71,11 +74,26 @@ function renderValuationChart() {
   const values = points.map((point) => Number(point[effectiveKey]))
     .filter((value) => Number.isFinite(value) && value !== null && (allowZero ? (allowNegative ? true : value >= 0) : value > 0));
 
-  const allVisibleValues = values.length ? values : [0];
-  const currentVal = allVisibleValues[allVisibleValues.length - 1];
-  const minVal = Math.min(...allVisibleValues);
-  const maxVal = Math.max(...allVisibleValues);
-  const avgVal = allVisibleValues.reduce((sum, v) => sum + v, 0) / allVisibleValues.length;
+  const statValues = values.length ? values : [0];
+  const currentVal = statValues[statValues.length - 1];
+  const minVal = Math.min(...statValues);
+  const maxVal = Math.max(...statValues);
+  const avgVal = statValues.reduce((sum, v) => sum + v, 0) / statValues.length;
+
+  // Medias móviles activas, calculadas sobre el histórico completo (incluye el buffer
+  // previo al rango para que la línea tenga lookback completo desde el borde izquierdo).
+  const maSeries = typeof window.ensureValMaLookup === 'function' ? window.ensureValMaLookup(effectiveKey) : {};
+  const activeMAs = typeof window.getValActiveMaConfigs === 'function'
+    ? window.getValActiveMaConfigs().filter((ma) => maSeries[ma.period]?.size)
+    : [];
+  const scaleValues = statValues.slice();
+  activeMAs.forEach((ma) => {
+    const series = maSeries[ma.period];
+    points.forEach((point) => {
+      const value = series.get(point.t);
+      if (Number.isFinite(value) && (allowZero ? (allowNegative ? true : value >= 0) : value > 0)) scaleValues.push(value);
+    });
+  });
 
   const currentEl = document.querySelector('#val-stat-current');
   const avgEl = document.querySelector('#val-stat-avg');
@@ -86,7 +104,7 @@ function renderValuationChart() {
   if (minEl) minEl.textContent = formatValChartAxis(minVal, metricKey);
   if (maxEl) maxEl.textContent = formatValChartAxis(maxVal, metricKey);
 
-  const { min, max, ticks } = computeValuationScale(allVisibleValues, allowNegative);
+  const { min, max, ticks } = computeValuationScale(scaleValues, allowNegative);
 
   const x = (index) => pad.left + (index / Math.max(1, points.length - 1)) * innerWidth;
   const y = (value) => pad.top + (1 - (value - min) / (max - min)) * innerHeight;
@@ -144,6 +162,28 @@ function renderValuationChart() {
     pathsHtml += `<path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/>`;
   });
 
+  // Líneas de medias móviles (mismo estilo discontinuo que el gráfico de cotización)
+  let maPathsHtml = '';
+  activeMAs.forEach((ma) => {
+    const series = maSeries[ma.period];
+    let maPath = '';
+    let inSegment = false;
+    points.forEach((point, index) => {
+      const value = series.get(point.t);
+      if (Number.isFinite(value)) {
+        const px = x(index).toFixed(1);
+        const py = y(value).toFixed(1);
+        maPath += inSegment ? ` L${px},${py}` : `M${px},${py}`;
+        inSegment = true;
+      } else {
+        inSegment = false;
+      }
+    });
+    if (maPath) {
+      maPathsHtml += `<path d="${maPath}" class="chart-ma" style="--ma-stroke: ${ma.color}; stroke: ${ma.color};"/>`;
+    }
+  });
+
   const lastPoint = points[points.length - 1];
   const lastPointVal = Number(lastPoint?.[effectiveKey]);
   let lastTag = '';
@@ -167,6 +207,7 @@ function renderValuationChart() {
     ${axisBaselines}
     ${avgLine}
     ${pathsHtml}
+    ${maPathsHtml}
     ${lastTag}
     <g class="pf-chart-measure-layer" style="display:none;">
       <rect class="pf-chart-measure-box" x="0" y="0" width="0" height="0" fill="rgba(239, 68, 68, 0.08)" stroke="rgba(220, 38, 38, 0.65)" stroke-width="1.4" stroke-dasharray="4 3" rx="2" ry="2"/>
@@ -200,6 +241,7 @@ function renderValuationChart() {
         <circle class="pf-chart-hover-dot-halo" r="10" fill="var(--accent)" fill-opacity="0.25"/>
         <circle class="pf-chart-hover-dot" r="5" fill="#ffffff" stroke="var(--accent)" stroke-width="2.6"/>
       </g>
+      <g class="pf-chart-hover-ma-dots"></g>
       <g class="pf-chart-x-badge" transform="translate(0, ${height - pad.bottom})">
         <rect class="pf-chart-x-badge-bg" x="-42" y="2" width="84" height="20" rx="4" ry="4"/>
         <text class="pf-chart-x-badge-text" x="0" y="16" text-anchor="middle">--</text>
@@ -213,7 +255,7 @@ function renderValuationChart() {
     <rect class="pf-chart-overlay" x="${pad.left}" y="${pad.top}" width="${innerWidth}" height="${innerHeight}" fill="transparent" cursor="crosshair"/>
   `;
 
-  valChartState = { isBarChart: false, points, metricKey, effectiveKey, allowNegative, allowZero, x, y, pad, height, width, scale: { min, max } };
+  valChartState = { isBarChart: false, points, metricKey, effectiveKey, allowNegative, allowZero, x, y, pad, height, width, scale: { min, max }, maSeries, activeMAs };
   updateValTimelineSliderUi();
 }
 window.renderValuationChart = renderValuationChart;

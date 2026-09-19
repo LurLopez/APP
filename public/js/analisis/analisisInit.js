@@ -138,6 +138,7 @@
     wireAnalisisResults();
     wireAnalisisHistory();
     wireAnalisisAdmin();
+    syncAuthState();
 
     const initialReportEl = document.querySelector('#cifra-initial-report');
     if (initialReportEl) {
@@ -185,6 +186,19 @@
     fetchAnalyses();
   }
 
+  function syncAuthState() {
+    const auth = window.AuthModule;
+    if (auth?.isReady?.()) {
+      setAuthenticated(Boolean(auth.getUser()));
+      return;
+    }
+    if (auth?.whenReady) {
+      auth.whenReady().then((user) => setAuthenticated(Boolean(user)));
+      return;
+    }
+    setAuthenticated(Boolean(window.currentUser));
+  }
+
 window.wireAnalisisAdmin = wireAnalisisAdmin;
 window.analisisInit = init;
 window.setAuthenticated = setAuthenticated;
@@ -194,6 +208,8 @@ if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
       if (!AS?.initialized) init();
     });
+  } else if (!AS?.initialized) {
+    init();
   }
 }
 

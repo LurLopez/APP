@@ -44,6 +44,7 @@ function computeValuationScale(values, allowNegative = false) {
 
 function setPeAdjusted(adjusted) {
   valPeAdjusted = Boolean(adjusted);
+  window.valPeAdjusted = valPeAdjusted;
   const c1 = document.querySelector('#val-pe-adjusted-toggle');
   const c2 = document.querySelector('#val-chart-adjusted-checkbox');
   const c3 = document.querySelector('#val-payout-adjusted-toggle');
@@ -63,17 +64,27 @@ async function loadValuationChart(range) {
   document.querySelectorAll('.val-chart-ranges button').forEach((button) => {
     button.classList.toggle('active', button.dataset.vrange === range);
   });
+  // Buffer de histórico previo al rango para que las medias móviles tengan lookback completo.
+  const bufferDays = typeof window.getValMaRequiredBufferDays === 'function' ? window.getValMaRequiredBufferDays() : 0;
   try {
-    const response = await fetch(`/api/screener/company/${encodeURIComponent(companyTicker)}/valuation?range=${encodeURIComponent(range)}`);
+    const bufferParam = bufferDays > 0 ? `&buffer=${encodeURIComponent(bufferDays)}` : '';
+    const response = await fetch(`/api/screener/company/${encodeURIComponent(companyTicker)}/valuation?range=${encodeURIComponent(range)}${bufferParam}`);
     const data = await response.json().catch(() => ({}));
-    valChartPoints = response.ok && Array.isArray(data.points) ? data.points : [];
+    const points = response.ok && Array.isArray(data.points) ? data.points : [];
+    valChartAllPoints = points;
+    valChartLoadedBuffer = bufferDays;
+    valChartPoints = data.rangeFrom ? points.filter((point) => !point.date || point.date >= data.rangeFrom) : points;
+    if (!valChartPoints.length && points.length) valChartPoints = points;
   } catch {
+    valChartAllPoints = [];
+    valChartLoadedBuffer = 0;
     valChartPoints = [];
   }
   valSliceStart = 0;
   valSliceEnd = Math.max(0, valChartPoints.length - 1);
   const sparkEl = document.querySelector('#val-timeline-sparkline');
   if (sparkEl) sparkEl.innerHTML = '';
+  if (typeof window.renderValMaControlsUi === 'function') window.renderValMaControlsUi();
   renderValuationChart();
 }
 

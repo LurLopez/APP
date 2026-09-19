@@ -78,7 +78,9 @@ export async function getCompanyValuationHandler(req, res, next) {
       return;
     }
     const range = String(req.query.range ?? '5y');
-    const result = await getValuationSeries(ticker, range);
+    const bufferRaw = parseInt(req.query.buffer, 10);
+    const bufferDays = Number.isFinite(bufferRaw) ? Math.max(0, Math.min(7305, bufferRaw)) : 0;
+    const result = await getValuationSeries(ticker, range, { bufferDays });
     res.json({ ok: true, ...result });
   } catch (error) {
     handleEdgarError(error, res, next);

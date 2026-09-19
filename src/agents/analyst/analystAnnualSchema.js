@@ -37,7 +37,7 @@ export const ANNUAL_OUTPUT_SCHEMA = `{
           { "name": "Libre", "values": ["691", "712"] }
         ],
         "notes": [
-          "*1: WK = (Inventarios + Cuentas por cobrar - Cuentas por pagar) × (inflación + volumen) = (700 + 700 - 2800) × (0,05 + 0) = 70. Por lo tanto, hay que sumar 146 + 70 = 216 M al cash flow. Este año han gastado 131 M en impuestos cuando en principio debían pagar 316 M, restando 185 M al cash flow."
+          "*1: WC = (Inventarios + Cuentas por cobrar - Cuentas por pagar) × (inflación + volumen) = (700 + 700 - 2800) × (0,05 + 0) = 70. Por lo tanto, hay que sumar 146 + 70 = 216 M al cash flow. Este año han gastado 131 M en impuestos cuando en principio debían pagar 316 M, restando 185 M al cash flow."
         ]
       },
       "capital": {
@@ -96,9 +96,9 @@ export const ANNUAL_OUTPUT_SCHEMA = `{
           "oldExecutive": {
             "name": "Indra Nooyi",
             "role": "Chairman and CEO (hasta 2018)",
-            "salesDuringTenure": "No se dispone de información detallada en el texto disponible.",
-            "whereTheyGo": "No consta en el texto disponible",
-            "policies": "No se dispone de información detallada en el texto disponible."
+            "salesDuringTenure": null,
+            "whereTheyGo": null,
+            "policies": null
           },
           "newExecutive": {
             "name": "Ramon Laguarta",

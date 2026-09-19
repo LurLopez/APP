@@ -50,12 +50,47 @@ function updateValuationChartHover(event) {
   const cx = x(best);
   const cy = y(value);
 
+  // Medias móviles activas en la sesión apuntada
+  const maSeries = valChartState.maSeries || {};
+  const activeMAs = valChartState.activeMAs || [];
+  const matchedMAs = [];
+  activeMAs.forEach((ma) => {
+    const maValue = maSeries[ma.period]?.get(point.t);
+    if (Number.isFinite(maValue)) {
+      matchedMAs.push({
+        id: `val-ma-${ma.period}`,
+        label: `MA ${ma.period}`,
+        period: ma.period,
+        value: maValue,
+        py: y(maValue),
+        color: ma.color,
+      });
+    }
+  });
+
+  // Curva más cercana al cursor (métrica principal o una media móvil)
+  const candidates = [{ id: 'metric', value, py: cy, color: 'var(--accent)' }, ...matchedMAs];
+  let closest = candidates[0];
+  if (candidates.length > 1) {
+    let minDist = Math.abs(rawSvgY - closest.py);
+    for (let i = 1; i < candidates.length; i += 1) {
+      const dist = Math.abs(rawSvgY - candidates[i].py);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = candidates[i];
+      }
+    }
+  }
+  const selectedPy = closest.py;
+  const selectedValue = closest.value;
+  const selectedColor = closest.color;
+
   hoverLayer.removeAttribute('hidden');
   hoverLayer.style.display = 'inline';
   crosshairV.setAttribute('x1', cx.toFixed(1));
   crosshairV.setAttribute('x2', cx.toFixed(1));
-  crosshairH.setAttribute('y1', cy.toFixed(1));
-  crosshairH.setAttribute('y2', cy.toFixed(1));
+  crosshairH.setAttribute('y1', selectedPy.toFixed(1));
+  crosshairH.setAttribute('y2', selectedPy.toFixed(1));
 
   const dotWrap = svg.querySelector('.pf-chart-hover-dot-wrap');
   if (dotWrap) {
@@ -65,23 +100,37 @@ function updateValuationChartHover(event) {
     hoverDot.setAttribute('cy', cy.toFixed(1));
   }
 
+  // Punto de cada media móvil sobre su propia curva
+  const maDotsContainer = svg.querySelector('.pf-chart-hover-ma-dots');
+  if (maDotsContainer) {
+    maDotsContainer.innerHTML = matchedMAs.length
+      ? matchedMAs.map((ma) => {
+        const isClosest = closest.id === ma.id;
+        return `
+          ${isClosest ? `<circle cx="${cx.toFixed(1)}" cy="${ma.py.toFixed(1)}" r="7.5" fill="${ma.color}" fill-opacity="0.3"/>` : ''}
+          <circle cx="${cx.toFixed(1)}" cy="${ma.py.toFixed(1)}" r="${isClosest ? '4.5' : '3.6'}" fill="${ma.color}" stroke="#ffffff" stroke-width="1.6" class="pf-chart-hover-ma-dot"/>
+        `;
+      }).join('')
+      : '';
+  }
+
   if (hoverXBadge && hoverXBadgeText) {
     hoverXBadge.setAttribute('transform', `translate(${cx.toFixed(1)}, ${height - pad.bottom})`);
     hoverXBadgeText.textContent = formatTradingViewHoverDate(point.date);
   }
 
   if (hoverYBadge && hoverYBadgeText) {
-    const formatted = formatValChartAxis(value, metricKey);
+    const formatted = formatValChartAxis(selectedValue, metricKey);
     const badgeW = Math.max(pad.right - 8, formatted.length * 7 + 14);
-    const clampedY = Math.max(pad.top + 10, Math.min(height - pad.bottom - 10, cy));
+    const clampedY = Math.max(pad.top + 10, Math.min(height - pad.bottom - 10, selectedPy));
     const bx = width - pad.right + 6;
     hoverYBadge.setAttribute('transform', `translate(${bx.toFixed(1)}, ${clampedY.toFixed(1)})`);
     if (hoverYBadgeBg) {
       hoverYBadgeBg.setAttribute('width', badgeW.toFixed(1));
-      hoverYBadgeBg.setAttribute('fill', 'var(--accent)');
+      hoverYBadgeBg.setAttribute('fill', selectedColor);
     }
     const arrowEl = hoverYBadge.querySelector('.pf-chart-y-badge-arrow');
-    if (arrowEl) arrowEl.setAttribute('fill', 'var(--accent)');
+    if (arrowEl) arrowEl.setAttribute('fill', selectedColor);
     hoverYBadgeText.setAttribute('x', (badgeW / 2).toFixed(1));
     hoverYBadgeText.textContent = formatted;
     hoverYBadge.hidden = false;
@@ -114,10 +163,21 @@ function updateValuationChartHover(event) {
     const epsVal = valPeAdjusted ? point?.epsNormalizedTtm : point?.epsTtm;
     if (Number.isFinite(Number(epsVal))) extraInfo += `<span style="color:#cbd5e1;font-size:11px;">${window.I18n?.t?.(valPeAdjusted ? 'BPA ajustado' : 'BPA normal') ?? (valPeAdjusted ? 'BPA ajustado' : 'BPA normal')}: ${formatProfilePrice(epsVal)}</span>`;
   }
+  const maHtml = matchedMAs.map((item) => {
+    const isMaActive = closest.id === item.id;
+    return `
+      <div class="pf-chart-tooltip-row" style="margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 6px; ${isMaActive && candidates.length > 1 ? `background: ${item.color}25; border-radius: 4px; padding: 2px 6px;` : ''}">
+        <span class="pf-chart-tooltip-dot" style="width: 7px; height: 7px; border-radius: 50%; background:${item.color}; display: inline-block; flex-shrink: 0;"></span>
+        <span class="pf-chart-tooltip-label" style="color:${item.color}; ${isMaActive && candidates.length > 1 ? 'font-weight:700;' : ''}">${escapeHtml(item.label)}:</span>
+        <strong class="pf-chart-tooltip-val" style="margin-left:auto; color:#ffffff;">${escapeHtml(formatValChartAxis(item.value, metricKey))}</strong>
+      </div>`;
+  }).join('');
+  const isMetricActive = closest.id === 'metric';
   tooltip.innerHTML = `<strong>${escapeHtml(formatValChartDate(point?.date))}</strong>
     <span style="color:#94a3b8;font-size:11px;">${escapeHtml(label)}</span>
-    <b style="font-size:15px;color:#fff;margin:2px 0;">${escapeHtml(formatValChartAxis(value, metricKey))} ${isNetCash ? '<small style="color:#4ade80;font-size:11px;">(Caja Neta)</small>' : ''}</b>
+    <b style="font-size:15px;color:#fff;margin:2px 0;${isMetricActive && candidates.length > 1 ? 'background: rgba(79, 70, 229,0.15); border-radius: 4px; padding: 2px 4px;' : ''}">${escapeHtml(formatValChartAxis(value, metricKey))} ${isNetCash ? '<small style="color:#4ade80;font-size:11px;">(Caja Neta)</small>' : ''}</b>
     ${extraInfo}
+    ${maHtml}
     <span style="color:#cbd5e1;font-size:11px;">Cotización: ${formatProfilePrice(point?.price)}</span>`;
   tooltip.hidden = false;
   positionChartTooltip(tooltip, event.clientX, event.clientY);
@@ -140,7 +200,10 @@ function updateValuationChartHover(event) {
   if (valQuoteBadge) {
     valQuoteBadge.style.display = 'inline-flex';
     if (valQuotePrice) valQuotePrice.textContent = Number.isFinite(Number(point?.price)) ? `${formatProfileNumber(point.price)} $` : '—';
-    if (valQuoteMetric) valQuoteMetric.textContent = `${label}: ${formatValChartAxis(value, metricKey)}`;
+    if (valQuoteMetric) {
+      const badgeLabel = closest.id === 'metric' ? label : closest.label;
+      valQuoteMetric.textContent = `${badgeLabel}: ${formatValChartAxis(selectedValue, metricKey)}`;
+    }
     if (valQuoteDate) valQuoteDate.textContent = `· ${formatTradingViewHoverDate(point?.date)}`;
   }
 }
@@ -150,6 +213,8 @@ function hideValuationChartTooltip() {
   hideChartTooltip();
   const hover = document.querySelector('#val-chart .pf-chart-hover-layer');
   if (hover) hover.style.display = 'none';
+  const maDots = document.querySelector('#val-chart .pf-chart-hover-ma-dots');
+  if (maDots) maDots.innerHTML = '';
   const valQuoteBadge = document.querySelector('#val-chart-quote-badge');
   if (valQuoteBadge) valQuoteBadge.style.display = 'none';
   restoreQuoteDisplay();

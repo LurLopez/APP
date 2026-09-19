@@ -34,7 +34,7 @@ B) BLOQUE VENTAS (Cuenta de Resultados)
 C) BLOQUE CASH FLOW
 - Filas: Cash Flow, CAPEX, FCF, FCF/Acción, Dividendo, Libre. Dos columnas: Normal (WC=valor) y Ajustado*1 (WC=valor), con los WC numéricos explícitos.
 - FCF = Cash Flow − CAPEX; Libre = FCF − Dividendo (en ambas columnas).
-- Debe existir nota *1 con la fórmula WK = (Cuentas por pagar − Inventarios − Cuentas por cobrar) × (inflación + volumen) y el ajuste resultante con su signo correcto.
+- Debe existir nota *1 con la fórmula WC = (Cuentas por pagar − Inventarios − Cuentas por cobrar) × (inflación + volumen) y el ajuste resultante con su signo correcto.
 - Normalización fiscal en efectivo: si los impuestos pagados difieren del gasto devengado normalizado, se ajusta el Cash Flow con nota *2 que cierre la cadena Normal → circulante → impuestos → Ajustado.
 - Prohibido el ajuste trimestral por deducción de flujos acumulados como nota; la deducción es aritmética ordinaria.
 
@@ -59,14 +59,36 @@ F) COHERENCIA INTERNA
 - ARRASTRE PERMITIDO: en EBT y Beneficio Neto la columna Ajustado puede diferir de la Normal sin llevar resalte ni nota propia (es el arrastre del ajuste de Beneficio Operativo o de la normalización fiscal). NO lo marques como error.
 - Las filas «Deuda» y «Caja» se calculan SIEMPRE por la variación de saldos del balance (no por el estado de flujos); si la variación es correcta según balance, la fila es correcta aunque no coincida con el flujo de financiación.
 
+CONVENCIONES OFICIALES DE CIFRA (NO son errores; no las reportes):
+- Signo del ajuste fiscal del Cash Flow: ajuste = impuestos pagados en efectivo − impuestos normalizados. Si es negativo (pagó menos), se resta; si es positivo (pagó más), se suma. Esta convención es correcta: no marques el signo como error.
+- Signo del ajuste de circulante: Cash Flow Ajustado = Cash Flow Normal − Desviación WC. Con una desviación negativa la resta equivale a sumar; es la convención oficial, no un error.
+- PERIODO DEL AJUSTE FISCAL (esto SÍ es error): en el horizonte de 3 meses el ajuste debe usar el impuesto pagado DEL TRIMESTRE. Si la nota usa el acumulado (o una cifra mayor que el propio pago anual) en el trimestre, es un error GRAVE de periodo.
+- WC trimestral: el WC teórico trimestral se obtiene prorrateando el anual entre 4 y, si el filing no publica la variación trimestral del circulante, se deduce proporcionalmente del acumulado (3/meses). Es el diseño oficial de Cifra.
+- Filas materiales: las filas de Asignación de Capital (recompras, adquisiciones, desinversiones, inversiones…) solo se pintan si son materiales (>= 50M). Omitir una partida por debajo de ese umbral es correcto. Los DIVIDENDOS no son fila de capital: están dentro del Libre (FCF − Dividendo).
+- La fila «Libre» de Asignación de Capital usa el escenario Normal del Cash Flow; que difiera del Libre Ajustado es correcto por diseño.
+- Micro-caps: en empresas con ventas por debajo de ~200M, redondear a millones puede mostrar 0M para importes de cientos de miles; no es un error material.
+- «Beneficio Operativo Ajustado»: es la suma de deterioros y amortización de intangibles al beneficio operativo reportado; no tiene por qué coincidir con el adjusted operating income no-GAAP de la compañía. Solo es error si la suma de las partidas citadas no cuadra con la tabla.
+- Deuda: la fila, la nota y el histórico usan la deuda del BALANCE (incluye porción corriente y arrendamientos financieros). Un «Total debt» no-GAAP del MD&A/press release distinto no invalida la cifra por sí solo; solo es error si el informe presenta dos cifras de deuda distintas sin explicar la diferencia.
+- Impuestos pagados estimados: si la nota dice que el pago se ha estimado por la conciliación de gasto fiscal menos impuestos diferidos (porque el estado de flujos no lo desglosa), la cifra es válida; solo es error si el número contradice el filing de forma evidente. Si la nota afirma «según el estado de flujos» y el estado no lo muestra, es una imprecisión MENOR de redacción, no un cifra inventada.
+- Q1: en el primer trimestre el acumulado del año ES el trimestre; usar el dato acumulado en Q1 es correcto.
+- Comparativos de balance trimestrales: la nota puede usar el trimestre inmediatamente anterior obtenido del respaldo oficial (EDGAR), aunque el texto fuente truncado no muestre esa columna. Solo es error si la variación declarada no cuadra con los saldos que la propia nota cita.
+- «Nota de Resultados» anual (rating): es una opinión fundamentada sobre las cuentas del ejercicio; su mayor o menor severidad no es un error salvo que contradiga las cifras del propio informe o especule con el futuro.
+- Umbral de capital: si la comprobación determinista no marca error de umbral, no recalcules el umbral por tu cuenta para contradecirla; «Más o menos cuadra» sin cuantificar el residuo es correcto cuando el descuadre entra en el umbral y no hay movimientos no monetarios conocidos.
+- BPA: el «eps» de la tabla es el Beneficio Por Acción diluido AJUSTADO (o subyacente) que declara la compañía; no lo compares con el BPA GAAP ni lo marques como erróneo por diferir.
+- Calendario de vencimientos de deuda: lo reconstruye el sistema desde la nota de deuda del filing; no exijas que aparezca desglosado literalmente en el texto facilitado (puede estar truncado). Solo es error si contradice cifras visibles del filing o del propio informe.
+- Proyección de recompras a 5 años: es una sección obligatoria del informe anual, no especulación; valora su coherencia matemática, no su existencia.
+- El CAPEX se presenta en POSITIVO por convención (es una magnitud de salida de caja); un CAPEX positivo no es error de signo.
+
 REGLAS DE CALIBRACIÓN (OBLIGATORIAS):
+- REGLA DE ORO ANTI-RUIDO: cada entrada de "errores" debe describir un fallo real y su impacto. Si al redactar una incidencia compruebas que la cifra o el cálculo es correcto («es correcto», «no hay error», «coincide», «no es material»), ELIMINA la incidencia por completo: no la dejes para explicar que está bien. Toda entrada empieza directamente por el problema. Si incluyes incidencias que tú mismo declaras correctas, tu auditoría es defectuosa y la nota debe calcularse solo con los errores que queden tras eliminar los correctos.
 - No incluyas en "errores" nada que tu propia evidencia demuestre correcto. Si lo verificas y está bien, va en "aciertos" (o simplemente no se menciona).
+- LISTA ACOTADA: máximo 10 errores; agrupa los del mismo tipo en una sola entrada (p. ej. «redondeos de porcentajes en varias filas») y prioriza los materiales. No conviertas diferencias de 0,04 puntos porcentuales en errores separados.
 - Un descuadre que entra dentro del umbral y se verifica con «Más o menos cuadra» NO es error por el hecho de no ser cero; solo es error si el texto de verificación no corresponde al cálculo real o si el importe explicado no cuadra.
 - En el horizonte «ÚLTIMOS 3 MESES» el comparativo de balance es el del trimestre inmediatamente anterior (no el inicio del ejercicio). Si ese balance no está en el texto fuente, no puedes afirmar que la cifra previa es incorrecta: es una duda, no un error.
 - Las comprobaciones deterministas son indicios calculados por el sistema: si detectan una contradicción entre la tabla y una nota, verifícala y descríbela con la cita exacta de ambos lados.
 - Un error es GRAVE solo si afecta a una cifra material o a una conclusión de forma que el lector puede tomar una decisión equivocada. Los desajustes de 1M por redondeo, numeración o estilo son menores o cosméticos.
-- Una contradicción directa entre una cifra de la tabla y la nota que la explica (p. ej. la nota calcula un Beneficio Neto Ajustado distinto al de la tabla) es un error real: si la cifra es material, es GRAVE; el desajuste de 1M por redondeo es MENOR.
-- En Cash Flow, si la nota *2 cierra correctamente la cadena Normal → circulante → impuestos → valor final de la tabla, que la nota *1 llame «Cash Flow Ajustado» al subtotal previo al ajuste fiscal es una imprecisión MENOR de redacción de la nota *1, no un error grave (salvo que el propio subtotal sea incorrecto).
+- PUNTUACIÓN JUSTA: si NO hay errores graves y los menores son de redondeo/redacción sin impacto en las cifras clave, la nota es 8-9, no 6-7. El 7 corresponde a uno o dos errores menores con impacto real; el 6, a varios menores serios.
+- En Cash Flow, la nota *1 explica el ajuste de circulante y su subtotal intermedio («El Cash Flow tras el ajuste de circulante queda en: ...»); si además hay ajuste fiscal, la nota *2 debe cerrar la cadena hasta el valor final de la tabla. Si la nota *2 cierra correctamente, el subtotal de la *1 NO es error; si la nota *1 llamase «Cash Flow Ajustado» al subtotal, sería una imprecisión MENOR de redacción (salvo que el subtotal sea incorrecto).
 - Comprueba la coherencia de magnitudes: un ajuste o cifra desproporcionado frente al tamaño de la empresa (p. ej. un ajuste de decenas de miles de millones en una empresa de cientos de millones) indica un error de unidades; en ese caso es GRAVE y debe localizarse la cifra afectada.
 - No propongas correcciones ni reescribas el informe: describe el error y su impacto.
 

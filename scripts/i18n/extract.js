@@ -30,6 +30,9 @@ const EXCLUDED_FILES = new Set([
   'debtMaturityPrompt.js',
   'debtRefinancingPrompt.js',
   'translationPrompt.js',
+  'auditorPrompt.js',
+  'auditorAgent.js',
+  'deterministicChecks.js',
 ]);
 
 const SPANISH_WORDS = [

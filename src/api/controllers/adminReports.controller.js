@@ -22,6 +22,7 @@ import { analyzePdf, analyzeText, htmlToText, buildPresentationText } from '../.
 import { AgentError } from '../../agents/baseAgent.js';
 import { AiProviderError, chatJson } from '../../services/ai/modelProvider.js';
 import { invalidateReportCache } from '../../services/seo.service.js';
+import { scheduleLanguageVariants } from '../../services/translation/autoTranslate.service.js';
 import { regenerateAllReportFormats } from './reportDownload.controller.js';
 
 const ERROR_REPORT_STATUS = ['pending', 'reviewed', 'resolved', 'dismissed'];
@@ -282,6 +283,15 @@ export async function regenerateAiAnalysisHandler(req, res, next) {
       : await analyzeText(htmlToText(content.buffer.toString('utf8')), options);
 
     invalidateReportCache(id);
+
+    scheduleLanguageVariants({
+      ticker,
+      accession,
+      filename: options.filename,
+      language: result.language ?? existing.language,
+      isPublic: options.isPublic,
+      userId: options.userId,
+    });
 
     res.json({
       ok: true,

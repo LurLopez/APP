@@ -241,6 +241,7 @@ function wireValuationChartInteractions() {
   wireValChartHover(canvasInner);
   wireValChartTimelineBrush();
   wireValChartZoomButtons();
+  if (typeof window.wireValMaControls === 'function') window.wireValMaControls();
 
   // Fullscreen button
   if (fsBtn) {

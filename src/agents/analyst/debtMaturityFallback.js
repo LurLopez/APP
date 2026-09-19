@@ -11,6 +11,11 @@ const YEAR_PATTERN = /(?:19|20)\d{2}/g;
 const RATE_PATTERN = /(\d+(?:[.,]\d+)?)\s*%/g;
 const YEAR_HEADER_PATTERN = /vencimiento|maturity|maturing|due|año|amortizacion|amortización/i;
 const BUCKET_LABEL_PATTERN = /\b(?:less than|more than|greater than|or more|and beyond|en adelante|between|thereafter|posterior(?:es)?|despu[eé]s de|m[aá]s de|menos de|a partir de)\b|\b[1-5]\s*[-–—]\s*[1-5]\s*(?:years?|años?)\b/i;
+const MATURITY_TABLE_HEADING = /maturit(?:y|ies)\s+of\s+(?:our\s+|the\s+company'?s\s+)?(?:long[-\s]?term\s+)?debt\b/i;
+const MATURITY_TABLE_SUMMARY_HEADING = /(?:summari[sz]es|sets?\s+forth|presents|details)[^.\n]*\bmaturit(?:y|ies)\b[^.\n]*\b(?:long[-\s]?term\s+)?debt\b/i;
+const MATURITY_TABLE_EXCLUDED = /lease|securit|investment|available-for-sale|portfolio|operating/i;
+const MATURITY_TABLE_YEAR_ROW = /^((?:19|20)\d{2})\s*(?:[$\u20ac\u00a3]\s*)?([\d][\d,]*(?:\.\d+)?)\s*$/;
+const MATURITY_TABLE_THEREAFTER_ROW = /^thereafter\s*(?:[$\u20ac\u00a3]\s*)?([\d][\d,]*(?:\.\d+)?)\s*$/i;
 
 /**
  * Ventana de los próximos 5 años del calendario de vencimientos.
@@ -86,6 +91,22 @@ export function maturityTableLooksIncomplete(table) {
     if (!extractYears([cells[0], ...cells.slice(1)].join(' ')).length) unmapped += amount;
   });
   return total > 0 && unmapped / total >= 0.25;
+}
+
+/**
+ * Detecta etiquetas con rangos de años amplios (p. ej. "due 2024-2093", "2024-2041"), que
+ * agrupan emisiones de muchos ejercicios y no son un vencimiento anual concreto.
+ * @param {Array<object>} items - Partidas de vencimiento.
+ * @returns {boolean} true si alguna etiqueta abarca 5 años o más.
+ */
+export function hasWideRangeLabels(items) {
+  return (Array.isArray(items) ? items : []).some((item) => {
+    const label = String(item?.label ?? item?.name ?? item?.type ?? '');
+    for (const match of label.matchAll(/\b(20\d{2})\s*[-–—]\s*(20\d{2})\b/g)) {
+      if (Number(match[2]) - Number(match[1]) >= 5) return true;
+    }
+    return false;
+  });
 }
 
 /**
@@ -185,6 +206,7 @@ export function buildMaturityScheduleFromDebtTable(table, fiscalYear, periodEnd)
   const items = [];
   const ratedItems = [];
   let afterYearFive = null;
+  let skippedRangeAmount = 0;
 
   table.rows.forEach((row) => {
     const cells = rowCells(row);
@@ -205,10 +227,18 @@ export function buildMaturityScheduleFromDebtTable(table, fiscalYear, periodEnd)
     if (!Number.isFinite(amount) || amount <= 0) return;
 
     const firstYear = Math.min(...years);
+    const lastYear = Math.max(...years);
     if (firstYear > maxYear) {
       afterYearFive = (afterYearFive ?? 0) + amount;
       const rateData = extractRate(cells, rateIndexes);
       ratedItems.push({ amount, rate: rateData?.rate ?? null, estimated: rateData?.estimated === true });
+      return;
+    }
+    // Una fila con rango de años ("U.S. dollar notes due 2024-2093", "Euro notes due 2024-2041")
+    // agrupa emisiones de varios ejercicios: no es un vencimiento de un único año y asignarla
+    // al primer año inflaría ese ejercicio (caso KO 10-K). Se descarta como partida anual.
+    if (lastYear > firstYear) {
+      skippedRangeAmount += amount;
       return;
     }
     if (firstYear < minYear) return;
@@ -227,6 +257,9 @@ export function buildMaturityScheduleFromDebtTable(table, fiscalYear, periodEnd)
   });
 
   if (!items.length) return null;
+  // Si lo descartado por rangos supera lo aprovechable, la tabla no es un calendario año a año.
+  const keptAmount = items.reduce((sum, item) => sum + item.amount, 0);
+  if (skippedRangeAmount > keptAmount) return null;
   return {
     items,
     afterYearFive: afterYearFive == null ? null : Math.round(afterYearFive * 10) / 10,
@@ -366,6 +399,149 @@ function amountAfterPosition(text) {
   return value;
 }
 
+const MONTH_DATE_PATTERN = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s*((?:19|20)\d{2})\b/gi;
+const DATED_DEBT_LABEL = /note|debenture|bond|loan|obligation|borrowing|mortgage/i;
+const DATED_EXCLUDED_LABEL = /revolving|credit\s+agreement|line\s+of\s+credit|letter(?:s)?\s+of\s+credit|commercial\s+paper|commitment/i;
+const DATED_INDEX_CONTEXT = /exhibit\s+index|incorporated\s+by\s+reference|table\s+of\s+contents|8-k\s+\d{1,2}\/\d{1,2}\/\d{2,4}/i;
+
+function decodeTextEntities(value) {
+  return String(value ?? '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&nbsp;/gi, ' ');
+}
+
+/**
+ * Reconstruye el nombre del instrumento que precede a una fecha de vencimiento
+ * ("2026-B Notes", "2028 Merger Notes", "Revolving Credit Agreement (1)").
+ */
+function labelBeforeDatedMaturity(source, index) {
+  const tokens = source.slice(Math.max(0, index - 160), index).split(/\s+/).filter(Boolean);
+  const picked = [];
+  for (let idx = tokens.length - 1; idx >= 0 && picked.length < 6; idx -= 1) {
+    const token = tokens[idx];
+    if (/^\(\d+\)$/.test(token)) { picked.unshift(token); continue; }
+    if (/[A-Za-z]/.test(token)) { picked.unshift(token); continue; }
+    if (picked.length === 0) continue;
+    break;
+  }
+  return picked.filter((token) => !/^\(\d+\)$/.test(token)).join(' ');
+}
+
+/**
+ * Lee el cupón y el importe de la columna del ejercicio actual tras la fecha de vencimiento.
+ * Exige una segunda celda (importe o guion de la columna anterior) para descartar fechas
+ * narrativas ("€ 10.35 billion") que no son filas de una tabla de deuda.
+ */
+function datedMaturityTail(source, index) {
+  const tokens = source.slice(index, index + 200).split(/\s+/).filter(Boolean);
+  let rate = null;
+  let amount = null;
+  let amountIndex = -1;
+  for (let idx = 0; idx < tokens.length && idx < 14; idx += 1) {
+    const token = tokens[idx];
+    if (/^\(\d+\)$/.test(token)) continue;
+    if (/^(?:floating|compounded|sofr|plus|spread|of|and|at|per|annum|interest|million|billion|millones|billones)$/i.test(token)) continue;
+    // No seguir leyendo tras la fecha siguiente ("... 2030 and $500M ... due August 1, 2035"):
+    // la columna del ejercicio es la primera celda tras la fecha, no la del tramo siguiente.
+    if (/^(?:january|february|march|april|may|june|july|august|september|october|november|december)$/i.test(token)) break;
+    const clean = token.replace(/[%$€£,]/g, '');
+    const numeric = clean === '' ? NaN : Number(clean);
+    const followedByPercent = tokens[idx + 1] === '%';
+    if (Number.isFinite(numeric) && (/%$/.test(token) || followedByPercent)) {
+      if (rate == null) rate = numeric;
+      continue;
+    }
+    if (token === '$' || token === '€' || token === '£') continue;
+    if (/^[–—-]$/.test(token)) { amount = 0; amountIndex = idx; break; }
+    if (/^[$€£]?[\d][\d,]*(?:\.\d+)?$/.test(token)) { amount = Number(clean); amountIndex = idx; break; }
+  }
+  if (amount == null || amountIndex < 0) return { amount, rate };
+  const secondCell = tokens.slice(amountIndex + 1, amountIndex + 4)
+    .some((token) => /^[–—-]$/.test(token) || /^[$€£]?[\d][\d,]*(?:\.\d+)?$/.test(token));
+  return { amount: secondCell ? amount : null, rate };
+}
+
+/**
+ * Parser de tablas de deuda con columna "Maturity Date" ("2026 Notes September 15, 2026 2.550 % 400 400"):
+ * toma el año de la fecha de vencimiento, el cupón y el importe del ejercicio actual de cada emisión.
+ * Cubre las notas que no usan el formato "due 20XX" (p. ej. KDP 10-K FY2025).
+ * @param {string} source - Texto de la nota de deuda.
+ * @returns {Array<object>} Filas con year, label, amount y rate.
+ */
+function parseDatedMaturityRows(source) {
+  const rows = [];
+  for (const match of source.matchAll(MONTH_DATE_PATTERN)) {
+    const before = source.slice(Math.max(0, match.index - 250), match.index);
+    if (DATED_INDEX_CONTEXT.test(before)) continue;
+    const label = labelBeforeDatedMaturity(source, match.index);
+    if (!label || !DATED_DEBT_LABEL.test(label) || DATED_EXCLUDED_LABEL.test(label)) continue;
+    // Una etiqueta que termina en conector ("senior unsecured notes due August 1, 2030") es
+    // una mención narrativa, no una fila de la tabla de vencimientos.
+    if (/(?:^|\s)(?:due|on|in|of|through|thru|until|maturing|payable|issued|dated|amended)$/i.test(label)) continue;
+    const { amount, rate } = datedMaturityTail(source, match.index + match[0].length);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    rows.push({ year: Number(match[2]), dateText: match[0], label, amount, rate });
+  }
+  return rows;
+}
+
+/**
+ * Localiza la tabla explícita "maturities of long-term debt" (año → importe) que muchas
+ * notas publican tras un encabezado del tipo "The following table summarizes the maturities
+ * of long-term debt for the five years succeeding ...". Es la fuente canónica del calendario:
+ * evita asignar al primer año los agregados por rango ("U.S. dollar notes due 2024-2093").
+ * @param {string} source - Texto de la nota de deuda.
+ * @returns {{rows: Array<{year: number, amount: number}>, afterYearFive: number|null}|null}
+ */
+function parseMaturityTableFromText(source) {
+  const lines = String(source ?? '').split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim());
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line || !/maturit/i.test(line) || !/debt/i.test(line) || MATURITY_TABLE_EXCLUDED.test(line)) continue;
+    if (!MATURITY_TABLE_HEADING.test(line) && !MATURITY_TABLE_SUMMARY_HEADING.test(line)) continue;
+
+    const rows = [];
+    let afterYearFive = null;
+    let sawRow = false;
+    let misses = 0;
+    for (let next = index + 1; next < lines.length && next <= index + 30; next += 1) {
+      const candidate = lines[next];
+      if (!candidate) {
+        if (sawRow) { misses += 1; if (misses > 2) break; }
+        continue;
+      }
+      const yearMatch = candidate.match(MATURITY_TABLE_YEAR_ROW);
+      if (yearMatch) {
+        const year = Number(yearMatch[1]);
+        const amount = Number(yearMatch[2].replace(/,/g, ''));
+        if (Number.isFinite(year) && Number.isFinite(amount) && amount > 0) {
+          rows.push({ year, amount });
+          sawRow = true;
+          misses = 0;
+        }
+        continue;
+      }
+      const thereafterMatch = candidate.match(MATURITY_TABLE_THEREAFTER_ROW);
+      if (thereafterMatch && sawRow) {
+        const amount = Number(thereafterMatch[1].replace(/,/g, ''));
+        if (Number.isFinite(amount) && amount > 0) afterYearFive = (afterYearFive ?? 0) + amount;
+        continue;
+      }
+      if (sawRow) {
+        misses += 1;
+        if (misses > 2) break;
+      } else if (next - index > 8) {
+        break;
+      }
+    }
+
+    const ascending = rows.every((row, idx) => idx === 0 || row.year > rows[idx - 1].year);
+    if (rows.length >= 3 && ascending) return { rows, afterYearFive };
+  }
+  return null;
+}
+
 /**
  * Parser determinista del calendario sobre el texto de la nota de deuda:
  * localiza las filas "due <mes> <año>", "due <año>" o "through <año>" y toma el primer
@@ -376,11 +552,42 @@ function amountAfterPosition(text) {
  * @returns {{items: Array<object>, afterYearFive: number|null, weightedAverageRate: object|null}|null} Calendario o null.
  */
 export function buildMaturityScheduleFromFilingText(text, fiscalYear, periodEnd) {
-  const source = String(text ?? '');
+  const source = decodeTextEntities(text).replace(/\u00a0/g, ' ');
   if (!source) return null;
   const baseYear = Number(fiscalYear);
   if (!Number.isFinite(baseYear) || baseYear < 2000) return null;
   const { minYear, maxYear } = resolveWindow(fiscalYear, periodEnd);
+
+  // Tabla explícita año a año ("maturities of long-term debt"): manda sobre las filas de rango.
+  const maturityTable = parseMaturityTableFromText(source);
+  if (maturityTable) {
+    const tableItems = [];
+    let tableAfterYearFive = maturityTable.afterYearFive;
+    maturityTable.rows.forEach((row) => {
+      if (row.year < minYear) return;
+      if (row.year > maxYear) {
+        tableAfterYearFive = (tableAfterYearFive ?? 0) + row.amount;
+        return;
+      }
+      tableItems.push({
+        year: row.year,
+        label: 'Maturities of long-term debt',
+        amount: row.amount,
+        rate: null,
+        estimated: false,
+        type: 'Deuda total',
+      });
+    });
+    if (tableItems.length) {
+      return {
+        items: tableItems,
+        afterYearFive: tableAfterYearFive == null ? null : Math.round(tableAfterYearFive * 10) / 10,
+        weightedAverageRate: null,
+        authoritative: true,
+      };
+    }
+  }
+
   const items = [];
   const ratedItems = [];
   const seen = new Set();
@@ -430,6 +637,29 @@ export function buildMaturityScheduleFromFilingText(text, fiscalYear, periodEnd)
       return;
     }
     if (year < minYear) return;
+    ratedItems.push(item);
+    items.push(item);
+  });
+
+  // Tablas con columna "Maturity Date" (cada emisión con su fecha), que no usan "due 20XX".
+  parseDatedMaturityRows(source).forEach((row) => {
+    const key = `${row.dateText}|${row.label}|${row.amount}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const item = {
+      year: row.year,
+      label: `${row.label} ${row.dateText}`.trim(),
+      amount: row.amount,
+      rate: row.rate ?? null,
+      estimated: false,
+      type: maturityType(row.label),
+    };
+    if (row.year < minYear) return;
+    if (row.year > maxYear) {
+      afterYearFive = (afterYearFive ?? 0) + row.amount;
+      ratedItems.push(item);
+      return;
+    }
     ratedItems.push(item);
     items.push(item);
   });

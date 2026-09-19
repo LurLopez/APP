@@ -123,9 +123,26 @@ export function normalizeCashFlowBlock(horizon, extracted, language = 'es') {
     else delete cfoRow.cashFlowAdjustedNote;
   }
 
+  // Guarda de cordura: un dividendo desproporcionado frente al Cash Flow Operativo (p. ej. una
+  // cifra leída en otra sección o en otra unidad) se descarta en vez de romper FCF/Libre/capital.
+  if (targetVals?.dividends && targetVals?.cfo) {
+    const cfoBase = parseFinancialValue(targetVals.cfo[0]);
+    const divBase = parseFinancialValue(targetVals.dividends[0]);
+    if (Number.isFinite(cfoBase) && Number.isFinite(divBase) && Math.abs(divBase) > Math.max(Math.abs(cfoBase) * 5, 1000)) {
+      targetVals.dividends = ['0', '0'];
+      if (targetVals.fcf) targetVals.libre = [targetVals.fcf[0] ?? '0', targetVals.fcf[1] ?? '0'];
+      console.warn(`[analysis] Dividendo descartado por importe implausible: ${divBase}M vs Cash Flow ${cfoBase}M`);
+    }
+  }
+
   const defaultAdjusted = t('Ajustado*1', null, lang);
+  const withWcNote = (label) => {
+    const text = String(label ?? '').trim();
+    if (!text || /\*\d/.test(text)) return text;
+    return text.replace(/^(\S+)/, '$1*1');
+  };
   const scenarios = targetScenarios && targetScenarios.length === 2
-    ? targetScenarios
+    ? [targetScenarios[0], withWcNote(targetScenarios[1])]
     : [t('Normal', null, lang), defaultAdjusted];
   horizon.cashFlow.scenarios = scenarios;
 
@@ -204,10 +221,13 @@ export function normalizeCashFlowBlock(horizon, extracted, language = 'es') {
   horizon.cashFlow.notes = (Array.isArray(horizon.cashFlow.notes) ? [...horizon.cashFlow.notes] : [])
     .filter((n) => !/deducido del acumulado|flujo trimestral deducido|deduced from the accumulated|quarterly flow deduced/i.test(String(n)));
 
-  const expNote = isTrimestral ? wcInfo?.explanation3M : wcInfo?.explanationYtd;
-  if (expNote) {
+  const expNoteRaw = isTrimestral ? wcInfo?.explanation3M : wcInfo?.explanationYtd;
+  if (expNoteRaw) {
+    // La fórmula del circulante se rotula siempre «WC» (coherente con la cabecera «WC=valor»);
+    // si la IA escribió «WK», se normaliza aquí.
+    const expNote = String(expNoteRaw).replace(/\bWK\b/g, 'WC');
     const noteText = `*1: ${expNote.replace(/^\*\d+:?\s*/, '')}`;
-    const idx = horizon.cashFlow.notes.findIndex((n) => /WK|circulante|Cuentas por pagar|working capital|accounts payable/i.test(n));
+    const idx = horizon.cashFlow.notes.findIndex((n) => /W[KC]|circulante|Cuentas por pagar|working capital|accounts payable/i.test(n));
     if (idx !== -1) horizon.cashFlow.notes[idx] = noteText;
     else horizon.cashFlow.notes.push(noteText);
   }
@@ -317,20 +337,109 @@ export function normalizeCapitalBlock(horizon, extracted, language = 'es') {
     );
   }
 
-  // Los movimientos que NO pasan por caja (efectivo restringido y deuda no monetaria) no se pintan
-  // como filas: la tabla solo incluye movimientos de caja y, si el cuadre no cierra, se explican
-  // bajo la tabla con su importe exacto.
+  // Los movimientos que NO pasan por caja (deuda no monetaria) no se pintan como filas: la tabla
+  // solo incluye movimientos de caja y, si el cuadre no cierra, se explican bajo la tabla con su
+  // importe exacto. EXCEPCIÓN: el efectivo restringido (escrow) material se pinta como fila cuando
+  // es la contrapartida de una operación del periodo: liberación que paga una adquisición (KDP Q2)
+  // o consignación financiada con deuda/equity del trimestre a la espera del cierre (KDP Q1). Sin
+  // esa fila la tabla no se entiende y el ajuste oculto parecía un parche contable.
   const capitalAdjustments = [];
   const pushCapitalAdjustment = (matcher, value, label) => {
     dropCapitalRow(matcher);
     const num = toFiniteNumber(value);
     if (num != null && num !== 0) capitalAdjustments.push({ value: num, label });
   };
-  pushCapitalAdjustment(
-    /restringid|escrow|restricted/i,
-    capData?.restrictedCashMovement,
-    t('efectivo restringido (consignaciones o liberaciones)', null, lang),
-  );
+  const escrowMovement = toFiniteNumber(capData?.restrictedCashMovement);
+  const acquisitionsAbs = Math.abs(toFiniteNumber(capData?.acquisitions) ?? 0);
+  const preferredRaised = Math.max(toFiniteNumber(capData?.preferredIssuance) ?? 0, 0);
+  const nonControllingRaised = Math.max(toFiniteNumber(capData?.nonControllingSale) ?? 0, 0);
+  const debtRaised = Math.max(toFiniteNumber(capData?.deuda) ?? 0, 0);
+  const financingRaised = preferredRaised + nonControllingRaised + debtRaised;
+  const escrowFundsAcquisition = escrowMovement != null
+    && Math.abs(escrowMovement) >= 100
+    && acquisitionsAbs >= 100
+    && Math.abs(escrowMovement) >= acquisitionsAbs * 0.25;
+  const escrowConsigned = escrowMovement != null
+    && escrowMovement <= -100
+    && financingRaised >= 100;
+  if (escrowFundsAcquisition || escrowConsigned) {
+    const escrowRow = setCapitalRow(/restringid|escrow|restricted/i, t('Efectivo restringido (escrow)', null, lang), escrowMovement);
+    if (escrowRow) {
+      const escrowNum = nextNoteNumber();
+      escrowRow.name = `${cleanCapitalName(escrowRow)}*${escrowNum}`;
+      const prevRestrictedRaw = isTrimestral
+        ? (extracted.balance?.restrictedCashPreviousQuarter
+          ?? (Number(extracted.fiscalQuarter) === 1 ? extracted.balance?.restrictedCashBeginningOfYear : null))
+        : extracted.balance?.restrictedCashBeginningOfYear;
+      const prevRestricted = toFiniteNumber(prevRestrictedRaw);
+      const currRestricted = toFiniteNumber(extracted.balance?.restrictedCash);
+      const amountText = formatFinancialValue(Math.abs(escrowMovement), lang);
+      const ytdData = extracted.capitalAllocationData?.ytd ?? {};
+      const preferredYtd = toFiniteNumber(ytdData.preferredIssuance);
+      const nonControllingYtd = toFiniteNumber(ytdData.nonControllingSale);
+      const hasPreferred = preferredYtd != null && Math.abs(preferredYtd) >= 50;
+      const hasNonControlling = nonControllingYtd != null && Math.abs(nonControllingYtd) >= 50;
+      let balancePart;
+      let fundingPart = '';
+      if (escrowMovement > 0) {
+        balancePart = prevRestricted != null && currRestricted != null
+          ? t('El efectivo restringido pasa de {prev}M a {curr}M; la liberación de {amount}M financió la adquisición del periodo ({acq}M).', {
+            prev: formatFinancialValue(prevRestricted, lang),
+            curr: formatFinancialValue(currRestricted, lang),
+            amount: amountText,
+            acq: formatFinancialValue(acquisitionsAbs, lang),
+          }, lang)
+          : t('La variación de efectivo restringido de {amount}M financió la adquisición del periodo ({acq}M).', {
+            amount: amountText,
+            acq: formatFinancialValue(acquisitionsAbs, lang),
+          }, lang);
+        if (hasPreferred && hasNonControlling) {
+          fundingPart = t(' Ese efectivo se consignó con la financiación levantada en trimestres anteriores (la emisión de preferentes (+{preferred}M) y la venta de participaciones (+{nonControlling}M), visibles en el acumulado).', {
+            preferred: formatFinancialValue(Math.abs(preferredYtd), lang),
+            nonControlling: formatFinancialValue(Math.abs(nonControllingYtd), lang),
+          }, lang);
+        } else if (hasPreferred) {
+          fundingPart = t(' Ese efectivo se consignó con la financiación levantada en trimestres anteriores (la emisión de preferentes (+{preferred}M), visible en el acumulado).', {
+            preferred: formatFinancialValue(Math.abs(preferredYtd), lang),
+          }, lang);
+        } else if (hasNonControlling) {
+          fundingPart = t(' Ese efectivo se consignó con la financiación levantada en trimestres anteriores (la venta de participaciones (+{nonControlling}M), visible en el acumulado).', {
+            nonControlling: formatFinancialValue(Math.abs(nonControllingYtd), lang),
+          }, lang);
+        }
+      } else {
+        balancePart = prevRestricted != null && currRestricted != null
+          ? t('El efectivo restringido pasa de {prev}M a {curr}M; la consignación de {amount}M queda segregada en el balance para una operación pendiente de cierre.', {
+            prev: formatFinancialValue(prevRestricted, lang),
+            curr: formatFinancialValue(currRestricted, lang),
+            amount: amountText,
+          }, lang)
+          : t('La consignación de {amount}M queda segregada en el balance como efectivo restringido para una operación pendiente de cierre.', {
+            amount: amountText,
+          }, lang);
+        const fundingItems = [];
+        if (preferredRaised >= 50) {
+          fundingItems.push(t('la emisión de preferentes (+{amount}M)', { amount: formatFinancialValue(preferredRaised, lang) }, lang));
+        }
+        if (nonControllingRaised >= 50) {
+          fundingItems.push(t('la venta de participaciones (+{amount}M)', { amount: formatFinancialValue(nonControllingRaised, lang) }, lang));
+        }
+        if (debtRaised >= 100) {
+          fundingItems.push(t('la deuda del periodo (+{amount}M)', { amount: formatFinancialValue(debtRaised, lang) }, lang));
+        }
+        if (fundingItems.length) {
+          fundingPart = t(' Se financió con {list}.', { list: fundingItems.join('; ') }, lang);
+        }
+      }
+      horizon.capital.notes = [...readingNotes(), `*${escrowNum}: ${balancePart}${fundingPart}`];
+    }
+  } else {
+    pushCapitalAdjustment(
+      /restringid|escrow|restricted/i,
+      capData?.restrictedCashMovement,
+      t('efectivo restringido (consignaciones o liberaciones)', null, lang),
+    );
+  }
   pushCapitalAdjustment(
     /no monetaria|non-cash debt/i,
     capData?.nonCashDebt != null ? -capData.nonCashDebt : null,
@@ -338,20 +447,52 @@ export function normalizeCapitalBlock(horizon, extracted, language = 'es') {
   );
   horizon.capital.notes = readingNotes().filter((note) => !/^\*\d+:\s*(efectivo restringido|restricted cash|deuda no monetaria|non-cash debt)/i.test(String(note).trim()));
 
+  // Garantía determinista: la nota de Deuda/Caja balance SIEMPRE existe si el sistema conoce
+  // los datos de balance, aunque la IA la haya omitido; las filas se reapuntan a la nota real.
+  // Se hace ANTES de la deuda asumida para que esta no ocupe el número de la nota de balance
+  // y deje las filas Deuda/Caja apuntando a una nota que no les corresponde.
+  const notesHave = (re) => readingNotes().some((note) => re.test(String(note)));
+  const labelOfNote = (re) => {
+    const note = readingNotes().find((item) => re.test(String(item)));
+    const match = String(note ?? '').match(/^\*(\d+):/);
+    return match ? `*${match[1]}` : null;
+  };
+  const needsDebt = Boolean(capData?.debtDetails) && !notesHave(/Deuda balance/i);
+  const needsCash = Boolean(capData?.cashDetails) && !notesHave(/Caja balance/i);
+  let nextNum = null;
+  if (needsDebt || needsCash) {
+    nextNum = nextNoteNumber();
+    const combined = [needsDebt ? capData.debtDetails : null, needsCash ? capData.cashDetails : null].filter(Boolean).join(' ');
+    horizon.capital.notes = [...readingNotes(), `*${nextNum}: ${combined}`];
+  }
+  const debtLabel = needsDebt ? `*${nextNum}` : labelOfNote(/Deuda balance/i);
+  const cashLabel = needsCash ? `*${nextNum}` : labelOfNote(/Caja balance/i);
+  const refExists = (label) => readingNotes().some((note) => String(note).trim().startsWith(`${label}:`));
+  rows.forEach((row) => {
+    const clean = cleanCapitalName(row);
+    const label = noteLabelOf(row);
+    const isDebt = /^(deuda|debt)\b(?!\s*(neta|net|asumid|assumed))/i.test(clean);
+    const isCash = /^(caja|cash)\b(?!.*(restringid|restricted|escrow))/i.test(clean);
+    const target = (isDebt && debtLabel) || (isCash && cashLabel) || null;
+    if (target && (!label || !refExists(label))) {
+      row.name = `${clean}${target}`;
+    }
+  });
+
   // Deuda asumida (no-cash): solo existe si el sistema detecta deuda asumida en una compra material.
   // Si el cálculo es 0 se elimina la fila (evita duplicar la variación de deuda del balance).
   const assumedDebt = toFiniteNumber(capData?.assumedDebt);
   if (assumedDebt != null && assumedDebt !== 0) {
     const assumedRow = setCapitalRow(/asumid|assumed/i, t('Deuda asumida (no-cash)', null, lang), -Math.abs(assumedDebt));
     const capitalNotes = readingNotes();
-    const hasAssumedNote = capitalNotes.some((n) => /asumid|assumed debt|no-cash/i.test(String(n)));
+    const hasAssumedNote = capitalNotes.some((n) => /asumid|assumed debt/i.test(String(n)));
     if (!hasAssumedNote) {
-      const nextNum = nextNoteNumber();
+      const nextAssumedNum = nextNoteNumber();
       const noteText = t('Deuda asumida (no-cash): {amount}M de deuda preexistente de la empresa adquirida se asume con la compra; no supone entrada de caja y se resta en el cuadre.', {
         amount: formatFinancialValue(Math.abs(assumedDebt), lang),
       }, lang);
-      if (assumedRow) assumedRow.name = `${assumedRow.name}*${nextNum}`;
-      horizon.capital.notes = [...capitalNotes, `*${nextNum}: ${noteText}`];
+      if (assumedRow) assumedRow.name = `${cleanCapitalName(assumedRow)}*${nextAssumedNum}`;
+      horizon.capital.notes = [...capitalNotes, `*${nextAssumedNum}: ${noteText}`];
     }
   } else if (assumedDebt === 0) {
     dropCapitalRow(/asumid|assumed/i);
@@ -361,7 +502,6 @@ export function normalizeCapitalBlock(horizon, extracted, language = 'es') {
       return /deuda balance|debt balance/i.test(text);
     });
   }
-
 
   // Las filas sin importe (0) no se muestran: solo Libre y En total son obligatorias.
   for (let idx = rows.length - 1; idx >= 0; idx -= 1) {
@@ -398,22 +538,38 @@ export function normalizeCapitalBlock(horizon, extracted, language = 'es') {
     return acc + (Number.isFinite(num) ? Math.abs(num) : 0);
   }, 0);
   const threshold = Math.max(50, libreAbs * 0.2, grossMovements * 0.1);
+  // El veredicto final se calcula sobre el resto DESPUÉS de tener en cuenta los movimientos que no
+  // pasan por caja: si con ellos el descuadre entra en el margen, el cuadre es razonable (KDP Q2:
+  // -17.432 de tabla + 17.782 de escrow = +350, dentro del margen de una operación de 16.615M).
+  const explainedByAdjustments = capitalAdjustments.reduce((acc, item) => acc + item.value, 0);
+  const netAfterAdjustments = Math.round((sum + explainedByAdjustments) * 10) / 10;
+  const verdictValue = capitalAdjustments.length ? netAfterAdjustments : sum;
   const buildAdjustmentsExplanation = () => {
     const explained = capitalAdjustments.reduce((acc, item) => acc + item.value, 0);
     const net = Math.round((sum + explained) * 10) / 10;
     const list = capitalAdjustments
       .map((item) => `${item.label} ${formatSignedFinancial(item.value, lang)}`)
       .join('; ');
-    const tail = Math.abs(net) <= 50
-      ? t('Con ellos, el resto sin explicar sería {net}, dentro del margen razonable.', {
-        net: formatSignedFinancial(net, lang),
-      }, lang)
-      : t('Con ellos, el resto sin explicar sería {net}, que corresponde a partidas no mapeadas o reclasificaciones pendientes de revisar en las notas del informe.', {
+    const narrowsGap = Math.abs(net) < Math.abs(sum) - 0.05;
+    let tail;
+    if (Math.abs(net) <= threshold) {
+      tail = t('Con ellos, el resto sin explicar sería {net}, dentro del margen razonable.', {
         net: formatSignedFinancial(net, lang),
       }, lang);
+    } else if (narrowsGap) {
+      tail = t('Con ellos, el resto sin explicar sería {net}, que corresponde a partidas no mapeadas o reclasificaciones pendientes de revisar en las notas del informe.', {
+        net: formatSignedFinancial(net, lang),
+      }, lang);
+    } else {
+      // Los movimientos no monetarios tienen el mismo signo que el descuadre: no lo explican.
+      // No se puede afirmar que "el resto" sea eso; falta un movimiento de caja por mapear.
+      tail = t('Estos movimientos no reducen el descuadre: el resto sin explicar sería {net}, así que faltan movimientos de caja por mapear (adquisiciones, desinversiones, deuda o caja) antes de atribuirlo a reclasificaciones.', {
+        net: formatSignedFinancial(net, lang),
+      }, lang);
+    }
     return { list, tail };
   };
-  if (Math.abs(sum) <= threshold) {
+  if (Math.abs(verdictValue) <= threshold) {
     let text = t('Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle.', null, lang);
     // Aunque el cuadre entre en el umbral, el descuadre se explica bajo la tabla cuando el sistema
     // conoce los movimientos que no pasan por caja que lo componen.
@@ -426,7 +582,7 @@ export function normalizeCapitalBlock(horizon, extracted, language = 'es') {
   }
   if (capitalAdjustments.length) {
     const { list, tail } = buildAdjustmentsExplanation();
-    horizon.capital.verification = t('No cuadra: quedan {amount} sin explicar entre el capital libre y los usos detectados. La tabla solo incluye movimientos de caja; los siguientes no pasan por caja y explican el descuadre: {list}. {tail}', {
+    horizon.capital.verification = t('No cuadra: quedan {amount} sin explicar entre el capital libre y los usos detectados. La tabla solo incluye movimientos de caja; los siguientes no pasan por caja: {list}. {tail}', {
       amount: formatSignedFinancial(sum, lang),
       list,
       tail,

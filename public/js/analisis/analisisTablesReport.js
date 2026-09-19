@@ -32,16 +32,31 @@
     `;
   }
 
+  const NO_INFO_RE = /^(?:no\s+(?:public(?:ly)?\s+)?information(?:\s+(?:is|was))?\s+available|no\s+information(?:\s+(?:is|was))?\s+available|no\s+se\s+(?:dispone|dispuso|encontro|encontraron|encuentra|ha\s+(?:encontrado|publicado|facilitado|indicado|especificado|detallado|mencionado|reportado|revelado|proporcionado)|han\s+(?:encontrado|publicado|facilitado|indicado|especificado|detallado|mencionado|reportado|revelado|proporcionado)|publico|publicaron|facilito|facilitaron|indico|indicaron|especifico|especificaron|detallo|detallaron|menciona|mencionaron|reporto|reportaron|revelo|revelaron|proporciono|proporcionaron|conoce|identifico|identificaron)[^.]*|no\s+(?:consta|figura|existe|hay|aplica|disponible|especificad[oa]|indicad[oa]|revelad[oa]|proporcionad[oa]|detallad[oa])[^.]*|sin\s+(?:informacion|datos|detalle)[^.]*|(?:informacion|datos)\s+no\s+disponible[^.]*|no\s+info(?:rmacion)?|not\s+(?:available|disclosed|stated|provided|specified|applicable|found|known|reported|mentioned)[^.]*|unknown|desconocid[oa]|none|null|undefined|n\/?a|no\s+data|[-—])$/i;
+
+  function isNoInfoValue(value) {
+    if (value == null) return true;
+    if (typeof value === 'object') return false;
+    let text = String(value).trim();
+    if (!text) return true;
+    text = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.\s]+$/, '');
+    if (NO_INFO_RE.test(text)) return true;
+    const firstSentence = text.split(/[.!?]/)[0].trim();
+    return firstSentence !== text && NO_INFO_RE.test(firstSentence);
+  }
+
   function renderCeoFieldLine(label, value) {
-    const text = String(value ?? '').trim();
-    if (!text) return '';
-    return `<div class="ceo-field"><span class="ceo-field-label">${escapeHtml(label)}:</span> <span class="ceo-field-text">${formatAnnualRichText(text)}</span></div>`;
+    if (isNoInfoValue(value)) return '';
+    const text = String(value).trim();
+    return `<div class="ceo-field"><span class="ceo-field-label">${escapeHtml(tr(label))}:</span> <span class="ceo-field-text">${formatAnnualRichText(text)}</span></div>`;
   }
 
   function renderCeoPersonBlock(label, person) {
     if (!person || typeof person !== 'object') return '';
-    const heading = person.name
-      ? `<div class="ceo-person-name">${escapeHtml(String(person.name))}${person.role ? ` <span class="ceo-person-role">${escapeHtml(String(person.role))}</span>` : ''}</div>`
+    const name = isNoInfoValue(person.name) ? '' : String(person.name).trim();
+    const personRole = isNoInfoValue(person.role) ? '' : String(person.role).trim();
+    const heading = name
+      ? `<div class="ceo-person-name">${escapeHtml(name)}${personRole ? ` <span class="ceo-person-role">${escapeHtml(personRole)}</span>` : ''}</div>`
       : '';
     const fields = [
       renderCeoFieldLine('Inicio en el cargo', person.tenureStart),
@@ -56,24 +71,45 @@
     return `<div class="ceo-person-box"><span class="ceo-block-label">${escapeHtml(label)}</span>${heading}${fields}</div>`;
   }
 
+  const EXEC_PERSON_FIELDS = ['name', 'role', 'tenureStart', 'salesDuringTenure', 'whereTheyGo', 'policies', 'origin', 'trackRecord', 'commitments'];
+
+  function personHasInfo(person) {
+    if (!person || typeof person !== 'object') return false;
+    return EXEC_PERSON_FIELDS.some((key) => !isNoInfoValue(person[key]));
+  }
+
+  function changeHasInfo(change) {
+    if (!change || typeof change !== 'object') return false;
+    return personHasInfo(change.oldExecutive)
+      || personHasInfo(change.newExecutive)
+      || !isNoInfoValue(change.text)
+      || !isNoInfoValue(change.reason)
+      || !isNoInfoValue(change.announcementDate)
+      || !isNoInfoValue(change.effectiveDate);
+  }
+
   function getExecutiveChanges(conclusion) {
     const modern = conclusion?.executiveChanges;
     if (modern && Array.isArray(modern.changes) && modern.changes.length) {
-      return { title: modern.title, changes: modern.changes, disclaimer: modern.disclaimer || null };
+      const changes = modern.changes.filter(changeHasInfo);
+      if (!changes.length) return null;
+      return { title: modern.title, changes, disclaimer: modern.disclaimer || null };
     }
     const legacy = conclusion?.ceoChange;
     if (legacy && typeof legacy === 'object') {
+      const change = {
+        role: 'CEO',
+        text: legacy.text,
+        announcementDate: legacy.announcementDate,
+        effectiveDate: legacy.effectiveDate,
+        reason: legacy.reason,
+        oldExecutive: legacy.oldCeo,
+        newExecutive: legacy.newCeo,
+      };
+      if (!changeHasInfo(change)) return null;
       return {
-        title: legacy.title || 'Cambios en la dirección',
-        changes: [{
-          role: 'CEO',
-          text: legacy.text,
-          announcementDate: legacy.announcementDate,
-          effectiveDate: legacy.effectiveDate,
-          reason: legacy.reason,
-          oldExecutive: legacy.oldCeo,
-          newExecutive: legacy.newCeo,
-        }],
+        title: legacy.title || tr('Cambios en la dirección'),
+        changes: [change],
         disclaimer: legacy.disclaimer || null,
       };
     }
@@ -89,18 +125,19 @@
   }
 
   function renderExecutiveChangeBody(change) {
-    const roleLabel = String(change.role || 'Directivo').toUpperCase();
+    const roleLabel = isNoInfoValue(change.role) ? tr('Directivo').toUpperCase() : String(change.role).toUpperCase();
     const blocks = [
       renderCeoPersonBlock(tr('ANTIGUO {role}', { role: roleLabel }), change.oldExecutive),
       renderCeoPersonBlock(tr('NUEVO {role}', { role: roleLabel }), change.newExecutive),
     ].filter(Boolean).join('');
+    const hasMeta = !isNoInfoValue(change.announcementDate) || !isNoInfoValue(change.effectiveDate) || !isNoInfoValue(change.reason);
 
     return `
-      ${change.text ? `<p class="annual-card-text">${formatAnnualRichText(change.text)}</p>` : ''}
-      ${(change.announcementDate || change.effectiveDate || change.reason) ? `<div class="ceo-meta">${[
-        change.announcementDate ? `<span class="annual-badge">${tr('Anuncio:')} <strong>${escapeHtml(String(change.announcementDate))}</strong></span>` : '',
-        change.effectiveDate ? `<span class="annual-badge">${tr('Efectivo:')} <strong>${escapeHtml(String(change.effectiveDate))}</strong></span>` : '',
-        change.reason ? `<span class="annual-badge">${tr('Motivo:')} <strong>${escapeHtml(String(change.reason))}</strong></span>` : '',
+      ${!isNoInfoValue(change.text) ? `<p class="annual-card-text">${formatAnnualRichText(String(change.text).trim())}</p>` : ''}
+      ${hasMeta ? `<div class="ceo-meta">${[
+        !isNoInfoValue(change.announcementDate) ? `<span class="annual-badge">${tr('Anuncio:')} <strong>${escapeHtml(String(change.announcementDate))}</strong></span>` : '',
+        !isNoInfoValue(change.effectiveDate) ? `<span class="annual-badge">${tr('Efectivo:')} <strong>${escapeHtml(String(change.effectiveDate))}</strong></span>` : '',
+        !isNoInfoValue(change.reason) ? `<span class="annual-badge">${tr('Motivo:')} <strong>${escapeHtml(String(change.reason))}</strong></span>` : '',
       ].filter(Boolean).join('')}</div>` : ''}
       ${blocks ? `<div class="ceo-grid">${blocks}</div>` : ''}
     `;
@@ -110,7 +147,7 @@
     const changes = Array.isArray(section?.changes) ? section.changes : [];
     const body = changes.map((change, index) => `
       ${index > 0 ? '<div class="ceo-change-separator"></div>' : ''}
-      ${changes.length > 1 ? `<div class="ceo-block-label">${escapeHtml(String(change.role || 'Directivo'))}</div>` : ''}
+      ${changes.length > 1 && !isNoInfoValue(change.role) ? `<div class="ceo-block-label">${escapeHtml(String(change.role))}</div>` : ''}
       ${renderExecutiveChangeBody(change)}
     `).join('');
     return `${body}${section?.disclaimer ? `<p class="ceo-disclaimer">${escapeHtml(section.disclaimer)}</p>` : ''}`;
@@ -184,7 +221,7 @@
     if (exec) {
       html += `
         <div class="annual-deepdive-card ceo-change-card">
-          <h5 class="annual-card-title">${escapeHtml(exec.title || '2: Cambios en la dirección')}</h5>
+          <h5 class="annual-card-title">${escapeHtml(exec.title || tr('2: Cambios en la dirección'))}</h5>
           ${renderExecutiveChangesBody(exec)}
         </div>
       `;

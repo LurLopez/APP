@@ -133,13 +133,17 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral, lang
   };
 
   let cashTaxesPaid = Number(facts[isTrimestral ? 'incomeTaxesPaidQuarter' : 'incomeTaxesPaidYtd']);
+  let taxSource = Number.isFinite(cashTaxesPaid) && cashTaxesPaid > 0 ? 'statement' : null;
   if (isYearHeaderAmount(cashTaxesPaid)) cashTaxesPaid = NaN;
-  if (!Number.isFinite(cashTaxesPaid) || cashTaxesPaid <= 0) {
+  // En el trimestre el importe debe ser el DEL TRIMESTRE; nunca se usa el acumulado ni el
+  // primer número que aparezca en el texto (que suele ser el YTD): si no está, no se ajusta.
+  if (!isTrimestral && (!Number.isFinite(cashTaxesPaid) || cashTaxesPaid <= 0)) {
     const rawText = extracted._rawText || extracted.text || '';
     if (rawText) {
       const extractedPaid = extractIncomeTaxesPaid(rawText);
       if (Number.isFinite(extractedPaid) && extractedPaid > 0 && !isYearHeaderAmount(extractedPaid)) {
         cashTaxesPaid = extractedPaid;
+        taxSource = 'statement';
       }
     }
   }
@@ -154,10 +158,24 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral, lang
   if (!Number.isFinite(cashTaxesPaid) || cashTaxesPaid <= 0) {
     if (Number.isFinite(reportedTax) && Number.isFinite(taxCfoAdjustment) && rawTaxCfoAdjustment != null && rawTaxCfoAdjustment !== 0) {
       cashTaxesPaid = Math.abs(reportedTax - taxCfoAdjustment);
+      taxSource = 'reconciliation';
     }
   }
 
   if (!Number.isFinite(cashTaxesPaid) || cashTaxesPaid <= 0) {
+    return null;
+  }
+
+  // Guarda de unidades: un pago de impuestos desproporcionado frente al EBT ajustado
+  // indica que la cifra venía en miles (u otra unidad) sin escalar; se descarta en vez de
+  // contaminar el Cash Flow Ajustado con un ajuste absurdo.
+  if (cashTaxesPaid > ebtAdjusted * 5 || cashTaxesPaid > normalizedCashTaxes * 20) {
+    return null;
+  }
+
+  // En el trimestre, un pago muy superior al normalizado suele ser el acumulado del año
+  // mal etiquetado: se descarta el ajuste en vez de usar un periodo equivocado.
+  if (isTrimestral && cashTaxesPaid > normalizedCashTaxes * 2.5) {
     return null;
   }
 
@@ -167,6 +185,9 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral, lang
   const normTaxText = `${formatFinancialValue(normalizedCashTaxes, language)}M`;
   const paidTaxText = `${formatFinancialValue(cashTaxesPaid, language)}M`;
   const adjText = `${adjustment >= 0 ? '+' : ''}${formatFinancialValue(adjustment, language)}M`;
+  const paidSourceText = taxSource === 'reconciliation'
+    ? t('y solo consta un pago estimado de {paidTaxText} calculado por la conciliación de gasto fiscal menos impuestos diferidos (el estado de flujos no desglosa el efectivo pagado)', { paidTaxText }, language)
+    : t('y solamente ha pagado {paidTaxText} en efectivo según el estado de flujos', { paidTaxText }, language);
 
   return {
     reportedTax,
@@ -175,10 +196,10 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral, lang
     normalizedRate,
     normalizedCashTaxes,
     adjustment,
-    explanation: t('Impuestos: La empresa debería haber pagado {normTaxText} en impuestos (23 % sobre el EBT ajustado de {ebtText}) y solamente ha pagado {paidTaxText} en efectivo según el estado de flujos. Ajuste de {adjText} al Cash Flow Ajustado por la discrepancia fiscal.', {
+    explanation: t('Impuestos: La empresa debería haber pagado {normTaxText} en impuestos (23 % sobre el EBT ajustado de {ebtText}) {paidSourceText}. Ajuste de {adjText} al Cash Flow Ajustado por la discrepancia fiscal.', {
       normTaxText,
       ebtText: `${formatFinancialValue(ebtAdjusted, language)}M`,
-      paidTaxText,
+      paidSourceText,
       adjText,
     }, language),
   };

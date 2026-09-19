@@ -10,12 +10,12 @@
 
 3. **Impuestos normalizados (Beneficio Neto)** — Se compara el impuesto reportado con el 23 % del EBT ajustado. Si la desviación supera el -20 % o el +20 %, se normalizan los impuestos al 23 % sobre el EBT ajustado: Beneficio Neto Ajustado = EBT Ajustado × 0,77. El resalte de color y la nota explicativa (*2) se aplican **únicamente a la casilla de Beneficio Neto**.
 
-4. **Cash flow con capital circulante (WC / WK)** — El capital circulante se calcula con la fórmula del usuario:
-   `WK de caja = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (Inflación + volumen) = -(Inventarios + Cuentas por cobrar - Cuentas por pagar) × (Inflación + volumen)`
+4. **Cash flow con capital circulante (WC / WC)** — El capital circulante se calcula con la fórmula del usuario:
+   `WC de caja = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (Inflación + volumen) = -(Inventarios + Cuentas por cobrar - Cuentas por pagar) × (Inflación + volumen)`
    Si el informe no proporciona volumen, se utiliza obligatoriamente volumen = 0 %. Si no proporciona una inflación específica de la empresa, se utiliza una hipótesis sectorial aproximada del 3 % para consumo defensivo y se indica expresamente en la nota.
    El cash flow se presenta en dos escenarios con valores distintos: **Normal (WC=<valorBase>)** y **Ajustado (WC=<valorAjustado>)**, deduciendo del Cash Flow la desviación de circulante frente a la necesidad teórica normalizada:
-   `Desviación WC = WC reportado − WK teórico` y `Cash Flow ajustado = Cash Flow normal − Desviación WC`.
-   **Regla de signos en la nota (obligatoria)**: la desviación conserva su signo y la resta se escribe de forma explícita, sin frases contradictorias. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WK teórico (12,1M): -159,1M. El Cash Flow ajustado resta esa desviación: 1784,4M - (-159,1M) = 1943,5M.` Queda prohibido escribir `ajuste de -159M (1784,4M + 159,1M)`.
+   `Desviación WC = WC reportado − WC teórico` y `Cash Flow ajustado = Cash Flow normal − Desviación WC`.
+   **Regla de signos en la nota (obligatoria)**: la desviación conserva su signo y la resta se escribe de forma explícita, sin frases contradictorias. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WC teórico (12,1M): -159,1M. El Cash Flow tras el ajuste de circulante queda en: 1784,4M - (-159,1M) = 1943,5M.` Queda prohibido escribir `ajuste de -159M (1784,4M + 159,1M)`. Prohibido llamar «Cash Flow Ajustado» al resultado del ajuste de circulante cuando después se aplica un ajuste fiscal (nota *2): ese resultado es un subtotal intermedio y el único «Cash Flow Ajustado» es el valor final de la tabla.
    Normalización fiscal del Cash Flow: Se calcula cuántos impuestos debería pagar la empresa en realidad (23 % sobre el EBT ajustado) y cuánto consta que ha pagado en los cash flows (bien por la línea de impuestos pagados en efectivo como "Income tax (paid) received" / "Income taxes paid", o bien por la conciliación "Gasto fiscal - Ajuste fiscal del cash flow"). Si existe una discrepancia, se ajusta el Cash Flow en la columna Ajustado restando o sumando la diferencia (si pagó menos de lo normalizado se resta, si pagó más se suma). Si se aplica, se recalculan FCF, FCF/Acción y Libre, y se añade la Nota *2 explicando cuántos impuestos debería haber pagado y cuánto ha pagado realmente.
    **Doble ajuste (circulante + impuestos, obligatorio)**: cuando se apliquen ambos ajustes, la Nota *2 debe cerrar la cadena completa `Cash Flow Normal -> ajuste de circulante -> ajuste fiscal -> Cash Flow Ajustado`, mostrando CADA ajuste con su importe y su signo y aclarando si ambos se compensan. Ejemplo: `La cifra final combina los dos ajustes: 9415M -646,7M (circulante) +654,7M (impuestos) = 9423M; el efecto neto es de solo +8M porque ambos se cancelan en gran medida.` Queda prohibido que la tabla dé la impresión de que el ajuste fue irrelevante cuando hubo dos ajustes brutos grandes de signo opuesto.
 
@@ -50,7 +50,7 @@ Tabla con las filas: **Cash Flow · CAPEX · FCF · FCF/Acción · Dividendo · 
 Columnas: `Normal (WC=<valor>) | Ajustado*1 (WC=<valor>)`
 - **Numeración independiente por bloque**: Cada bloque reinicia sus notas en `*1`.
 - **Resaltado en cabecera**: La llamada de nota y el resalte cromático se aplican en la cabecera `Ajustado*1 (WC=<valor>)` donde se produce la normalización de capital circulante (color amarillo).
-- **Única nota al pie**: `*1: WK = ...` con la fórmula del WC aplicada y su desglose numérico. Queda prohibido poner notas al pie con asterisco por la deducción trimestral ordinaria.
+- **Única nota al pie**: `*1: WC = ...` con la fórmula del WC aplicada y su desglose numérico. Queda prohibido poner notas al pie con asterisco por la deducción trimestral ordinaria.
 
 ### Bloque 3 — ASIGNACIÓN DE CAPITAL
 - **Cálculo desde balance**:

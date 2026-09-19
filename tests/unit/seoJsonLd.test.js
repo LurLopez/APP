@@ -75,3 +75,93 @@ test('el JSON-LD de un informe usa el idioma del análisis', () => {
   assert.equal(articleEs.inLanguage, 'es');
   assert.match(articleEs.isBasedOn.name, /^Informe oficial/);
 });
+
+test('serveStandalone localiza el JSON-LD en inglés para guías y legales', async () => {
+  const { default: config } = await import('../../config/index.js');
+  const { serveStandalone } = await import('../../src/services/seo/pageRenderer.service.js');
+  const sampleHtml = `<!doctype html><html lang="es"><head><title>Test</title><link rel="canonical" href="{{SITE_URL}}/guias/test"><link rel="alternate" hreflang="es" href="{{SITE_URL}}/guias/test"><script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "headline": "¿Qué es un 10-Q?",
+      "description": "Descripción",
+      "url": "{{SITE_URL}}/guias/test",
+      "mainEntityOfPage": "{{SITE_URL}}/guias/test",
+      "inLanguage": "es"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Cifra", "item": "{{SITE_URL}}/" },
+        { "@type": "ListItem", "position": 2, "name": "Guías", "item": "{{SITE_URL}}/guias" },
+        { "@type": "ListItem", "position": 3, "name": "¿Qué es un 10-Q?" }
+      ]
+    }
+  ]
+}
+</script></head><body><main>Contenido</main></body></html>`;
+
+  const res = {
+    headers: {},
+    body: '',
+    statusCode: 200,
+    set(name, val) { this.headers[name] = val; return this; },
+    send(data) { this.body = data; return this; },
+  };
+
+  serveStandalone(res, sampleHtml, {
+    lang: 'en',
+    pathname: '/en/guias/test',
+    title: 'What is a 10-Q?',
+    description: 'English description',
+    slug: 'test',
+  });
+
+  const jsonMatch = res.body.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  assert.ok(jsonMatch, 'Debe incluir script JSON-LD');
+  const parsed = JSON.parse(jsonMatch[1]);
+  const article = parsed['@graph'].find((n) => n['@type'] === 'Article');
+  assert.equal(article.inLanguage, 'en');
+  assert.equal(article.headline, 'What is a 10-Q?');
+  assert.equal(article.description, 'English description');
+  assert.equal(article.mainEntityOfPage, `${config.siteUrl}/en/guias/test`);
+
+  const breadcrumb = parsed['@graph'].find((n) => n['@type'] === 'BreadcrumbList');
+  assert.equal(breadcrumb.itemListElement[0].item, `${config.siteUrl}/en`);
+  assert.equal(breadcrumb.itemListElement[1].name, 'Guides');
+  assert.equal(breadcrumb.itemListElement[1].item, `${config.siteUrl}/en/guias`);
+  assert.equal(breadcrumb.itemListElement[2].name, 'What is a 10-Q?');
+});
+
+test('robots.txt cubre rutas privadas completas en ES y EN, y rastreadores modernos', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const robots = fs.readFileSync(path.resolve('public/robots.txt'), 'utf8');
+
+  assert.match(robots, /Disallow: \/calendario/);
+  assert.match(robots, /Disallow: \/en\/calendario/);
+  assert.match(robots, /Disallow: \/en\/cartera/);
+  assert.match(robots, /Disallow: \/en\/seguimiento/);
+  assert.match(robots, /Disallow: \/en\/analisis/);
+  assert.match(robots, /Allow: \/en\/guias/);
+  assert.match(robots, /Allow: \/en\/empresa/);
+  assert.match(robots, /User-agent: DeepSeekBot/);
+  assert.match(robots, /User-agent: GoogleOther/);
+  assert.match(robots, /User-agent: YouBot/);
+});
+
+test('llms.txt referencia todas las 9 guías y endpoints bilingües', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const llms = fs.readFileSync(path.resolve('public/llms.txt'), 'utf8');
+
+  for (const g of GUIDES) {
+    assert.match(llms, new RegExp(g.slug), `Falta la guía ${g.slug} en llms.txt`);
+  }
+  assert.match(llms, /\/en\/empresa/);
+  assert.match(llms, /\/en\/guias/);
+  assert.match(llms, /español e inglés/);
+});
+

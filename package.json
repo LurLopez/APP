@@ -11,6 +11,8 @@
     "db:migrate": "node --env-file=.env db/migrations.js",
     "db:seed": "node --env-file=.env db/seed.js",
     "test:email": "node --env-file=.env scripts/test-email.js",
+    "calendar:earnings": "node scripts/earnings-calendar.js",
+    "filings:recent": "node scripts/recent-filings.js",
     "analyze:consumer": "node --env-file=.env scripts/analyze-defensive-consumer.js",
     "worker:opencode": "node --env-file=.env scripts/analyze-defensive-consumer.js",
     "commit": "./commit-development.sh",

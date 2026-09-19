@@ -66,6 +66,10 @@ let valPeAdjusted = true;
 let valChartMetric = 'evEbitda';
 let valChartRange = '5y';
 let valChartPoints = [];
+let valChartAllPoints = [];
+let valChartLoadedBuffer = 0;
+let valMaConfig = loadValChartMaConfig();
+let valMaLookup = {};
 let valChartState = null;
 let valChartRequested = false;
 

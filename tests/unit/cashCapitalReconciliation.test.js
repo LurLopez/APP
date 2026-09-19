@@ -52,8 +52,7 @@ function buildPepsiExtracted() {
   };
 }
 
-test('buildCashFlowAdjustmentChain explicita los dos ajustes cuando el neto es pequeño', () => {
-  const chain = buildCashFlowAdjustmentChain({
+test('buildCashFlowAdjustmentChain explicita los dos ajustes cuando el neto es pequeño', () => {  const chain = buildCashFlowAdjustmentChain({
     normalCfo: 9415,
     afterWc: 8768.3,
     finalCfo: 9423,
@@ -381,7 +380,7 @@ test('normalizeCapitalBlock explica la deuda no monetaria bajo la tabla y no com
   assert.match(horizon.capital.verification, /Con ellos, el resto sin explicar sería -1M, dentro del margen razonable/);
 });
 
-test('normalizeCapitalBlock explica el descuadre con los movimientos que no pasan por caja cuando supera el umbral', () => {
+test('normalizeCapitalBlock cierra en «más o menos cuadra» cuando los movimientos no monetarios explican el hueco', () => {
   const horizon = {
     label: 'ÚLTIMOS 3 MESES',
     cashFlow: { rows: [{ name: 'Libre', values: ['100'] }] },
@@ -412,11 +411,11 @@ test('normalizeCapitalBlock explica el descuadre con los movimientos que no pasa
   assert.ok(!horizon.capital.rows.some((r) => /no monetaria/i.test(r.name)));
   const totalRow = horizon.capital.rows.find((r) => /total/i.test(r.name));
   assert.equal(totalRow.value, '-500');
-  assert.match(horizon.capital.verification, /No cuadra/);
-  assert.match(horizon.capital.verification, /-500M/);
+  assert.match(horizon.capital.verification, /Más o menos cuadra/);
   assert.match(horizon.capital.verification, /deuda no monetaria/i);
   assert.match(horizon.capital.verification, /\+500M/);
   assert.match(horizon.capital.verification, /Con ellos, el resto sin explicar sería \+0M, dentro del margen razonable/i);
+  assert.doesNotMatch(horizon.capital.verification, /No cuadra/);
 });
 
 test('visibleCapitalRows oculta las filas a 0 y conserva Libre y En total', () => {
@@ -452,4 +451,198 @@ test('normalizeCapitalBlock indica el importe exacto del descuadre y su causa no
   assert.match(horizon.capital.verification, /No cuadra/);
   assert.match(horizon.capital.verification, /-1400M/);
   assert.match(horizon.capital.verification, /no monetarios|reclasificaciones/);
+});
+
+test('normalizeCapitalBlock pinta el escrow que financia la adquisición y enlaza la financiación previa (caso KDP 2026-Q2)', () => {
+  const extracted = {
+    balance: { restrictedCash: 36, restrictedCashPreviousQuarter: 17818 },
+    capitalAllocationData: {
+      ytd: { preferredIssuance: 4395, nonControllingSale: 3899 },
+      threeMonths: {
+        deuda: 4273,
+        caja: -619,
+        acquisitions: -16615,
+        assumedDebt: 4819,
+        restrictedCashMovement: 17782,
+        nonCashDebt: 0,
+        debtDetails: 'Deuda balance: 25707M -> 29980M (+4273M). Deuda neta: 24809M -> 28463M (+3654M)',
+        cashDetails: 'Caja balance: 898M (Q1) -> 1517M (Q2) (+619M); la caja aumentó: uso de capital (-); fila Caja = -619M.',
+      },
+    },
+  };
+  const horizon = {
+    label: 'ÚLTIMOS 3 MESES',
+    cashFlow: { rows: [{ name: 'Libre', values: ['348'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '348' },
+        { name: 'Deuda*1', value: '4273' },
+        { name: 'Caja*1', value: '-619' },
+        { name: 'En total', value: '4002' },
+      ],
+      notes: ['*1: Deuda balance: 25707M -> 29980M (+4273M). Deuda neta: 24809M -> 28463M (+3654M) Caja balance: 898M (Q1) -> 1517M (Q2) (+619M); la caja aumentó: uso de capital (-); fila Caja = -619M.'],
+      verification: '',
+    },
+  };
+
+  normalizeCapitalBlock(horizon, extracted);
+
+  const values = Object.fromEntries(horizon.capital.rows.map((row) => [row.name.replace(/\*\d+$/, ''), row.value]));
+  assert.equal(values['Libre'], '348');
+  assert.equal(values['Adquisiciones'], '-16615');
+  assert.equal(values['Deuda'], '4273');
+  assert.equal(values['Deuda asumida (no-cash)'], '-4819');
+  assert.equal(values['Caja'], '-619');
+  assert.equal(values['Efectivo restringido (escrow)'], '17782', 'El escrow que financia la compra se pinta como fila');
+  assert.equal(values['En total'], '350', '348 - 16.615 + 4.273 - 4.819 - 619 + 17.782 = 350');
+  assert.match(horizon.capital.verification, /Más o menos cuadra/);
+  assert.doesNotMatch(horizon.capital.verification, /No cuadra/);
+  assert.doesNotMatch(horizon.capital.verification, /21784/);
+
+  const escrowNote = horizon.capital.notes.find((note) => /efectivo restringido pasa de/i.test(note));
+  assert.ok(escrowNote, 'Debe existir la nota determinista del escrow');
+  assert.match(escrowNote, /17818M a 36M/);
+  assert.match(escrowNote, /liberación de 17782M financió la adquisición del periodo \(16615M\)/);
+  assert.match(escrowNote, /emisión de preferentes \(\+4395M\)/);
+  assert.match(escrowNote, /venta de participaciones \(\+3899M\)/);
+});
+
+test('normalizeCapitalBlock avisa cuando los movimientos no monetarios no reducen el descuadre', () => {
+  const extracted = {
+    capitalAllocationData: {
+      threeMonths: { deuda: 4273, caja: -619, restrictedCashMovement: 17782 },
+    },
+  };
+  const horizon = {
+    label: 'ÚLTIMOS 3 MESES',
+    cashFlow: { rows: [{ name: 'Libre', values: ['348'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '348' },
+        { name: 'Deuda', value: '4273' },
+        { name: 'Caja', value: '-619' },
+      ],
+      notes: [],
+      verification: '',
+    },
+  };
+
+  normalizeCapitalBlock(horizon, extracted);
+
+  const totalRow = horizon.capital.rows.find((row) => /total/i.test(row.name));
+  assert.equal(totalRow.value, '4002');
+  assert.match(horizon.capital.verification, /efectivo restringido \(consignaciones o liberaciones\) \+17782M/);
+  assert.match(horizon.capital.verification, /no reducen el descuadre/);
+  assert.doesNotMatch(horizon.capital.verification, /explican el descuadre/, 'No puede afirmar que explican un descuadre que amplían');
+});
+
+test('la cabecera Ajustado lleva la llamada *1 y la nota del circulante usa WC (caso KDP)', () => {
+  const horizon = {
+    label: 'ÚLTIMOS 3 MESES',
+    cashFlow: {
+      scenarios: ['Normal (WC=414)', 'Ajustado (WC=-8)'],
+      rows: [
+        { name: 'Cash Flow', values: ['1082', '659,6'] },
+        { name: 'CAPEX', values: ['189', '189'] },
+        { name: 'FCF', values: ['893', '470,6'] },
+        { name: 'FCF/Acción', values: ['0,75 $', '0,40 $'] },
+        { name: 'Dividendo', values: ['475', '475'] },
+        { name: 'Libre', values: ['418', '-4,4'] },
+      ],
+      notes: [],
+    },
+  };
+  const extracted = {
+    shares: 1300,
+    workingCapitalData: {
+      quarterScenarios: ['Normal (WC=414)', 'Ajustado (WC=-8)'],
+      quarterValues: {
+        cfo: ['1082', '659,6'],
+        capex: ['189', '189'],
+        fcf: ['893', '470,6'],
+        fcfPerShare: ['0,75 $', '0,40 $'],
+        dividends: ['475', '475'],
+        libre: ['418', '-4,4'],
+      },
+      explanation3M: '*1: WK = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (inflación + volumen) = (4478 - 3308 - 2286) × (3% + 0%) = -33,5M en todo el año -> en 3 meses = -8,4M. Desviación del circulante reportado (414M) frente al WK teórico (-8,4M): 422,4M. El Cash Flow tras el ajuste de circulante queda en: 1082M - (422,4M) = 659,6M.',
+    },
+  };
+
+  normalizeCashFlowBlock(horizon, extracted);
+
+  assert.equal(horizon.cashFlow.scenarios[1], 'Ajustado*1 (WC=-8)', 'La cabecera ajustada referencia la nota *1 (se resalta en amarillo en web y PDF)');
+  const wcNote = horizon.cashFlow.notes.find((note) => note.startsWith('*1:'));
+  assert.ok(wcNote, 'Debe existir la nota *1 del circulante');
+  assert.match(wcNote, /^\*1: WC = \(Cuentas por pagar/);
+  assert.match(wcNote, /frente al WC teórico/);
+  assert.doesNotMatch(wcNote, /\bWK\b/, 'La nota no debe mezclar la nomenclatura WK');
+});
+
+test('el fallback del circulante genera la cabecera Ajustado*1 y la fórmula WC', async () => {
+  const { buildWorkingCapitalDataFallback } = await import('../../src/agents/analyst/capitalAllocationHelpers.js');
+  const result = buildWorkingCapitalDataFallback({
+    cashFlow: { operating: 1082, capex: 189, dividends: 475 },
+    balance: { inventories: 3308, accountsPayable: 4478, accountsReceivable: 2286 },
+    workingCapital: { reportedChangeQuarter: 414 },
+    fiscalQuarter: 2,
+    fiscalYear: 2026,
+    ytd: { months: 6 },
+  });
+  assert.match(result.quarterScenarios[1], /\*1 \(WC=/);
+  assert.match(result.ytdScenarios[1], /\*1 \(WC=/);
+  assert.match(result.explanation3M, /^WC = \(Cuentas por pagar/);
+  assert.match(result.explanationYtd, /^WC = \(Cuentas por pagar/);
+  assert.doesNotMatch(result.explanation3M, /\bWK\b/);
+  assert.doesNotMatch(result.explanationYtd, /\bWK\b/);
+});
+
+test('normalizeCapitalBlock pinta la consignación de escrow financiada en el trimestre (caso KDP 2026-Q1)', () => {
+  const extracted = {
+    balance: { restrictedCash: 17818, restrictedCashPreviousQuarter: 18 },
+    capitalAllocationData: {
+      ytd: { preferredIssuance: 4489, nonControllingSale: 3948 },
+      threeMonths: {
+        deuda: 9566,
+        caja: 128,
+        acquisitions: 0,
+        preferredIssuance: 4489,
+        nonControllingSale: 3948,
+        restrictedCashMovement: -17800,
+        nonCashDebt: 0,
+        debtDetails: 'Deuda balance: 16141M -> 25707M (+9566M). Deuda neta: 15115M -> 24809M (+9694M)',
+        cashDetails: 'Caja balance: 1026M -> 898M (-128M); la caja disminuyó: fuente de liquidez (+); fila Caja = 128M.',
+      },
+    },
+  };
+  const horizon = {
+    label: 'ÚLTIMOS 3 MESES',
+    cashFlow: { rows: [{ name: 'Libre', values: ['-147'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '-147' },
+        { name: 'Emisión de preferentes*1', value: '4489' },
+        { name: 'Venta de participaciones*1', value: '3948' },
+        { name: 'Caja*1', value: '128' },
+        { name: 'Deuda*1', value: '9566' },
+        { name: 'En total', value: '17984' },
+      ],
+      notes: [],
+      verification: '',
+    },
+  };
+
+  normalizeCapitalBlock(horizon, extracted);
+
+  const values = Object.fromEntries(horizon.capital.rows.map((row) => [row.name.replace(/\*\d+$/, ''), row.value]));
+  assert.equal(values['Efectivo restringido (escrow)'], '-17800', 'La consignación del escrow se pinta como uso');
+  assert.equal(values['En total'], '184', '-147 + 4.489 + 3.948 + 128 + 9.566 - 17.800 = 184');
+  assert.match(horizon.capital.verification, /Más o menos cuadra/);
+  assert.doesNotMatch(horizon.capital.verification, /17984|17.984/);
+  const escrowNote = horizon.capital.notes.find((note) => /consignación de/i.test(note));
+  assert.ok(escrowNote, 'Debe existir la nota del escrow consignado');
+  assert.match(escrowNote, /pasa de 18M a 17818M/);
+  assert.match(escrowNote, /consignación de 17800M/);
+  assert.match(escrowNote, /emisión de preferentes \(\+4489M\)/);
+  assert.match(escrowNote, /venta de participaciones \(\+3948M\)/);
+  assert.match(escrowNote, /deuda del periodo \(\+9566M\)/);
 });

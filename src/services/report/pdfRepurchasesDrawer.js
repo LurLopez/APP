@@ -6,6 +6,7 @@ import { sanitize, drawSectionTitle, drawHorizontalRule, drawHighlightedText } f
 import { drawPdfSecSnippet } from './pdfSnippetDrawer.js';
 import { drawSharesChart } from './pdfEquityCharts.js';
 import { withAveragePriceRow, buildSharesChartModel } from '../reportExport.service.js';
+import { isNoInfoValue } from '../reportExport/executiveChanges.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 export function drawRepurchases(doc, rep, margin, y, language = 'es') {
@@ -71,7 +72,7 @@ function drawExecutivePersonBlock(doc, label, person, margin, y, language = 'es'
     [t('De dónde viene', null, lang), person.origin],
     [t('Trayectoria previa', null, lang), person.trackRecord],
     [t('Qué ha anunciado', null, lang), person.commitments],
-  ].filter(([, value]) => value);
+  ].filter(([, value]) => !isNoInfoValue(value));
   fields.forEach(([fieldLabel, value]) => {
     if (curY > doc.page.height - doc.page.margins.bottom - 16) {
       doc.addPage();
@@ -98,13 +99,13 @@ export function drawExecutiveChanges(doc, section, margin, y, language = 'es') {
       }
       curY = drawHighlightedText(doc, roleLabel, margin + 6, curY, { width: doc.page.width - margin * 2 - 12, baseSize: 8, baseFont: 'Helvetica-Bold', baseColor: '#4f46e5', boldFont: 'Helvetica-Bold', boldColor: '#4338ca' }) + 4;
     }
-    if (change.text) {
+    if (!isNoInfoValue(change.text)) {
       curY = drawHighlightedText(doc, sanitize(change.text), margin, curY, { width: doc.page.width - margin * 2, baseSize: 8.5, baseColor: '#374151', boldColor: '#0f172a' }) + 8;
     }
     const meta = [
-      change.announcementDate ? t('Anuncio: {value}', { value: change.announcementDate }, lang) : null,
-      change.effectiveDate ? t('Efectivo: {value}', { value: change.effectiveDate }, lang) : null,
-      change.reason ? t('Motivo: {value}', { value: change.reason }, lang) : null,
+      !isNoInfoValue(change.announcementDate) ? t('Anuncio: {value}', { value: change.announcementDate }, lang) : null,
+      !isNoInfoValue(change.effectiveDate) ? t('Efectivo: {value}', { value: change.effectiveDate }, lang) : null,
+      !isNoInfoValue(change.reason) ? t('Motivo: {value}', { value: change.reason }, lang) : null,
     ].filter(Boolean);
     if (meta.length) {
       curY = drawHighlightedText(doc, `• ${sanitize(meta.join('  ·  '))}`, margin + 6, curY, { width: doc.page.width - margin * 2 - 12, baseSize: 8, baseFont: 'Helvetica-Bold', baseColor: '#854d0e', boldFont: 'Helvetica-Bold', boldColor: '#7c2d12' }) + 5;

@@ -28,10 +28,15 @@ export async function getFeaturedCompanies(limit = 8) {
          GROUP BY ticker
          ORDER BY lastmod DESC`,
     );
-    dbCompanies = rows.rows.map((row) => ({
-      ticker: String(row.ticker).toUpperCase(),
-      name: titleCaseName(row.company_name),
-    }));
+    const benchmarkMap = new Map(BENCHMARK_CONSUMER_DEFENSIVE.map((b) => [b.ticker.toUpperCase(), b.name]));
+    dbCompanies = rows.rows.map((row) => {
+      const ticker = String(row.ticker).toUpperCase();
+      const rawName = row.company_name || benchmarkMap.get(ticker) || ticker;
+      return {
+        ticker,
+        name: titleCaseName(rawName),
+      };
+    });
   } catch {
     dbCompanies = [];
   }

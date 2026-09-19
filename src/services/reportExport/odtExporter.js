@@ -12,7 +12,24 @@ import { buildDebtHistoryTable } from './debtHistoryRefinancingModel.js';
 import { buildReportModel } from './reportModel.js';
 import { buildReportChartImages } from './chartImages.js';
 import { getExecutiveFieldLabels } from './executiveChanges.js';
+import { BRAND_URL, BRAND_LABEL, BRAND_LOGO_RATIO, readBrandLogo } from './reportBranding.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
+
+const ODT_FOOTER_LOGO_HEIGHT_IN = 0.139;
+const ODT_FOOTER_LOGO_WIDTH_IN = Number((ODT_FOOTER_LOGO_HEIGHT_IN * BRAND_LOGO_RATIO).toFixed(3));
+
+/**
+ * Construye el `styles.xml` del ODT con el pie de página de marca en la página maestra.
+ * @param {boolean} withLogo - Si incluir el logotipo además del enlace.
+ * @returns {string} XML completo de estilos.
+ */
+function buildOdtStylesXml(withLogo) {
+  const logoFrame = withLogo
+    ? `<draw:frame draw:style-name="FGFooter" draw:name="logo-cifra" text:anchor-type="as-char" svg:width="${ODT_FOOTER_LOGO_WIDTH_IN}in" svg:height="${ODT_FOOTER_LOGO_HEIGHT_IN}in"><draw:image xlink:href="Pictures/logo-cifra.png" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame><text:span text:style-name="TFooterLink"> </text:span>`
+    : '';
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" office:version="1.2"><office:styles><style:default-style style:family="paragraph"><style:text-properties fo:font-size="10pt" style:font-name="Helvetica"/></style:default-style><style:style style:name="PFooter" style:family="paragraph"><style:paragraph-properties fo:text-align="right"/><style:text-properties fo:font-size="7pt" fo:color="#8a94a6" style:font-name="Helvetica"/></style:style><style:style style:name="TFooterLink" style:family="text"><style:text-properties fo:font-size="7pt" fo:color="#64748b" style:font-name="Helvetica"/></style:style></office:styles><office:automatic-styles><style:page-layout style:name="pm1"><style:page-layout-properties fo:page-width="8.27in" fo:page-height="11.69in" fo:margin-top="0.79in" fo:margin-bottom="0.79in" fo:margin-left="0.79in" fo:margin-right="0.79in" style:print-orientation="portrait"/></style:page-layout><style:style style:name="FGFooter" style:family="graphic"><style:graphic-properties style:wrap="none" style:run-through="foreground" style:vertical-pos="middle" style:vertical-rel="text" style:horizontal-pos="right" style:horizontal-rel="paragraph"/></style:style></office:automatic-styles><office:master-styles><style:master-page style:name="Standard" style:page-layout-name="pm1"><style:footer><text:p text:style-name="PFooter">${logoFrame}<text:a xlink:href="${BRAND_URL}" xlink:type="simple"><text:span text:style-name="TFooterLink">${esc(BRAND_LABEL)}</text:span></text:a></text:p></style:footer></style:master-page></office:master-styles></office:document-styles>`;
+}
 
 function createOdtStyleRegistry() {
   const textStyles = new Map();
@@ -266,6 +283,7 @@ export async function buildReportOdt(report) {
   const model = buildReportModel(report);
   const lang = normalizeLanguage(report?.language);
   const images = buildReportChartImages(model);
+  const logo = await readBrandLogo();
   const mediaFiles = Object.entries(CHART_IMAGE_SLOTS)
     .filter(([key]) => images[key])
     .map(([key, slot]) => ({ ...slot, data: images[key].buffer }));
@@ -274,10 +292,11 @@ export async function buildReportOdt(report) {
 
   const zip = new JSZip();
   zip.file('mimetype', 'application/vnd.oasis.opendocument.text', { compression: 'STORE' });
-  zip.file('META-INF/manifest.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>${mediaEntries}</manifest:manifest>`);
-  zip.file('styles.xml', '<?xml version="1.0" encoding="UTF-8"?>\n<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" office:version="1.2"><office:styles><style:default-style style:family="paragraph"><style:text-properties fo:font-size="10pt" style:font-name="Helvetica"/></style:default-style></office:styles><office:automatic-styles><style:page-layout style:name="pm1"><style:page-layout-properties fo:page-width="8.27in" fo:page-height="11.69in" fo:margin-top="0.79in" fo:margin-bottom="0.79in" fo:margin-left="0.79in" fo:margin-right="0.79in" style:print-orientation="portrait"/></style:page-layout></office:automatic-styles><office:master-styles><style:master-page style:name="Standard" style:page-layout-name="pm1"/></office:master-styles></office:document-styles>');
+  zip.file('META-INF/manifest.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>${logo ? '<manifest:file-entry manifest:full-path="Pictures/logo-cifra.png" manifest:media-type="image/png"/>' : ''}${mediaEntries}</manifest:manifest>`);
+  zip.file('styles.xml', buildOdtStylesXml(Boolean(logo)));
   const pictures = zip.folder('Pictures');
   mediaFiles.forEach((file) => pictures.file(file.file, file.data));
+  if (logo) pictures.file('logo-cifra.png', logo);
   zip.file('content.xml', buildOdtContent(model, images, lang));
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }

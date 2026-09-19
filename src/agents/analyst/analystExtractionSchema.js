@@ -63,6 +63,8 @@ export const EXTRACTION_SCHEMA = `{
     "impairmentsYtd": 9301,
     "impairmentsPrevYtd": 2282,
     "intangiblesAmortization": 4911,
+    "intangiblesAmortizationQuarter": 1600,
+    "intangiblesAmortizationYtd": 4911,
     "effectiveTaxRate": 14.4,
     "incomeTaxExpenseQuarter": 134,
     "incomeTaxExpenseYtd": 163,

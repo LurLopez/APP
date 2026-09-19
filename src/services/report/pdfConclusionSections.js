@@ -127,7 +127,7 @@ export function drawConclusion(doc, report, startY) {
     };
 
     if (conc.repurchases) { startPage(); y = drawRepurchases(doc, conc.repurchases, margin, y, lang); }
-    const executiveChanges = getExecutiveChanges(conc);
+    const executiveChanges = getExecutiveChanges(conc, lang);
     if (executiveChanges) { startPage(); y = drawExecutiveChanges(doc, executiveChanges, margin, y, lang); }
     if (conc.outlook) { startPage(); y = drawOutlook(doc, conc.outlook, report, margin, y, lang); }
     if (conc.debt) { startPage(); y = drawDebtSection(doc, conc.debt, report, margin, y, lang); }

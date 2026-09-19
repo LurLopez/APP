@@ -13,7 +13,7 @@ import {
   escapeHtml,
   setMetaTag,
 } from './seoConstants.js';
-import { buildCompanyJsonLd } from './jsonLd.service.js';
+import { buildCompanyJsonLd, jsonLdScript } from './jsonLd.service.js';
 
 export function buildCompanyDescription(profile, name, lang = 'es') {
   const isEn = lang === 'en';
@@ -103,7 +103,7 @@ export function injectCompanyMeta(html, meta) {
   out = setMetaTag(out, /<meta name="twitter:title" content="[\s\S]*?">/, `<meta name="twitter:title" content="${escapeHtml(meta.title)}">`);
   out = setMetaTag(out, /<meta name="twitter:description" content="[\s\S]*?">/, `<meta name="twitter:description" content="${escapeHtml(meta.description)}">`);
 
-  const jsonLdScripts = `<script type="application/ld+json">\n${JSON.stringify(meta.jsonLd, null, 2)}\n</script>`;
+  const jsonLdScripts = jsonLdScript(meta.jsonLd);
   if (/<script type="application\/ld\+json">[\s\S]*?<\/script>/.test(out)) {
     out = out.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/, jsonLdScripts);
   } else {

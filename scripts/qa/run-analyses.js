@@ -23,6 +23,8 @@ const getArg = (name, fallback = null) => {
 const PROVIDER = getArg('provider', 'deepseek');
 const DELAY_MS = Number(getArg('delay', 4000));
 const ONLY = getArg('only', null);
+const SKIP = new Set(String(getArg('skip', '')).split(',').map((t) => t.trim()).filter(Boolean));
+const ANALYSIS_TIMEOUT_MS = Number(getArg('timeout-ms', 900000));
 const SELECTION = getArg('selection', 'documentacion/revisiones/2026-09-18/seleccion.json');
 const OUT_DIR = getArg('out', 'documentacion/revisiones/2026-09-18/analisis');
 
@@ -82,6 +84,10 @@ async function main() {
   for (const filing of filings) {
     const base = slug(filing);
     const target = `${OUT_DIR}/${base}.json`;
+    if (SKIP.has(filing.ticker) || SKIP.has(base)) {
+      console.log(`[SKIP] ${base}: en lista de exclusión.`);
+      continue;
+    }
     if (!ONLY) {
       try {
         await access(target);
@@ -91,7 +97,10 @@ async function main() {
     }
     console.log(`\n[${new Date().toISOString()}] ANALIZANDO ${base} (${filing.accession})...`);
     try {
-      const { result, analysisText, elapsed } = await analyzeOne(filing);
+      const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Timeout de análisis (${Math.round(ANALYSIS_TIMEOUT_MS / 1000)}s)`)), ANALYSIS_TIMEOUT_MS).unref();
+      });
+      const { result, analysisText, elapsed } = await Promise.race([analyzeOne(filing), timeout]);
       const payload = {
         filing,
         provider: PROVIDER,

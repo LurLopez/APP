@@ -142,7 +142,7 @@ async function buildReportPage(row, lang = 'es') {
   };
   const jsonLd = buildReportJsonLd(meta, row);
 
-  let out = replaceTokens(readTemplate('index.html'));
+  let out = replaceTokens(readTemplate('index.html', isEnContent ? 'en' : 'es'));
   if (isEnContent) {
     out = out.replace('<html lang="es">', '<html lang="en">');
   }
@@ -158,14 +158,15 @@ async function buildReportPage(row, lang = 'es') {
   out = setMetaTag(out, /<meta name="twitter:description" content="[\s\S]*?">/, `<meta name="twitter:description" content="${escapeHtml(description)}">`);
 
   const mdTitle = isEnContent ? 'Markdown version for AI' : 'Versión Markdown para IA';
-  const hreflangs = [
-    isEnContent
-      ? `<link rel="alternate" hreflang="en" href="${escapeHtml(enUrl)}">`
-      : `<link rel="alternate" hreflang="es" href="${escapeHtml(esUrl)}">`,
-    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}">`,
-    `<link rel="alternate" type="text/markdown" href="${escapeHtml(url)}.md" title="${mdTitle}">`,
-  ].join('\n  ');
-  out = out.replace(/<link rel="alternate" hreflang="es"[^>]*>/, hreflangs);
+  const targetHreflang = isEnContent
+    ? `<link rel="alternate" hreflang="en" href="${escapeHtml(enUrl)}">`
+    : `<link rel="alternate" hreflang="es" href="${escapeHtml(esUrl)}">`;
+  const xDefaultHreflang = `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}">`;
+  const mdAlternate = `<link rel="alternate" type="text/markdown" href="${escapeHtml(url)}.md" title="${mdTitle}">`;
+
+  // Eliminar todas las etiquetas hreflang previas para evitar duplicados o colisiones con index.html
+  out = out.replace(/\s*<link rel="alternate" hreflang="[^"]*"[^>]*>/g, '');
+  out = out.replace(/<link rel="canonical"[^>]*>/, `$&\n  ${targetHreflang}\n  ${xDefaultHreflang}\n  ${mdAlternate}`);
 
   const jsonLdScriptTag = `<script type="application/ld+json">\n${safeJsonForScript(jsonLd)}\n</script>`;
   if (/<script type="application\/ld\+json">[\s\S]*?<\/script>/.test(out)) {

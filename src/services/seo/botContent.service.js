@@ -190,11 +190,11 @@ export async function getCompanyBotContent(meta, lang = 'es') {
   if (content.annual.length) {
     parts.push(isEn ? `<h2>Annual results for ${escapeHtml(meta.name)}</h2>` : `<h2>Resultados anuales de ${escapeHtml(meta.name)}</h2>`);
     const thCols = isEn
-      ? '<th scope="col">Fiscal Year</th><th scope="col">Revenue</th><th scope="col">Net income</th><th scope="col">Free cash flow</th><th scope="col">EPS</th>'
-      : '<th scope="col">Ejercicio</th><th scope="col">Ventas</th><th scope="col">Beneficio neto</th><th scope="col">Flujo de caja libre</th><th scope="col">EPS</th>';
+      ? '<th scope="col">Fiscal Year</th><th scope="col">Revenue</th><th scope="col">Operating income</th><th scope="col">Net income</th><th scope="col">Free cash flow</th><th scope="col">EPS</th>'
+      : '<th scope="col">Ejercicio</th><th scope="col">Ventas</th><th scope="col">Beneficio operativo</th><th scope="col">Beneficio neto</th><th scope="col">Flujo de caja libre</th><th scope="col">EPS</th>';
     parts.push(`<table><thead><tr>${thCols}</tr></thead><tbody>`);
     for (const row of content.annual) {
-      parts.push(`<tr><td>${escapeHtml(row.year)}</td><td>${escapeHtml(formatUsdMillions(row.revenue) ?? '—')}</td><td>${escapeHtml(formatUsdMillions(row.netIncome) ?? '—')}</td><td>${escapeHtml(formatUsdMillions(row.freeCashFlow) ?? '—')}</td><td>${escapeHtml(formatUsdShare(row.epsDiluted) ?? '—')}</td></tr>`);
+      parts.push(`<tr><td>${escapeHtml(row.year)}</td><td>${escapeHtml(formatUsdMillions(row.revenue) ?? '—')}</td><td>${escapeHtml(formatUsdMillions(row.operatingIncome) ?? '—')}</td><td>${escapeHtml(formatUsdMillions(row.netIncome) ?? '—')}</td><td>${escapeHtml(formatUsdMillions(row.freeCashFlow) ?? '—')}</td><td>${escapeHtml(formatUsdShare(row.epsDiluted) ?? '—')}</td></tr>`);
     }
     parts.push('</tbody></table>');
     const note = isEn

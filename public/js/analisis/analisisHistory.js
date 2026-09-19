@@ -140,6 +140,8 @@
       const company = analysis.companyName || ticker || '—';
       const isAnnual = isAnalysisAnnual(analysis);
       const typeBadge = `<span class="analysis-type-pill ${isAnnual ? 'annual' : 'quarterly'}">${isAnnual ? '10-K' : '10-Q'}</span>`;
+      const analysisLanguage = window.I18n?.normalizeLanguage?.(analysis.language) || analysis.language || 'es';
+      const languageBadge = `<span class="analysis-type-pill language">${analysisLanguage.toUpperCase()}</span>`;
       const docName = analysis.downloadBase ? `${analysis.downloadBase}.pdf` : (analysis.filename ?? 'informe.pdf');
       const fileBaseUrl = analysis.pdf_url ? String(analysis.pdf_url).replace(/\.pdf$/, '') : '';
       const downloadName = analysis.downloadBase || 'analisis-cifra';
@@ -148,7 +150,7 @@
         <tr data-id="${escapeHtml(analysis.id)}" data-pdf-url="${escapeHtml(analysis.pdf_url ?? '')}" data-download-base="${escapeHtml(fileBaseUrl)}" data-download-name="${escapeHtml(downloadName)}" tabindex="0">
           <td><strong>${escapeHtml(docName)}</strong></td>
           <td><strong>${escapeHtml(company)}</strong> <span class="td-ticker">${escapeHtml(ticker)}</span></td>
-          <td>${escapeHtml(analysis.periodTitle || '—')} ${typeBadge}</td>
+          <td>${escapeHtml(analysis.periodTitle || '—')} ${typeBadge} ${languageBadge}</td>
           <td>${formatHistoryDate(analysis.period_end)}</td>
           <td>${formatHistoryDate(analysis.created_at)}</td>
           <td><span class="table-status done"><i></i> Completado</span></td>

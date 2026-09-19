@@ -122,9 +122,17 @@ async function main() {
     summary.push(`| ${index + 1} | ${entry.analysis.filing.ticker} — ${esc(entry.analysis.filing.name)} | ${entry.analysis.filing.formType} ${esc(entry.analysis.filing.periodLabel)} | **${fmtScore(audit.score)}** | ${esc(normalizeVerdict(audit.veredicto))} | ${count('grave')} | ${count('menor')} | ${count('cosmetico')} |`);
   });
   const average = entries.reduce((acc, entry) => acc + (Number(entry.evaluation.audit.score) || 0), 0) / (entries.length || 1);
+  const okCount = entries.filter((entry) => Number(entry.evaluation.audit.score) >= 7).length;
+  const okPct = entries.length ? Math.round((okCount / entries.length) * 100) : 0;
+  const lowList = entries.filter((entry) => Number(entry.evaluation.audit.score) < 7)
+    .map((entry) => `${entry.analysis.filing.ticker} (${fmtScore(entry.evaluation.audit.score)})`);
 
   const body = [];
-  body.push('## Resumen de notas', '', summary.join('\n'), '', `**Nota media: ${fmtScore(average.toFixed(1))}/10** sobre ${entries.length} análisis evaluados.`, '');
+  body.push('## Resumen de notas', '', summary.join('\n'), '');
+  body.push(`**Nota media: ${fmtScore(average.toFixed(1))}/10** sobre ${entries.length} análisis evaluados.`);
+  body.push(`**Análisis con nota ≥ 7: ${okCount} de ${entries.length} (${okPct} %).**`);
+  if (lowList.length) body.push('', `Por debajo de 7: ${lowList.join(' · ')}.`);
+  body.push('');
 
   for (const entry of entries) {
     const { analysis, evaluation } = entry;

@@ -12,6 +12,7 @@ import { buildDebtHistoryTable } from './debtHistoryRefinancingModel.js';
 import { buildReportChartImages } from './chartImages.js';
 import { buildReportModel } from './reportModel.js';
 import { getExecutiveFieldLabels } from './executiveChanges.js';
+import { BRAND_URL, BRAND_LABEL, BRAND_LOGO_RATIO, readBrandLogo } from './reportBranding.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 function docxRun(text, { size, bold, italic, color, highlight } = {}) {
@@ -190,6 +191,19 @@ function appendCardsToDocx(parts, cards, images, ids, language = 'es') {
   });
 }
 
+const FOOTER_LOGO_HEIGHT_EMU = 127000;
+const FOOTER_LOGO_WIDTH_EMU = Math.round(FOOTER_LOGO_HEIGHT_EMU * BRAND_LOGO_RATIO);
+const FOOTER_LINK_SIZE = 14;
+const FOOTER_LINK_COLOR = '8A94A6';
+
+function buildDocxFooterXml(withLogo) {
+  const logoRun = withLogo
+    ? `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${FOOTER_LOGO_WIDTH_EMU}" cy="${FOOTER_LOGO_HEIGHT_EMU}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="1" name="CifraLogo"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="1" name="logo-cifra.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${FOOTER_LOGO_WIDTH_EMU}" cy="${FOOTER_LOGO_HEIGHT_EMU}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r><w:r><w:rPr><w:sz w:val="${FOOTER_LINK_SIZE}"/><w:szCs w:val="${FOOTER_LINK_SIZE}"/><w:color w:val="${FOOTER_LINK_COLOR}"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>`
+    : '';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:p><w:pPr><w:jc w:val="right"/><w:spacing w:before="0" w:after="0"/></w:pPr>${logoRun}<w:hyperlink r:id="rIdLink"><w:r><w:rPr><w:sz w:val="${FOOTER_LINK_SIZE}"/><w:szCs w:val="${FOOTER_LINK_SIZE}"/><w:color w:val="${FOOTER_LINK_COLOR}"/></w:rPr><w:t>${esc(BRAND_LABEL)}</w:t></w:r></w:hyperlink></w:p></w:ftr>`;
+}
+
 function buildDocxXml(model, images = {}, language = 'es') {
   const lang = normalizeLanguage(language);
   const parts = [];
@@ -224,13 +238,14 @@ function buildDocxXml(model, images = {}, language = 'es') {
   parts.push(docxParagraph(model.footer, { size: 8, color: COLORS.soft, before: 120 }));
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${parts.join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720"/></w:sectPr></w:body></w:document>`;
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${parts.join('')}<w:sectPr><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720"/></w:sectPr></w:body></w:document>`;
 }
 
 export async function buildReportDocx(report) {
   const model = buildReportModel(report);
   const lang = normalizeLanguage(report?.language);
   const images = buildReportChartImages(model);
+  const logo = await readBrandLogo();
   const mediaFiles = Object.entries(CHART_IMAGE_SLOTS)
     .filter(([key]) => images[key])
     .map(([key, slot]) => ({ ...slot, data: images[key].buffer }));
@@ -238,13 +253,16 @@ export async function buildReportDocx(report) {
     .map((media) => `<Relationship Id="${media.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${media.file}"/>`).join('');
 
   const zip = new JSZip();
-  zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>');
+  zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>');
   zip.folder('_rels').file('.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
   const word = zip.folder('word');
-  word.folder('_rels').file('document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>${imageRels}</Relationships>`);
+  word.folder('_rels').file('document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>${imageRels}</Relationships>`);
+  word.folder('_rels').file('footer1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${logo ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo-cifra.png"/>' : ''}<Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${BRAND_URL}" TargetMode="External"/></Relationships>`);
   word.file('styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Helvetica" w:hAnsi="Helvetica" w:cs="Helvetica"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style></w:styles>');
   const media = word.folder('media');
   mediaFiles.forEach((file) => media.file(file.file, file.data));
+  if (logo) media.file('logo-cifra.png', logo);
+  word.file('footer1.xml', buildDocxFooterXml(Boolean(logo)));
   word.file('document.xml', buildDocxXml(model, images, lang));
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }

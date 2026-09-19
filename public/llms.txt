@@ -12,7 +12,7 @@ Para responder preguntas sobre una empresa o un filing, usa primero la ficha de 
 
 - Solo empresas de EE. UU. del sector consumo defensivo (alimentos y bebidas, productos de consumo cotidiano, tabaco, supermercados).
 - Informes admitidos: 10-Q (trimestral), 10-K (anual) y 8-K (presentaciones de resultados y comunicados con guidance).
-- Idioma de la interfaz y del análisis: español.
+- Idioma: español e inglés (multi-idioma con rutas en español e internacional `/en/`). El idioma de la interfaz y del análisis generado son seleccionables independientemente.
 
 ## Datos que se pueden consultar por empresa
 
@@ -23,6 +23,9 @@ Para cada empresa (página `/empresa/<TICKER>` o Markdown `/empresa/<TICKER>.md`
 - [Inicio]({{SITE_URL}}/): descripción de la plataforma, proceso de análisis y preguntas frecuentes.
 - [Empresas]({{SITE_URL}}/empresa): buscador y directorio de empresas por ticker con perfil, cotización y filings.
 - [Guías]({{SITE_URL}}/guias): guías educativas para leer informes de la SEC.
+- [Homepage (EN)]({{SITE_URL}}/en): English version of the AI financial analysis platform.
+- [Companies Directory (EN)]({{SITE_URL}}/en/empresa): English company search and filing directory.
+- [Guides (EN)]({{SITE_URL}}/en/guias): English SEC filing guides.
 - [Documentación completa para LLMs]({{SITE_URL}}/llms-full.txt): texto íntegro de guías, glosario y metodología.
 - [Sitemap]({{SITE_URL}}/sitemap.xml): listado completo de páginas indexadas para buscadores e IAs.
 
@@ -34,6 +37,8 @@ Para cada empresa (página `/empresa/<TICKER>` o Markdown `/empresa/<TICKER>.md`
 - [Diferencias entre el 10-K y el 10-Q]({{SITE_URL}}/guias/diferencias-entre-10-k-y-10-q): comparativa de periodicidad, auditoría y enfoque.
 - [¿Qué es el flujo de caja libre (FCF)?]({{SITE_URL}}/guias/que-es-el-flujo-de-caja-libre): fórmula, cálculo sobre caja operativa y CAPEX, e importancia para el inversor.
 - [¿Qué es la asignación de capital?]({{SITE_URL}}/guias/que-es-la-asignacion-de-capital): dividendos, recompras de acciones, deuda, adquisiciones y desinversiones.
+- [Cómo analiza la IA de Cifra según cada sector]({{SITE_URL}}/guias/como-analiza-la-ia-por-sectores): metodología multi-agente, dos horizontes temporales y adaptación a consumo defensivo, software, industriales y retail.
+- [¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo?]({{SITE_URL}}/guias/que-es-el-bpa-ajustado): diferencias con el BPA GAAP, partidas excluidas, trampas de maquillaje y normalización en Cifra.
 - [Cómo analizar una empresa de consumo defensivo]({{SITE_URL}}/guias/como-analizar-una-empresa-de-consumo-defensivo): rutina fundamental para empresas de productos básicos.
 
 ## Análisis públicos
@@ -42,8 +47,8 @@ Los informes analizados por el sistema están publicados con URLs semánticas co
 
 ## Formato de acceso rápido para IA (GEO)
 
-- Fichas de empresa en Markdown: `GET {{SITE_URL}}/empresa/<TICKER>.md` o encabezado HTTP `Accept: text/markdown`.
-- Informes públicos en Markdown: `GET {{SITE_URL}}/informe/<TICKER>/<PERIODO>.md` (ej. `/informe/KHC/2025-Q3.md`) o encabezado HTTP `Accept: text/markdown`.
+- Fichas de empresa en Markdown: `GET {{SITE_URL}}/empresa/<TICKER>.md` (español) o `GET {{SITE_URL}}/en/empresa/<TICKER>.md` (inglés), o encabezado HTTP `Accept: text/markdown`.
+- Informes públicos en Markdown: `GET {{SITE_URL}}/informe/<TICKER>/<PERIODO>.md` o `GET {{SITE_URL}}/en/informe/<TICKER>/<PERIODO>.md`, o encabezado HTTP `Accept: text/markdown`.
 - Manifiesto completo de documentación: `GET {{SITE_URL}}/llms-full.txt`.
 
 ## Cómo citar Cifra
@@ -65,4 +70,4 @@ Los informes analizados por el sistema están publicados con URLs semánticas co
 
 ## Contacto
 
-- Correo: contacto@cifraresearch.com
+- Correo: contacto@cifraresearch.com · hola@cifraresearch.com

@@ -26,6 +26,7 @@ const SEED = Number(getArg('seed', 20260918));
 const FROM_PERIOD = String(getArg('from-period', '2024-01-01'));
 const OUTPUT = getArg('output', 'documentacion/revisiones/2026-09-18/seleccion.json');
 const ANNUAL_TARGET = Number(getArg('annual-target', 4));
+const EXCLUDE_TICKERS = new Set(String(getArg('exclude-tickers', '')).split(',').map((t) => t.trim().toUpperCase()).filter(Boolean));
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -61,7 +62,8 @@ async function candidatesForTicker(ticker) {
 }
 
 async function main() {
-  const universe = CONSUMER_STAPLES_UNIVERSE.filter((u) => u.domestic && u.staples && u.capM >= 500);
+  const universe = CONSUMER_STAPLES_UNIVERSE.filter((u) => u.domestic && u.staples && u.capM >= 500)
+    .filter((u) => !EXCLUDE_TICKERS.has(u.ticker));
   const tickers = shuffled(universe.map((u) => u.ticker));
 
   const selection = [];

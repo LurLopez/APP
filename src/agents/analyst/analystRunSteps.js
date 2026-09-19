@@ -22,7 +22,7 @@ import {
   parseLooseAmount,
 } from './financialParsers.js';
 import { buildDividendHistoryFromEdgar } from './historyBuilders.js';
-import { buildMaturityScheduleFromDebtTable, buildMaturityScheduleFromFilingText, normalizeMaturityPayload, maturityItemsLookBucketed, maturityTableLooksIncomplete, pickCoveringMaturitySchedule, weightedAverageRateFromItems } from './debtMaturityFallback.js';
+import { buildMaturityScheduleFromDebtTable, buildMaturityScheduleFromFilingText, normalizeMaturityPayload, maturityItemsLookBucketed, maturityTableLooksIncomplete, pickCoveringMaturitySchedule, weightedAverageRateFromItems, hasWideRangeLabels } from './debtMaturityFallback.js';
 import { buildDebtMaturityPrompt } from './debtMaturityPrompt.js';
 import { buildDebtRefinancingPrompt } from './debtRefinancingPrompt.js';
 import { loadKnowledgeRules, buildAnalysisText, extractDebtFilingText, extractRefinancingFilingText } from './filingExtractor.js';
@@ -247,7 +247,7 @@ function round1(value) {
   return Math.round(value * 10) / 10;
 }
 
-function deduceQuarterCashFlow(extracted, prevFlow) {
+export function deduceQuarterCashFlow(extracted, prevFlow) {
   const currentCfo = toOptionalNumber(extracted.cashFlow?.operating);
   const currentCapex = toOptionalNumber(extracted.cashFlow?.capex);
   const currentDividends = toOptionalNumber(extracted.cashFlow?.dividends);
@@ -261,6 +261,17 @@ function deduceQuarterCashFlow(extracted, prevFlow) {
   if (currentBuybacks != null && prevFlow.buybacksYtd != null) deduced.buybacks = round1(Math.abs(currentBuybacks) - prevFlow.buybacksYtd);
   if (currentWcChange != null && prevFlow.workingCapitalChangeYtd != null) {
     deduced.workingCapitalChange = round1(currentWcChange - prevFlow.workingCapitalChangeYtd);
+  }
+  // Adquisiciones del trimestre: el estado de flujos de un 10-Q de Q2/Q3 solo publica la columna
+  // acumulada, así que el trimestre se deduce restando el acumulado del trimestre previo (KDP Q2:
+  // 16.615 − 0). Sin este cálculo la fila "Adquisiciones" desaparecía o tomaba un frame XBRL
+  // trimestral parcial (KDP: 402M en el frame de 3 meses frente a 16.615M acumulados).
+  const currentAcquisitions = toOptionalNumber(extracted.facts?.acquisitionsYtd)
+    ?? toOptionalNumber(prevFlow.currentQuarterData?.acquisitionsYtd);
+  if (currentAcquisitions != null) {
+    const previousAcquisitions = toOptionalNumber(prevFlow.acquisitionsYtd) ?? 0;
+    const quarterAcquisitions = round1(Math.abs(currentAcquisitions) - Math.abs(previousAcquisitions));
+    if (quarterAcquisitions > 0) deduced.acquisitions = quarterAcquisitions;
   }
   if (deduced.cfo != null && deduced.capex != null) deduced.fcf = round1(deduced.cfo - deduced.capex);
   return deduced;
@@ -285,7 +296,7 @@ export function pickPreviousQuarterDebt(prevFlow, currentDebt) {
   return withCurrentPortion;
 }
 
-function storePreviousQuarterCashFlow(extracted, prevFlow, deduced) {
+export function storePreviousQuarterCashFlow(extracted, prevFlow, deduced) {
   extracted.previousQuarterCashFlow = {
     period: prevFlow.period,
     periodEnd: prevFlow.periodEnd,
@@ -325,6 +336,18 @@ function storePreviousQuarterCashFlow(extracted, prevFlow, deduced) {
   extracted.facts = extracted.facts || {};
   if (extracted.facts.shareBuybacksQuarter == null && deduced.buybacks != null) {
     extracted.facts.shareBuybacksQuarter = deduced.buybacks;
+  }
+  // Adquisiciones del trimestre: la deducción aritmética (acumulado actual − acumulado del
+  // trimestre previo) manda sobre el valor de la IA y sobre un frame XBRL trimestral parcial
+  // (KDP Q2 2026: frame de 3 meses 402M frente a 16.615M acumulados). Evita que la fila
+  // "Adquisiciones" desaparezca o quede infravalorada en el horizonte de 3 meses.
+  if (deduced.acquisitions != null && deduced.acquisitions > 0) {
+    extracted.facts.acquisitionsQuarter = deduced.acquisitions;
+  } else if ((toOptionalNumber(extracted.facts.acquisitionsQuarter) ?? 0) === 0) {
+    const edgarQuarter = toOptionalNumber(currentQuarter?.acquisitions3M);
+    if (edgarQuarter != null && Math.abs(edgarQuarter) >= 50) {
+      extracted.facts.acquisitionsQuarter = Math.abs(edgarQuarter);
+    }
   }
 }
 
@@ -440,14 +463,18 @@ export async function recoverAnnualMaturities(debtDetails, { rawText, fiscalYear
   const tableSchedule = buildMaturityScheduleFromDebtTable(debtDetails.secTable, fiscalYear, reportingPeriod);
   const tableLooksIncomplete = maturityTableLooksIncomplete(debtDetails.secTable);
   const textSchedule = buildMaturityScheduleFromFilingText(debtText, fiscalYear, reportingPeriod);
+  const textAuthoritative = textSchedule?.authoritative === true;
   const edgarSchedule = buildEdgarMaturitySchedule(edgarDebtMaturities);
   const ordered = (tableLooksIncomplete || !tableSchedule)
     ? [textSchedule, tableSchedule, edgarSchedule]
     : [tableSchedule, textSchedule, edgarSchedule];
 
-  // 1) La nota de deuda manda: si una fuente determinista (texto de la nota o tabla SEC) cubre la
-  //    deuda total, sustituye al calendario de la IA (que no debe inventarse los vencimientos).
-  let recovered = pickCoveringMaturitySchedule(ordered, totalDebtNum);
+  // 1) La nota de deuda manda: si una fuente determinista (tabla año a año de la nota, texto
+  //    o tabla SEC) cubre la deuda total, sustituye al calendario de la IA (que no debe
+  //    inventarse los vencimientos). La tabla explícita "maturities of long-term debt" tiene
+  //    prioridad cuando el calendario actual falta o trae rangos amplios ("due 2024-2093").
+  const preferAuthoritativeTable = textAuthoritative && (hasWideRangeLabels(currentItems) || !currentItems.length);
+  let recovered = preferAuthoritativeTable ? textSchedule : pickCoveringMaturitySchedule(ordered, totalDebtNum);
   // 2) Sin fuente determinista suficiente: se conserva el calendario de la IA si no viene agregado;
   //    si viene agregado o no existe, se intenta la pasada focalizada de IA y, como último recurso, el XBRL.
   if (!recovered && !(currentItems.length && !wasBucketed)) {

@@ -25,6 +25,20 @@ const OUT_DIR = getArg('out', 'documentacion/revisiones/2026-09-18/evaluaciones'
 
 process.env.AI_PROVIDER = PROVIDER;
 
+const SELF_NEGATING = /no hay error|no es un error|no supone un error|no representa un error|es correcto|correcto[.,;:]|sin error|no es incorrecto|coincide con el filing|no es material/i;
+const CONTRAST = /pero|sin embargo|no obstante|incorrecto|error real|en realidad|contradice|no coincide/i;
+
+function cleanAudit(audit) {
+  const raw = Array.isArray(audit?.errores) ? audit.errores : [];
+  const filtered = raw.filter((item) => {
+    const text = `${item?.descripcion ?? ''} ${item?.impacto ?? ''}`;
+    if (!SELF_NEGATING.test(text)) return true;
+    return CONTRAST.test(text);
+  });
+  const removed = raw.length - filtered.length;
+  return { audit: { ...audit, errores: filtered.slice(0, 10) }, removed };
+}
+
 async function main() {
   const entries = (await readdir(ANALISIS_DIR))
     .filter((name) => name.endsWith('.json') && !name.endsWith('.error.json'))
@@ -54,16 +68,18 @@ async function main() {
         filingMeta: payload.filing,
         provider: PROVIDER,
       });
+      const cleaned = cleanAudit(audit);
       const elapsed = (Date.now() - start) / 1000;
       await writeFile(outPath, `${JSON.stringify({
         filing: payload.filing,
         analysisId: payload.analysisId,
         provider: PROVIDER,
         elapsed,
-        audit,
+        audit: cleaned.audit,
+        erroresDescartadosPorRuido: cleaned.removed,
         deterministic,
       }, null, 2)}\n`);
-      console.log(`[OK] ${base} · nota ${audit.score} · ${audit.errores?.length ?? 0} errores · ${elapsed.toFixed(1)}s`);
+      console.log(`[OK] ${base} · nota ${audit.score} · ${cleaned.audit.errores?.length ?? 0} errores${cleaned.removed ? ` (${cleaned.removed} ruido descartado)` : ''} · ${elapsed.toFixed(1)}s`);
     } catch (error) {
       console.error(`[ERROR] ${base}: ${error.message}`);
       await writeFile(`${OUT_DIR}/${base}.error.json`, `${JSON.stringify({ error: error.message, code: error.code ?? null }, null, 2)}\n`);

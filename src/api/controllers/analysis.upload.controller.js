@@ -11,6 +11,7 @@ import { getCompanyFilings } from '../../services/edgar.service.js';
 import { getAiQuota, reserveAiQuota, refundAiQuota } from '../../services/aiQuota.service.js';
 import { parseIdParam, parseDateFilter, isRealPdf, escapeHtml } from '../../utils/validate.js';
 import { resolveAnalysisLanguage } from '../../utils/analysisLanguage.js';
+import { scheduleLanguageVariants } from '../../services/translation/autoTranslate.service.js';
 import { DEFAULT_LANGUAGE } from '../../utils/i18n.js';
 
 const TICKER_PATTERN = /^[A-Z][A-Z0-9.\-]{0,9}$/;
@@ -128,6 +129,13 @@ export async function uploadAndAnalyzePdf(req, res, next) {
       filename: mainFile.originalname,
       presentationText,
       language,
+    });
+
+    scheduleLanguageVariants({
+      filename: mainFile.originalname,
+      language: result.language ?? language,
+      isPublic: false,
+      userId: req.user.id,
     });
 
     const quota = await getAiQuota(req.user);

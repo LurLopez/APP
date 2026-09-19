@@ -4,6 +4,7 @@
 
 import { isPlaceholderText, parseLooseReportNumber } from './financialParsers.js';
 import { buildFutureProjectionText, buildShareCountEvolutionText, buildRepurchaseSecTable, enrichRepurchaseSnippet, mergeHistoryByYear } from './historyBuilders.js';
+import { isNoInfoValue } from '../../services/reportExport/executiveChanges.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 const EXECUTIVE_CHANGE_DISCLAIMER = 'La trayectoria de los directivos combina los hechos del informe con contexto público general; verifícala con fuentes externas antes de decidir.';
@@ -17,9 +18,8 @@ const NEW_REPURCHASE_PROGRAM_PATTERN = /(new\s+(?:share\s+)?repurchase\s+program
 const CANCELLED_REPURCHASE_PROGRAM_PATTERN = /(cancel|suspend|discontinu|terminat|no longer authoriz|rescind)/i;
 
 function cleanReportText(value) {
-  if (value == null) return null;
+  if (isNoInfoValue(value)) return null;
   const text = String(value).trim();
-  if (!text || /^(null|undefined|n\/a|na|no consta|not disclosed)$/i.test(text)) return null;
   if (PLACEHOLDER_EXECUTIVE_TEXT.test(text)) return null;
   return text;
 }

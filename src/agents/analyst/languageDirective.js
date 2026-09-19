@@ -30,7 +30,7 @@ const ENGLISH_DIRECTIVE = `OUTPUT LANGUAGE (MANDATORY): English.
 - Mandated note phrases (translate them exactly like this):
   * Debt note: "Debt balance: <prev>M -> <current>M (<change>M). Net debt: <prevNet>M -> <currentNet>M (<netChange>M). Cash balance: <prev>M -> <current>M (<change>M); cash increased: use of capital (-) / cash decreased: source of liquidity (+); Cash row = <value>M."
   * Tax note: "*2: Taxes: ..." with the same detail as in Spanish.
-  * WK note: "*1: WK = (Accounts payable - Inventories - Accounts receivable) x (inflation + volume) = (...) x (...) = ...M; ..."
+  * WC note: "*1: WC = (Accounts payable - Inventories - Accounts receivable) x (inflation + volume) = (...) x (...) = ...M; ..."
   * Verification OK: "Roughly balances. It may still be that I missed a detail." or "It balances." if zero.
   * Verification KO: "Does not balance: <amount>M remain unexplained between free capital and detected uses. The gap corresponds to unmapped items or non-monetary movements and balance reclassifications (restricted cash, FX effect on cash, debt assumed in acquisitions, cash/investments reclassifications) that must be reviewed in the filing's cash flow and balance notes."
 - Annual conclusion section titles must be in English and numbered in order: "1: Buybacks", "2: Management changes", "3: Outlook", "4: Debt", "5: Corporate actions", "6: Dividends" (number according to the sections actually present).

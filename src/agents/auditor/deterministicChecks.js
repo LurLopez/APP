@@ -155,8 +155,8 @@ function checkCashFlow(horizon, findings) {
     push(findings, 'warn', 'cashflow.wc_ajustado', `El escenario ajustado no declara WC=valor: «${scenarios[1]}».`);
   }
   const notes = (horizon?.cashFlow?.notes ?? []).join(' ');
-  if (!/WK\s*=/i.test(notes)) {
-    push(findings, 'warn', 'cashflow.nota_wk', 'No se encuentra la fórmula WK en las notas de Cash Flow.');
+  if (!/W[KC]\s*=/i.test(notes)) {
+    push(findings, 'warn', 'cashflow.nota_wk', 'No se encuentra la fórmula WC en las notas de Cash Flow.');
   }
   if (cf && cf[0] != null && cf[1] != null && Math.abs(cf[0] - cf[1]) < 0.01 && scenarios[1] && !/WC=0\b/i.test(scenarios[1])) {
     push(findings, 'info', 'cashflow.sin_ajuste', 'Cash Flow Normal y Ajustado idénticos; verificar que no hubiera ajuste de circulante/impuestos aplicable.');
@@ -246,27 +246,39 @@ function checkNoteConsistency(horizon, findings) {
   const netRow = salesRows.find((row) => normalize(row.name) === 'beneficio neto');
   const netAdjusted = parseNumber(netRow?.adjusted);
   for (const note of horizon?.sales?.notes ?? []) {
-    const match = String(note).match(/Beneficio\s+Neto\s+Ajustado\s*=\s*[^=]*=\s*(-?[\d.,]+)\s*M/i);
-    if (match && netAdjusted !== null) {
-      const noteValue = parseNumber(match[1]);
+    const sentence = String(note).match(/Beneficio\s+Neto\s+Ajustado[^.]*?(?=\n|$)/i);
+    if (sentence && netAdjusted !== null) {
+      const numbers = [...sentence[0].matchAll(/=\s*(-?[\d.,]+)\s*M/gi)];
+      const noteValue = numbers.length ? parseNumber(numbers[numbers.length - 1][1]) : null;
       if (noteValue !== null && Math.abs(noteValue - netAdjusted) > 0.6) {
-        push(findings, 'fail', 'notas.beneficio_neto', `La nota calcula Beneficio Neto Ajustado = ${match[1]}M pero la tabla muestra ${netRow.adjusted}.`);
+        push(findings, 'fail', 'notas.beneficio_neto', `La nota calcula Beneficio Neto Ajustado = ${numbers[numbers.length - 1][1]}M pero la tabla muestra ${netRow.adjusted}.`);
       }
     }
   }
 
   const cfAdjusted = parseNumber((horizon?.cashFlow?.rows ?? []).find((row) => normalize(row.name) === 'cash flow')?.values?.[1]);
   const cfNotes = horizon?.cashFlow?.notes ?? [];
-  cfNotes.forEach((note, index) => {
-    const text = String(note);
-    const match = text.match(/Cash\s+Flow\s+ajustado[^=]*=\s*(-?[\d.,]+)\s*M/i);
-    if (match && cfAdjusted !== null) {
-      const noteValue = parseNumber(match[1]);
-      if (noteValue !== null && Math.abs(noteValue - cfAdjusted) > 0.6) {
-        push(findings, 'fail', 'notas.cashflow', `La nota *${index + 1} presenta ${match[1]}M como Cash Flow Ajustado pero la tabla muestra ${cfAdjusted}.`);
+  const lastEqualityValue = (text) => {
+    const matches = [...String(text).matchAll(/=\s*(-?[\d.,]+)\s*M/gi)];
+    return matches.length ? parseNumber(matches[matches.length - 1][1]) : null;
+  };
+  if (cfAdjusted !== null && cfNotes.length) {
+    const hasTaxNote = cfNotes.some((note) => /impuesto|tax/i.test(String(note)));
+    const chainCloses = cfNotes.some((note) => {
+      const value = lastEqualityValue(note);
+      return value !== null && Math.abs(value - cfAdjusted) <= 0.6;
+    });
+    if (hasTaxNote && !chainCloses) {
+      push(findings, 'fail', 'notas.cashflow', `Hay ajuste fiscal pero ninguna nota cierra la cadena con el Cash Flow Ajustado de la tabla (${cfAdjusted}).`);
+    }
+    if (!hasTaxNote) {
+      const wcNote = cfNotes.find((note) => /WC|circulante|working capital|Cuentas por pagar/i.test(String(note)));
+      const value = wcNote ? lastEqualityValue(wcNote) : null;
+      if (value !== null && Math.abs(value - cfAdjusted) > 0.6) {
+        push(findings, 'fail', 'notas.cashflow', `La nota *1 presenta ${value}M como Cash Flow Ajustado pero la tabla muestra ${cfAdjusted}.`);
       }
     }
-  });
+  }
   const hasTaxAdjust = cfNotes.some((note) => /impuesto/i.test(note));
   if (hasTaxAdjust && cfNotes.length >= 2) {
     const closure = cfNotes.find((note) => /combina\s+los\s+dos\s+ajustes|circulante\s*\)\s*[-+]|\(impuestos\)/i.test(note));

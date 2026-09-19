@@ -145,11 +145,18 @@ export function extractKeyFilingSections(text) {
 }
 
 const DEBT_COVER_PATTERN = /securities registered|name of each exchange|title of each class|nasdaq|new york stock exchange|stock exchange/i;
-const DEBT_EXHIBIT_PATTERN = /incorporated herein by reference|current report on form 8-k|exhibit\s+\d|\bform of\b[\s\S]{0,90}?\b(?:senior\s+)?notes?\b/i;
+const DEBT_EXHIBIT_PATTERN = /incorporated\s+(?:herein\s+)?by\s+reference|current report on form\s+8-k|exhibit\s+(?:index|\d)|\bform of\b[\s\S]{0,90}?\b(?:senior\s+)?notes?\b|8-k\s+\d{1,2}\/\d{1,2}\/\d{2,4}/i;
 
 function isDebtCoverOrIndexEntry(source, index) {
   const around = source.slice(Math.max(0, index - 250), index + 300);
   return DEBT_COVER_PATTERN.test(around) || DEBT_EXHIBIT_PATTERN.test(around);
+}
+
+function decodeTextEntities(value) {
+  return String(value ?? '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&nbsp;/gi, ' ');
 }
 
 function maturityWindowScore(source, range) {
@@ -161,31 +168,49 @@ function maturityWindowScore(source, range) {
 
 /**
  * Extrae únicamente los bloques de la nota de deuda (vencimientos y cupones).
- * Localiza las filas de vencimiento ("due 2019", "maturing in 2027") para no caer en el
- * índice del informe, descarta las menciones de la portada y del índice de exhibiciones, y
- * ordena las ventanas por contenido de tabla de vencimientos (años + importes) para que la
- * pasada focalizada reciba primero la nota real y no un fragmento de contexto.
+ * Localiza las filas de vencimiento ("due 2019", "maturing in 2027") y las tablas con columna
+ * "Maturity Date" (cada emisión con su fecha y cupón, p. ej. KDP) para no caer en el índice del
+ * informe, descarta las menciones de la portada y del índice de exhibiciones, y ordena las ventanas
+ * por contenido de tabla de vencimientos (años + importes) para que la pasada focalizada reciba
+ * primero la nota real y no un fragmento de contexto.
  * @param {string} text - Texto completo del documento SEC.
  * @returns {string} Bloques de deuda identificados.
  */
 export function extractDebtFilingText(text) {
-  const source = String(text ?? '');
+  const source = decodeTextEntities(text).replace(/\u00a0/g, ' ').trim();
   if (!source) return '';
 
-  const rowPattern = /(?:(?:due|maturing(?:\s+in)?)\s+(?:[A-Za-z]+\s+)?(?:19|20)\d{2}|(?:maturities of (?:long-term )?debt|contractual maturities|scheduled maturities)[\s\S]{0,300}?\b20[2-4]\d\b)/gi;
+  const windowPatterns = [
+    {
+      re: /(?:(?:due|maturing(?:\s+in)?)\s+(?:[A-Za-z]+\s+)?(?:19|20)\d{2}|(?:maturities of (?:long-term )?debt|contractual maturities|scheduled maturities)[\s\S]{0,300}?\b20[2-4]\d\b)/gi,
+      before: 3000,
+      after: 800,
+    },
+    {
+      // Nota de deuda con columna "Maturity Date" ("Issuance Maturity Date Rate 2025 2024" seguido de
+      // "2026 Notes September 15, 2026 2.550 % 400 400"): la ventana debe ser amplia para abarcar
+      // todos los tramos y el cálculo de vencimientos posteriores al año 5.
+      re: /(?:issuance\s+)?maturity\s+date[\s\S]{0,100}?(?:rate|interest|cup[oó]n|carrying)/gi,
+      before: 2500,
+      after: 9000,
+    },
+  ];
+
   const windows = [];
-  let match;
-  while ((match = rowPattern.exec(source)) !== null && windows.length < 10) {
-    if (isDebtCoverOrIndexEntry(source, match.index)) continue;
-    const range = {
-      start: Math.max(0, match.index - 3000),
-      end: Math.min(source.length, match.index + 800),
-    };
-    const last = windows[windows.length - 1];
-    if (last && range.start <= last.end) {
-      last.end = Math.max(last.end, range.end);
-    } else {
-      windows.push(range);
+  for (const { re, before, after } of windowPatterns) {
+    let match;
+    while ((match = re.exec(source)) !== null && windows.length < 10) {
+      if (isDebtCoverOrIndexEntry(source, match.index)) continue;
+      const range = {
+        start: Math.max(0, match.index - before),
+        end: Math.min(source.length, match.index + after),
+      };
+      const last = windows[windows.length - 1];
+      if (last && range.start <= last.end) {
+        last.end = Math.max(last.end, range.end);
+      } else {
+        windows.push(range);
+      }
     }
   }
 

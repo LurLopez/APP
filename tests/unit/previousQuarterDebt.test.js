@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { balanceSheetDebt, balanceSheetDebtWithoutCurrentPortion } from '../../src/services/edgar/previousQuarterCashFlow.js';
 import { matchConceptKeys, parseInstanceFacts, mergeInstanceFacts } from '../../src/services/edgar/instanceFacts.js';
 import { rederiveCashValues } from '../../src/services/edgar/rederiveStatements.js';
-import { applyEdgarBalanceFallbacks, pickPreviousQuarterDebt } from '../../src/agents/analyst/analystRunSteps.js';
+import { applyEdgarBalanceFallbacks, pickPreviousQuarterDebt, deduceQuarterCashFlow, storePreviousQuarterCashFlow } from '../../src/agents/analyst/analystRunSteps.js';
 
 function millions(value) {
   return value * 1e6;
@@ -16,6 +16,12 @@ test('la porción corriente de la deuda no se cubre con arrendamientos financier
   assert.ok(!currentDebtKeys.includes('currentCapitalLeaseObligations'));
   assert.ok(financeLeaseKeys.includes('currentCapitalLeaseObligations'));
   assert.ok(!financeLeaseKeys.includes('longTermDebtCurrent'), 'El arrendamiento financiero corriente no debe tapar la porción corriente de la deuda');
+});
+
+test('las adquisiciones con efectivo no incluyen los pagos por activos productivos (capex)', () => {
+  const productiveAssetKeys = matchConceptKeys('PaymentsToAcquireProductiveAssets') ?? [];
+  assert.ok(productiveAssetKeys.includes('capex'));
+  assert.ok(!productiveAssetKeys.includes('acquisitions'), 'El capex no debe inflar las adquisiciones (caso TAP 2026)');
 });
 
 test('balanceSheetDebt suma la porción corriente de la deuda a largo plazo (caso TAP 2026-Q1)', () => {
@@ -105,4 +111,43 @@ test('applyEdgarBalanceFallbacks rellena la deuda si la extracción no la trae',
   const extracted = { balance: {} };
   applyEdgarBalanceFallbacks(extracted, { totalDebt: millions(7709.6) });
   assert.equal(extracted.balance.totalDebt, 7709.6);
+});
+
+test('deduce las adquisiciones del trimestre restando el acumulado del trimestre previo (caso KDP 2026-Q2)', () => {
+  const extracted = { facts: { acquisitionsYtd: 16615 } };
+  const deduced = deduceQuarterCashFlow(extracted, { acquisitionsYtd: 0 });
+  assert.equal(deduced.acquisitions, 16615);
+});
+
+test('no deduce adquisiciones trimestrales negativas ni cuando falta el acumulado', () => {
+  assert.equal(deduceQuarterCashFlow({ facts: { acquisitionsYtd: 400 } }, { acquisitionsYtd: 900 }).acquisitions, undefined);
+  assert.equal(deduceQuarterCashFlow({ facts: {} }, { acquisitionsYtd: 0 }).acquisitions, undefined);
+});
+
+test('storePreviousQuarterCashFlow completa acquisitionsQuarter con la deducción (caso KDP 2026-Q2)', () => {
+  const extracted = { facts: { acquisitionsYtd: 16615 } };
+  const prevFlow = { period: '2026-Q1', acquisitionsYtd: 0, currentQuarterData: { acquisitions3M: null, acquisitionsYtd: 0 } };
+  storePreviousQuarterCashFlow(extracted, prevFlow, deduceQuarterCashFlow(extracted, prevFlow));
+  assert.equal(extracted.facts.acquisitionsQuarter, 16615);
+});
+
+test('la deducción manda sobre un frame XBRL trimestral parcial (caso KDP 2026-Q2: 402M frente a 16.615M)', () => {
+  const extracted = { facts: { acquisitionsYtd: 16615, acquisitionsQuarter: 402 } };
+  const prevFlow = { acquisitionsYtd: null, currentQuarterData: { acquisitions3M: 402, acquisitionsYtd: 16615 } };
+  storePreviousQuarterCashFlow(extracted, prevFlow, deduceQuarterCashFlow(extracted, prevFlow));
+  assert.equal(extracted.facts.acquisitionsQuarter, 16615);
+});
+
+test('storePreviousQuarterCashFlow respeta las adquisiciones trimestrales de la extracción cuando no hay acumulado que deducir', () => {
+  const extracted = { facts: { acquisitionsQuarter: 12000 } };
+  const prevFlow = { acquisitionsYtd: null, currentQuarterData: {} };
+  storePreviousQuarterCashFlow(extracted, prevFlow, deduceQuarterCashFlow(extracted, prevFlow));
+  assert.equal(extracted.facts.acquisitionsQuarter, 12000);
+});
+
+test('storePreviousQuarterCashFlow usa el XBRL del trimestre cuando no hay acumulado para deducir', () => {
+  const extracted = { facts: {} };
+  const prevFlow = { acquisitionsYtd: null, currentQuarterData: { acquisitions3M: 15000 } };
+  storePreviousQuarterCashFlow(extracted, prevFlow, deduceQuarterCashFlow(extracted, prevFlow));
+  assert.equal(extracted.facts.acquisitionsQuarter, 15000);
 });

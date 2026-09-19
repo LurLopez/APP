@@ -25,7 +25,8 @@ Responde ÚNICAMENTE con un JSON válido con esta forma exacta (sin texto fuera 
 
 Instrucciones:
 - Incluye un elemento por CADA fila o tramo con un año de vencimiento concreto: filas "Notes due 20XX", "Senior notes due 20XX", "debt due <mes> 20XX", "maturing in 20XX" o el año que figure en la columna de vencimiento. NO omitas ninguna fila con año y saldo.
-- "year": año de vencimiento. Si la fila agrupa un rango ("Notes due 2024-2047", "Other, due 2018-2026"), usa el primer año del rango.
+- PRIORIDAD DE LA TABLA AÑO A AÑO: si el texto incluye la tabla explícita "The following table summarizes the maturities of long-term debt..." (filas "2024 $1,960", "2025 $1,070", "2026 $1,810"...), USA ESA TABLA como calendario: un elemento por año con su importe y "label": "Maturities of long-term debt". Si esa tabla trae fila "Thereafter", úsala para "afterYearFive". Esta tabla manda sobre las filas de rango de la nota.
+- "year": año de vencimiento. Si la fila agrupa un rango corto ("Notes due 2024-2047", "Other, due 2018-2026"), usa el primer año del rango. PROHIBIDO asignar al primer año los rangos que abarcan 5 años o más (ej. "U.S. dollar notes due 2024-2093", "Euro notes due 2024-2041"): son agregados de la nota, no un vencimiento anual; omítelos del calendario (el sistema los excluye).
 - "label": etiqueta completa de la fila, con divisa, importe nominal y cupones si constan.
 - "amount": saldo de principal en MILLONES de USD tomado de la columna del ejercicio analizado${Number.isFinite(year) ? ` (${year})` : ''}. Respeta el separador de miles: "3,948" son 3.948 millones; "(3,953)" es negativo.
 - "rate": cupón en % si la fila indica un único tipo; null si indica varios tipos o no consta (no inventes la media).

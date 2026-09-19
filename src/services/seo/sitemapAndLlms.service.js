@@ -58,7 +58,7 @@ export async function getLlmsTxt() {
     '## Directorio de empresas (fichas HTML y Markdown)',
     '',
     ...companies.map(
-      (company) => `- [${company.name ?? company.ticker} (${company.ticker})](${config.siteUrl}/empresa/${encodeURIComponent(company.ticker)}) — [Markdown](${config.siteUrl}/empresa/${encodeURIComponent(company.ticker)}.md)`,
+      (company) => `- [${company.name ?? company.ticker} (${company.ticker})](${config.siteUrl}/empresa/${encodeURIComponent(company.ticker)}) — [Markdown](${config.siteUrl}/empresa/${encodeURIComponent(company.ticker)}.md) — [English](${config.siteUrl}/en/empresa/${encodeURIComponent(company.ticker)})`,
     ),
     '',
   ];
@@ -88,7 +88,14 @@ export async function getLlmsFullTxt() {
   for (const guide of GUIDES) {
     lines.push(`### Guía: ${guide.title}`);
     lines.push(`URL: ${site}/guias/${guide.slug}`);
+    if (guide.titleEn) {
+      lines.push(`Título (EN): ${guide.titleEn}`);
+      lines.push(`URL (EN): ${site}/en/guias/${guide.slug}`);
+    }
     lines.push(`Descripción: ${guide.description}`);
+    if (guide.descriptionEn) {
+      lines.push(`Descripción (EN): ${guide.descriptionEn}`);
+    }
     lines.push('');
     try {
       const rawHtml = readGuide(`${guide.slug}.html`);
@@ -124,7 +131,7 @@ export async function getLlmsFullTxt() {
   lines.push('');
   const allCompanies = await getFeaturedCompanies(null);
   for (const comp of allCompanies) {
-    lines.push(`- **${comp.name ?? comp.ticker} (${comp.ticker})**: Ficha web [${site}/empresa/${encodeURIComponent(comp.ticker)}](${site}/empresa/${encodeURIComponent(comp.ticker)}) | Versión Markdown [${site}/empresa/${encodeURIComponent(comp.ticker)}.md](${site}/empresa/${encodeURIComponent(comp.ticker)}.md)`);
+    lines.push(`- **${comp.name ?? comp.ticker} (${comp.ticker})**: Ficha web [${site}/empresa/${encodeURIComponent(comp.ticker)}](${site}/empresa/${encodeURIComponent(comp.ticker)}) | Versión Markdown [${site}/empresa/${encodeURIComponent(comp.ticker)}.md](${site}/empresa/${encodeURIComponent(comp.ticker)}.md) | English [${site}/en/empresa/${encodeURIComponent(comp.ticker)}](${site}/en/empresa/${encodeURIComponent(comp.ticker)})`);
   }
   lines.push('');
 

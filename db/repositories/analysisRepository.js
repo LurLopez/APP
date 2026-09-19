@@ -1,6 +1,6 @@
 import { query } from '../pool.js';
 
-export { createAnalysis, getAnalysisById, listAnalyses, updateAnalysis, findLatestDoneAnalysis, findUserAnalysis, setAnalysisReviewed, listAnalysisCompanies } from './analysisRepositoryCore.js';
+export { createAnalysis, getAnalysisById, listAnalyses, updateAnalysis, findLatestDoneAnalysis, findDoneAnalysisByFilename, findUserAnalysis, setAnalysisReviewed, listAnalysisCompanies } from './analysisRepositoryCore.js';
 export { getAnalysisVersions, getAnalyzedAccessionsWithRatings, getAnalyzedAccessions, saveAnalysisRating, getAnalysisRatingSummary, createAnalysisErrorReport, deleteAnalysisById, deleteAnalysesByFiling, listAnalysesForAdminReports } from './analysisRepositoryQueries.js';
 export { updateAnalysisErrorReport, deleteAnalysisErrorReport, batchUpdateAnalysisErrorReports, batchDeleteAnalysisErrorReports } from './analysisRepositoryReports.js';
 

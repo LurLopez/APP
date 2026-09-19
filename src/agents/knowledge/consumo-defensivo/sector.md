@@ -20,9 +20,9 @@
    - **Base imponible correcta**: El 23 % se aplica sobre el **EBT ajustado**, nunca sobre el EBT reportado: Beneficio Neto Ajustado = EBT Ajustado × 0,77. Si la desviación queda dentro de ±20 %, se conserva el impuesto reportado o el tipo efectivo aplicable.
    - **Casilla exclusiva de resalte**: El color de resalte y la llamada de nota (`*2`) se aplican **ÚNICAMENTE a la casilla de Beneficio Neto**. Deduciendo o añadiendo la diferencia en nota explicativa. EBT no se colorea por ajustes de impuestos.
 
-4. **Cash Flow con Capital Circulante (WC / WK)**:
+4. **Cash Flow con Capital Circulante (WC / WC)**:
    - El capital circulante teórico anual necesario para el negocio se calcula según la fórmula:
-     $$\text{WK}_{\text{caja, anual}} = (\text{Cuentas por pagar} - \text{Inventarios} - \text{Cuentas por cobrar}) \times (\text{Inflación} + \text{volumen})$$
+     $$\text{WC}_{\text{caja, anual}} = (\text{Cuentas por pagar} - \text{Inventarios} - \text{Cuentas por cobrar}) \times (\text{Inflación} + \text{volumen})$$
      Esta es la expresión del impacto de caja: el signo negativo representa una inversión necesaria en circulante. Es equivalente a $-(\text{Inventarios} + \text{Cuentas por cobrar} - \text{Cuentas por pagar}) \times (\text{Inflación} + \text{volumen})$.
    - Se prorratea según el horizonte temporal analizado:
      * Para 3 meses (trimestral): $\text{WC}_{\text{trimestral}} = \text{WC}_{\text{anual}} / 4$.
@@ -30,15 +30,15 @@
    - **Numeración independiente por bloque**: Cada bloque (1. Ventas, 2. Cash Flow, 3. Asignación de Capital) reinicia sus notas en `*1`.
    - Presentar obligatoriamente en la cabecera de la tabla de Cash Flow los dos escenarios con sus valores numéricos:
      * **`Normal (WC=valorBase)`**: Flujos con la variación de circulante reportada en el periodo.
-     * **`Ajustado*1 (WC=valorAjustado)`**: Flujos normalizados con la necesidad teórica de circulante. Al reiniciar la numeración en este bloque, la cabecera lleva obligatoriamente la llamada **`Ajustado*1`** y **se resalta con el color asignado a la nota 1 (amarillo)**. Las filas inferiores no se colorean individualmente por WK; si se aplica un ajuste fiscal, únicamente la celda de Cash Flow Ajustado lleva `*2` y el color de la Nota 2.
-   - **Prohibición de nota por deducción trimestral**: La resta de flujos acumulados para obtener el trimestre no es un ajuste de criterio y nunca debe generar notas al pie con asterisco. La única nota del bloque de Cash Flow es la del ajuste de WC (`*1: WK = ...`).
+     * **`Ajustado*1 (WC=valorAjustado)`**: Flujos normalizados con la necesidad teórica de circulante. Al reiniciar la numeración en este bloque, la cabecera lleva obligatoriamente la llamada **`Ajustado*1`** y **se resalta con el color asignado a la nota 1 (amarillo)**. Las filas inferiores no se colorean individualmente por WC; si se aplica un ajuste fiscal, únicamente la celda de Cash Flow Ajustado lleva `*2` y el color de la Nota 2.
+   - **Prohibición de nota por deducción trimestral**: La resta de flujos acumulados para obtener el trimestre no es un ajuste de criterio y nunca debe generar notas al pie con asterisco. La única nota del bloque de Cash Flow es la del ajuste de WC (`*1: WC = ...`).
     - Ajuste de Cash Flow:
       $$\text{Diferencia WC} = \text{WC}_{\text{base}} - \text{WC}_{\text{teórico}}$$
       $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - \text{Diferencia WC}$$
       $$\text{FCF}_{\text{ajustado}} = \text{Cash Flow}_{\text{ajustado}} - \text{CAPEX}$$
       $$\text{FCF/Acción}_{\text{ajustado}} = \text{FCF}_{\text{ajustado}} / \text{Acciones}$$
       $$\text{Libre}_{\text{ajustado}} = \text{FCF}_{\text{ajustado}} - \text{Dividendo}$$
-    - **Regla de signos en la nota (obligatoria)**: la diferencia/desviación de circulante conserva su signo y el ajuste se escribe como resta explícita. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WK teórico (12,1M): -159,1M. El Cash Flow ajustado resta esa desviación: 1784,4M - (-159,1M) = 1943,5M.` Queda prohibido escribir frases contradictorias como `ajuste de -159M (1784,4M + 159,1M)`.
+    - **Regla de signos en la nota (obligatoria)**: la diferencia/desviación de circulante conserva su signo y el ajuste se escribe como resta explícita. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WC teórico (12,1M): -159,1M. El Cash Flow tras el ajuste de circulante queda en: 1784,4M - (-159,1M) = 1943,5M.` Queda prohibido escribir frases contradictorias como `ajuste de -159M (1784,4M + 159,1M)`. **Prohibido llamar «Cash Flow Ajustado» al resultado del ajuste de circulante cuando después se aplica un ajuste fiscal (nota *2): ese resultado es un subtotal intermedio; el único «Cash Flow Ajustado» es el valor final de la tabla, que la nota *2 debe cerrar.**
     - Las dos columnas Normal y Ajustada deben reflejar cifras numéricas distintas siempre que haya variación de circulante. La nota explicativa al pie debe desglosar la fórmula, partidas de balance utilizadas y el cálculo del ajuste.
     - **Desfase fiscal**: Si aparece `Deferred income tax provision/(benefit)`, `Deferred income taxes and income taxes payable, net` o `income taxes payable`, se estima el efectivo fiscal como `gasto por impuestos - ajuste fiscal del cash flow`. Se compara con el 23 % del EBT ajustado y solo se corrige si la diferencia está entre `-20 %` y `+20 %`; cuando se corrige, se propaga a FCF, FCF/Acción y Libre.
     - **Doble ajuste (circulante + impuestos, obligatorio)**: cuando se apliquen ambos ajustes, la Nota `*2` debe cerrar la cadena completa `Cash Flow Normal -> ajuste de circulante -> ajuste fiscal -> Cash Flow Ajustado`, mostrando CADA ajuste con su importe y su signo y aclarando expresamente si ambos se compensan. Ejemplo: `La cifra final combina los dos ajustes: 9415M -646,7M (circulante) +654,7M (impuestos) = 9423M; el efecto neto es de solo +8M porque ambos se cancelan en gran medida.` Queda prohibido que la tabla dé la impresión de que el ajuste fue irrelevante cuando hubo dos ajustes brutos grandes de signo opuesto.

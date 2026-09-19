@@ -284,6 +284,8 @@ function buildCurrentQuarterData({ currentRow, prevRow, metrics }) {
     previousRestrictedCash: toMillions(prevRow?.values?.restrictedCash),
     divestitures3M: metrics.currentDivestitures3M,
     divestituresYtd: metrics.currentDivestituresYtd,
+    acquisitions3M: metrics.currentAcquisitions3M != null ? Math.abs(metrics.currentAcquisitions3M) : null,
+    acquisitionsYtd: metrics.currentAcquisitionsYtd != null ? Math.abs(metrics.currentAcquisitionsYtd) : null,
     buybacks3M: metrics.currentBuybacks3M ? -Math.abs(metrics.currentBuybacks3M) : 0,
     buybacksYtd: metrics.currentBuybacksYtd ? -Math.abs(metrics.currentBuybacksYtd) : 0,
     debtCashFlow3M: debtCashFlow(values),

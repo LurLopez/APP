@@ -107,7 +107,7 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
   - La columna Ajustada normaliza la variación del capital circulante (Working Capital):
     1. **Circulante Base**: Variación del circulante reportada en el estado de flujos de caja.
     2. **Circulante Teórico**: Calculado según la fórmula de la empresa y sector:
-       $$\text{WK}_{\text{caja}} = (\text{Cuentas por pagar} - \text{Inventario} - \text{Cuentas por cobrar}) \times (\text{inflación} + \text{volumen})$$
+       $$\text{WC}_{\text{caja}} = (\text{Cuentas por pagar} - \text{Inventario} - \text{Cuentas por cobrar}) \times (\text{inflación} + \text{volumen})$$
        Esta formulación expresa directamente el impacto de caja: una inversión necesaria de circulante aparece con signo negativo. Es equivalente a $-(\text{Inventario} + \text{Cuentas por cobrar} - \text{Cuentas por pagar}) \times (\text{inflación} + \text{volumen})$.
        Si no existe dato de volumen, se fija en 0 %. Si no existe inflación propia de la empresa, se utiliza la hipótesis sectorial definida para el sector y se etiqueta como estimación.
      3. **Ajuste del Flujo**: Se descuenta la diferencia entre el circulante base y el teórico ($\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - (\text{WC}_{\text{base}} - \text{WC}_{\text{teórico}})$), recalculando FCF, FCF/Acción y Libre.
@@ -128,12 +128,12 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
 - **Principio de Resaltado en Cabecera (`Ajustado*nota`)**:
   - El ajuste del Bloque 2 se origina en la normalización del Capital Circulante (Working Capital), interviniendo la totalidad de la columna ajustada.
   - Por ello, **el color de resaltado asignado a la nota de circulante (ej. Amarillo `highlight-c1` para `*1:`, o Naranja `highlight-c2` para `*2:`) debe colocarse obligatoriamente en la cabecera de la columna: `Ajustado*nota (WC=valorAjustado)`**.
-  - Las celdas de datos individuales reflejan el impacto numérico y permanecen limpias por el ajuste de WK. **Excepción: si se aplica una normalización fiscal del cash flow, la celda de Cash Flow en la columna Ajustado lleva `*2` y el resaltado de la Nota 2**, justo debajo de la cabecera `Ajustado*1`.
+  - Las celdas de datos individuales reflejan el impacto numérico y permanecen limpias por el ajuste de WC. **Excepción: si se aplica una normalización fiscal del cash flow, la celda de Cash Flow en la columna Ajustado lleva `*2` y el resaltado de la Nota 2**, justo debajo de la cabecera `Ajustado*1`.
 
 - **Numeración Independiente de Notas por Bloque (Reinicio en *1)**:
   - Cada bloque del informe (**1. Ventas**, **2. Cash Flow** y **3. Asignación de Capital**) mantiene una numeración de notas al pie estrictamente **independiente**, reiniciando siempre sus llamadas en **`*1`**.
   - Si en el Bloque 1 se utilizaron notas (`*1:`, `*2:`...), al pasar al Bloque 2 (Cash Flow) la numeración vuelve a empezar desde **`*1:`**.
-  - Por tanto, en el Bloque 2 la nota de ajuste de capital circulante (WK) es siempre la **`*1: WK = ...`**, y la cabecera de la columna ajustada se titula obligatoriamente **`Ajustado*1 (WC=valorAjustado)`**, resaltándose con el color correspondiente a la nota 1 (Amarillo flúor `#fef08a`).
+  - Por tanto, en el Bloque 2 la nota de ajuste de capital circulante (WC) es siempre la **`*1: WC = ...`**, y la cabecera de la columna ajustada se titula obligatoriamente **`Ajustado*1 (WC=valorAjustado)`**, resaltándose con el color correspondiente a la nota 1 (Amarillo flúor `#fef08a`).
   - Igualmente, en el Bloque 3 (Asignación de Capital) la numeración se reinicia en **`*1:`** (ej. `*1: Venta de marcas...`, `*2: Deuda balance...`).
 
 ---
