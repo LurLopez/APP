@@ -88,6 +88,7 @@ Documento maestro con todo lo necesario para desplegar, configurar y optimizar l
     ```cron
     0 3 * * * /home/deploy/backup-db.sh
     ```
+  - **Ampliación en producción**: además de los dumps, el VPS crea cada día a las 03:30 un snapshot incremental de todo el servidor (código, `.env`, `uploads/`, configuración; retención 180 días) y el equipo local descarga solo los cambios a un repositorio `restic` cifrado y deduplicado con retención propia (30 diarios + 12 semanales + 12 mensuales). Detalles, coste de almacenamiento, contraseña y restauración en [`backup.md`](backup.md).
 
 ---
 
@@ -167,7 +168,7 @@ sudo certbot --nginx -d cifraresearch.com -d www.cifraresearch.com -d dev.cifrar
 Implementado con **dos workflows independientes** (`.github/workflows/deploy-dev.yml` y `deploy-prod.yml`): push a `development` despliega en dev y push a `production` en producción. Cada uno ejecuta un job de CI (`npm ci` + `node --check`) y, si pasa, un job de despliegue por SSH que actualiza la rama, instala dependencias, aplica migraciones, **reinicia el servicio systemd** (`cifra-dev` o `cifra-prod`, ya no se usa PM2) y valida con un health check.
 
 **Secretos en GitHub Settings $\rightarrow$ Secrets and Variables $\rightarrow$ Actions:**
-* `VPS_HOST`: IP del VPS (`194.163.166.21`).
+* `VPS_HOST`: IP del VPS (configurada como secreto de GitHub; no se documenta en el repositorio).
 * `VPS_USER`: `deploy`
 * `VPS_SSH_KEY`: clave privada dedicada (`~/.ssh/cifra_actions`), autorizada en el VPS.
 

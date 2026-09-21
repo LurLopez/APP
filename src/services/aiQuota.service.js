@@ -26,17 +26,39 @@ export async function getAiQuota(user) {
   };
 }
 
+function dailyLimitError(limit) {
+  const error = new Error(
+    `Has alcanzado el límite de ${limit} análisis nuevos con IA por día. Vuelve mañana; mientras tanto puedes leer los análisis ya existentes.`,
+  );
+  error.status = 429;
+  error.code = 'DAILY_LIMIT_REACHED';
+  return error;
+}
+
 export async function assertAiQuotaAvailable(user) {
   const quota = await getAiQuota(user);
   if (!quota.unlimited && quota.remaining <= 0) {
-    const error = new Error(
-      `Has alcanzado el límite de ${quota.limit} análisis nuevos con IA por día. Vuelve mañana; mientras tanto puedes leer los análisis ya existentes.`,
-    );
-    error.status = 429;
-    error.code = 'DAILY_LIMIT_REACHED';
-    throw error;
+    throw dailyLimitError(quota.limit);
   }
   return quota;
+}
+
+/**
+ * Reserva atómica de cupo: inserta primero y comprueba después, de forma que
+ * peticiones concurrentes del mismo usuario no puedan superar el límite diario
+ * (la ventana entre "assert" y "consume" de la versión anterior lo permitía).
+ * Si al contar se supera el límite, la fila insertada se elimina y se lanza 429.
+ */
+export async function reserveAiQuota(user) {
+  if (isUnlimitedAi(user)) return null;
+  const usage = await createAiGenerationUsage(user.id);
+  const usageId = usage?.id ?? null;
+  const used = await countAiGenerationsToday(user.id);
+  if (used > config.dailyAiAnalysesLimit) {
+    await refundAiQuota(usageId);
+    throw dailyLimitError(config.dailyAiAnalysesLimit);
+  }
+  return usageId;
 }
 
 export async function consumeAiQuota(user) {

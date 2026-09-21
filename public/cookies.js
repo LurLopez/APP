@@ -38,14 +38,25 @@
     if (banner) banner.remove();
   }
 
+  function t(text) {
+    if (window.I18n && typeof window.I18n.t === 'function') {
+      return window.I18n.t(text);
+    }
+    return text;
+  }
+
   function showBanner() {
     if (document.getElementById(BANNER_ID)) return;
+
+    var isEn = window.I18n ? window.I18n.getLanguage() === 'en' : (document.documentElement.getAttribute('lang') === 'en');
+    var cookiesUrl = isEn ? '/en/legal/cookies' : '/legal/cookies';
+    var privacyUrl = isEn ? '/en/legal/privacidad' : '/legal/privacidad';
 
     var banner = document.createElement('div');
     banner.id = BANNER_ID;
     banner.setAttribute('role', 'dialog');
     banner.setAttribute('aria-modal', 'false');
-    banner.setAttribute('aria-label', 'Preferencias de cookies');
+    banner.setAttribute('aria-label', t('Preferencias de cookies'));
     banner.style.cssText = [
       'position:fixed',
       'left:16px',
@@ -68,14 +79,14 @@
     banner.innerHTML = [
       '<div style="display:flex;flex-direction:column;gap:12px">',
       '  <div>',
-      '    <strong style="display:block;color:#fff;font-size:14.5px;margin-bottom:4px">Cookies y privacidad</strong>',
-      '    <span style="color:#cbd5e1">Cifra usa cookies técnicas propias (imprescindibles para la sesión) y cookies analíticas de Google Analytics para entender cómo se usa el sitio. Puedes aceptar o rechazar las analíticas. Más información en la',
-      '    <a href="/legal/cookies" style="color:#34d399;text-decoration:underline">Política de cookies</a> y en la',
-      '    <a href="/legal/privacidad" style="color:#34d399;text-decoration:underline">Política de privacidad</a>.</span>',
+      '    <strong style="display:block;color:#fff;font-size:14.5px;margin-bottom:4px">' + t('Cookies y privacidad') + '</strong>',
+      '    <span style="color:#cbd5e1">' + t('Cifra usa cookies técnicas propias (imprescindibles para la sesión) y cookies analíticas de Google Analytics para entender cómo se usa el sitio. Puedes aceptar o rechazar las analíticas. Más información en la') + ' ',
+      '    <a href="' + cookiesUrl + '" style="color:#34d399;text-decoration:underline">' + t('Política de cookies') + '</a> ' + t('y en la') + ' ',
+      '    <a href="' + privacyUrl + '" style="color:#34d399;text-decoration:underline">' + t('Política de privacidad') + '</a>.</span>',
       '  </div>',
       '  <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end">',
-      '    <button type="button" data-consent="denied" style="cursor:pointer;border:1px solid #475569;background:transparent;color:#e2e8f0;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600">Rechazar</button>',
-      '    <button type="button" data-consent="granted" style="cursor:pointer;border:0;background:#10b981;color:#052e22;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700">Aceptar analíticas</button>',
+      '    <button type="button" data-consent="denied" style="cursor:pointer;border:1px solid #475569;background:transparent;color:#e2e8f0;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600">' + t('Rechazar') + '</button>',
+      '    <button type="button" data-consent="granted" style="cursor:pointer;border:0;background:#10b981;color:#052e22;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700">' + t('Aceptar analíticas') + '</button>',
       '  </div>',
       '</div>',
     ].join('\n');
@@ -91,6 +102,14 @@
 
     document.body.appendChild(banner);
   }
+
+  window.addEventListener('i18n:change', function () {
+    var banner = document.getElementById(BANNER_ID);
+    if (banner) {
+      removeBanner();
+      showBanner();
+    }
+  });
 
   function open() {
     showBanner();

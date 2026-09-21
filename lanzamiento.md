@@ -4,7 +4,7 @@ El documento completo de despliegue, arquitectura CI/CD y estrategia SEO se encu
 👉 [documentacion/lanzamiento.md](file:///home/lur/Lur/APP/documentacion/lanzamiento.md)
 
 ### Resumen Rápido:
-* **Infraestructura:** Contabo Cloud VPS 4 (4 vCPU, 8 GB RAM, 100 GB SSD) 6,66 €/mes sin permanencia. Región **UE (Hub Europe)**; IP `194.163.166.21`.
+* **Infraestructura:** Contabo Cloud VPS 4 (4 vCPU, 8 GB RAM, 100 GB SSD) 6,66 €/mes sin permanencia. Región **UE (Hub Europe)**; IP `194.163.166.x` (el último octeto se omite por seguridad).
 * **Dominio:** `cifraresearch.com` (Cloudflare Registrar, DNS en Cloudflare, SSL Full strict + Let's Encrypt).
 * **Ambientes en el mismo VPS** (servicios systemd `cifra-dev` y `cifra-prod`):
   * `dev.cifraresearch.com` → rama `development`, puerto 3001, BD `cifra_dev`.

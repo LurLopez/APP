@@ -1,16 +1,29 @@
+/**
+ * @fileoverview Servicio orquestador del pipeline de análisis de informes financieros con agentes IA (Origen -> Sector -> Analista).
+ * @module services/analysis
+ */
+
 import { randomUUID } from 'node:crypto';
 import { extractTextFromPdf } from './pdf.service.js';
 import { aiContext } from './ai/modelProvider.js';
 import { getAgent } from '../agents/agentRegistry.js';
+import { AgentError } from '../agents/baseAgent.js';
 import { generateReportPdf } from './report.service.js';
 import { createAnalysis, updateAnalysis } from '../../db/repositories/analysisRepository.js';
-import { createAnalysisLog } from '../../db/repositories/analysisLogRepository.js';
-import { findUserById } from '../../db/repositories/userRepository.js';
-import { appendAnalysisLog } from './analysisLog.service.js';
-import { getSessionUsage } from './ai/usageTracker.js';
+import { safeLogAnalysis } from './analysis/analysisLogger.service.js';
+import { buildPresentationText, htmlToText } from './analysis/presentationExtractor.service.js';
+import { normalizeLanguage } from '../utils/i18n.js';
+
+export { buildPresentationText, htmlToText };
 
 const PERIOD_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Construye el prefijo base del nombre de archivo exportable (ej. KO-2025-Q3 o KO-2025-K).
+ * @param {Object} report - Informe financiero analizado.
+ * @param {string|null} formType - Tipo de formulario (10-Q o 10-K).
+ * @returns {string} Nombre base para descargas.
+ */
 export function buildDownloadBase(report, formType) {
   const ticker = String(report?.ticker ?? '').replace(/[^\w.-]/g, '').toUpperCase() || 'INFORME';
   const year = Number(report?.fiscalYear)
@@ -22,22 +35,11 @@ export function buildDownloadBase(report, formType) {
   return `${ticker}-${year}-${suffix}`;
 }
 
-export function htmlToText(html) {
-  return String(html ?? '')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, accession, modelUsed, version = null }) {
+/**
+ * Guarda en base de datos el resultado completado del análisis y asocia metadatos y versiones.
+ * @private
+ */
+async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, accession, modelUsed, version = null, subsector = null, sectorVersion = null, language = 'es' }) {
   const report = result.report ?? {};
   const periodEnd = PERIOD_DATE_PATTERN.test(report.reportingPeriod ?? '') ? report.reportingPeriod : null;
   const parsedAccession = accession || (filename?.match(/[0-9]{10}-[0-9]{2}-[0-9]{6}/)?.[0] ?? null);
@@ -54,6 +56,9 @@ async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, acc
     sourceUrl: sourceUrl ?? null,
     accession: parsedAccession,
     version,
+    subsector,
+    sectorVersion,
+    language,
   });
 
   return updateAnalysis(created.id, {
@@ -65,102 +70,33 @@ async function saveAnalysis({ userId, isPublic, filename, result, sourceUrl, acc
   });
 }
 
-export async function analyzeText(text, options = {}) {
-  // Cada análisis usa su propia sesión de IA: varios análisis (de distintos
-  // usuarios o del mismo) pueden ejecutarse en paralelo sin bloquearse entre sí.
-  const sessionId = options.sessionId || randomUUID();
-  return aiContext.run({ sessionId }, () => runAnalysis(text, options, sessionId));
-}
-
-async function resolveActor(options) {
-  if (options.actor) return options.actor;
-  if (options.userId) {
-    try {
-      const user = await findUserById(options.userId);
-      if (user) return user.username || user.email;
-    } catch (error) {
-      console.error('[analysis:actor]', error.message);
-    }
-  }
-  return 'anónimo';
-}
-
-// Cada análisis (termine bien o mal) deja una línea en el log acumulativo y una
-// fila en analysis_logs con los tokens y el coste consumidos, el usuario, el
-// tiempo de ejecución y la fecha/hora.
-async function logAnalysis({ options, result = null, error = null, startedAt }) {
-  const usage = getSessionUsage();
-  const report = result?.report ?? null;
-  const entry = {
-    fechaHora: new Date().toISOString(),
-    usuario: await resolveActor(options),
-    userId: options.userId ?? null,
-    estado: error ? 'error' : 'ok',
-    error: error ? (error.code || error.message) : null,
-    analysisId: result?.analysisId ?? null,
-    ticker: report?.ticker ?? options.ticker ?? null,
-    accession: options.accession ?? null,
-    filename: options.filename ?? null,
-    version: result?.version ?? null,
-    proveedores: usage.proveedores,
-    modelos: usage.modelos,
-    llamadas: usage.llamadas,
-    tokens: {
-      prompt: usage.promptTokens,
-      completion: usage.completionTokens,
-      reasoning: usage.reasoningTokens,
-      cacheHit: usage.cacheHitTokens,
-      cacheMiss: usage.cacheMissTokens,
-      total: usage.totalTokens,
-    },
-    costeUsd: Number(usage.costeUsd.toFixed(6)),
-    costeConocido: usage.costeConocido,
-    duracionSegundos: Number(((Date.now() - startedAt) / 1000).toFixed(1)),
-  };
-
-  await appendAnalysisLog(entry);
-
-  try {
-    await createAnalysisLog({
-      analysisId: entry.analysisId,
-      userId: entry.userId,
-      actor: entry.usuario,
-      status: entry.estado,
-      error: entry.error,
-      ticker: entry.ticker,
-      accession: entry.accession,
-      filename: entry.filename,
-      version: entry.version,
-      providers: entry.proveedores,
-      models: entry.modelos,
-      calls: entry.llamadas,
-      promptTokens: entry.tokens.prompt,
-      completionTokens: entry.tokens.completion,
-      reasoningTokens: entry.tokens.reasoning,
-      cacheHitTokens: entry.tokens.cacheHit,
-      cacheMissTokens: entry.tokens.cacheMiss,
-      totalTokens: entry.tokens.total,
-      costUsd: entry.costeUsd,
-      costKnown: entry.costeConocido,
-      durationSeconds: entry.duracionSegundos,
-    });
-  } catch (dbError) {
-    console.error('[analysis-log:db]', dbError.message);
-  }
-}
-
+/**
+ * Ejecuta el pipeline secuencial de agentes de IA sobre el texto del informe.
+ * @private
+ */
 async function runAnalysis(text, options, sessionId) {
   const startedAt = Date.now();
-  console.log(`[analysis] sesión IA ${sessionId.slice(0, 8)} · ${options.filename ?? 'informe'}`);
+  const language = normalizeLanguage(options.language);
+  console.log(`[analysis] sesión IA ${sessionId.slice(0, 8)} · ${options.filename ?? 'informe'} · ${language}`);
 
   try {
     const originAgent = getAgent('origin');
-    const originResult = await originAgent.run({ text });
+    const originResult = await originAgent.run({
+      text,
+      formType: options.formType ?? null,
+      ticker: options.ticker ?? null,
+      accession: options.accession ?? null,
+    });
 
     const effectiveFormType = options.formType || originResult.formType;
 
     const sectorAgent = getAgent('sector');
-    const sectorResult = await sectorAgent.run({ text, subsector: options.subsector ?? null });
+    const sectorResult = await sectorAgent.run({
+      text,
+      subsector: options.subsector ?? null,
+      formType: effectiveFormType,
+      ticker: options.ticker ?? null,
+    });
 
     const analystAgent = getAgent('analyst');
     const report = await analystAgent.run({
@@ -170,21 +106,34 @@ async function runAnalysis(text, options, sessionId) {
       subsector: sectorResult.subsector,
       formType: effectiveFormType,
       ticker: options.ticker ?? null,
+      language,
     });
 
-    const { url, docxUrl, odtUrl } = await generateReportPdf(report);
+    let pdfResult;
+    try {
+      pdfResult = await generateReportPdf(report);
+    } catch (pdfError) {
+      console.error('[analysis:pdf]', pdfError.message);
+      throw new AgentError(
+        'Se completó el análisis pero no se pudo generar el PDF del informe. Inténtalo de nuevo; si persiste, contacta con el administrador.',
+        'REPORT_PDF_FAILED',
+      );
+    }
 
     const result = {
       text,
       origin: originResult.origin,
       formType: effectiveFormType,
       sector: sectorResult.sector,
+      subsector: sectorResult.subsector ?? null,
       version: sectorResult.version,
+      sectorVersion: sectorResult.sectorVersion ?? null,
       report,
-      pdfUrl: url,
-      docxUrl,
-      odtUrl,
+      pdfUrl: pdfResult.url,
+      docxUrl: pdfResult.docxUrl,
+      odtUrl: pdfResult.odtUrl,
       downloadBase: buildDownloadBase(report, effectiveFormType),
+      language,
     };
 
     let saved = null;
@@ -197,6 +146,9 @@ async function runAnalysis(text, options, sessionId) {
         accession: options.accession ?? null,
         modelUsed: options.modelUsed ?? null,
         version: sectorResult.version,
+        subsector: sectorResult.subsector ?? null,
+        sectorVersion: sectorResult.sectorVersion ?? null,
+        language,
         result,
       });
     } catch (error) {
@@ -204,164 +156,38 @@ async function runAnalysis(text, options, sessionId) {
     }
 
     result.analysisId = saved?.id ?? null;
-    await logAnalysis({ options, result, startedAt });
+    await safeLogAnalysis({ options, result, startedAt });
     return result;
   } catch (error) {
-    await logAnalysis({ options, error, startedAt });
+    await safeLogAnalysis({ options, error, startedAt });
     throw error;
   }
 }
 
+/**
+ * Ejecuta el análisis sobre un texto plano utilizando un contexto asíncrono aislado por sesión.
+ * @param {string} text - Contenido del informe financiero.
+ * @param {Object} [options] - Parámetros de ejecución y metadatos.
+ * @returns {Promise<Object>} Resultado consolidado del análisis.
+ */
+export async function analyzeText(text, options = {}) {
+  const sessionId = options.sessionId || randomUUID();
+  return aiContext.run({ sessionId }, () => runAnalysis(text, options, sessionId));
+}
+
+/**
+ * Extrae el texto legible de un PDF y ejecuta el pipeline de análisis financiero.
+ * @param {Buffer} buffer - Buffer con los datos binarios del PDF.
+ * @param {Object} [options] - Metadatos de la petición.
+ * @returns {Promise<Object>} Resultado del análisis.
+ */
 export async function analyzePdf(buffer, options = {}) {
   const text = await extractTextFromPdf(buffer);
+  if (!text || text.trim().length < 100) {
+    throw new AgentError(
+      'El PDF no contiene texto legible (parece un escaneo o está compuesto por imágenes). Usa el PDF oficial descargado de SEC EDGAR.',
+      'PDF_NOT_READABLE',
+    );
+  }
   return analyzeText(text, options);
-}
-
-export async function buildPresentationText(presentations) {
-  if (!Array.isArray(presentations) || !presentations.length) return null;
-  const processed = [];
-
-  for (const presentation of presentations) {
-    try {
-      let text = null;
-      if (presentation.kind === 'html') {
-        text = htmlToText(presentation.buffer.toString('utf8'));
-      } else {
-        text = await extractTextFromPdf(presentation.buffer);
-      }
-      if (text && text.trim().length > 200) {
-        const extracted = extractRelevantPresentationSections(text.trim(), 24000);
-        if (extracted && extracted.length > 100) {
-          const hasGuidance = /(?:202\d|fiscal|full[- ]?year)?\s*(?:financial\s+|business\s+)?(?:outlook|guidance|targets|perspectivas)/i.test(extracted);
-          processed.push({
-            name: presentation.name,
-            extracted,
-            hasGuidance,
-          });
-        }
-      }
-    } catch (err) {
-      console.warn('[buildPresentationText]', presentation.name, err.message);
-    }
-  }
-
-  // Priorizar documentos que contienen explícitamente secciones de guidance / outlook
-  processed.sort((a, b) => (b.hasGuidance ? 1 : 0) - (a.hasGuidance ? 1 : 0));
-
-  const parts = processed.map((doc) => {
-    const badge = doc.hasGuidance ? ' [CONTIENE SECCIÓN DE GUIDANCE / OUTLOOK]' : '';
-    return `### DOCUMENTO COMPLEMENTARIO: ${doc.name}${badge}\n${doc.extracted}`;
-  });
-
-  return parts.length ? parts.join('\n\n---\n\n') : null;
-}
-
-export function extractRelevantPresentationSections(text, maxChars = 24000) {
-  if (!text) return '';
-  const clean = String(text).trim();
-  if (clean.length <= maxChars) return clean;
-
-  const sections = [];
-
-  // 1. Cabecera y titulares principales (primeros 3500 caracteres)
-  sections.push({
-    start: 0,
-    end: Math.min(clean.length, 3500),
-    priority: 2,
-    label: 'RESUMEN EJECUTIVO',
-  });
-
-  // 2. Secciones específicas de Outlook / Guidance para el nuevo ejercicio
-  // Prioridad 0 (máxima): menciones explícitas de Outlook / Guidance con año o "full year / fiscal"
-  const specificGuidanceRegex = /(?:(?:202\d|fiscal(?:\s+year|\s+\d{2,4})?|full[- ]?year)\s*(?:financial\s+|business\s+)?(?:outlook|guidance|targets|perspectivas)|(?:outlook|guidance|perspectivas)\s*(?:for|para)?\s*(?:full\s+year|fiscal\s+year|\b202\d\b))/gi;
-  let match;
-  let foundSpecific = false;
-  while ((match = specificGuidanceRegex.exec(clean)) !== null) {
-    foundSpecific = true;
-    const start = Math.max(0, match.index - 200);
-    const end = Math.min(clean.length, match.index + 4500);
-    sections.push({
-      start,
-      end,
-      priority: 0,
-      label: 'GUIDANCE / OUTLOOK',
-    });
-  }
-
-  // Fallback si no se encontró con año explícito: cualquier mención de "outlook" o "guidance"
-  if (!foundSpecific) {
-    const genericGuidanceRegex = /\b(?:outlook|guidance|financial targets)\b/gi;
-    while ((match = genericGuidanceRegex.exec(clean)) !== null) {
-      const start = Math.max(0, match.index - 200);
-      const end = Math.min(clean.length, match.index + 3500);
-      sections.push({
-        start,
-        end,
-        priority: 1,
-        label: 'GUIDANCE / OUTLOOK',
-      });
-    }
-  }
-
-  // 3. Recompras, asignación de capital o programas de ahorro de costes
-  const capitalRegex = /(?:share repurchase|repurchase program|capital allocation|cost savings program|cost savings plan)/gi;
-  while ((match = capitalRegex.exec(clean)) !== null) {
-    const start = Math.max(0, match.index - 150);
-    const end = Math.min(clean.length, match.index + 2000);
-    sections.push({
-      start,
-      end,
-      priority: 3,
-      label: 'CAPITAL / RECOMPRAS / AHORRO',
-    });
-  }
-
-  // Fusionar intervalos solapados o contiguos (hasta 200 caracteres de separación)
-  sections.sort((a, b) => a.start - b.start);
-  const merged = [];
-  for (const s of sections) {
-    if (!merged.length) {
-      merged.push({ ...s });
-    } else {
-      const last = merged[merged.length - 1];
-      if (s.start <= last.end + 200) {
-        last.end = Math.max(last.end, s.end);
-        last.priority = Math.min(last.priority, s.priority);
-      } else {
-        merged.push({ ...s });
-      }
-    }
-  }
-
-  // Ordenar por prioridad para asegurar que Guidance y Resumen entran en el presupuesto
-  let currentLength = 0;
-  const picked = [];
-  const byPriority = [...merged].sort((a, b) => a.priority - b.priority);
-  for (const range of byPriority) {
-    const len = range.end - range.start;
-    if (currentLength + len <= maxChars) {
-      picked.push(range);
-      currentLength += len;
-    } else {
-      const available = maxChars - currentLength;
-      if (available > 600) {
-        picked.push({ ...range, end: range.start + available });
-        currentLength += available;
-      }
-      break;
-    }
-  }
-
-  // Reordenar secuencialmente por posición en el documento original
-  picked.sort((a, b) => a.start - b.start);
-
-  const parts = [];
-  for (const p of picked) {
-    const snippet = clean.slice(p.start, p.end).trim();
-    if (snippet) {
-      parts.push(snippet);
-    }
-  }
-
-  return parts.join('\n\n[...]\n\n');
 }

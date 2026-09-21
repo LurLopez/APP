@@ -7,18 +7,25 @@
   "scripts": {
     "start": "node --env-file=.env server.js",
     "dev": "node --env-file=.env --watch server.js",
+    "test": "node --test \"tests/**/*.test.js\"",
     "db:migrate": "node --env-file=.env db/migrations.js",
     "db:seed": "node --env-file=.env db/seed.js",
     "test:email": "node --env-file=.env scripts/test-email.js",
+    "calendar:earnings": "node scripts/earnings-calendar.js",
+    "filings:recent": "node scripts/recent-filings.js",
     "analyze:consumer": "node --env-file=.env scripts/analyze-defensive-consumer.js",
-    "worker:opencode": "node --env-file=.env scripts/analyze-defensive-consumer.js"
+    "worker:opencode": "node --env-file=.env scripts/analyze-defensive-consumer.js",
+    "commit": "./commit-development.sh",
+    "commit:dev": "./commit-development.sh"
   },
   "dependencies": {
+    "@google-analytics/data": "^7.1.0",
     "@resvg/resvg-js": "^2.6.2",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "jszip": "^3.10.2",
     "multer": "^2.2.0",

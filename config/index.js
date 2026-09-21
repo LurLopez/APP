@@ -21,11 +21,36 @@ const database = process.env.DATABASE_URL
       password: process.env.DB_PASSWORD || 'postgres',
     };
 
+// Secretos JWT de desarrollo conocidos: nunca deben usarse en producción.
+const DEV_JWT_SECRETS = new Set(['cifra-dev-secret-cambiar', 'cifra-dev-secret-local']);
+const configuredJwtSecret = String(process.env.JWT_SECRET ?? '').trim();
+const jwtSecret = configuredJwtSecret || 'cifra-dev-secret-cambiar';
+
+if (production) {
+  if (!configuredJwtSecret || DEV_JWT_SECRETS.has(jwtSecret)) {
+    console.error(
+      '[config] ERROR CRÍTICO: JWT_SECRET no está configurado o usa un valor de desarrollo. '
+      + 'Genera uno con "openssl rand -hex 32" en el .env de producción. El servidor se detiene para proteger las sesiones.',
+    );
+    process.exit(1);
+  }
+  if (jwtSecret.length < 32) {
+    console.warn('[config] AVISO: JWT_SECRET tiene menos de 32 caracteres; usa "openssl rand -hex 32".');
+  }
+}
+
+const trustedProxyIps = String(process.env.TRUSTED_PROXY_IPS || '127.0.0.1,::1')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
 export default {
   port,
   database,
   siteUrl,
-  jwtSecret: process.env.JWT_SECRET || 'cifra-dev-secret-cambiar',
+  jwtSecret,
+  codePepper: String(process.env.VERIFICATION_CODE_PEPPER || jwtSecret),
+  trustedProxyIps,
   production,
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || '',

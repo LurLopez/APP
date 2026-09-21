@@ -53,17 +53,29 @@ const resetLimiter = rateLimit({
   scope: 'auth:reset',
   message: 'Demasiados intentos de restablecimiento. Espera unos minutos antes de volver a intentarlo.',
 });
+const sessionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  scope: 'auth:session',
+  message: 'Demasiadas operaciones de sesión. Espera unos minutos antes de volver a intentarlo.',
+});
+const profileLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  scope: 'auth:profile',
+  message: 'Has actualizado tu perfil demasiadas veces. Inténtalo más tarde.',
+});
 
-router.get('/google', googleAuth);
-router.get('/google/callback', googleAuthCallback);
+router.get('/google', sessionLimiter, googleAuth);
+router.get('/google/callback', sessionLimiter, googleAuthCallback);
 router.post('/register', registerLimiter, register);
 router.post('/verify', verifyLimiter, verify);
 router.post('/resend-code', resendLimiter, resendCode);
 router.post('/login', loginLimiter, login);
-router.post('/logout', logout);
+router.post('/logout', sessionLimiter, logout);
 router.post('/forgot-password', forgotLimiter, forgotPassword);
 router.post('/reset-password', resetLimiter, resetPassword);
 router.get('/me', requireAuth, me);
-router.patch('/username', requireAuth, updateUsername);
+router.patch('/username', requireAuth, profileLimiter, updateUsername);
 
 export default router;

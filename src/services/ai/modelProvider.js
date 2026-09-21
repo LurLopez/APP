@@ -9,6 +9,21 @@ import { recordAiCall } from './usageTracker.js';
 // de modo que varias personas puedan analizar informes a la vez sin interferirse.
 export { aiContext };
 
+/**
+ * Error de proveedor de IA con mensaje orientado al usuario. Se propaga hasta la
+ * capa de API con su código y estado HTTP para dar respuestas claras (503 IA no
+ * disponible, 429 saturada, 504 timeout, 500 por configuración del servidor).
+ */
+export class AiProviderError extends Error {
+  constructor(message, { code = 'AI_UNAVAILABLE', status = 503, detail = null } = {}) {
+    super(message);
+    this.name = 'AiProviderError';
+    this.code = code;
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 const registry = {
   mock: mockProvider,
   deepseek: deepseekProvider,
@@ -72,7 +87,12 @@ export async function chatJson(messages, attempts = MAX_ATTEMPTS, options = {}) 
     try {
       const raw = await chat(messages, options);
       const cleaned = cleanJsonText(raw);
-      return JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned);
+      // Los agentes esperan siempre un objeto; un JSON null/array/no-objeto no es válido.
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('La respuesta del modelo no es un objeto JSON.');
+      }
+      return parsed;
     } catch (error) {
       lastError = error;
     }

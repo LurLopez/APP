@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1e293b">
+  <title>¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo? | Cifra</title>
+  <meta name="description" content="Guía completa sobre el BPA Ajustado (Beneficio Por Acción Non-GAAP) en los informes trimestrales 10-Q, 10-K y 8-K: diferencias con el BPA GAAP, ajustes habituales, trampas contables y cómo lo audita la IA de Cifra.">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+  <link rel="canonical" href="{{SITE_URL}}/guias/que-es-el-bpa-ajustado">
+  <link rel="alternate" hreflang="es" href="{{SITE_URL}}/guias/que-es-el-bpa-ajustado">
+  <link rel="alternate" hreflang="en" href="{{SITE_URL}}/en/guias/que-es-el-bpa-ajustado">
+  <link rel="alternate" hreflang="x-default" href="{{SITE_URL}}/guias/que-es-el-bpa-ajustado">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Cifra">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:title" content="¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo?">
+  <meta property="og:description" content="Aprende a interpretar el Beneficio Por Acción Ajustado en los resultados trimestrales: ajustes de las directivas, trampas contables y normalización con IA.">
+  <meta property="og:url" content="{{SITE_URL}}/guias/que-es-el-bpa-ajustado">
+  <meta property="og:image" content="{{SITE_URL}}/og-cifra.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Cifra — ¿Qué es el BPA Ajustado (Non-GAAP EPS)?">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo?">
+  <meta name="twitter:description" content="Diferencias entre BPA GAAP y BPA Ajustado, partidas excluidas y cómo evitar trampas en los informes trimestrales.">
+  <meta name="twitter:image" content="{{SITE_URL}}/og-cifra.png">
+
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "headline": "¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo?",
+      "description": "Guía sobre el Beneficio Por Acción Ajustado en los informes trimestrales de la SEC: diferencias entre GAAP y Non-GAAP, partidas excluidas y normalización financiera.",
+      "inLanguage": "es",
+      "datePublished": "2026-09-13",
+      "dateModified": "2026-09-13",
+      "keywords": "BPA ajustado, EPS ajustado, Non-GAAP EPS, beneficio por acción, informes trimestrales, 10-Q, 8-K, SEC EDGAR, impairments, contabilidad creativa",
+      "articleSection": "Métricas Financieras",
+      "author": {
+        "@type": "Organization",
+        "name": "Cifra",
+        "url": "{{SITE_URL}}/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "Cifra",
+        "url": "{{SITE_URL}}/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{SITE_URL}}/logo-cifra.png",
+          "width": 512,
+          "height": 512
+        }
+      },
+      "image": "{{SITE_URL}}/og-cifra.png",
+      "mainEntityOfPage": "{{SITE_URL}}/guias/que-es-el-bpa-ajustado",
+      "isBasedOn": "https://www.sec.gov/edgar",
+      "citation": "https://www.sec.gov/edgar"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Inicio",
+          "item": "{{SITE_URL}}/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Guías",
+          "item": "{{SITE_URL}}/guias"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "¿Qué es el BPA Ajustado?",
+          "item": "{{SITE_URL}}/guias/que-es-el-bpa-ajustado"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "¿Cuál es la diferencia entre el BPA GAAP y el BPA Ajustado?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "El BPA GAAP es el beneficio oficial auditado según las normas contables de EE. UU. El BPA Ajustado (Non-GAAP) es una métrica calculada por la directiva donde se eliminan gastos que consideran extraordinarios o no monetarios (como deterioros de marcas, costes de despido o compensación en acciones)."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Por qué las empresas destacan el BPA Ajustado en sus comunicados 8-K?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Porque el consenso de los analistas de Wall Street se formula habitualmente sobre el BPA Ajustado. Si una empresa bate la expectativa ajustada por un céntimo, la acción tiende a subir, aun cuando el beneficio contable GAAP se haya hundido por amortizaciones extraordinarias."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Cómo audita y normaliza la IA de Cifra el BPA Ajustado?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "La IA de Cifra presenta ambas columnas (Normal y Ajustado). Si el ejercicio anterior tuvo deterioros extraordinarios, los suma de vuelta al comparativo para evaluar el crecimiento 'peras con peras', normaliza la tasa fiscal al 23% sobre el EBT ajustado y reconcilia el resultado con el Flujo de Caja Libre por acción."
+          }
+        }
+      ]
+    }
+  ]
+}
+  </script>
+
+  <link rel="stylesheet" href="/guia.css?v=2">
+</head>
+<body>
+  <div class="guia-wrap">
+    <header class="guia-header">
+      <a class="guia-brand" href="{{SITE_URL}}/"><svg class="guia-brand-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="13" width="5" height="8" rx="2.5"/><rect x="9.5" y="8" width="5" height="13" rx="2.5"/><rect x="16" y="3" width="5" height="18" rx="2.5"/></svg> Cifra</a>
+      <nav class="guia-nav"><a href="{{SITE_URL}}/guias">Todas las guías</a><a href="{{SITE_URL}}/empresa">Empresas</a></nav>
+    </header>
+    <main class="guia-main guia-article">
+      <nav class="guia-breadcrumb" aria-label="Miga de pan"><a href="{{SITE_URL}}/">Inicio</a> / <a href="{{SITE_URL}}/guias">Guías</a> / <span>BPA Ajustado</span></nav>
+
+      <h1>¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo?</h1>
+      <p class="guia-lead">Al abrir cualquier nota de prensa de resultados o presentación trimestral (Formulario 8-K), la primera cifra destacada en negrita por el equipo directivo suele ser el <strong>BPA Ajustado</strong> (o <em>Adjusted Diluted EPS</em>). Sin embargo, en el informe 10-Q oficial ante la SEC figura una cifra de beneficio por acción completamente diferente. ¿A qué se debe esta discrepancia y cómo debe interpretarla un inversor?</p>
+
+      <h2>1. Definición: BPA GAAP (Reportado) vs BPA Ajustado (Non-GAAP)</h2>
+      <p>El <strong>BPA (Beneficio Por Acción)</strong> o <strong>EPS (Earnings Per Share)</strong> mide cuánto dinero ha ganado la compañía por cada título en circulación:</p>
+      $$\text{BPA Diluido} = \frac{\text{Beneficio Neto}}{\text{Número medio ponderado de acciones diluidas}}$$
+
+      <p>Existen dos versiones de esta métrica:</p>
+      <ul>
+        <li><strong>BPA GAAP (Reportado / Normal)</strong>: Es la cifra legal y auditada que sigue rigurosamente los principios contables estadounidenses (US GAAP). Incluye absolutamente todos los ingresos, costes, deterioros de activos, provisiones y cargas impositivas del trimestre.</li>
+        <li><strong>BPA Ajustado (Non-GAAP)</strong>: Es una métrica alternativa formulada por la propia dirección de la empresa. Su propósito teórico es reflejar el rendimiento "operativo y recurrente" del negocio, eliminando costes que la compañía califica como excepcionales, atípicos o no monetarios.</li>
+      </ul>
+
+      <h2>2. ¿Por qué aparece en todos los informes trimestrales?</h2>
+      <p>Cuando una empresa cotizada publica sus resultados cada tres meses ante la SEC, conviven dos documentos principales:</p>
+      <ol>
+        <li><strong>El Formulario 8-K (Nota de prensa y presentación)</strong>: Destinado al mercado y a los medios. Aquí la empresa sitúa en primer plano su BPA Ajustado para facilitar la comparación con las estimaciones de consenso de los analistas de Wall Street.</li>
+        <li><strong>El Formulario 10-Q o 10-K (Informe oficial)</strong>: Documento regulatorio legal donde la SEC exige presentar en primer lugar el BPA GAAP y obliga a incluir una tabla de conciliación detallada entre el beneficio GAAP y el Non-GAAP.</li>
+      </ol>
+      <p>Los algoritmos de noticias y las mesas de negociación reaccionan en segundos a si el BPA Ajustado supera o no el consenso. Por ello, las directivas tienen un incentivo directo en proteger y elevar esta métrica.</p>
+
+      <h2>3. Las partidas que las empresas suelen "limpiar"</h2>
+      <p>Para convertir el beneficio neto ordinario en beneficio ajustado, la dirección suele sumar de vuelta (anular) diversos costes registrados en el trimestre:</p>
+      <table class="guia-table">
+        <thead>
+          <tr>
+            <th>Partida excluida</th>
+            <th>En qué consiste</th>
+            <th>Juicio crítico para el inversor</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Deterioros (Impairments)</strong></td>
+            <td>Pérdida contable de valor en marcas comerciales o fondo de comercio (*goodwill*) tras sobrepagar en adquisiciones pasadas.</td>
+            <td>Aunque no requiere salida de caja en el trimestre, confirma que el equipo gestor destruyó capital al pagar de más por un negocio en el pasado.</td>
+          </tr>
+          <tr>
+            <td><strong>Costes de reestructuración</strong></td>
+            <td>Indemnizaciones por despidos masivos, cierre de fábricas o reorganización de divisiones.</td>
+            <td>Si una empresa reporta "costes de reestructuración" año tras año, deja de ser un evento extraordinario y se convierte en un coste ordinario de operar.</td>
+          </tr>
+          <tr>
+            <td><strong>Compensación en acciones (SBC)</strong></td>
+            <td>Acciones y opciones entregadas a directivos y empleados como parte de su sueldo.</td>
+            <td>Es un coste de personal indiscutible. Aunque no sale dinero de la cuenta corriente, diluye el porcentaje de propiedad de los accionistas existentes.</td>
+          </tr>
+          <tr>
+            <td><strong>Amortización de intangibles de adquisiciones</strong></td>
+            <td>Depreciación contable de patentes, listas de clientes o contratos absorbidos en una compra.</td>
+            <td>Ajuste habitual para homogeneizar compañías que crecen orgánicamente frente a las que crecen comprando competidores.</td>
+          </tr>
+          <tr>
+            <td><strong>Litigios y sanciones legales</strong></td>
+            <td>Pagos por acuerdos extrajudiciales o multas regulatorias.</td>
+            <td>Válido si se trata de un hecho aislado fortuito; sospechoso si es recurrente por malas prácticas corporativas.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>4. Los riesgos y trampas del BPA Ajustado</h2>
+      <p>Warren Buffett y Charlie Munger advirtieron reiteradamente sobre los excesos de las métricas Non-GAAP, denominándolas irónicamente <em>"beneficios antes de todos los gastos que no nos gustan"</em>. Los principales peligros son:</p>
+      <ul>
+        <li><strong>Extraordinarios crónicos</strong>: Empresas que cada trimestre "encuentran" una razón distinta para no contabilizar gastos reales dentro de la métrica ajustada.</li>
+        <li><strong>Comparativas desvirtuadas</strong>: Si en el trimestre comparable del año anterior la empresa registró un deterioro gigantesco (por ejemplo, 1.500 M$), comparar el BPA ajustado actual contra el BPA reportado anterior genera una tasa de crecimiento explosiva ficticia.</li>
+        <li><strong>Divergencia con la caja real</strong>: Una empresa puede reportar un BPA ajustado de 2,50 $ por acción mientras su flujo de caja libre por acción es negativo debido al capital de trabajo y a los pagos de reestructuración reales.</li>
+      </ul>
+
+      <h2>5. Cómo audita y normaliza la IA de Cifra el BPA Ajustado</h2>
+      <p>La metodología de Cifra no acepta ciegamente el relato de la dirección ni ignora las partidas extraordinarias. Aplica un proceso de auditoría cruzada sistemático:</p>
+
+      <h3>A. Presentación simultánea de ambas columnas</h3>
+      <p>Cifra desglosa siempre la cuenta de resultados en dos columnas paralelas y jerarquizadas: <strong>Ajustado</strong> y <strong>Normal</strong>, tanto para el ejercicio analizado como para el periodo anterior comparable (<em>Anterior Ajustado</em> y <em>Anterior Normal</em>).</p>
+
+      <h3>B. Regla de Herencia Base</h3>
+      <p>Si en el ejercicio anterior comparable la empresa no tuvo deterioros ni ajustes extraordinarios documentados, la columna <em>Anterior Ajustado</em> hereda forzosamente la cifra de <em>Anterior Normal</em>, prohibiendo casillas en blanco para que el cálculo del <code>% Ajustado</code> sea matemáticamente impecable.</p>
+
+      <h3>C. Reversión estricta de deterioros previos ("Peras con peras")</h3>
+      <p>Si la empresa sufrió un deterioro millonario en el periodo anterior, la IA de Cifra suma de vuelta dicho deterioro a Beneficio Operativo, EBT y Beneficio Neto en la columna <em>Anterior Ajustado</em>. Esto evita que la compañía aparente un crecimiento de doble dígito cuando en realidad el negocio está plano.</p>
+
+      <h3>D. Normalización fiscal al 23 % sobre el EBT ajustado</h3>
+      <p>Las partidas extraordinarias distorsionan con frecuencia la tasa impositiva efectiva de la empresa. Si el impuesto reportado se desvía más de un ±20 % respecto al tipo estándar, la IA recalcula los impuestos aplicando el 23 % sobre la base del <strong>EBT Ajustado</strong>, asegurando que el beneficio neto final sea verdaderamente comparable.</p>
+
+      <h3>E. Reconciliación con el Flujo de Caja Libre por Acción</h3>
+      <p>El análisis vincula de forma obligatoria el BPA con el Flujo de Caja Libre generado en el mismo periodo. Si el BPA ajustado crece pero el FCF por acción se deteriora, el informe lo señala como una divergencia crítica en la calidad contable del trimestre.</p>
+
+      <h2>Conclusión para el inversor</h2>
+      <p>El BPA Ajustado es una herramienta útil para entender la rentabilidad subyacente del negocio, pero nunca debe analizarse de forma aislada ni aceptarse sin auditoría. Examinar la conciliación con el BPA GAAP, verificar si los gastos excluidos implican salida real de caja y contrastar siempre la cifra con el Flujo de Caja Libre por Acción es la única garantía contra el maquillaje corporativo.</p>
+
+      <p class="guia-disclaimer">Contenido formativo de Cifra. No constituye recomendación de inversión ni asesoramiento financiero.</p>
+    </main>
+    <footer class="guia-footer"><a href="{{SITE_URL}}/">Cifra — análisis de informes 10-Q y 10-K con IA</a></footer>
+  </div>
+</body>
+</html>

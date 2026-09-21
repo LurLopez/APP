@@ -13,6 +13,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAU
 ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+-- Versión de sesión: se incrementa al cambiar la contraseña para invalidar los JWT antiguos.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 UPDATE users SET username = split_part(email, '@', 1) WHERE username IS NULL;
@@ -56,6 +58,21 @@ ALTER TABLE analyses ADD COLUMN IF NOT EXISTS source_url TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS accession TEXT;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS version TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS subsector TEXT;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS sector_version TEXT;
+-- Idioma en que está redactado el informe ('es' o 'en'): permite cachear una
+-- variante por idioma del mismo filing sin regenerar el análisis.
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'es';
+CREATE INDEX IF NOT EXISTS idx_analyses_filing_language ON analyses (ticker, accession, language);
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS is_reviewed BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS reviewed_by INT REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_analyses_reviewed ON analyses (is_reviewed);
+-- Análisis creados antes del versionado jerárquico (sin sector_version): su versión
+-- antigua no es comparable con la compuesta general.sector[.subsector][.empresa],
+-- así que se marca como desconocida para ofrecer su regeneración con la vigente.
+-- Idempotente: al quedar version y sector_version a NULL ya no vuelve a aplicarse.
+UPDATE analyses SET version = NULL WHERE version IS NOT NULL AND sector_version IS NULL;
 CREATE INDEX IF NOT EXISTS idx_analyses_ticker_accession ON analyses (ticker, accession);
 CREATE INDEX IF NOT EXISTS idx_analyses_public_created ON analyses (is_public, created_at DESC);
 UPDATE analyses
@@ -146,6 +163,43 @@ CREATE INDEX IF NOT EXISTS idx_watchlists_user ON watchlists (user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_items_watchlist ON watchlist_items (watchlist_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_items_ticker ON watchlist_items (ticker);
 
+CREATE TABLE IF NOT EXISTS user_metric_favorites (
+    id         SERIAL PRIMARY KEY,
+    user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    statement  TEXT NOT NULL CHECK (statement IN ('income', 'balance', 'cashflow', 'ratios')),
+    metric_key TEXT NOT NULL,
+    label      TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, statement, metric_key)
+);
+
+-- Migración idempotente: bases de datos creadas antes de la pestaña Ratios
+-- mantienen el CHECK antiguo; se sustituye por el que admite 'ratios'.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'user_metric_favorites_statement_check'
+      AND position('ratios' IN pg_get_constraintdef(oid)) = 0
+  ) THEN
+    ALTER TABLE user_metric_favorites DROP CONSTRAINT user_metric_favorites_statement_check;
+    ALTER TABLE user_metric_favorites ADD CONSTRAINT user_metric_favorites_statement_check
+      CHECK (statement IN ('income', 'balance', 'cashflow', 'ratios'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_user_metric_favorites_user ON user_metric_favorites (user_id);
+
+CREATE TABLE IF NOT EXISTS user_hidden_chart_series (
+    id         SERIAL PRIMARY KEY,
+    user_id    INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    series_id  TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, series_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_hidden_chart_series_user ON user_hidden_chart_series (user_id);
+
 CREATE TABLE IF NOT EXISTS user_calendar_tickers (
     id           SERIAL PRIMARY KEY,
     user_id      INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -207,6 +261,7 @@ CREATE INDEX IF NOT EXISTS idx_user_price_alerts_pending ON user_price_alerts (s
 CREATE TABLE IF NOT EXISTS user_preferences (
     user_id                   INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     language                  TEXT NOT NULL DEFAULT 'es',
+    analysis_language         TEXT NOT NULL DEFAULT 'es',
     theme                     TEXT NOT NULL DEFAULT 'indigo',
     dark_mode                 BOOLEAN NOT NULL DEFAULT false,
     watchlist_auto_calendar   BOOLEAN NOT NULL DEFAULT true,
@@ -218,13 +273,18 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     portfolio_notify_earnings BOOLEAN NOT NULL DEFAULT true,
     portfolio_notify_exdiv    BOOLEAN NOT NULL DEFAULT true,
     portfolio_notify_payout   BOOLEAN NOT NULL DEFAULT true,
+    dividend_withholding_pct  NUMERIC(5,2) NOT NULL DEFAULT 20,
+    dividend_net_enabled      BOOLEAN NOT NULL DEFAULT false,
     created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'es';
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS analysis_language TEXT NOT NULL DEFAULT 'es';
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'indigo';
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS dividend_withholding_pct NUMERIC(5,2) NOT NULL DEFAULT 20;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS dividend_net_enabled BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS portfolio_transactions (
     id           SERIAL PRIMARY KEY,
@@ -323,6 +383,21 @@ CREATE TABLE IF NOT EXISTS analysis_ratings (
 
 CREATE INDEX IF NOT EXISTS idx_analysis_ratings_analysis ON analysis_ratings (analysis_id);
 CREATE INDEX IF NOT EXISTS idx_analysis_ratings_user ON analysis_ratings (user_id);
+
+-- Anti-fraude: un voto anónimo por análisis e IP (los NULL de user_id no aplican
+-- al UNIQUE original). Primero se eliminan duplicados históricos para poder crear
+-- el índice parcial sin errores.
+DELETE FROM analysis_ratings a
+ USING analysis_ratings b
+ WHERE a.id < b.id
+   AND a.user_id IS NULL
+   AND b.user_id IS NULL
+   AND a.analysis_id = b.analysis_id
+   AND a.ip_address IS NOT DISTINCT FROM b.ip_address;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_analysis_ratings_anon_unique
+  ON analysis_ratings (analysis_id, ip_address)
+  WHERE user_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS analysis_error_reports (
     id          SERIAL PRIMARY KEY,

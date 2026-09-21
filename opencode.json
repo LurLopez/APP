@@ -3,6 +3,10 @@
   "instructions": [
     "documentacion/PROYECTO.md"
   ],
+  "permission": {
+    "task": "deny",
+    "skill": "deny"
+  },
   "provider": {
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",

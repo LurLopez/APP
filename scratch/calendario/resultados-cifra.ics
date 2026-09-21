@@ -1,0 +1,518 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Cifra Research//Calendario consumo defensivo//ES
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Cifra — Resultados consumo defensivo
+X-WR-TIMEZONE:UTC
+BEGIN:VEVENT
+UID:cifra-earnings-GIS-2026-09-23@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20260923
+DTEND;VALUE=DATE:20260924
+SUMMARY:Resultados GIS — General Mills\, Inc.
+DESCRIPTION:Anuncio de resultados de General Mills\, Inc. ($GIS). Análisis y datos: https://cifraresearch.com/empresa/GIS
+URL:https://cifraresearch.com/empresa/GIS
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados GIS — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de GIS en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-COST-2026-09-24@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20260924
+DTEND;VALUE=DATE:20260925
+SUMMARY:Resultados COST — Costco Wholesale Corporation
+DESCRIPTION:Anuncio de resultados de Costco Wholesale Corporation ($COST). Análisis y datos: https://cifraresearch.com/empresa/COST
+URL:https://cifraresearch.com/empresa/COST
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados COST — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de COST en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-CAG-2026-09-30@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20260930
+DTEND;VALUE=DATE:20261001
+SUMMARY:Resultados CAG — Conagra Brands\, Inc.
+DESCRIPTION:Anuncio de resultados de Conagra Brands\, Inc. ($CAG). Análisis y datos: https://cifraresearch.com/empresa/CAG
+URL:https://cifraresearch.com/empresa/CAG
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados CAG — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de CAG en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-MKC-2026-10-01@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261001
+DTEND;VALUE=DATE:20261002
+SUMMARY:Resultados MKC — McCormick & Company\, Incorporated
+DESCRIPTION:Anuncio de resultados de McCormick & Company\, Incorporated ($MKC). Análisis y datos: https://cifraresearch.com/empresa/MKC
+URL:https://cifraresearch.com/empresa/MKC
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados MKC — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de MKC en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-STZ-2026-10-06@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261006
+DTEND;VALUE=DATE:20261007
+SUMMARY:Resultados STZ — Constellation Brands\, Inc.
+DESCRIPTION:Anuncio de resultados de Constellation Brands\, Inc. ($STZ). Análisis y datos: https://cifraresearch.com/empresa/STZ
+URL:https://cifraresearch.com/empresa/STZ
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados STZ — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de STZ en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-PEP-2026-10-08@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261008
+DTEND;VALUE=DATE:20261009
+SUMMARY:Resultados PEP — PepsiCo\, Inc.
+DESCRIPTION:Anuncio de resultados de PepsiCo\, Inc. ($PEP). Análisis y datos: https://cifraresearch.com/empresa/PEP
+URL:https://cifraresearch.com/empresa/PEP
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados PEP — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de PEP en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-KO-2026-10-20@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261020
+DTEND;VALUE=DATE:20261021
+SUMMARY:Resultados KO — The Coca-Cola Company
+DESCRIPTION:Anuncio de resultados de The Coca-Cola Company ($KO). Análisis y datos: https://cifraresearch.com/empresa/KO
+URL:https://cifraresearch.com/empresa/KO
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados KO — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de KO en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-PM-2026-10-21@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261021
+DTEND;VALUE=DATE:20261022
+SUMMARY:Resultados PM — Philip Morris International Inc.
+DESCRIPTION:Anuncio de resultados de Philip Morris International Inc. ($PM). Análisis y datos: https://cifraresearch.com/empresa/PM
+URL:https://cifraresearch.com/empresa/PM
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados PM — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de PM en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-PG-2026-10-22@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261022
+DTEND;VALUE=DATE:20261023
+SUMMARY:Resultados PG — The Procter & Gamble Company
+DESCRIPTION:Anuncio de resultados de The Procter & Gamble Company ($PG). Análisis y datos: https://cifraresearch.com/empresa/PG
+URL:https://cifraresearch.com/empresa/PG
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados PG — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de PG en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-MDLZ-2026-10-27@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261027
+DTEND;VALUE=DATE:20261028
+SUMMARY:Resultados MDLZ — Mondelez International\, Inc.
+DESCRIPTION:Anuncio de resultados de Mondelez International\, Inc. ($MDLZ). Análisis y datos: https://cifraresearch.com/empresa/MDLZ
+URL:https://cifraresearch.com/empresa/MDLZ
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados MDLZ — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de MDLZ en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-KHC-2026-10-28@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261028
+DTEND;VALUE=DATE:20261029
+SUMMARY:Resultados KHC — The Kraft Heinz Company
+DESCRIPTION:Anuncio de resultados de The Kraft Heinz Company ($KHC). Análisis y datos: https://cifraresearch.com/empresa/KHC
+URL:https://cifraresearch.com/empresa/KHC
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados KHC — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de KHC en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-MO-2026-10-29@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261029
+DTEND;VALUE=DATE:20261030
+SUMMARY:Resultados MO — Altria Group\, Inc.
+DESCRIPTION:Anuncio de resultados de Altria Group\, Inc. ($MO). Análisis y datos: https://cifraresearch.com/empresa/MO
+URL:https://cifraresearch.com/empresa/MO
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados MO — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de MO en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-CL-2026-10-30@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261030
+DTEND;VALUE=DATE:20261031
+SUMMARY:Resultados CL — Colgate-Palmolive Company
+DESCRIPTION:Anuncio de resultados de Colgate-Palmolive Company ($CL). Análisis y datos: https://cifraresearch.com/empresa/CL
+URL:https://cifraresearch.com/empresa/CL
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados CL — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de CL en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-CHD-2026-10-30@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261030
+DTEND;VALUE=DATE:20261031
+SUMMARY:Resultados CHD — Church & Dwight Co.\, Inc. (fecha estimada)
+DESCRIPTION:Anuncio de resultados de Church & Dwight Co.\, Inc. ($CHD). Fecha estimada por Yahoo Finance. Análisis y datos: https://cifraresearch.com/empresa/CHD
+URL:https://cifraresearch.com/empresa/CHD
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados CHD — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de CHD en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-EL-2026-11-02@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261102
+DTEND;VALUE=DATE:20261103
+SUMMARY:Resultados EL — The Estee Lauder Companies Inc.
+DESCRIPTION:Anuncio de resultados de The Estee Lauder Companies Inc. ($EL). Análisis y datos: https://cifraresearch.com/empresa/EL
+URL:https://cifraresearch.com/empresa/EL
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados EL — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de EL en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-ADM-2026-11-03@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261103
+DTEND;VALUE=DATE:20261104
+SUMMARY:Resultados ADM — Archer-Daniels-Midland Company (fecha estimada)
+DESCRIPTION:Anuncio de resultados de Archer-Daniels-Midland Company ($ADM). Fecha estimada por Yahoo Finance. Análisis y datos: https://cifraresearch.com/empresa/ADM
+URL:https://cifraresearch.com/empresa/ADM
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados ADM — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de ADM en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-TAP-2026-11-03@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261103
+DTEND;VALUE=DATE:20261104
+SUMMARY:Resultados TAP — Molson Coors Beverage Company
+DESCRIPTION:Anuncio de resultados de Molson Coors Beverage Company ($TAP). Análisis y datos: https://cifraresearch.com/empresa/TAP
+URL:https://cifraresearch.com/empresa/TAP
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados TAP — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de TAP en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-CLX-2026-11-03@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261103
+DTEND;VALUE=DATE:20261104
+SUMMARY:Resultados CLX — The Clorox Company
+DESCRIPTION:Anuncio de resultados de The Clorox Company ($CLX). Análisis y datos: https://cifraresearch.com/empresa/CLX
+URL:https://cifraresearch.com/empresa/CLX
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados CLX — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de CLX en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-HSY-2026-11-05@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261105
+DTEND;VALUE=DATE:20261106
+SUMMARY:Resultados HSY — The Hershey Company
+DESCRIPTION:Anuncio de resultados de The Hershey Company ($HSY). Análisis y datos: https://cifraresearch.com/empresa/HSY
+URL:https://cifraresearch.com/empresa/HSY
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados HSY — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de HSY en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-KVUE-2026-11-05@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261105
+DTEND;VALUE=DATE:20261106
+SUMMARY:Resultados KVUE — Kenvue Inc. (fecha estimada)
+DESCRIPTION:Anuncio de resultados de Kenvue Inc. ($KVUE). Fecha estimada por Yahoo Finance. Análisis y datos: https://cifraresearch.com/empresa/KVUE
+URL:https://cifraresearch.com/empresa/KVUE
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados KVUE — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de KVUE en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-TSN-2026-11-09@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261109
+DTEND;VALUE=DATE:20261110
+SUMMARY:Resultados TSN — Tyson Foods\, Inc.
+DESCRIPTION:Anuncio de resultados de Tyson Foods\, Inc. ($TSN). Análisis y datos: https://cifraresearch.com/empresa/TSN
+URL:https://cifraresearch.com/empresa/TSN
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados TSN — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de TSN en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-WMT-2026-11-19@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261119
+DTEND;VALUE=DATE:20261120
+SUMMARY:Resultados WMT — Walmart Inc.
+DESCRIPTION:Anuncio de resultados de Walmart Inc. ($WMT). Análisis y datos: https://cifraresearch.com/empresa/WMT
+URL:https://cifraresearch.com/empresa/WMT
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados WMT — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de WMT en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-SJM-2026-11-24@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261124
+DTEND;VALUE=DATE:20261125
+SUMMARY:Resultados SJM — The J. M. Smucker Company (fecha estimada)
+DESCRIPTION:Anuncio de resultados de The J. M. Smucker Company ($SJM). Fecha estimada por Yahoo Finance. Análisis y datos: https://cifraresearch.com/empresa/SJM
+URL:https://cifraresearch.com/empresa/SJM
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados SJM — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de SJM en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-earnings-KR-2026-12-03@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261203
+DTEND;VALUE=DATE:20261204
+SUMMARY:Resultados KR — The Kroger Co. (fecha estimada)
+DESCRIPTION:Anuncio de resultados de The Kroger Co. ($KR). Fecha estimada por Yahoo Finance. Análisis y datos: https://cifraresearch.com/empresa/KR
+URL:https://cifraresearch.com/empresa/KR
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Mañana publica resultados KR — prepara el análisis
+END:VALARM
+BEGIN:VALARM
+TRIGGER:-PT15H
+ACTION:DISPLAY
+DESCRIPTION:Resultados de KR en ~9 horas
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-exdiv-KVUE-2026-09-21@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20260921
+DTEND;VALUE=DATE:20260922
+SUMMARY:Ex-dividendo KVUE — Kenvue Inc.
+DESCRIPTION:Fecha ex-dividendo de Kenvue Inc. ($KVUE). Ficha: https://cifraresearch.com/empresa/KVUE
+URL:https://cifraresearch.com/empresa/KVUE
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-exdiv-MDLZ-2026-09-30@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20260930
+DTEND;VALUE=DATE:20261001
+SUMMARY:Ex-dividendo MDLZ — Mondelez International\, Inc.
+DESCRIPTION:Fecha ex-dividendo de Mondelez International\, Inc. ($MDLZ). Ficha: https://cifraresearch.com/empresa/MDLZ
+URL:https://cifraresearch.com/empresa/MDLZ
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-exdiv-CPB-2026-10-01@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261001
+DTEND;VALUE=DATE:20261002
+SUMMARY:Ex-dividendo CPB — Campbell Soup Company
+DESCRIPTION:Fecha ex-dividendo de Campbell Soup Company ($CPB). Ficha: https://cifraresearch.com/empresa/CPB
+URL:https://cifraresearch.com/empresa/CPB
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-exdiv-DG-2026-10-06@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261006
+DTEND;VALUE=DATE:20261007
+SUMMARY:Ex-dividendo DG — Dollar General Corporation
+DESCRIPTION:Fecha ex-dividendo de Dollar General Corporation ($DG). Ficha: https://cifraresearch.com/empresa/DG
+URL:https://cifraresearch.com/empresa/DG
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-exdiv-TSN-2026-12-01@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261201
+DTEND;VALUE=DATE:20261202
+SUMMARY:Ex-dividendo TSN — Tyson Foods\, Inc.
+DESCRIPTION:Fecha ex-dividendo de Tyson Foods\, Inc. ($TSN). Ficha: https://cifraresearch.com/empresa/TSN
+URL:https://cifraresearch.com/empresa/TSN
+END:VEVENT
+BEGIN:VEVENT
+UID:cifra-exdiv-WMT-2026-12-11@cifraresearch.com
+DTSTAMP:20260918T145906Z
+DTSTART;VALUE=DATE:20261211
+DTEND;VALUE=DATE:20261212
+SUMMARY:Ex-dividendo WMT — Walmart Inc.
+DESCRIPTION:Fecha ex-dividendo de Walmart Inc. ($WMT). Ficha: https://cifraresearch.com/empresa/WMT
+URL:https://cifraresearch.com/empresa/WMT
+END:VEVENT
+END:VCALENDAR

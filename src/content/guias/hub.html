@@ -9,6 +9,7 @@
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
   <link rel="canonical" href="{{SITE_URL}}/guias">
   <link rel="alternate" hreflang="es" href="{{SITE_URL}}/guias">
+  <link rel="alternate" hreflang="en" href="{{SITE_URL}}/en/guias">
   <link rel="alternate" hreflang="x-default" href="{{SITE_URL}}/guias">
 
   <meta property="og:type" content="website">
@@ -70,6 +71,16 @@
     },
     {
       "@type": "Article",
+      "url": "{{SITE_URL}}/guias/como-analiza-la-ia-por-sectores",
+      "name": "Cómo analiza la IA de Cifra según cada sector"
+    },
+    {
+      "@type": "Article",
+      "url": "{{SITE_URL}}/guias/que-es-el-bpa-ajustado",
+      "name": "¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo?"
+    },
+    {
+      "@type": "Article",
       "url": "{{SITE_URL}}/guias/que-es-un-informe-8-k",
       "name": "¿Qué es un informe 8-K y por qué es clave en los resultados trimestrales?"
     },
@@ -93,10 +104,40 @@
       <nav class="guia-nav"><a href="{{SITE_URL}}/empresa">Empresas</a></nav>
     </header>
     <main class="guia-main guia-article">
-      <h1>Guías para leer informes de la SEC</h1>
-      <p class="guia-lead">Las guías educativas de Cifra: qué contienen los informes 10-Q y 10-K que las empresas de EE. UU. presentan ante la SEC, cómo se leen y qué métricas importan al analizar una empresa de consumo defensivo.</p>
+      <h1>Guías de Cifra</h1>
+      <p class="guia-lead">Guías formativas, metodología y documentación de Cifra: herramientas de análisis, datos financieros, cartera y lectura de informes SEC con IA.</p>
+
+      <div class="guia-disclaimer" style="margin: 20px 0 28px 0; padding: 18px 20px; border-left: 4px solid #f59e0b; background: rgba(245, 158, 11, 0.08); border-radius: 8px;">
+        <h3 style="margin: 0 0 10px 0; color: #f59e0b; font-size: 1.1rem;">Aviso de Inversor Particular y Exención de Responsabilidad</h3>
+        <p><strong>Inversor particular:</strong> Cifra es un proyecto personal desarrollado de forma independiente por un inversor particular. No soy entidad bancaria, sociedad de valores ni asesor financiero registrado.</p>
+        <p><strong>Cálculos y fórmulas:</strong> Puede ser que los cálculos y las fórmulas que utilice no sean las correctas o difieran de las metodologías aplicadas por otros analistas e instituciones. Toda la información, métricas y ajustes contables se presentan según criterios propios con fines exclusivamente formativos y de estudio.</p>
+        <p><strong>Sin recomendaciones ni responsabilidad:</strong> No me hago cargo de cualquier recomendación o análisis. Ningún dato o informe constituye asesoramiento financiero ni sugerencia de inversión. Toda decisión de inversión es responsabilidad exclusiva de cada usuario.</p>
+        <p><strong>¿Qué ofrece Cifra?</strong> Seguimiento de cartera, alertas de precio, calendario, informes trimestrales y datos financieros de empresas estadounidenses.</p>
+        <p><strong>Análisis con IA en informes trimestrales:</strong> En la sección de informes trimestrales existe la oportunidad de analizar los resultados oficiales con IA. De momento se pueden analizar las empresas de consumo defensivo (Consumer Staples), y estoy trabajando activamente para que en el futuro se puedan analizar empresas de diferentes sectores. Cada usuario dispone de hasta 3 análisis nuevos al día; pero si otro usuario ya le ha dado a analizar a un informe, el siguiente que le dé a analizar no le va a contar en su cuota y le devolverá el análisis ya realizado.</p>
+        <p style="margin-bottom: 0;"><strong>Fase beta y donaciones:</strong> De momento la plataforma está en fase beta y absolutamente todo es gratis. Las donaciones pueden ser la diferencia entre que siga adelante con este proyecto o no.</p>
+      </div>
+
+      <h2>1. Apartado: Datos Financieros</h2>
+      <p>Guías sobre los tres estados contables fundamentales para el análisis fundamental de empresas:</p>
+      <ul>
+        <li><strong>Cuenta de Resultados (Income Statement):</strong> Rendimiento económico, ingresos (top-line), margen bruto, I+D, amortización y deterioro de fondos de comercio e intangibles, beneficio operativo y ajustado, gastos por intereses (regla del &lt;20% de EBIT), devaluación de activos tangibles, EBT y beneficio neto (tasa impositiva habitual del 20%-25%).</li>
+        <li><strong>Balance de Situación (Balance Sheet):</strong> Fotografía patrimonial de activos vs. pasivos y corriente vs. no corriente. Desglose de efectivo y equivalentes, cuentas por cobrar, inventarios, cuentas por pagar, fondo de comercio e intangibles, inmovilizado material bruto, inversiones a largo plazo, préstamos a corto plazo, deuda a largo plazo, fondos propios y deuda neta. Incluye el cálculo del capital circulante operativo (NOF) y el impacto del crecimiento y la inflación sobre el efectivo.</li>
+        <li><strong>Flujos de Caja (Cash Flows):</strong> Entradas y salidas reales de dinero. Compensación en Stock Options (dilución y ajuste conservador del +20%), cambio en capital circulante (ajuste de valores atípicos), flujo de caja operativo (CFO), CAPEX de mantenimiento (fórmula: depreciación × (1 + inflación)) vs. crecimiento, adquisiciones corporativas, recompras de acciones (buybacks) y dividendos.</li>
+      </ul>
+
+      <h2>2. Apartado: Cartera</h2>
+      <p>Próximamente: Guías sobre el funcionamiento de la cartera, registro de operaciones de compra y venta, seguimiento de ponderaciones y cálculo de rentabilidad neta.</p>
+
+      <h2>3. Apartado: Análisis con IA</h2>
+      <p>Metodología y guías sobre cómo la Inteligencia Artificial de Cifra procesa y audita los informes oficiales de la SEC (10-Q, 10-K y 8-K) en dos modalidades complementarias:</p>
+      <ul>
+        <li><strong>Análisis Trimestral (Form 10-Q):</strong> Pulso operativo, márgenes y estacionalidad. En Q1 analiza el horizonte único de 3 meses, mientras que en Q2 y Q3 audita dos horizontes temporales paralelos: <em>«ÚLTIMOS 3 MESES»</em> (aceleración reciente) y <em>«EN TODO EL AÑO (Acumulado YTD)»</em>. Desglosado en 3 bloques clave: <strong>Ventas y Rentabilidad</strong> (reversión de deterioros de intangibles/goodwill y normalización fiscal al 23%), <strong>Cash Flow y FCF</strong> (deducción matemática del flujo trimestral <code>YTD(Qn) - YTD(Qn-1)</code> y doble ajuste de circulante y fiscal) y <strong>Asignación de Capital</strong> (cuadre riguroso de fuentes y usos de caja), junto a la detección automática de 5 señales de alerta (red flags).</li>
+        <li><strong>Análisis Anual (Form 10-K):</strong> Cuentas anuales auditadas bajo horizonte único de 12 meses. Recuento de acciones vivas a fecha de cierre de balance (para evaluar el impacto matemático real sobre el BPA sin distorsiones del promedio ponderado) y las 6 indagaciones profundas exclusivas del 10-K: <strong>Recompras de acciones y proyección matemática a 5 años</strong> (reducción de capital y efecto en BPA), <strong>Cambios en la cúpula directiva</strong> (trayectoria de CEO/CFO), <strong>Previsiones y Guidance oficial en cifras monetarias absolutas</strong>, <strong>Calendario de vencimientos de deuda año a año a 5 años</strong> (con cupones y tipos medios), <strong>Operaciones corporativas (M&A)</strong> y <strong>Nota de Resultados del 1 al 10</strong> fundamentada exclusivamente en hechos objetivos sin especulación.</li>
+      </ul>
 
       <ul class="guia-cards">
+        <li><a href="{{SITE_URL}}/guias/como-analiza-la-ia-por-sectores"><strong>Cómo analiza la IA de Cifra según cada sector</strong><span>Sistema multi-agente, dos horizontes temporales y focos en consumo defensivo, software, industriales y retail.</span></a></li>
+        <li><a href="{{SITE_URL}}/guias/que-es-el-bpa-ajustado"><strong>¿Qué es el BPA Ajustado (Non-GAAP EPS)?</strong><span>Diferencias con el BPA GAAP, partidas excluidas por directivas, riesgos de maquillaje y normalización con IA.</span></a></li>
         <li><a href="{{SITE_URL}}/guias/que-es-un-informe-10-q"><strong>¿Qué es un informe 10-Q y cómo leerlo?</strong><span>El informe trimestral: qué contiene, cuándo se publica y lectura paso a paso.</span></a></li>
         <li><a href="{{SITE_URL}}/guias/que-es-un-informe-10-k"><strong>¿Qué es un informe 10-K?</strong><span>El informe anual auditado: secciones, plazos y qué mirar.</span></a></li>
         <li><a href="{{SITE_URL}}/guias/que-es-un-informe-8-k"><strong>¿Qué es un informe 8-K?</strong><span>Hechos relevantes, comunicados y presentaciones de resultados con guidance.</span></a></li>

@@ -15,13 +15,13 @@ Que el usuario busque una empresa (topbar o sección de Inicio) y la vea en la *
 - **Página de empresa** (`empresa.html` + `empresa.js`): menú lateral (fijos: Favoritos, Alertas de precio, Cartera → cabecera de empresa → Perfil, Informes trimestrales, Valoración, Datos financieros, Accionariado).
 - **Perfil**: cabecera (logo real con fallback de inicial, nombre, bolsa · sector, chip ticker, ojo de seguimiento, enlaces), tarjeta de cotización (precio, variación, sparkline; **clic → gráfico a pantalla completa**), tarjeta Informe (métricas: capitalización, rango 52 semanas, beta, dividendo, próximo earnings, volumen, ingresos, BPA, PER, rango del día...), **gráfico de cotización** (rangos 3M/6M/1Y/3Y/5Y/10Y/ALL, MA 100, precio bajo el cursor, pantalla completa), Información y Descripción.
 - **Informes trimestrales**: tabla de filings (Formulario, Periodo, Periodo que cubre, Fecha de presentación, acciones Vista previa / Descargar / **Analizar con IA**); vista previa por **imágenes de páginas** en modal.
-- **Datos financieros**: 3 pestañas (Cuenta de resultados, Balance, Estado de Flujo de Efectivo), serie Anual/Trimestral, **control de historial por años** (doble asa), tabla estilo TIKR claro (columna sticky, filas emphasis crema, negativos rojos/paréntesis, PRO), **barra de selección rápida de márgenes** en Cuenta de resultados (`#screener-margins-bar`) con chips interactivos para Margen bruto, Margen operativo, Margen operativo ajustado, Margen neto, Margen neto ajustado y Margen EBITDA.
+- **Datos financieros**: pestañas Valoración, Ratios, Favoritos, Cuenta de resultados, Balance y Estado de Flujo de Efectivo, serie Anual/Trimestral, **control de historial por años** (doble asa), tabla estilo TIKR claro (columna sticky, filas emphasis crema, negativos rojos/paréntesis, PRO), **barra de selección rápida de márgenes** en Cuenta de resultados (`#screener-margins-bar`) con chips interactivos para Margen bruto, Margen operativo, Margen operativo ajustado, Margen neto, Margen neto ajustado y Margen EBITDA.
 - **Gráfico de métricas interactivo**: selección desde tabla o chips de márgenes; barras para importes monetarios y **diagrama de líneas segmentadas para márgenes, variaciones % y ratios** (`metricChartType === 'line'`); **escala porcentual independiente** (eje derecho); **línea base de 0% punteada** ante valores negativos; **supresión de CAGR en métricas porcentuales**; leyenda con badge de tipo ("barras" / "línea") y paleta de 16 colores.
 - **Bloqueo PRO sin sesión**: columnas antiguas bloqueadas (6 anuales, 4 trimestrales); con sesión, todo visible (recarga en silencio al cambiar la sesión).
 - Sección "Acciones en seguimiento" y "Cartera" en Inicio; panel de cartera en Empresa (ver funcionalidades propias).
 
 **Excluido:**
-- Ratios y Segmentos (pestañas placeholder sin fuente de datos).
+- Segmentos (pestaña placeholder sin fuente de datos).
 - Accionariado (placeholder).
 
 ## 3. Página de empresa — flujo
@@ -36,6 +36,7 @@ Inicio/topbar → elegir empresa → navega a /empresa/:ticker
           - menú lateral con cabecera de empresa (logo + nombre + ticker)
       → perfil activo por defecto; cada apartado es una sección (showSection)
   → GET /api/screener/company/:ticker/chart?range=5y&ma=1 (bajo demanda)
+  → GET /api/screener/company/:ticker/chart?range=all (histórico de cotizaciones para los múltiplos de la tabla)
   → GET /api/screener/company/:ticker/filings (perezoso, al abrir Informes trimestrales)
   → Datos financieros usa annual/quarterly + statements ya descargados
 ```
@@ -54,13 +55,15 @@ Inicio/topbar → elegir empresa → navega a /empresa/:ticker
 
 - Carga perezosa al abrir la sección (`GET .../filings`), reseteada al cambiar de empresa.
 - Tabla con badge 10-Q/10-K, Periodo (Q2 2026 / FY 2025), "Periodo que cubre", fecha de presentación y acciones:
-  - **Vista previa**: modal con las páginas del PDF como **imágenes** (fondo gris, ancho máx. 860 px, scroll, carga perezosa; título con "· N páginas"); enlace "Abrir en pestaña nueva"; errores de generación con mensaje + enlace.
-  - **Descargar**: `?download=1` (PDF real o generado).
+  - **Vista previa**: modal con las páginas del PDF como **imágenes** (fondo gris, ancho máx. 860 px, scroll, carga perezosa; título con "· N páginas"); enlace "Abrir en pestaña nueva"; errores de generación con mensaje + enlace (si el servidor responde 429 se muestra su mensaje real).
+  - **Descargar**: `?download=1` (PDF real o generado) descargado vía `fetch` + blob para poder mostrar el error del servidor con un toast (antes, un 429 abría una pestaña con el JSON crudo).
   - **Analizar con IA**: navega a `/?analizar=TICKER&accession=...` y ejecuta el pipeline (ver `verificacion-informe`).
 
 ## 6. Datos financieros (estilo TIKR)
 
-- **3 pestañas** (`.screener-tab`, `data-statement`) que repintan **una sola tabla** `#screener-statement-table` desde `statements` (pintado genérico: `{ key, label, format, emphasis, tone }`).
+- **Pestañas** (`.screener-tab`, `data-statement`) que repintan **una sola tabla** `#screener-statement-table` desde `statements` (pintado genérico: `{ key, label, format, emphasis, tone }`).
+- **Pestaña Ratios** (`data-statement="ratios"`, última pestaña, a la derecha de Estado de Flujo de Efectivo): 31 ratios agrupados en Rentabilidad (ROA, ROE, ROCE, ROIC), Márgenes (bruto, operativo, EBITDA, neto y FCF), Liquidez (ratio corriente, prueba ácida, ratio de caja), Endeudamiento (deuda total / fondos propios, deuda neta / EBITDA, deuda neta / FCF, cobertura de intereses y gastos por intereses / beneficio operativo), Eficiencia (rotación de activos e inventarios, DSO, DIO, DPO y ciclo de conversión de efectivo) y Valoración (EV / EBITDA, EV / beneficio neto, EV / ventas, PER, P / FCF, P / valor contable, rentabilidad por dividendo y payout), con nota metodológica y **punto de ayuda por fila** (`.profile-info-dot.metric-hint-dot`, atributo `title` con la fórmula, traducido por i18n). Se calculan en el cliente (`derivedScreenerValue`): las partidas de flujo se suman en TTM (4 trimestres) en la serie trimestral y el balance se lee a fecha de cierre del periodo; los múltiplos de valoración usan la cotización de cierre (`window.statementsPricePoints`, histórico completo descargado con `range=all` al cargar la empresa para cubrir periodos más antiguos que el rango visible del gráfico; si aún no ha llegado, se usan los puntos de `window.chartPoints`). Los márgenes reutilizan las claves de Cuenta de resultados/FCF y las filas sin datos se omiten con «ocultar filas vacías».
+- **Favoritos (corazón)**: cualquier fila de Cuenta de resultados, Balance, Cash Flow o Ratios se puede guardar y reaparece en la pestaña Favoritos (persistida en el servidor con sesión o en el dispositivo sin ella). Las claves compartidas (márgenes, payout, etc.) se guardan siempre en su estado original mediante `resolveFavoriteStatement`, así que marcar un margen desde Ratios enciende el corazón también en Cuenta de resultados (y viceversa) porque es el mismo favorito y los mismos valores; las claves propias de Ratios (ROA, ROIC, DSO…) se guardan con `statement = 'ratios'` y se agrupan en la sección «Ratios» de Favoritos.
 - **Serie** Anual / Trimestral con historial completo disponible (desde 2007 en adelante según disponibilidad en SEC EDGAR) sin nueva petición.
 - **Control de historial** `#screener-range` (doble asa por años, selector dinámico): por defecto muestra los últimos 10 años (`Math.max(low, high - 9)` a `high`), pudiendo expandirse hacia atrás hasta 2007 arrastrando el control horizontal; filtra sincronizadamente la tabla y el gráfico de métricas; los derivados (variaciones %, márgenes, ratios) y el bloqueo PRO se calculan sobre el historial completo (`screenerVisibleIndexes`).
 - **Tabla TIKR**: columna "Partida" sticky (230 px), filas `emphasis-row` en crema para totales, valores a la derecha con `tabular-nums`, negativos entre **paréntesis** y en **rojo** (también por naturaleza: `tone: 'negative'` pinta en rojo costes/gastos/salidas aunque el número sea positivo), "—" para datos ausentes, scroll horizontal.

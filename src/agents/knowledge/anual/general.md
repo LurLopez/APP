@@ -2,6 +2,7 @@
 
 > Nivel 1 — Marco Universal aplicable a todos los análisis anuales (Form 10-K) para cualquier empresa, sector y subsector.
 > Documento de referencia canónico: `TAP 2025_ANNUAL ANÁLISIS_ES.pdf` (almacenado en `src/agents/knowledge/anual/ejemplos/`).
+> Versión: 0
 
 ---
 
@@ -20,12 +21,14 @@ INFORME ANUAL (FORM 10-K)
 │
 ├── PARTE II: CONCLUSIÓN E INDAGACIÓN A FONDO EN PUNTOS CRÍTICOS
 │   ├── 1. Recompras de Acciones (Share Repurchases) + Captura SEC obligatoria
+│   ├── (+) Cambios en la dirección (justo después de Recompras, solo si aplica)
 │   ├── 2. Outlook y Perspectivas Futuras (Guidance) + Captura SEC obligatoria
 │   ├── 3. Deuda y Calendario de Vencimientos (Debt Maturity) + Captura SEC obligatoria
-│   ├── 4. Adquisiciones y Operaciones Corporativas (si existen)
-│   ├── (+) Puntos condicionales según materialidad (Dividendos, Desinversiones,
-│   │        Impairments, Reestructuraciones, Litigios, Impuestos, Pensiones,
-│   │        Concentración de clientes, Cambio de CEO — solo si aplican)
+│   ├── 4. Operaciones Corporativas (si existen: adquisiciones, desinversiones y
+│   │        ventas de participaciones ≥ 5 %, spin-offs anunciados o en curso y
+│   │        reestructuraciones)
+│   ├── (+) Puntos condicionales según materialidad (Dividendos, Impairments,
+│   │        Litigios, Impuestos, Pensiones, Concentración de clientes)
 │   └── 5. Puntos Clave a Vigilar para el Próximo Ejercicio (Watchlist)
 │
 └── PARTE III: NOTA DE RESULTADOS (1 a 10)
@@ -92,16 +95,17 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
   5. Dividendo (Total de dividendos pagados en efectivo en el año fiscal)
   6. Libre (Remanente de caja = FCF − Dividendo)
 
-- **Cálculo de Capital Circulante Anual (Working Capital / WK)**:
+- **Cálculo de Capital Circulante Anual (Working Capital / WC)**:
   - Al ser año completo, **la necesidad teórica no se prorratea**:
-    $$\text{WK}_{\text{caja, anual}} = (\text{Cuentas por pagar} - \text{Inventarios} - \text{Cuentas por cobrar}) \times (\text{Inflación} + \text{volumen})$$
-    Como el WK se expresa en términos de impacto en caja, un valor **positivo** significa que el circulante **libera** caja (las cuentas por pagar crecen más que inventarios y cobros) y un valor **negativo** que el circulante **consume** caja.
+    $$\text{WC}_{\text{caja, anual}} = (\text{Cuentas por pagar} - \text{Inventarios} - \text{Cuentas por cobrar}) \times (\text{Inflación} + \text{volumen})$$
+    Como el WC se expresa en términos de impacto en caja, un valor **positivo** significa que el circulante **libera** caja (las cuentas por pagar crecen más que inventarios y cobros) y un valor **negativo** que el circulante **consume** caja.
   - La diferencia entre el WC reportado y el teórico se ajusta en el Cash Flow con esta convención estricta (que el sistema ya calcula):
-    $$\text{Desviación WC} = \text{WC}_{\text{reportado}} - \text{WK}_{\text{teórico}}$$
+    $$\text{Desviación WC} = \text{WC}_{\text{reportado}} - \text{WC}_{\text{teórico}}$$
     $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - \text{Desviación WC}$$
-  - **Regla de signos en la nota (obligatoria)**: la desviación conserva su signo y el ajuste se escribe como una resta explícita. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WK teórico (12,1M): -159,1M. El Cash Flow ajustado resta esa desviación: 1784,4M - (-159,1M) = 1943,5M.` Queda terminantemente prohibido escribir frases contradictorias como `ajuste de -159M (1784,4M + 159,1M)`.
-  - **Ajuste fiscal del Cash Flow**: Si los impuestos en efectivo efectivamente pagados difieren del gasto devengado normalizado, se descuenta o suma la diferencia exacta en el Cash Flow Ajustado.
-  - La nota explicativa al pie detalla minuciosamente ambos ajustes (circulante e impuestos).
+  - **Regla de signos en la nota (obligatoria)**: la desviación conserva su signo y el ajuste se escribe como una resta explícita. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WC teórico (12,1M): -159,1M. El Cash Flow tras el ajuste de circulante queda en: 1784,4M - (-159,1M) = 1943,5M.` Queda terminantemente prohibido escribir frases contradictorias como `ajuste de -159M (1784,4M + 159,1M)`. **Prohibido llamar «Cash Flow Ajustado» al resultado del ajuste de circulante cuando después se aplica un ajuste fiscal (nota *2): ese resultado es un subtotal intermedio; el único «Cash Flow Ajustado» es el valor final de la tabla, que la nota *2 debe cerrar.**
+   - **Ajuste fiscal del Cash Flow**: Se compara lo que la empresa debería pagar en realidad (23 % sobre el EBT ajustado) frente a lo que consta que ha pagado en el estado de flujos (en la línea de efectivo pagado "Income tax (paid) received" / "Income taxes paid" o en la conciliación de impuestos diferidos). Si existe una discrepancia, se ajusta el Cash Flow en la columna Ajustado: si pagó menos de lo normalizado se resta la diferencia; si pagó más, se suma. Se añade la Nota `*2: Impuestos: ...` explicando cuántos impuestos debería haber pagado y cuánto ha pagado realmente.
+   - **Doble ajuste (circulante + impuestos)**: cuando se apliquen ambos ajustes, la Nota `*2` debe cerrar la cadena completa `Cash Flow Normal -> ajuste de circulante -> ajuste fiscal -> Cash Flow Ajustado`, mostrando CADA ajuste con su importe y su signo y aclarando si ambos se compensan. Ejemplo: `La cifra final combina los dos ajustes: 9415M -646,7M (circulante) +654,7M (impuestos) = 9423M; el efecto neto es de solo +8M porque ambos ajustes se cancelan en gran medida.` Queda prohibido dejar la impresión de que el ajuste fue irrelevante cuando hubo dos ajustes brutos grandes de signo opuesto.
+   - La nota explicativa al pie detalla minuciosamente ambos ajustes (circulante e impuestos).
 
 ---
 
@@ -113,12 +117,25 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
   3. `Recompras`: Desembolso en recompra de acciones propias (signo negativo `-`).
   4. `Desinversiones`: Cobros por venta de negocios, marcas o activos (signo positivo `+`).
   5. `Adquisiciones`: Pagos por compra de negocios o empresas (signo negativo `-`).
-  6. `Caja`: Variación de tesorería del balance de cierre anual (negativo `-` si la caja aumentó, positivo `+` si disminuyó).
-  7. `Deuda`: Variación de deuda total en balance durante el ejercicio (positivo `+` si la deuda creció, negativo `-` si se amortizó).
-  8. `En total`: Suma algebraica de todas las partidas.
+  6. `Efectivo restringido`: Variación del efectivo restringido / escrow / colateral (negativo `-` si aumenta, positivo `+` si disminuye). Es distinto de la fila `Caja`, que solo recoge el efectivo no restringido del balance. Fila obligatoria si la variación es $\ge 50\text{M}$.
+  7. `Emisión de preferentes` y `Venta de participaciones`: fuentes de capital (signo positivo `+`) por emisión de preferentes o venta de participaciones no controladoras; cada fila si es $\ge 50\text{M}$.
+  8. `Deuda asumida (no-cash)`: SOLO si el ejercicio tuvo una adquisición material y la deuda del balance AUMENTÓ en parte por deuda preexistente de la empresa adquirida (campo `capitalAllocationData.assumedDebt`, siempre $\ge 50\text{M}$), con signo negativo `-`, para que la fila `Deuda` refleje solo la deuda con caja. Si `assumedDebt` es 0 o no existe, esta fila NO se incluye nunca: prohibido inventarla o usarla para duplicar la variación de deuda del balance.
+  9. `Caja`: Variación de tesorería del balance de cierre anual (negativo `-` si la caja aumentó, positivo `+` si disminuyó).
+  10. `Deuda`: Variación de deuda total en balance durante el ejercicio (positivo `+` si la deuda creció, negativo `-` si se amortizó).
+  11. `En total`: Suma algebraica de todas las partidas.
+
+- **Filas sin importe prohibidas**: queda prohibido incluir filas con valor `0` o `—` en la Asignación de Capital. Solo `Libre` y `En total` son obligatorias; el resto aparece únicamente si su importe es material ($\ge 50\text{M}$) y consta en el JSON de extracción.
+
+- **Movimientos no monetarios y reclasificaciones (obligatorio)**: además de las partidas anteriores, se mapean siempre las variaciones que no suponen entrada o salida real de caja y que rompen el cuadre: efectivo restringido/escrow de adquisiciones o colaterales (fila `Efectivo restringido`), deuda asumida en compras (fila `Deuda asumida (no-cash)`), efecto divisa sobre la caja y reclasificaciones entre caja e inversiones a corto plazo detectadas en las notas. Si tras mapearlas el `En total` sigue descuadrado, la verificación indica el importe exacto del desfase y que corresponde a movimientos no monetarios o reclasificaciones a revisar en las notas de flujos y balance; nunca se deja el descuadre sin cifra ni sin explicación, ni se oculta con una fila genérica sin desglose.
+
+- **Nota Obligatoria de Deuda y Caja (balance)**:
+  - Toda tabla anual debe incluir la nota con el formato exacto:
+    > `*N: Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M). Caja balance: <anterior>M -> <actual>M (<variación>M); la caja aumentó: uso de capital (-) / la caja disminuyó: fuente de liquidez (+); fila Caja = <valor>M.`
+  - La caja y la deuda se miden SIEMPRE por la variación de saldos del balance (nunca por el cambio neto de efectivo del estado de flujos de caja) y la cifra de la fila `Caja` debe coincidir con la de la nota. Si el estado de flujos presenta un neto de caja distinto, se explica la diferencia (efectivo restringido, efecto divisa u otras partidas no monetarias) citando las notas del 10-K.
 
 - **Veredicto Analítico de Cuadre**:
   - Al pie se emite el veredicto con criterio profesional (ej. *"No cuadra del todo, pero más o menos ha gastado todo lo que estaba libre en recompras."* o *"El resultado cuadra razonablemente."*).
+  - Si el descuadre supera el umbral (máximo de 50M, 20 % del capital Libre y 10 % de la suma bruta de movimientos), el veredicto debe incluir el importe exacto del desfase y señalar que corresponde a movimientos no monetarios o reclasificaciones de balance (efectivo restringido, efecto divisa en caja, deuda asumida en compras, reclasificaciones caja/inversiones) a revisar en las notas de flujos y balance del 10-K.
 
 ---
 
@@ -131,13 +148,21 @@ En los análisis anuales es **obligatorio** profundizar rigurosamente en los mot
                                     │
     ┌─────────────────┬─────────────┴───────────────┬────────────────┐
     ▼                 ▼                             ▼                ▼
-1. RECOMPRAS     2. OUTLOOK                   3. DEUDA         4. ADQUISICIONES
- + Captura SEC    + Captura SEC                + Captura SEC    (si aplican)
+1. RECOMPRAS     2. OUTLOOK                   3. DEUDA         4. OPERACIONES
+ + Captura SEC    + Captura SEC                + Captura SEC    CORPORATIVAS
+                                                                 (si aplican)
 ```
 
 ---
 
 ### 1. Recompras de Acciones (Share Repurchases)
+
+> **Criterio de aparición (materialidad)**: el punto de Recompras solo se incluye en la Parte II si es relevante. Se considera relevante cuando se cumple al menos una de estas condiciones:
+> 1. Las acciones recompradas en el ejercicio suponen **≥ 1 % de las acciones en circulación** (equivalente aproximado a ≥ 1 % de la capitalización).
+> 2. Se ha **lanzado un nuevo programa** de recompra o una ampliación relevante del vigente durante el ejercicio.
+> 3. El programa se ha **cancelado, suspendido o terminado** en el ejercicio.
+>
+> Si las recompras son marginales (< 1 % del capital) y no hay cambios de programa, el punto **no aparece**. Si no hay datos de acciones para calcular el porcentaje, se mantiene el umbral de importe material (≥ 50 M$).
 
 Se debe realizar un examen exhaustivo de la política de recompra de títulos de la compañía:
 
@@ -252,14 +277,16 @@ Examen en profundidad de la estructura de capital, la evolución de la deuda nor
 
 ---
 
-### 4. Adquisiciones y Operaciones Corporativas (si existen)
+### 4. Operaciones Corporativas (si existen)
 
-Si la compañía ha realizado adquisiciones durante el ejercicio analizado:
+La sección es un único relato, titulado **Operaciones corporativas**, con un bloque por tipo de operación presente (encabezado en negrita dentro del texto). Se explica **qué ha pasado con la información que proporciona el 10-K**: hechos, fechas, motivos declarados por la dirección, importes, tamaño del negocio e impacto esperado o real. Las cifras y detalles salen exclusivamente del 10-K (notas de adquisiciones/desinversiones, MD&A, resultados discontinuados) y del 8-K/presentación complementaria.
 
-- Detalle del negocio, marca o división adquirida.
-- Importe económico desembolsado y forma de financiación (caja propia, asunción de deuda o ampliación de capital).
-- Múltiplos implícitos de valoración y encaje estratégico dentro del portfolio de la empresa.
-- Si no se produjeron adquisiciones materiales ($\ge 50\text{M}$), se indicará expresamente que el ejercicio ha estado libre de operaciones inorgánicas.
+- **Adquisiciones** (si hay compras materiales, $\ge 50\text{M}$): detalle del negocio, marca o división adquirida; importe desembolsado y forma de financiación (caja propia, asunción de deuda o ampliación de capital); múltiplos implícitos de valoración cuando se puedan calcular; sinergias y encaje estratégico dentro del portfolio; impacto esperado en resultados y BPA.
+- **Desinversiones y ventas de participaciones significativas** (umbral: la operación supone **≥ 5 % de los ingresos consolidados** del ejercicio, **≥ 5 % del capital de la sociedad participada** o **≥ 50M$** cobrados): qué negocio, marca, activo o participación se vende y a quién si consta; porcentaje del capital vendido y peso sobre los ingresos; importe cobrado y matices (plusvalía o pérdida contable prevista, consideración aplazada, deuda traspasada); motivo declarado; efecto en caja, deuda y resultados, incluida la reclasificación a resultados discontinuados. Se aplica el juicio de la regla sectorial de desinversiones (PER implícito, márgenes del negocio vendido frente al consolidado).
+- **Spin-offs y separaciones anunciadas**: sociedad o división que se separa; estado (solo anunciado, en curso o completado); fecha de anuncio y fecha esperada o efectiva; estructura prevista (distribución a accionistas libre de impuestos, escisión, OPV, fusión); peso del negocio separado sobre los ingresos si consta; motivo declarado; impacto esperado (deuda que se traspasa, costes de separación, sinergias, efecto en dividendo y BPA). Basta con que esté **anunciado** en el ejercicio o para el siguiente: es un hecho relevante y se explica.
+- **Reestructuraciones y planes de ahorro materiales**: qué plan se anunció o ejecutó y qué plantas, marcas, funciones o geografías afecta; fecha de anuncio; coste total previsto y cargos ya reconocidos en el ejercicio; ahorro anual esperado y plazo (si forma parte del guidance, se indica); empleados afectados si consta; motivo declarado e impacto esperado en resultados y márgenes.
+- **Regla del ejercicio**: cada bloque se refiere exclusivamente al ejercicio analizado o a operaciones anunciadas para el siguiente. Queda prohibido presentar una operación del ejercicio anterior como si fuera del año analizado.
+- **Umbral global**: si no hubo operaciones corporativas materiales, se indica expresamente que el ejercicio no registró operaciones corporativas materiales.
 
 ---
 
@@ -279,22 +306,22 @@ Por lo tanto, cosas a tener en cuenta en 2026:
 
 ### 6. Puntos Condicionales Adicionales (según materialidad)
 
-Además de los puntos canónicos 1-4, la Parte II incorpora —siempre **después de Adquisiciones y antes de la Watchlist**— cualquier punto crítico que aparezca con materialidad en el 10-K (umbral de referencia: **≥ 50 M$** o relevancia estratégica, mismo criterio que en la Asignación de Capital). Si un punto no aplica, simplemente no aparece; la Watchlist cierra siempre la Parte II.
+Además de los puntos canónicos 1-4, la Parte II incorpora —siempre **después de Operaciones Corporativas y antes de la Watchlist**— cualquier punto crítico que aparezca con materialidad en el 10-K (umbral de referencia: **≥ 50 M$** o relevancia estratégica, mismo criterio que en la Asignación de Capital). Si un punto no aplica, simplemente no aparece; la Watchlist cierra siempre la Parte II.
+
+**Excepción de posición**: los **Cambios en la dirección (6.7)** son un punto propio que se coloca **inmediatamente después de Recompras**, antes de Outlook, por su relevancia estratégica. El resto de puntos condicionales (6.1–6.6) van después de Operaciones Corporativas.
 
 - **6.1 Dividendos**: evolución del dividendo por acción y del total pagado, política de payout, cobertura por FCF, racha de años consecutivos de subida (o recortes) y dividendo extraordinario si existe.
-- **6.2 Desinversiones / venta de marcas o negocios**: aplicando la regla 6 trimestral portada al ejercicio anual (beneficio estimado del negocio vendido, PER implícito, comparación de márgenes, juicio sobre la operación e impacto en caja).
-- **6.3 Impairments de goodwill / marcas**: activos deteriorados, importe, causa declarada, recurrencia del deterioro y su efecto en el Beneficio Operativo ajustado.
-- **6.4 Reestructuraciones y planes de ahorro de costes**: plantas y funciones afectadas, importe total del programa, ahorro anual esperado, costes de ejecución y calendario. Si el plan solo se anuncia dentro del guidance, se analiza en Outlook (punto 2.4) sin punto propio.
-- **6.5 Litigios, contingencias y seguridad de producto**: demandas materiales (PFAS, talco, pesticidas...), retiradas de producto (*recalls*), provisiones constituidas y exposición estimada.
-- **6.6 Impuestos**: tipo efectivo anómalo, controversias fiscales abiertas (ej. disputa con el IRS) y su exposición potencial en caja.
-- **6.7 Pensiones / OPEB**: estado de financiación del plan, déficit o aportaciones relevantes cuando el 10-K las señala.
-- **6.8 Concentración de clientes y cadena de suministro**: clientes que suponen > 10 % de las ventas (ej. Walmart) y dependencias críticas de suministro manifestadas en el filing.
-- **6.9 Cambio de CEO / dirección**: si durante el ejercicio (o anunciado para el siguiente) hay relevo en el CEO, CFO u otra figura clave:
-  - Quién sale y quién entra, fecha efectiva y trayectoria del entrante.
-  - Contexto del relevo: sucesión planificada, dimisión, despido o salto a otra compañía.
-  - Continuidad estratégica: cambios de rumbo ya anunciados por el entrante (portfolio, estructura, prioridades de capital).
-  - Costes asociados observables: compensaciones de salida (*severance*) u otros importes relevantes.
-  - Juicio breve del analista (positivo/negativo/neutro) fundamentado solo en hechos del filing; prohibido especular sobre resultados futuros.
+- **6.2 Impairments de goodwill / marcas**: activos deteriorados, importe, causa declarada, recurrencia del deterioro y su efecto en el Beneficio Operativo ajustado.
+- **6.3 Litigios, contingencias y seguridad de producto**: demandas materiales (PFAS, talco, pesticidas...), retiradas de producto (*recalls*), provisiones constituidas y exposición estimada.
+- **6.4 Impuestos**: tipo efectivo anómalo, controversias fiscales abiertas (ej. disputa con el IRS) y su exposición potencial en caja.
+- **6.5 Pensiones / OPEB**: estado de financiación del plan, déficit o aportaciones relevantes cuando el 10-K las señala.
+- **6.6 Concentración de clientes y cadena de suministro**: clientes que suponen > 10 % de las ventas (ej. Walmart) y dependencias críticas de suministro manifestadas en el filing.
+- **6.7 Cambios en la dirección (CEO, CFO u otro directivo de primer nivel)**: si durante el ejercicio (o anunciado para el siguiente) hay relevo en el CEO, el CFO (director financiero), el COO (director de operaciones), el presidente u otro directivo de primer nivel:
+  - **Directivo saliente**: quién era (nombre, cargo y periodo en el poder), cómo evolucionaron las ventas durante su mandato (cifras y variación porcentual), qué políticas implementó (reestructuraciones, adquisiciones o desinversiones, dividendos, recompras, cambios de estrategia o de cartera de marcas) y a dónde pasa ahora (jubilación, presidencia del consejo, otra compañía; si no consta, se indica "No consta").
+  - **Directivo entrante**: nombre, de dónde viene (empresa, puesto y periodo), qué ha hecho en puestos directivos anteriores (con fechas y resultados concretos: evolución de ventas y márgenes, reestructuraciones, recuperaciones; ejemplo de estilo: "fue directivo de HRL entre 2015 y 2017, cuando la compañía estaba estancada y los márgenes empeoraban; ejecutó una reestructuración que recuperó parcialmente los márgenes y logró que las ventas crecieran en línea con la inflación") y qué ha dicho que va a hacer (compromisos y prioridades anunciadas).
+  - Contexto del relevo: sucesión planificada, dimisión, despido o salto a otra compañía; costes asociados observables (*severance*) si constan.
+  - **Fuentes y honestidad**: los hechos del filing tienen prioridad. Para la trayectoria del directivo se permite información pública general y conocida, pero queda prohibido inventar nombres, fechas o cifras; si no hay información fiable, se indica "No se dispone de información pública verificada".
+  - Juicio breve del analista (positivo/negativo/neutro) fundamentado en los hechos; prohibido especular sobre resultados futuros de la compañía.
   - Si no hubo cambios relevantes, este punto no aparece.
 
 ---
@@ -342,6 +369,7 @@ Para dar respaldo documental y valor visual a la Parte II:
 
 - **Prohibición de redondeo**: Todas las cifras deben ser **exactas**, copiadas tal cual de los estados financieros y del JSON de extracción (que el sistema completa desde el XBRL de la SEC). Queda terminantemente prohibido redondear o estimar cifras reportadas (ej. no escribir `4500M` si la cifra es `4462M`, ni `800M` si es `801M`, ni `1900M` si es `1898M`). Si una cifra no consta en ninguna fuente, se indica que no consta; nunca se sustituye por una aproximación redondeada.
 - **Moneda**: Millones de dólares estadounidenses con sufijo **`M`** (ej. `13040M`, `2300M`). Símbolo **`$`** para precios y ratios por acción (ej. `5,69 $`, `50 $`). Para miles de millones en texto libre se puede usar `M` o `millones de $`.
+- **Decimales**: todas las cifras (flujos, asignación de capital, etc.) llevan **como máximo 2 decimales** tras la coma y nunca muestran artefactos de coma flotante (ej. prohibido `1827,1000000000004`; correcto `1827,1`).
 - **Porcentajes**: Con **coma decimal** y signo explícito.
   - Positivos en **verde** (`#16a34a`).
   - Negativos en **rojo** (`#dc2626`).

@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cifra — Informe de correcciones de seguridad</title>
+<style>
+  :root { --ink:#0f172a; --muted:#475569; --soft:#94a3b8; --line:#e2e8f0; --bg:#f8fafc; --card:#ffffff; --crit:#b91c1c; --high:#c2410c; --med:#b45309; --low:#1d4ed8; --ok:#15803d; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; line-height:1.55; }
+  main { max-width:980px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:1.7rem; margin:0 0 4px; }
+  h2 { font-size:1.25rem; margin:36px 0 10px; border-bottom:2px solid var(--line); padding-bottom:6px; }
+  h3 { font-size:1.02rem; margin:22px 0 6px; }
+  p, li { font-size:.95rem; }
+  .sub { color:var(--muted); margin:0 0 22px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin:14px 0; }
+  code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.85em; background:#f1f5f9; border-radius:4px; }
+  code { padding:1px 5px; }
+  pre { padding:10px 12px; overflow-x:auto; border:1px solid var(--line); }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:.88rem; }
+  th, td { border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; }
+  th { background:#f1f5f9; }
+  .tag { display:inline-block; font-size:.72rem; font-weight:700; letter-spacing:.03em; padding:2px 7px; border-radius:999px; color:#fff; white-space:nowrap; }
+  .t-crit { background:var(--crit); } .t-high { background:var(--high); } .t-med { background:var(--med); } .t-low { background:var(--low); } .t-ok { background:var(--ok); }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .ok { color:var(--ok); font-weight:600; }
+  .warn { color:var(--crit); font-weight:600; }
+  ul.compact { margin:6px 0 6px 20px; padding:0; }
+  ul.compact li { margin:3px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cifra — Informe de correcciones de seguridad</h1>
+  <p class="sub">Auditoría y remediación del 14 de septiembre de 2026 · Backend Node.js + Express + PostgreSQL + pipeline de IA · Frontend propio</p>
+
+  <div class="card">
+    <strong>Resumen:</strong> se corrigieron <span class="warn">2 CRITICAL</span>, <span class="warn">6 HIGH</span>, <span class="warn">15 MEDIUM</span> y <span class="warn">8 LOW/INFO</span>.
+    Además, <code>npm audit</code> pasa de <strong>2 High + 1 Moderate</strong> a <strong>0 vulnerabilidades</strong>.
+    Todos los cambios fueron validados con comprobaciones de sintaxis, migración de base de datos y pruebas de integración locales
+    (autorización por propietario, anti-falsificación de IP, revocación de JWT, anti-SSRF y anti-enumeración).
+  </div>
+
+  <h2>Índice de hallazgos</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Severidad</th><th>Hallazgo</th><th>Estado</th></tr></thead>
+    <tbody>
+      <tr><td>C-01</td><td><span class="tag t-crit">CRITICAL</span></td><td>BOLA/IDOR + comodín <code>LIKE</code> en la descarga de informes</td><td class="ok">Corregido</td></tr>
+      <tr><td>C-02</td><td><span class="tag t-crit">CRITICAL</span></td><td>Bypass del rate limiting falsificando <code>CF-Connecting-IP</code></td><td class="ok">Corregido (app) + checklist de firewall</td></tr>
+      <tr><td>H-01</td><td><span class="tag t-high">HIGH</span></td><td>JWT sin algoritmo fijado y secreto por defecto</td><td class="ok">Corregido</td></tr>
+      <tr><td>H-02</td><td><span class="tag t-high">HIGH</span></td><td>Pre-secuestro de cuenta al vincular Google</td><td class="ok">Corregido</td></tr>
+      <tr><td>H-03</td><td><span class="tag t-high">HIGH</span></td><td>HTML de la SEC servido inline (XSS en el dominio)</td><td class="ok">Corregido</td></tr>
+      <tr><td>H-04</td><td><span class="tag t-high">HIGH</span></td><td>JSON-LD sin escapar <code>&lt;/script&gt;</code></td><td class="ok">Corregido</td></tr>
+      <tr><td>H-05</td><td><span class="tag t-high">HIGH</span></td><td>Dependencias con vulnerabilidades conocidas</td><td class="ok">Corregido (0 vulns)</td></tr>
+      <tr><td>H-06</td><td><span class="tag t-high">HIGH</span></td><td>Enumeración de usuarios en registro/verificación/login</td><td class="ok">Corregido</td></tr>
+      <tr><td>M-01</td><td><span class="tag t-med">MEDIUM</span></td><td>Sin CSP ni cabeceras de seguridad propias</td><td class="ok">Corregido (helmet + CSP)</td></tr>
+      <tr><td>M-02</td><td><span class="tag t-med">MEDIUM</span></td><td>Endpoints públicos que lanzan Chrome/EDGAR sin límite</td><td class="ok">Corregido (rate limiting)</td></tr>
+      <tr><td>M-03</td><td><span class="tag t-med">MEDIUM</span></td><td>Cuerpos de 25 MB y subidas en memoria sin límites finos</td><td class="ok">Corregido</td></tr>
+      <tr><td>M-04</td><td><span class="tag t-med">MEDIUM</span></td><td>Valoraciones anónimas ilimitadas (ballot stuffing)</td><td class="ok">Corregido</td></tr>
+      <tr><td>M-05</td><td><span class="tag t-med">MEDIUM</span></td><td>Cualquier usuario podía disparar el escaneo global de alertas</td><td class="ok">Corregido (solo admin)</td></tr>
+      <tr><td>M-06</td><td><span class="tag t-med">MEDIUM</span></td><td>Códigos de verificación con SHA-256 sin sal</td><td class="ok">Corregido (HMAC + pepper)</td></tr>
+      <tr><td>M-07</td><td><span class="tag t-med">MEDIUM</span></td><td>JWT sin revocación al cambiar la contraseña</td><td class="ok">Corregido (token_version)</td></tr>
+      <tr><td>M-08</td><td><span class="tag t-med">MEDIUM</span></td><td>SSRF latente y Chrome sin sandbox con contenido de terceros</td><td class="ok">Corregido (guarda SSRF + sandbox)</td></tr>
+      <tr><td>M-09</td><td><span class="tag t-med">MEDIUM</span></td><td>Descarga de presentaciones sin límite de tamaño</td><td class="ok">Corregido (20 MB máx.)</td></tr>
+      <tr><td>M-10</td><td><span class="tag t-med">MEDIUM</span></td><td>Imágenes de reportes: 5 × ~7 MB en base64 sin control</td><td class="ok">Corregido (3 × 2,5 MB)</td></tr>
+      <tr><td>M-11</td><td><span class="tag t-med">MEDIUM</span></td><td><code>X-Forwarded-For</code> falsificable como IP de abuso</td><td class="ok">Corregido (clientIp.js)</td></tr>
+      <tr><td>M-12</td><td><span class="tag t-med">MEDIUM</span></td><td>Secretos reales en <code>.env</code> con permisos 664</td><td class="ok">Corregido (600 + checklist de rotación)</td></tr>
+      <tr><td>M-13</td><td><span class="tag t-med">MEDIUM</span></td><td>Bootstrap admin sin validar fortaleza e logueando email</td><td class="ok">Corregido</td></tr>
+      <tr><td>M-14</td><td><span class="tag t-med">MEDIUM</span></td><td>Ratings de análisis privados filtrados sin sesión</td><td class="ok">Corregido (visibilidad)</td></tr>
+      <tr><td>M-15</td><td><span class="tag t-med">MEDIUM</span></td><td>Spam de reportes de error e imágenes</td><td class="ok">Mitigado (límites + caps)</td></tr>
+      <tr><td>L-01</td><td><span class="tag t-low">LOW</span></td><td>Email laxo y contraseñas sin límite superior</td><td class="ok">Corregido</td></tr>
+      <tr><td>L-02</td><td><span class="tag t-low">LOW</span></td><td>Iniciales del foro sin escapar en caso límite</td><td class="ok">Corregido</td></tr>
+      <tr><td>L-03</td><td><span class="tag t-low">LOW</span></td><td>Nombre remoto usado en rutas de caché sin <code>basename</code></td><td class="ok">Corregido</td></tr>
+      <tr><td>L-04</td><td><span class="tag t-low">LOW</span></td><td><code>X-Powered-By</code> y <code>phase</code> expuestos</td><td class="ok">Corregido</td></tr>
+      <tr><td>L-05</td><td><span class="tag t-low">LOW</span></td><td>Sin límite en logout/username y parser extendido (qs)</td><td class="ok">Corregido</td></tr>
+      <tr><td>L-06</td><td><span class="tag t-low">LOW</span></td><td>Alias SQL devolvían campos <code>undefined</code></td><td class="ok">Corregido</td></tr>
+      <tr><td>L-07</td><td><span class="tag t-low">LOW</span></td><td>IP del VPS publicada en el repositorio</td><td class="ok">Enmascarada en docs vivas</td></tr>
+      <tr><td>L-08</td><td><span class="tag t-low">LOW</span></td><td>Cookie de sesión sin prefijo <code>__Host-</code></td><td class="ok">Corregido</td></tr>
+    </tbody>
+  </table>
+
+  <h2>CRITICAL</h2>
+
+  <div class="card">
+    <h3>C-01 — Fuga de informes por BOLA + comodín SQL <span class="tag t-crit">CRITICAL</span></h3>
+    <p class="meta">Archivos: <code>src/api/controllers/reportDownload.controller.js</code></p>
+    <p><strong>Qué era.</strong> <code>GET /api/reports/:file</code> no comprobaba propiedad ni visibilidad, y el nombre recibido se
+    interpolaba en <code>pdf_url LIKE '%nombre%'</code>. Como el guion bajo <code>_</code> es comodín en SQL y el filtro
+    <code>[\w-]+</code> lo permitía, una petición con 36 guiones bajos coincidía con cualquier informe y devolvía el más reciente
+    (incluidos los privados de subidas manuales), generando además ficheros con nombre arbitrario.</p>
+    <p><strong>Impacto.</strong> Descarga anónima de informes privados en PDF/HTML/DOCX/ODT y regeneración de PDFs sin autenticación.
+    Confirmado en producción antes de la corrección: <code>HTTP 200 application/pdf</code> sin sesión.</p>
+    <p><strong>Solución.</strong></p>
+    <ul class="compact">
+      <li>Búsqueda por <strong>igualdad exacta</strong> de <code>pdf_url</code> (sin <code>LIKE</code> ni comodines) con soporte para ruta relativa y absoluta.</li>
+      <li>Patrón de archivo sin guion bajo: <code>[A-Za-z0-9-]</code> (UUID).</li>
+      <li>Autorización: solo si el informe es público, del propio usuario o si es administrador; en caso contrario, <code>404</code> (no revela existencia).</li>
+      <li>El nombre usado en disco se obtiene <strong>siempre de la base de datos</strong> (<code>path.basename</code>), nunca de la URL.</li>
+      <li><code>force=1/refresh=1</code> solo puede regenerar el propietario o un admin.</li>
+    </ul>
+    <p><strong>Verificado.</strong> Petición con 36 guiones bajos → <code>404</code>. Informe privado anónimo → <code>404</code>.
+    Propietario con sesión → <code>200</code>. Otro usuario con sesión → <code>404</code>. Traversal <code>..%2F..%2F.env.pdf</code> → <code>404</code>.</p>
+  </div>
+
+  <div class="card">
+    <h3>C-02 — Bypass de rate limiting por IP falsificada <span class="tag t-crit">CRITICAL</span></h3>
+    <p class="meta">Archivos: <code>src/middleware/rateLimit.middleware.js</code>, <code>src/utils/clientIp.js</code> (nuevo), <code>config/index.js</code>, <code>src/utils/validate.js</code></p>
+    <p><strong>Qué era.</strong> El limitador usaba <code>cf-connecting-ip</code> sin verificar quién la enviaba. Como el origen
+    (<code>194.163.166.x:443</code>) era accesible sin pasar por Cloudflare, bastaba cambiar la cabecera en cada intento para
+    reiniciar la cubeta. Confirmado: 12 intentos de login seguidos devolvieron <code>401</code> sin activar el límite (10/15 min).</p>
+    <p><strong>Solución.</strong></p>
+    <ul class="compact">
+      <li>Nuevo resolvedor <code>resolveClientIp()</code> que solo acepta cabeceras si el salto inmediato es un proxy de confianza
+      (<code>TRUSTED_PROXY_IPS</code>, por defecto <code>127.0.0.1,::1</code>) o una IP oficial de Cloudflare.</li>
+      <li><code>cf-connecting-ip</code> se acepta únicamente si el último salto de <code>x-forwarded-for</code> (o el peer) pertenece a los rangos de Cloudflare.</li>
+      <li>En conexiones directas se usa la IP real del socket y se ignoran las cabeceras enviadas por el atacante.</li>
+      <li>El nuevo resolvedor se usa también para guardar la IP de los votos (antes falsificable).</li>
+    </ul>
+    <p><strong>Verificado.</strong> Simulaciones: XFF con CF falso + peer loopback → se usa la IP real del proxy; peer público → se usa la IP del socket.</p>
+    <p><strong>Pendiente en infraestructura (imprescindible).</strong> Cortar el acceso directo al origen para que solo Cloudflare
+    pueda entrar (ver checklist final). La app ya no se deja engañar, pero el firewall elimina además WAF-bypass y scraping directo.</p>
+  </div>
+
+  <h2>HIGH</h2>
+
+  <div class="card">
+    <h3>H-01 — Firma y verificación de JWT <span class="tag t-high">HIGH</span></h3>
+    <p class="meta">Archivos: <code>src/middleware/auth.middleware.js</code>, <code>src/api/controllers/auth.controller.js</code>, <code>config/index.js</code></p>
+    <ul class="compact">
+      <li>Se fuerza <code>algorithms: ['HS256']</code> en todas las verificaciones (rechaza <code>none</code>, HS384/HS512 y confusión de algoritmos).</li>
+      <li>La firma usa <code>algorithm: 'HS256'</code> explícito y expiración de 7 días.</li>
+      <li>En producción el servidor <strong>no arranca</strong> si <code>JWT_SECRET</code> falta o coincide con los valores de desarrollo; avisa si mide menos de 32 caracteres.</li>
+    </ul>
+    <p><strong>Verificado.</strong> Token firmado en HS384 con el secreto correcto → <code>401</code>. Token válido → <code>200</code>.</p>
+  </div>
+
+  <div class="card">
+    <h3>H-02 — Pre-secuestro de cuenta con Google <span class="tag t-high">HIGH</span></h3>
+    <p class="meta">Archivos: <code>src/services/auth.service.js</code>, <code>src/api/controllers/auth.controller.js</code>, <code>public/auth.js</code></p>
+    <p><strong>Qué era.</strong> Si existía una cuenta local con el email de Google, se vinculaba automáticamente y se marcaba como
+    verificada <strong>sin comprobar la contraseña</strong>. Un atacante podía registrar antes el correo de la víctima (sin verificar)
+    y conservar su contraseña tras el enlace; la víctima quedaba con la cuenta "verificada" pero compartida.</p>
+    <p><strong>Solución.</strong> Ya no se vincula ninguna cuenta que tenga contraseña o un <code>google_id</code> distinto:
+    se devuelve el error <code>ACCOUNT_LINK_REQUIRED</code> y el usuario debe entrar con su contraseña para vincular.
+    Además se rechaza el callback si Google marca el email como no verificado (<code>email_verified === false</code>).</p>
+  </div>
+
+  <div class="card">
+    <h3>H-03 — HTML de la SEC servido inline <span class="tag t-high">HIGH</span></h3>
+    <p class="meta">Archivos: <code>src/api/controllers/screener.controller.js</code></p>
+    <ul class="compact">
+      <li>Los documentos que no sean PDF se sirven siempre como <code>attachment</code> (antes podían renderizarse inline bajo nuestro dominio).</li>
+      <li>Se añade <code>X-Content-Type-Options: nosniff</code> y, en HTML, <code>Content-Security-Policy: sandbox; default-src 'none'</code>.</li>
+      <li>El nombre del archivo se sanea antes de cabecera.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>H-04 — Escape de JSON-LD <span class="tag t-high">HIGH</span></h3>
+    <p class="meta">Archivos: <code>src/services/seo/jsonLd.service.js</code>, <code>src/services/seo/reportSeo.service.js</code></p>
+    <p>Nueva función <code>safeJsonForScript()</code> que convierte <code>&lt;</code>, <code>&gt;</code>, <code>&amp;</code> y los
+    separadores Unicode <code>U+2028/U+2029</code> en secuencias <code>\uXXXX</code>. Se aplica al JSON-LD y al payload inicial
+    embebido de los informes, cerrando la vía de escape de <code>&lt;/script&gt;</code> con datos generados por IA.</p>
+  </div>
+
+  <div class="card">
+    <h3>H-05 — Dependencias <span class="tag t-high">HIGH</span></h3>
+    <p class="meta">Archivos: <code>package.json</code>, <code>package-lock.json</code></p>
+    <table>
+      <thead><tr><th>Paquete</th><th>Antes</th><th>Ahora</th><th>Vulnerabilidad corregida</th></tr></thead>
+      <tbody>
+        <tr><td>multer</td><td>2.2.0</td><td>2.4.0</td><td>DoS por campos multipart, fuga de descriptores y bypass de <code>fileSize</code></td></tr>
+        <tr><td>nodemailer</td><td>9.0.5</td><td>9.1.1</td><td>Bypass de acceso a ficheros/URL, bypass de allow-list IDN y DoS cuadrático</td></tr>
+        <tr><td>qs</td><td>6.15.3</td><td>6.16.0</td><td>Bypass de límite de arrays y DoS</td></tr>
+        <tr><td>helmet</td><td>—</td><td>8.3.0</td><td>Nuevo: cabeceras de seguridad</td></tr>
+      </tbody>
+    </table>
+    <p class="ok">Resultado: <code>npm audit</code> → 0 vulnerabilidades.</p>
+  </div>
+
+  <div class="card">
+    <h3>H-06 — Enumeración de usuarios <span class="tag t-high">HIGH</span></h3>
+    <p class="meta">Archivos: <code>src/services/auth.service.js</code>, <code>src/api/controllers/auth.controller.js</code></p>
+    <ul class="compact">
+      <li><code>/register</code>: responde siempre lo mismo exista o no la cuenta (si existe sin verificar, reenvía el código en silencio).</li>
+      <li><code>/verify</code> y <code>/resend-code</code>: respuesta genérica, sin "No existe una cuenta".</li>
+      <li><code>/login</code>: mensaje único "Usuario o contraseña incorrectos" también para cuentas de Google.</li>
+      <li>Comparación bcrypt de relleno cuando el usuario no existe, para igualar los tiempos de respuesta.</li>
+    </ul>
+    <p><strong>Verificado.</strong> Registro con un correo ya existente → misma respuesta uniforme y <code>user: null</code>.</p>
+  </div>
+
+  <h2>MEDIUM</h2>
+
+  <div class="card">
+    <h3>M-01 — Cabeceras de seguridad y CSP</h3>
+    <p class="meta">Archivos: <code>server.js</code></p>
+    <p>Se integra <code>helmet</code> con CSP: <code>default-src 'self'</code>, <code>object-src 'none'</code>,
+    <code>base-uri 'self'</code>, <code>form-action 'self'</code>, <code>frame-ancestors 'self'</code>,
+    <code>script-src</code> limitado a nuestro origen + Google Tag Manager, <code>connect-src</code> solo a Google Analytics,
+    <code>img-src 'self' data: https:</code>. Se elimina <code>X-Powered-By</code> con <code>app.disable()</code>.
+    <strong>Mejora futura:</strong> sustituir <code>'unsafe-inline'</code> por hashes/nonces (el script de tema y GA son inline).</p>
+  </div>
+
+  <div class="card">
+    <h3>M-02 — Rate limiting en endpoints costosos</h3>
+    <p class="meta">Archivos: <code>server.js</code>, <code>src/api/routes/screener.routes.js</code></p>
+    <ul class="compact">
+      <li>Límite global en memoria: 600 peticiones/minuto por IP (protege también el SSR de <code>/empresa/:ticker</code>).</li>
+      <li><code>/search</code>: 60/min · <code>/company/:ticker</code> y datos: 90/min · filings: 60/10 min · Chrome/PDF/preview: 30/10 min.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>M-03 — Límites de cuerpo y subida</h3>
+    <p class="meta">Archivos: <code>server.js</code>, <code>src/api/routes/analysis.routes.js</code>, <code>src/middleware/errorHandler.js</code></p>
+    <ul class="compact">
+      <li>JSON: 25 MB → <strong>12 MB</strong> (el máximo real con 3 imágenes de 2,5 MB).</li>
+      <li><code>express.urlencoded</code>: <code>extended:false</code> y 1 MB (no hay formularios HTML; se elimina la superficie de <code>qs</code>).</li>
+      <li>Multer: <code>fields:5</code>, <code>parts:6</code> además de <code>fileSize</code> y <code>files:2</code>.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>M-04 / M-10 / M-15 — Valoraciones y reportes anónimos</h3>
+    <p class="meta">Archivos: <code>db/schema.sql</code>, <code>db/repositories/analysisRepository.js</code>, <code>src/utils/validate.js</code></p>
+    <ul class="compact">
+      <li>Índice único parcial <code>(analysis_id, ip_address) WHERE user_id IS NULL</code> con limpieza previa de duplicados: un voto anónimo por análisis e IP.</li>
+      <li>Imágenes: máximo 3, 2,5 MB cada una, solo data-URLs de imagen real (png/jpeg/webp/gif) o https.</li>
+      <li>Los envíos siguen limitados por IP (10/h) y ahora la IP no se puede falsificar.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>M-05 — Escaneo global de alertas</h3>
+    <p class="meta">Archivos: <code>src/api/routes/watchlists.routes.js</code></p>
+    <p><code>POST /api/watchlists/notifications/check-now</code> pasa a requerir administrador y se limita a 3 veces/15 min.
+    Antes cualquier usuario podía lanzar un escaneo que recorre todos los suscriptores y envía correos.</p>
+  </div>
+
+  <div class="card">
+    <h3>M-06 — Códigos de verificación</h3>
+    <p class="meta">Archivos: <code>src/services/auth/verificationCode.service.js</code>, <code>db/repositories/userRepository.js</code>, <code>config/index.js</code></p>
+    <ul class="compact">
+      <li>Hash con <strong>HMAC-SHA-256</strong> y secreto del servidor (<code>VERIFICATION_CODE_PEPPER</code>, por defecto <code>JWT_SECRET</code>): un SHA-256 de 6 dígitos era reversible al instante.</li>
+      <li>Comparación en tiempo constante (<code>crypto.timingSafeEqual</code>).</li>
+      <li>Al emitir un código se borran los anteriores (solo vale el último).</li>
+    </ul>
+    <p class="meta">Nota de despliegue: los códigos pendientes antes del cambio dejan de ser válidos; los usuarios pueden pedir uno nuevo.</p>
+  </div>
+
+  <div class="card">
+    <h3>M-07 — Revocación de sesiones</h3>
+    <p class="meta">Archivos: <code>db/schema.sql</code>, <code>db/repositories/userRepository.js</code>, <code>src/middleware/auth.middleware.js</code>, <code>src/api/controllers/auth.controller.js</code></p>
+    <p>Nueva columna <code>users.token_version</code>. El JWT incluye el claim <code>tv</code>; al restablecer la contraseña se incrementa
+    la versión y todos los tokens anteriores quedan inválidos. Los tokens antiguos sin <code>tv</code> se tratan como versión 0 para no
+    cerrar sesiones masivamente al desplegar. <strong>Verificado:</strong> token con <code>tv</code> incorrecto → <code>401</code>.</p>
+  </div>
+
+  <div class="card">
+    <h3>M-08 / M-09 — SSRF, sandbox de Chrome y tamaño de descargas</h3>
+    <p class="meta">Archivos: <code>src/utils/ssrfGuard.js</code> (nuevo), <code>src/services/edgar/filingPresentations.js</code>, <code>src/services/edgar/irCrawler.js</code>, <code>src/services/edgar/filingDocuments.js</code></p>
+    <ul class="compact">
+      <li><code>assertPublicUrl()</code>: solo http/https, sin credenciales, bloquea localhost, dominios internos, rangos privados,
+      link-local, loopback y 169.254.169.254; resuelve DNS y comprueba todas las direcciones (con caché de 5 min).</li>
+      <li>Aplicada a presentaciones IR, crawler de webs IR, descargas de SEC y generación de PDFs con Chrome.</li>
+      <li>Chrome headless funciona <strong>con sandbox</strong> por defecto; solo se desactiva con <code>CHROME_NO_SANDBOX=1</code>.</li>
+      <li>Descarga de presentaciones limitada a 20 MB con lectura por streaming (se cancela al superar el límite).</li>
+    </ul>
+    <p><strong>Verificado.</strong> <code>file://</code>, <code>127.0.0.1</code>, <code>::1</code>, <code>10.x</code>, <code>169.254.x</code>,
+    <code>localhost</code> y <code>metadata.google.internal</code> → bloqueados; <code>https://www.sec.gov</code> → permitido.</p>
+  </div>
+
+  <div class="card">
+    <h3>M-11 — IP fiable</h3>
+    <p class="meta">Archivos: <code>src/utils/clientIp.js</code> (nuevo), <code>src/utils/validate.js</code></p>
+    <p><code>normalizeIpAddress()</code> deja de leer <code>x-forwarded-for</code> a ciegas y usa el mismo resolvedor verificado del
+    rate limiter, evitando que un atacante envenene la IP almacenada en votos y reportes.</p>
+  </div>
+
+  <div class="card">
+    <h3>M-12 / M-13 — Secretos y administrador</h3>
+    <p class="meta">Archivos: <code>.env</code> (permisos), <code>.env.example</code>, <code>src/services/auth/adminBootstrap.service.js</code></p>
+    <ul class="compact">
+      <li><code>.env</code> pasa a permisos <code>600</code> y el <code>JWT_SECRET</code> local se regeneró con 32 bytes aleatorios.</li>
+      <li>Nuevas variables documentadas: <code>VERIFICATION_CODE_PEPPER</code>, <code>TRUSTED_PROXY_IPS</code>, <code>CHROME_NO_SANDBOX</code>.</li>
+      <li>El bootstrap avisa si <code>ADMIN_PASSWORD</code> tiene menos de 12 caracteres y ya no registra el email del admin en consola.</li>
+      <li><strong>Recomendado:</strong> rotar las claves que estuvieron en <code>.env</code> con permisos 664 (DeepSeek, OpenCode Go,
+      secreto de Google y contraseña de aplicación de Gmail).</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>M-14 — Visibilidad de valoraciones</h3>
+    <p class="meta">Archivos: <code>src/api/controllers/analysisFeedback.controller.js</code></p>
+    <p><code>GET /api/analyses/:id/rating</code> comprueba ahora <code>isAnalysisVisible()</code> y devuelve <code>404</code> para análisis privados ajenos.</p>
+  </div>
+
+  <h2>LOW / INFO</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Cambio</th></tr></thead>
+    <tbody>
+      <tr><td>L-01</td><td>Validación de email con patrón estricto y máximo 254 caracteres; contraseñas entre 8 y 128 caracteres (el máximo evita abusos de bcrypt).</td></tr>
+      <tr><td>L-02</td><td><code>initials()</code> del foro ya no puede devolver la cadena original sin escapar: si no quedan alfanuméricos, muestra "?".</td></tr>
+      <tr><td>L-03</td><td><code>filingPdfCachePath()</code> y <code>filingPdfFilename()</code> usan <code>path.basename</code> y sanean caracteres del nombre remoto.</td></tr>
+      <tr><td>L-04</td><td>Se elimina <code>X-Powered-By</code> y el campo <code>phase</code> de <code>/api/health</code>.</td></tr>
+      <tr><td>L-05</td><td>Logout y cambio de usuario con rate limit; parser urlencoded restringido.</td></tr>
+      <tr><td>L-06</td><td><code>upsertEmailAlert()</code> y <code>autoEnableEmailAlertIfMissing()</code> construyen la respuesta explícitamente (los alias en minúsculas devolvían <code>undefined</code>).</td></tr>
+      <tr><td>L-07</td><td>IP del VPS enmascarada en <code>lanzamiento.md</code> y <code>documentacion/lanzamiento.md</code>. El diario histórico se conserva como registro.</td></tr>
+      <tr><td>L-08</td><td>En producción la cookie se llama <code>__Host-token</code> (Secure, Path=/, sin Domain); el middleware acepta también <code>token</code> durante la transición.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Checklist de despliegue</h2>
+  <ol>
+    <li><strong>Dependencias:</strong> desplegar el <code>package-lock.json</code> actualizado (<code>npm ci</code>).</li>
+    <li><strong>Base de datos:</strong> ejecutar <code>npm run db:migrate</code> (añade <code>token_version</code>, limpia duplicados de ratings y crea el índice parcial).</li>
+    <li><strong>JWT_SECRET en producción:</strong> debe existir y no ser de desarrollo o el servidor no arrancará. Si se cambia, todas las sesiones actuales se cierran (los usuarios vuelven a entrar).</li>
+    <li><strong>Cortar el acceso directo al origen (crítico):</strong> en el VPS, permitir solo las IPs de Cloudflare a los puertos 80/443 y cerrar el resto. Ejemplo conceptual:<br>
+      <pre># /etc/nginx/conf.d/cloudflare.conf (incluir en el server de los sites)
+allow 173.245.48.0/20;  allow 103.21.244.0/22; allow 103.22.200.0/22; allow 103.31.4.0/22;
+allow 141.101.64.0/18;  allow 108.162.192.0/18; allow 190.93.240.0/20; allow 188.114.96.0/20;
+allow 197.234.240.0/22; allow 198.41.128.0/17; allow 162.158.0.0/15; allow 104.16.0.0/13;
+allow 104.24.0.0/14;    allow 172.64.0.0/13;   allow 131.0.72.0/22;
+allow 2400:cb00::/32;   allow 2606:4700::/32;  allow 2803:f800::/32; allow 2405:b500::/32;
+allow 2405:8100::/32;   allow 2a06:98c0::/29;  allow 2c0f:f248::/32;
+deny all;</pre>
+      <span class="meta">(Mantener abierto el SSH a la IP de administración; aplicar la lista actualizada de cloudflare.com/ips.)</span></li>
+    <li><strong>Correo:</strong> confirmar que el <code>.env</code> de producción <strong>no</strong> tiene <code>MAIL_TO_OVERRIDE</code> (redirigiría códigos de todos los usuarios a un buzón).</li>
+    <li><strong>Permisos y rotación:</strong> <code>chmod 600 .env</code>; rotar DeepSeek/OpenCode/Google/SMTP por haber estado expuestas con permisos 664.</li>
+    <li><strong>Chrome:</strong> tras desplegar, probar una vista previa de filing. Si falla por sandbox, definir <code>CHROME_NO_SANDBOX=1</code> y reiniciar (documentado).</li>
+    <li><strong>Limpieza:</strong> borrar en el servidor los ficheros <code>uploads/generated/____________________________________.{pdf,html,docx,odt}</code> generados por la prueba de explotación de C-01.</li>
+    <li><strong>Verificación post-despliegue:</strong>
+      <pre>curl -I https://cifraresearch.com/            # debe incluir Content-Security-Policy y no X-Powered-By
+curl -o /dev/null -w '%{http_code}\n' https://cifraresearch.com/api/reports/____________________________________.pdf   # 404
+curl -s http://IP-ORIGEN:443/api/health -k    # no debe responder (firewall)</pre></li>
+  </ol>
+
+  <h2>Pruebas ejecutadas</h2>
+  <ul class="compact">
+    <li><code>node --check</code> sobre todos los ficheros JS del repositorio: OK.</li>
+    <li><code>npm audit</code>: 0 vulnerabilidades.</li>
+    <li>Migración local ejecutada sin errores (incluida la eliminación de duplicados y el índice parcial).</li>
+    <li>Arranque del servidor local y comprobación de CSP, health y arranque sin <code>X-Powered-By</code>.</li>
+    <li>BOLA: 404 anónimo / 404 otro usuario / 200 propietario; comodines y traversal 404.</li>
+    <li>JWT: HS384 rechazado; <code>tv</code> incorrecto rechazado; token válido aceptado.</li>
+    <li>SSRF: 8 casos límite (loopback, IPv6, metadata cloud, rangos privados, <code>file://</code>, localhost) bloqueados; SEC permitido.</li>
+    <li>IP de cliente: 4 escenarios de cabeceras falsificadas resueltos correctamente.</li>
+    <li>Anti-enumeración: registro de correo existente con respuesta uniforme.</li>
+    <li>Ratings anónimos: dos votos desde la misma IP se guardan como una única fila (upsert del índice parcial).</li>
+  </ul>
+
+  <h2>Riesgos residuales aceptados</h2>
+  <ul class="compact">
+    <li>La CSP mantiene <code>'unsafe-inline'</code> para scripts y estilos por el script de tema y Google Analytics; la migración a nonces/hashes queda como mejora futura.</li>
+    <li>El rate limiting es en memoria del proceso (no distribuido); con múltiples instancias habría que usar almacén compartido (Redis).</li>
+    <li>El logout no revoca el JWT en servidor (es stateless); el cambio de contraseña sí invalida todas las sesiones.</li>
+    <li>La guarda SSRF no fija la IP resuelta en la conexión: un DNS rebinding muy elaborado podría intentarlo, aunque se valida en cada petición con caché corta.</li>
+    <li>Ficheros de <code>uploads/generated</code> pensados para caché pública: un UUID filtrado sigue siendo descargable si el informe es público (por diseño).</li>
+  </ul>
+</main>
+</body>
+</html>
