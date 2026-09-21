@@ -12,25 +12,28 @@ export const EXTRACTION_SCHEMA = `{
   "shares": 1186,
   "quarter": {
     "sales": 6262,
+    "cogs": 4234,
     "grossProfit": 2028,
     "operatingIncome": 921,
     "ebt": 886,
     "netIncome": 752,
-    "prev": { "sales": 6352, "grossProfit": 2183, "operatingIncome": 1292, "ebt": 1245, "netIncome": 994 }
+    "prev": { "sales": 6352, "cogs": 4169, "grossProfit": 2183, "operatingIncome": 1292, "ebt": 1245, "netIncome": 994 }
   },
   "ytd": {
     "months": 6,
     "sales": 12309,
+    "cogs": 8062,
     "grossProfit": 4247,
     "operatingIncome": 2079,
     "ebt": 2079,
     "netIncome": 1601,
-    "prev": { "sales": 12351, "grossProfit": 4247, "operatingIncome": 2488, "ebt": 2488, "netIncome": 1916 }
+    "prev": { "sales": 12351, "cogs": 8104, "grossProfit": 4247, "operatingIncome": 2488, "ebt": 2488, "netIncome": 1916 }
   },
   "cashFlow": {
     "operating": 2088,
     "capex": 429,
     "dividends": 949,
+    "stockCompensation": 0,
     "prevOperating": 1929
   },
   "balance": {
@@ -62,6 +65,14 @@ export const EXTRACTION_SCHEMA = `{
     "impairmentsPrevQuarter": 1428,
     "impairmentsYtd": 9301,
     "impairmentsPrevYtd": 2282,
+    "goodwillImpairmentQuarter": 35,
+    "goodwillImpairmentPrevQuarter": 707,
+    "goodwillImpairmentYtd": 6729,
+    "goodwillImpairmentPrevYtd": 1561,
+    "intangibleImpairmentQuarter": 0,
+    "intangibleImpairmentPrevQuarter": 721,
+    "intangibleImpairmentYtd": 2572,
+    "intangibleImpairmentPrevYtd": 721,
     "intangiblesAmortization": 4911,
     "intangiblesAmortizationQuarter": 1600,
     "intangiblesAmortizationYtd": 4911,
@@ -72,6 +83,11 @@ export const EXTRACTION_SCHEMA = `{
     "taxCashFlowAdjustmentYtd": 30.9,
     "incomeTaxesPaidQuarter": 131.4,
     "incomeTaxesPaidYtd": 131.4,
+    "nonOperatingGainsQuarter": 0,
+    "nonOperatingGainsPrevQuarter": 0,
+    "nonOperatingGainsYtd": 0,
+    "nonOperatingGainsPrevYtd": 0,
+    "nonOperatingGainsDescription": "Descripción de la partida no operativa no recurrente incluida en EBT (p. ej. revalorización de la inversión en Anthropic), o null",
     "shareBuybacksQuarter": 145,
     "shareBuybacks": 435,
     "purchasesOfMarketableSecuritiesQuarter": 0,
@@ -89,6 +105,9 @@ export const EXTRACTION_SCHEMA = `{
     "nonControllingSaleYtd": 0,
     "acquisitionDescription": "Nombre del negocio o empresa adquirida en el periodo, o null si no hubo",
     "divestitureDescription": "Nombre de la marca, negocio o activo vendido en el periodo, o null si no hubo",
+    "stockCompensation": 0,
+    "stockCompensationQuarter": 0,
+    "stockCompensationYtd": 0,
     "totalDebt": 7332
   },
   "annualDetails": {
@@ -258,6 +277,11 @@ export const EXTRACTION_SCHEMA = `{
     "debt": {
       "maturitiesSchedule": "2026: 2.364M, 2027: 0.5M, 2028: 0.5M, 2029: 1.7M, 2030: 0.5M, después de 2030: 3.841,6M",
       "maturityAfterFive": 3841.6,
+      "allDebtAverageRate": null,
+      "allDebtAverageRateSource": null,
+      "rateBuckets": null,
+      "interestExpense": null,
+      "interestPaid": null,
       "maturityItems": [
         { "year": 2026, "label": "CAD 500M 3.44% senior notes", "amount": 364.3, "rate": 3.44, "type": "Senior Notes" },
         { "year": 2026, "label": "$2.0B 3.0% senior notes", "amount": 2000.0, "rate": 3.0, "type": "Senior Notes" },

@@ -10,6 +10,7 @@ import {
   extractRepurchaseProgramTerms,
   extractRepurchaseFactsFromText,
   extractExecutiveChangesFromText,
+  isStaleExecutiveChange,
 } from '../../src/agents/analyst/financialParsersExtract.js';
 import { buildWorkingCapitalDataFallback } from '../../src/agents/analyst/capitalAllocationHelpers.js';
 import { getTaxNormalizationData } from '../../src/agents/analyst/dividendHistoryBuilders.js';
@@ -19,6 +20,7 @@ import { buildMaturityScheduleFromDebtTable } from '../../src/agents/analyst/deb
 import { buildDebtMaturityModel } from '../../src/services/reportExport/debtMaturityModel.js';
 import { buildDebtMaturitiesFromFacts, extractDebtWeightedAverageRateFromFacts } from '../../src/services/edgar/debtMaturities.js';
 import { processRepurchasesSection, processExecutiveChangesSection } from '../../src/agents/analyst/annualConclusionCeoRepurchases.js';
+import { applyExecutiveChangesFallback } from '../../src/agents/analyst/analystRunSteps.js';
 
 function annualEntry(tag, val) {
   return { start: '2023-01-01', end: '2023-12-31', val, frame: 'CY2023', fp: 'FY', form: '10-K', filed: '2024-02-01', tag };
@@ -476,6 +478,55 @@ test('extractRepurchaseFactsFromText y extractExecutiveChangesFromText extraen d
   assert.equal(execChanges[0].newExecutive?.name, 'Jane Roe');
   assert.equal(execChanges[0].oldExecutive?.name, 'Richard Roe');
   assert.equal(execChanges[0].reason, 'Retiro / Jubilación');
+});
+
+test('extractExecutiveChangesFromText ignora las bio antiguas del 10-K (caso Adobe 2007/2017)', () => {
+  const bio = `Information About Our Executive Officers
+Shantanu Narayen 62 Chair of the Board of Directors and Chief Executive Officer
+Mr. Narayen currently serves as our Chief Executive Officer and Chair of the Board. He joined Adobe
+in January 1998 as Vice President and General Manager. In January 2005, Mr. Narayen was promoted to President and Chief Operating Officer, and effective
+December 2007, he was appointed our Chief Executive Officer and joined our Board. In January 2017,
+he was named our Chair of the Board.`;
+  assert.equal(extractExecutiveChangesFromText(bio, { fiscalYear: 2025 }).length, 0);
+  assert.ok(extractExecutiveChangesFromText(bio).length > 0, 'Sin año fiscal se mantiene el comportamiento previo');
+});
+
+test('isStaleExecutiveChange distingue los relevos del ejercicio de las fechas antiguas', () => {
+  assert.equal(isStaleExecutiveChange({ announcementDate: 'January 2017', text: 'In January 2017, he was named Chair' }, 2025), true);
+  assert.equal(isStaleExecutiveChange({ effectiveDate: 'November 1, 2024', text: 'Jane Roe was appointed CFO' }, 2025), false);
+  assert.equal(isStaleExecutiveChange({ text: 'John Doe asumió como CFO en marzo de 2025' }, 2025), false);
+  assert.equal(isStaleExecutiveChange({ text: 'John Doe asumió como CFO' }, 2025), false);
+});
+
+test('applyExecutiveChangesFallback descarta los cambios históricos que trajo la IA y no inventa otros', () => {
+  const extracted = {
+    annualDetails: {
+      executiveChanges: [{
+        role: 'CEO',
+        text: 'En diciembre de 2007 fue nombrado Chief Executive Officer y en enero de 2017 Chair of the Board.',
+        announcementDate: 'January 2017',
+        occurred: true,
+      }],
+    },
+  };
+  applyExecutiveChangesFallback(extracted, 'Texto del filing sin relevos recientes.', 2025);
+  assert.equal(extracted.annualDetails.executiveChanges, undefined);
+});
+
+test('applyExecutiveChangesFallback conserva los relevos recientes del ejercicio', () => {
+  const extracted = {
+    annualDetails: {
+      executiveChanges: [{
+        role: 'CFO',
+        text: 'Jane Roe was appointed CFO effective November 1, 2024.',
+        effectiveDate: 'November 1, 2024',
+        occurred: true,
+      }],
+    },
+  };
+  applyExecutiveChangesFallback(extracted, '', 2025);
+  assert.equal(extracted.annualDetails.executiveChanges.length, 1);
+  assert.equal(extracted.annualDetails.executiveChanges[0].role, 'CFO');
 });
 
 test('getExecutiveChanges descarta los rellenos de "sin información" en los bloques de directivos', async () => {

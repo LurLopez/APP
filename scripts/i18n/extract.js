@@ -33,6 +33,7 @@ const EXCLUDED_FILES = new Set([
   'auditorPrompt.js',
   'auditorAgent.js',
   'deterministicChecks.js',
+  'sectorPolicy.js',
 ]);
 
 const SPANISH_WORDS = [

@@ -264,6 +264,88 @@ export function processDebtSection(conclusion, rawAnn, edgarData, fiscalYear, la
   const mergedDebtHistory = mergeHistoryByYear(aiDebtHistory, edgarData.edgarDebtHistory).slice(-10);
   if (mergedDebtHistory.length) d.debtHistory = mergedDebtHistory;
 
+  // Intereses de la deuda: si la extracción no publicó el tipo medio, se estima con el gasto por
+  // intereses del ejercicio (XBRL) sobre la deuda media; la sección muestra siempre cuánto paga
+  // la empresa por su deuda (gasto y/o efectivo) y el tipo medio cuando se conoce, en lugar de
+  // afirmar que no se puede calcular (MCD 2025: 1.582M de gasto, 1.555M pagados, 4,0 % de tipo).
+  const interestExpense = extractionDebt.interestExpense != null && Number.isFinite(Number(extractionDebt.interestExpense))
+    ? Math.abs(Number(extractionDebt.interestExpense))
+    : (edgarData.edgarInterestExpense ?? null);
+  const interestPaid = extractionDebt.interestPaid != null && Number.isFinite(Number(extractionDebt.interestPaid))
+    ? Math.abs(Number(extractionDebt.interestPaid))
+    : (edgarData.edgarInterestPaid ?? null);
+
+  if (d.allDebtAverageRate == null && interestExpense != null && Array.isArray(d.debtHistory) && d.debtHistory.length >= 2) {
+    const lastPoint = d.debtHistory[d.debtHistory.length - 1];
+    const prevPoint = d.debtHistory[d.debtHistory.length - 2];
+    const avgDebt = (Number(lastPoint?.totalDebt) + Number(prevPoint?.totalDebt)) / 2;
+    if (Number.isFinite(avgDebt) && avgDebt > 0) {
+      d.allDebtAverageRate = Math.round((interestExpense / avgDebt) * 1000) / 10;
+      d.allDebtAverageRateEstimated = true;
+      d.allDebtAverageRateSource = t('Intereses del ejercicio sobre la deuda media', null, lang);
+    }
+  }
+
+  const rateFormat = (value) => {
+    const fixed = Number(value).toFixed(1);
+    return lang === 'en' ? fixed : fixed.replace('.', ',');
+  };
+  const interestSentences = [];
+  const textLower = String(d.text ?? '').toLowerCase();
+  const mentionsInterestAmounts = /gasto por intereses|intereses pagados|interest expense|interest paid/.test(textLower);
+  if (d.allDebtAverageRate != null) {
+    const rateText = rateFormat(d.allDebtAverageRate);
+    // El texto puede llevar el mismo tipo con o sin decimal ("4 %" / "4,0 %"): no se repite.
+    const ratePatterns = [rateText.replace(',', '[.,]')];
+    if (Number.isInteger(Number(d.allDebtAverageRate))) ratePatterns.push(String(Math.round(Number(d.allDebtAverageRate))));
+    const rateAlreadyInText = ratePatterns.some((pattern) => new RegExp(`${pattern}\\s*%`).test(String(d.text ?? '')));
+    if (!rateAlreadyInText) {
+      interestSentences.push(d.allDebtAverageRateEstimated
+        ? t('El tipo de interés medio estimado de la deuda es del {rate} %.', { rate: rateText }, lang)
+        : t('El tipo de interés medio de la deuda es del {rate} %.', { rate: rateText }, lang));
+    }
+    // Si el dato de tipos existe, no puede quedar en el texto la afirmación contraria.
+    d.text = String(d.text ?? '')
+      .split(/(?<=[.!?])\s+/)
+      .filter((sentence) => !(/no desglosa|no facilita|no publica|no es posible calcular/i.test(sentence)
+        && /tipo|cup[oó]n|inter[eé]s/i.test(sentence)))
+      .join(' ');
+  }
+  if (!mentionsInterestAmounts) {
+    if (interestExpense != null) {
+      interestSentences.push(t('El gasto por intereses del ejercicio fue de {amount}M.', {
+        amount: formatAcquisitionAmount(interestExpense, lang),
+      }, lang));
+    }
+    if (interestPaid != null) {
+      interestSentences.push(t('Los intereses pagados en efectivo ascendieron a {amount}M.', {
+        amount: formatAcquisitionAmount(interestPaid, lang),
+      }, lang));
+    }
+  }
+  // Tipos por divisa/categoría de la nota de deuda: cuando la nota no desglosa el cupón de cada
+  // vencimiento (MCD: tipos medios efectivos por divisa), se muestran los tipos publicados; si
+  // el texto ya los enumera, solo se añade la aclaración de que no hay cupón por vencimiento.
+  const rateBuckets = String(extractionDebt.rateBuckets ?? '').trim();
+  if (rateBuckets) {
+    const itemsHaveRates = (Array.isArray(d.maturitySchedule) ? d.maturitySchedule : [])
+      .some((item) => item?.rate != null || item?.interestRate != null);
+    const bucketRates = (rateBuckets.match(/\d+(?:[.,]\d+)?/g) || []).map((num) => num.replace('.', ','));
+    const textRates = new Set((String(d.text ?? '').match(/\d+(?:[.,]\d+)?/g) || []).map((num) => num.replace('.', ',')));
+    const bucketsAlreadyInText = bucketRates.length > 0
+      && bucketRates.filter((rate) => textRates.has(rate)).length >= Math.min(3, bucketRates.length);
+    if (!itemsHaveRates && bucketsAlreadyInText) {
+      interestSentences.push(t('La nota de deuda no desglosa el cupón de cada vencimiento, solo los tipos medios efectivos por divisa o categoría.', null, lang));
+    } else if (!bucketsAlreadyInText) {
+      interestSentences.push(itemsHaveRates
+        ? t('Tipos medios efectivos publicados por la nota de deuda: {buckets}.', { buckets: rateBuckets }, lang)
+        : t('La nota de deuda no desglosa el cupón de cada vencimiento; estos son los tipos medios efectivos publicados por divisa o categoría: {buckets}.', { buckets: rateBuckets }, lang));
+    }
+  }
+  if (interestSentences.length) {
+    d.text = `${String(d.text ?? '').trim()} ${interestSentences.join(' ')}`.trim();
+  }
+
   // Solo se acepta una refinanciación realmente ejecutada o acordada en el ejercicio:
   // un vencimiento futuro sin decisión anunciada no es una refinanciación.
   if (!d.refinancing && extractionDebt.refinancing?.occurred === true) {

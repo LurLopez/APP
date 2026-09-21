@@ -150,7 +150,7 @@ export function drawSectionTitle(doc, title, y, minSpace = 130) {
   return y + 22;
 }
 
-export function drawNotes(doc, notes, y) {
+export function drawNotes(doc, notes, y, options = {}) {
   let currentY = y;
   const filtered = (notes ?? []).filter(Boolean);
   if (!filtered.length) return currentY;
@@ -166,7 +166,8 @@ export function drawNotes(doc, notes, y) {
       const num = match[1];
       const marker = `*${num}:`;
       const rest = match[2];
-      const colorScheme = getPdfHighlightColor(num);
+      const colorNum = (options.isCashFlow && (num === '3' || num === 3)) ? '2' : num;
+      const colorScheme = getPdfHighlightColor(colorNum);
 
       doc.font('Helvetica-Bold').fontSize(7.5);
       const markerWidth = doc.widthOfString(marker) + 6;

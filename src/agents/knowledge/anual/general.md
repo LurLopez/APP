@@ -96,9 +96,9 @@ La primera parte replica fielmente la mecánica contable y visual de los informe
   6. Libre (Remanente de caja = FCF − Dividendo)
 
 - **Cálculo de Capital Circulante Anual (Working Capital / WC)**:
-  - Al ser año completo, **la necesidad teórica no se prorratea**:
-    $$\text{WC}_{\text{caja, anual}} = (\text{Cuentas por pagar} - \text{Inventarios} - \text{Cuentas por cobrar}) \times (\text{Inflación} + \text{volumen})$$
-    Como el WC se expresa en términos de impacto en caja, un valor **positivo** significa que el circulante **libera** caja (las cuentas por pagar crecen más que inventarios y cobros) y un valor **negativo** que el circulante **consume** caja.
+  - La necesidad teórica se estima con el **peso agregado histórico** del circulante sobre el flujo operativo sin circulante de los últimos 10 ejercicios (método único, también cuando el informe publica volumen):
+    $$\text{WC}_{\text{teórico}} = \left( \frac{\sum \Delta WC}{\sum (\text{CFO} - \Delta WC)} \right)_{\text{últimos 10 ejercicios}} \times (\text{CFO} - \Delta WC)_{\text{ejercicio}}$$
+    Ejemplo: CFO 80.000M con ΔWC −20.000M ⇒ base 100.000M y peso del −20 %. Como el WC se expresa en términos de impacto en caja, un valor **positivo** significa que el circulante **libera** caja (las cuentas por pagar crecen más que inventarios y cobros) y un valor **negativo** que el circulante **consume** caja. El sistema calcula esta estimación de forma determinista (serie histórica de EDGAR) y la entrega en `workingCapitalData`.
   - La diferencia entre el WC reportado y el teórico se ajusta en el Cash Flow con esta convención estricta (que el sistema ya calcula):
     $$\text{Desviación WC} = \text{WC}_{\text{reportado}} - \text{WC}_{\text{teórico}}$$
     $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - \text{Desviación WC}$$

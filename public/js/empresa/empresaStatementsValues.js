@@ -179,8 +179,45 @@
     return Number.isFinite(rate) && rate >= 0 && rate <= 0.6 ? rate : 0.21;
   }
 
+  /**
+   * Circulante teórico del periodo según el peso agregado histórico del circulante sobre el
+   * flujo operativo sin circulante (ΣΔWC / Σ(CFO − ΔWC)) de los últimos 10 ejercicios anuales,
+   * aplicado al flujo del propio año. Solo tiene sentido en la serie anual.
+   * @param {Object} row - Fila del periodo.
+   * @param {number} rowIndex - Índice de la fila (serie ordenada de más antigua a más reciente).
+   * @param {Array<Object>} rows - Filas de la serie.
+   * @returns {number|null} WC teórico en millones o null si no hay serie suficiente.
+   */
+  function workingCapitalTheoreticalValue(row, rowIndex, rows) {
+    if ((window.screenerSeries || 'annual') !== 'annual') return null;
+    const points = [];
+    (rows || []).forEach((serieRow) => {
+      const cfo = Number(serieRow?.values?.cfo);
+      const wcChange = Number(serieRow?.values?.workingCapitalChange);
+      if (!Number.isFinite(cfo) || !Number.isFinite(wcChange)) return;
+      const base = cfo - wcChange;
+      if (base <= 0) return;
+      points.push({ base, wcChange });
+    });
+    const recent = points.slice(-10);
+    if (recent.length < 3) return null;
+    const totalBase = recent.reduce((acc, point) => acc + point.base, 0);
+    if (!(totalBase > 0)) return null;
+    const totalWc = recent.reduce((acc, point) => acc + point.wcChange, 0);
+    const cfo = Number(row?.values?.cfo);
+    const wcChange = Number(row?.values?.workingCapitalChange);
+    if (!Number.isFinite(cfo) || !Number.isFinite(wcChange)) return null;
+    const base = cfo - wcChange;
+    if (!(base > 0)) return null;
+    return (totalWc / totalBase) * base;
+  }
+
   function derivedScreenerValue(item, row, rowIndex, rows, compData) {
     if (!item || !row) return null;
+
+    if (item.key === 'workingCapitalTheoretical') {
+      return workingCapitalTheoreticalValue(row, rowIndex, rows);
+    }
 
     if (item.key === 'evToEbitda') {
       const ebitda = ebitdaValue(row, rowIndex, rows);
@@ -488,6 +525,7 @@ window.escapeHtml = escapeHtml;
 window.getRowPrice = getRowPrice;
 window.getRowMarketCap = getRowMarketCap;
 window.derivedScreenerValue = derivedScreenerValue;
+window.workingCapitalTheoreticalValue = workingCapitalTheoreticalValue;
 window.formatScreenerValue = formatScreenerValue;
 window.isLockedPeriod = isLockedPeriod;
 window.renderProCell = renderProCell;

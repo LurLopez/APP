@@ -5,7 +5,7 @@
  */
 
 import { BaseAgent, AgentError } from '../baseAgent.js';
-import { normalizeExtractedUnits } from './financialParsers.js';
+import { normalizeExtractedUnits, extractAnnualWorkingCapitalChange } from './financialParsers.js';
 import { buildCapitalAllocationFromBalance, buildWorkingCapitalDataFallback } from './capitalAllocationHelpers.js';
 import { getLanguageDirective } from './languageDirective.js';
 import {
@@ -64,16 +64,35 @@ export class AnalystAgent extends BaseAgent {
 
     extracted._rawText = input.text;
     applyTextFallbacks(extracted, input.text);
-    if (isAnnual) applyExecutiveChangesFallback(extracted, input.text);
+    if (isAnnual) {
+      applyExecutiveChangesFallback(extracted, input.text, fiscalYear);
+      // La variación de circulante reportada se lee de forma determinista de la sección
+      // "Changes in operating assets and liabilities": la IA la confunde con frecuencia
+      // (NVIDIA FY2026: −5.949M frente a los −15.949M reales) y de ella depende el ajuste
+      // del Cash Flow por circulante.
+      const parsedWcChange = extractAnnualWorkingCapitalChange(input.text);
+      if (parsedWcChange != null) {
+        extracted.workingCapital = extracted.workingCapital || {};
+        const aiWcChange = Number(extracted.workingCapital.reportedChangeYtd);
+        const differs = !Number.isFinite(aiWcChange)
+          || Math.abs(parsedWcChange - aiWcChange) >= Math.max(100, Math.abs(parsedWcChange) * 0.05);
+        if (differs) {
+          if (Number.isFinite(aiWcChange)) {
+            console.info(`[analyst] Variación de circulante reportada corregida: IA ${aiWcChange}M -> ${parsedWcChange}M`);
+          }
+          extracted.workingCapital.reportedChangeYtd = parsedWcChange;
+        }
+      }
+    }
 
     const edgarResults = await applyEdgarBackup(extracted, { ticker, isAnnual, fiscalYear, reportingPeriod });
     normalizeExtractedUnits(extracted);
 
     await applyPreviousQuarterCashFlow(extracted, { ticker, isAnnual, fiscalQuarter, fiscalYear, reportingPeriod });
 
-    extracted.capitalAllocationData = buildCapitalAllocationFromBalance(extracted, language);
+    extracted.capitalAllocationData = buildCapitalAllocationFromBalance(extracted, language, sector, isAnnual);
     if (!extracted.workingCapitalData) {
-      const workingCapitalFallback = buildWorkingCapitalDataFallback(extracted, language);
+      const workingCapitalFallback = buildWorkingCapitalDataFallback(extracted, language, sector);
       if (workingCapitalFallback) extracted.workingCapitalData = workingCapitalFallback;
     }
 
@@ -93,11 +112,11 @@ export class AnalystAgent extends BaseAgent {
     }
 
     const { _rawText, ...extractedForModel } = extracted;
-    const result = await structureReport(extractedForModel, { isAnnual, rules, languageDirective });
+    const result = await structureReport(extractedForModel, { isAnnual, rules, languageDirective, sector });
     validateReportStructure(result);
 
     if (isAnnual) selectAnnualHorizon(result, language);
-    normalizeHorizons(result, extracted, language);
+    normalizeHorizons(result, extracted, language, sector);
 
     if (isAnnual) {
       applyAnnualConclusion(result, extracted, edgarData, fiscalYear, language);

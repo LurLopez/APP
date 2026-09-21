@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { TARGET_PROVIDER, resolveYears } from './analyze-consumer.core.js';
+import { TARGET_PROVIDER } from './analyze-consumer.core.js';
 import { runWorker } from './analyze-consumer.worker.js';
 
 /**
@@ -19,6 +19,7 @@ import { runWorker } from './analyze-consumer.worker.js';
  *   --once                  Ejecuta una sola pasada por la lista y termina.
  *   --ticker=KO             Analiza un ticker específico.
  *   --tickers=KO,PEP,PG     Analiza una lista separada por comas de tickers.
+ *   --sector=discretionary  Trabaja el universo de consumo discrecional (por defecto: staples).
  *   --universe=large        curated | large (EE. UU. >1.000M $) | all (todas las de EE. UU.).
  *   --years=5               Últimos N años de informes (3, 5, 10...); all = todo el histórico.
  *   --list                  Solo muestra el universo seleccionado y termina.
@@ -33,7 +34,7 @@ import { runWorker } from './analyze-consumer.worker.js';
  *
  * Variables de entorno equivalentes:
  *   WORKER_UNIVERSE=curated|large|all · WORKER_YEARS=3|5|10|all
- *   WORKER_AI_PROVIDER=opencode · WORKER_CONCURRENCY=3
+ *   WORKER_SECTOR=staples|discretionary · WORKER_AI_PROVIDER=opencode · WORKER_CONCURRENCY=3
  */
 
 import { getCompanyFilings, getFilingContentBuffer, getPresentationBuffers } from '../src/services/edgar.service.js';
@@ -49,14 +50,8 @@ import { pool } from '../db/pool.js';
 process.env.AI_PROVIDER = TARGET_PROVIDER;
 
 // Universo de empresas: lista curada (por defecto), grandes (>1.000M $) o todas
-// las de EE. UU. sin ADR ni duplicados.
-
-// Antigüedad de los informes: últimos N años o todo el histórico disponible.
-// Sin configurar mantiene el comportamiento original (desde 2020).
-
-const { fromYear: FROM_YEAR, label: YEARS_LABEL } = resolveYears();
-
-// Lista curada y exhaustiva de empresas estadounidenses de consumo defensivo
+// las de EE. UU. sin ADR ni duplicados. El alcance temporal y el sector se
+// configuran en analyze-consumer.core.js (--years, --sector).
 
 // Ejecuta las tareas con un máximo de `limit` en paralelo.
 

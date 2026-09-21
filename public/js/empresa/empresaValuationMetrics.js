@@ -143,20 +143,27 @@
       }
     }
     if (dividendPerShare === null) {
-      dividendPerShare = Number.isFinite(Number(latestAnnual.dividendPerShare)) && Number(latestAnnual.dividendPerShare) > 0
-        ? Number(latestAnnual.dividendPerShare)
-        : (Number.isFinite(Number(metrics.dividendPerShare)) ? Number(metrics.dividendPerShare) : null);
+      const annDps = Number(latestAnnual.dividendPerShare);
+      const metDps = Number(metrics.dividendPerShare);
+      dividendPerShare = Number.isFinite(annDps) && annDps > 0
+        ? annDps
+        : (Number.isFinite(metDps) && metDps > 0 ? metDps : null);
+    }
+    if (dividendPerShare !== null && dividendPerShare <= 0) {
+      dividendPerShare = null;
     }
 
-    const dividendYield = (dividendPerShare !== null && price && price > 0)
+    const dividendYield = (dividendPerShare !== null && dividendPerShare > 0 && price && price > 0)
       ? (dividendPerShare / price) * 100
-      : (Number.isFinite(Number(metrics.dividendYield)) ? Number(metrics.dividendYield) : null);
+      : (metrics.dividendYield !== null && metrics.dividendYield !== undefined && Number.isFinite(Number(metrics.dividendYield)) && Number(metrics.dividendYield) > 0
+        ? Number(metrics.dividendYield)
+        : null);
 
-    const payoutRatio = (dividendPerShare !== null && eps !== null && eps > 0)
+    const payoutRatio = (dividendPerShare !== null && dividendPerShare > 0 && eps !== null && eps > 0)
       ? (dividendPerShare / eps) * 100
       : null;
 
-    const payoutRatioNormalized = (dividendPerShare !== null && epsNormalized !== null && epsNormalized > 0)
+    const payoutRatioNormalized = (dividendPerShare !== null && dividendPerShare > 0 && epsNormalized !== null && epsNormalized > 0)
       ? (dividendPerShare / epsNormalized) * 100
       : null;
 

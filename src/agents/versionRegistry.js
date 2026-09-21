@@ -6,7 +6,11 @@ import { fileURLToPath } from 'node:url';
 // análisis es la composición de los niveles que aplican. Cuando el prefijo
 // coincide, una versión con más niveles (reglas más específicas) es más nueva.
 const KNOWLEDGE_DIR = new URL('./knowledge/', import.meta.url);
-const SECTOR_SLUGS = { defensive_consumer: 'consumo-defensivo' };
+const SECTOR_SLUGS = {
+  defensive_consumer: 'consumo-defensivo',
+  technology: 'tecnologia',
+  consumer_discretionary: 'consumo-discrecional',
+};
 const VERSION_PATTERN = /^\s*(?:>\s*)?(?:versi[oó]n|version)\s*[:=]\s*([0-9]+(?:\.[0-9]+)*)\s*$/im;
 
 export const DEFAULT_LEVEL_VERSION = 0;

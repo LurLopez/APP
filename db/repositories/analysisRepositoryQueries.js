@@ -9,7 +9,7 @@ export async function getAnalysisVersions({ ticker, accession, userId = null } =
   const filename = `${ticker}-${accession}.pdf`;
   const { rows } = await query(
     `SELECT
-       id, version, subsector, sector_version, model_used, is_public, pdf_url, language, created_at,
+       id, version, sector, subsector, sector_version, model_used, is_public, pdf_url, language, created_at,
        is_reviewed, reviewed_at, reviewed_by,
        report->>'formType' AS form_type
      FROM analyses
@@ -33,6 +33,7 @@ export async function getAnalyzedAccessionsWithRatings(ticker, accessions = [], 
        MAX(a.id) AS analysis_id,
        (array_agg(a.id ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_analysis_id,
        (array_agg(a.version ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_version,
+       (array_agg(a.sector ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_sector,
        (array_agg(a.subsector ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_subsector,
        (array_agg(a.sector_version ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_sector_version,
        (array_agg(COALESCE(a.is_reviewed, false) ORDER BY a.created_at DESC, a.id DESC))[1] AS latest_is_reviewed,
@@ -59,6 +60,7 @@ export async function getAnalyzedAccessionsWithRatings(ticker, accessions = [], 
         analysisId: r.analysis_id,
         latestAnalysisId: r.latest_analysis_id,
         latestVersion: r.latest_version,
+        latestSector: r.latest_sector,
         latestSubsector: r.latest_subsector,
         latestSectorVersion: r.latest_sector_version,
         latestIsReviewed: Boolean(r.latest_is_reviewed),

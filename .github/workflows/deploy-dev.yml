@@ -58,8 +58,8 @@ jobs:
             set -e
             cd /var/www/cifra-dev
             git fetch origin development
-            git checkout -B development origin/development
             git reset --hard origin/development
+            git checkout -B development origin/development
             npm ci --no-audit --no-fund
             npm run db:migrate
             sudo fuser -k "3001/tcp" >/dev/null 2>&1 || true

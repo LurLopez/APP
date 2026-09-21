@@ -12,6 +12,7 @@ import {
 let tickerMapCache = null;
 
 export const KNOWN_TICKER_OVERRIDES = {
+  ADBE: { cik: 796343, ticker: 'ADBE', name: 'ADOBE INC.' },
   XOM: { cik: 34088, ticker: 'XOM', name: 'EXXON MOBIL CORP' },
   'BRK-B': { cik: 1067983, ticker: 'BRK-B', name: 'BERKSHIRE HATHAWAY INC' },
   'BRK.B': { cik: 1067983, ticker: 'BRK-B', name: 'BERKSHIRE HATHAWAY INC' },

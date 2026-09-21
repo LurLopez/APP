@@ -21,12 +21,10 @@
    - **Casilla exclusiva de resalte**: El color de resalte y la llamada de nota (`*2`) se aplican **ÚNICAMENTE a la casilla de Beneficio Neto**. Deduciendo o añadiendo la diferencia en nota explicativa. EBT no se colorea por ajustes de impuestos.
 
 4. **Cash Flow con Capital Circulante (WC / WC)**:
-   - El capital circulante teórico anual necesario para el negocio se calcula según la fórmula:
-     $$\text{WC}_{\text{caja, anual}} = (\text{Cuentas por pagar} - \text{Inventarios} - \text{Cuentas por cobrar}) \times (\text{Inflación} + \text{volumen})$$
-     Esta es la expresión del impacto de caja: el signo negativo representa una inversión necesaria en circulante. Es equivalente a $-(\text{Inventarios} + \text{Cuentas por cobrar} - \text{Cuentas por pagar}) \times (\text{Inflación} + \text{volumen})$.
-   - Se prorratea según el horizonte temporal analizado:
-     * Para 3 meses (trimestral): $\text{WC}_{\text{trimestral}} = \text{WC}_{\text{anual}} / 4$.
-     * Para acumulado YTD: $\text{WC}_{\text{YTD}} = \text{WC}_{\text{anual}} \times (\text{meses} / 12)$.
+   - El capital circulante teórico se estima con el **peso agregado histórico** del circulante sobre el flujo operativo sin circulante de los últimos 10 ejercicios (método único, también cuando el informe publica volumen):
+     $$\text{WC}_{\text{teórico}} = \left( \frac{\sum \Delta WC}{\sum (\text{CFO} - \Delta WC)} \right)_{\text{últimos 10 ejercicios}} \times (\text{CFO} - \Delta WC)_{\text{periodo}}$$
+     Ejemplo: CFO 80.000M con ΔWC −20.000M ⇒ base 100.000M y peso del −20 %. El sistema calcula esta estimación de forma determinista (serie histórica de EDGAR) y la entrega en `workingCapitalData`; no se inventa un volumen ni una inflación.
+   - El peso se aplica al flujo del horizonte analizado (el trimestre usa su propio flujo CFO − ΔWC; el acumulado YTD usa el suyo), sin prorrateos aritméticos.
    - **Numeración independiente por bloque**: Cada bloque (1. Ventas, 2. Cash Flow, 3. Asignación de Capital) reinicia sus notas en `*1`.
    - Presentar obligatoriamente en la cabecera de la tabla de Cash Flow los dos escenarios con sus valores numéricos:
      * **`Normal (WC=valorBase)`**: Flujos con la variación de circulante reportada en el periodo.

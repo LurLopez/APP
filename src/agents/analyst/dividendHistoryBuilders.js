@@ -3,6 +3,7 @@
  */
 
 import { parseFinancialValue, formatFinancialValue, extractIncomeTaxesPaid } from './financialParsers.js';
+import { getSectorPolicy, resolveImpairmentAddBack } from './sectorPolicy.js';
 import { t } from '../../utils/i18n.js';
 
 export function buildDividendHistoryFromEdgar(annualSeries, maxYear) {
@@ -99,7 +100,7 @@ export function buildShareCountEvolutionText(sharesHistory, language = 'es') {
   return t('De {prev}M de acciones al cierre de {yearPrev} a {curr}M al cierre de {yearCurr} ({pct})', { prev: fmtShares(prev.shares), yearPrev: prev.year, curr: fmtShares(curr.shares), yearCurr: curr.year, pct: fmtPct }, language);
 }
 
-export function getTaxNormalizationData({ extracted, horizon, isTrimestral, language = 'es' }) {
+export function getTaxNormalizationData({ extracted, horizon, isTrimestral, language = 'es', sector = null }) {
   const facts = extracted.facts ?? {};
   const ebtRow = horizon.sales?.rows?.find((row) => String(row.name).toLowerCase().includes('ebt'));
   const netRow = horizon.sales?.rows?.find((row) => {
@@ -111,8 +112,8 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral, lang
   const netReported = parseFinancialValue(netRow?.normal);
 
   if (!Number.isFinite(ebtAdjusted) && Number.isFinite(ebtReported)) {
-    const impairments = Number(facts[isTrimestral ? 'impairmentsQuarter' : 'impairmentsYtd']) || 0;
-    ebtAdjusted = ebtReported + impairments;
+    const policy = getSectorPolicy(sector ?? extracted?.sector);
+    ebtAdjusted = ebtReported + resolveImpairmentAddBack(facts, isTrimestral ? 'Quarter' : 'Ytd', policy);
   }
 
   const normalizedRate = 0.23;

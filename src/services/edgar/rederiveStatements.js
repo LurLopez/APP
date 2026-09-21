@@ -109,9 +109,13 @@ export function rederiveCashValues(annual, quarterly) {
         const total = Number(values.restrictedCash);
         if (!Number.isFinite(total) || partsTotal > total) values.restrictedCash = partsTotal;
       }
-      const stl = Number(values.shortTermLoans);
+      let stl = Number(values.shortTermLoans);
       const ltd = Number(values.longTermDebt);
       const ltdc = Number(values.longTermDebtCurrent);
+      if (Number.isFinite(stl) && Number.isFinite(ltdc) && stl === ltdc) {
+        delete values.shortTermLoans;
+        stl = NaN;
+      }
       const parts = [ltd, stl, ltdc].filter((v) => Number.isFinite(v));
       if (parts.length) {
         values.totalDebt = parts.reduce((a, b) => a + b, 0);

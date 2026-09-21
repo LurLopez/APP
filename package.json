@@ -14,6 +14,7 @@
     "calendar:earnings": "node scripts/earnings-calendar.js",
     "filings:recent": "node scripts/recent-filings.js",
     "analyze:consumer": "node --env-file=.env scripts/analyze-defensive-consumer.js",
+    "analyze:discretionary": "node --env-file=.env scripts/analyze-defensive-consumer.js --sector=discretionary",
     "worker:opencode": "node --env-file=.env scripts/analyze-defensive-consumer.js",
     "commit": "./commit-development.sh",
     "commit:dev": "./commit-development.sh"

@@ -26,3 +26,40 @@ export async function extractTextFromPdf(buffer) {
     }
   }
 }
+
+/**
+ * Verifica si el texto extraído de un PDF es legible y contiene texto real (no fuentes corruptas,
+ * texto escaneado sin OCR o glifos con CMaps rotos).
+ * @param {string} text - Texto extraído del PDF.
+ * @returns {boolean} True si el texto es legible.
+ */
+export function isReadablePdfText(text) {
+  if (!text || typeof text !== 'string') return false;
+  const clean = text.trim();
+  if (clean.length < 100) return false;
+
+  // Si más del 5% de los caracteres son de control no imprimibles (excluyendo \t, \n, \r), la fuente está corrupta.
+  const nonPrintable = (clean.match(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g) || []).length;
+  if (nonPrintable / clean.length > 0.05) return false;
+
+  // En documentos de más de 1000 caracteres, comprobar que contenga palabras clave habituales de informes
+  if (clean.length > 1000) {
+    const secKeywords = [
+      'securities', 'commission', 'form', 'fiscal', 'operating',
+      'income', 'cash', 'flows', 'balance', 'sheet', 'assets',
+      'liabilities', 'revenue', 'sales', 'item', 'notes', 'consolidated',
+      'annual', 'quarterly', 'report', 'december', 'november', 'january'
+    ];
+    let matches = 0;
+    for (const kw of secKeywords) {
+      if (new RegExp(`\\b${kw}\\b`, 'i').test(clean)) {
+        matches += 1;
+        if (matches >= 2) return true;
+      }
+    }
+    return false;
+  }
+
+  return true;
+}
+

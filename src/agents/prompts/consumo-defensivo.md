@@ -10,9 +10,9 @@
 
 3. **Impuestos normalizados (Beneficio Neto)** — Se compara el impuesto reportado con el 23 % del EBT ajustado. Si la desviación supera el -20 % o el +20 %, se normalizan los impuestos al 23 % sobre el EBT ajustado: Beneficio Neto Ajustado = EBT Ajustado × 0,77. El resalte de color y la nota explicativa (*2) se aplican **únicamente a la casilla de Beneficio Neto**.
 
-4. **Cash flow con capital circulante (WC / WC)** — El capital circulante se calcula con la fórmula del usuario:
-   `WC de caja = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (Inflación + volumen) = -(Inventarios + Cuentas por cobrar - Cuentas por pagar) × (Inflación + volumen)`
-   Si el informe no proporciona volumen, se utiliza obligatoriamente volumen = 0 %. Si no proporciona una inflación específica de la empresa, se utiliza una hipótesis sectorial aproximada del 3 % para consumo defensivo y se indica expresamente en la nota.
+4. **Cash flow con capital circulante (WC / WC)** — El WC teórico se estima con el peso agregado histórico del circulante sobre el flujo operativo sin circulante de los últimos 10 ejercicios (método único, también cuando el informe publica volumen):
+   `WC = (ΣΔWC / Σ(CFO − ΔWC) de los últimos 10 ejercicios) × (CFO − ΔWC) del periodo`
+   Ejemplo: CFO 80.000M con ΔWC −20.000M ⇒ base 100.000M y peso del −20 %. El sistema calcula esta estimación de forma determinista (serie histórica de EDGAR) y la entrega en `workingCapitalData`.
    El cash flow se presenta en dos escenarios con valores distintos: **Normal (WC=<valorBase>)** y **Ajustado (WC=<valorAjustado>)**, deduciendo del Cash Flow la desviación de circulante frente a la necesidad teórica normalizada:
    `Desviación WC = WC reportado − WC teórico` y `Cash Flow ajustado = Cash Flow normal − Desviación WC`.
    **Regla de signos en la nota (obligatoria)**: la desviación conserva su signo y la resta se escribe de forma explícita, sin frases contradictorias. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WC teórico (12,1M): -159,1M. El Cash Flow tras el ajuste de circulante queda en: 1784,4M - (-159,1M) = 1943,5M.` Queda prohibido escribir `ajuste de -159M (1784,4M + 159,1M)`. Prohibido llamar «Cash Flow Ajustado» al resultado del ajuste de circulante cuando después se aplica un ajuste fiscal (nota *2): ese resultado es un subtotal intermedio y el único «Cash Flow Ajustado» es el valor final de la tabla.

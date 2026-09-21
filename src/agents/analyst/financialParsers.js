@@ -3,7 +3,7 @@
  * @module agents/analyst/financialParsers
  */
 
-export { parseFinancialValue, extractTaxCashFlowAdjustment, extractIncomeTaxesPaid, extractCapitalCashFlowFacts, extractEquityIssuance, extractDebtCashFlow, parseLooseReportNumber, normalizeNumericCell, parseDollarAmount, extractRemainingAuthorization, extractRepurchaseProgramTerms, extractRepurchaseFactsFromText, extractExecutiveChangesFromText, isPlaceholderText, cleanAssetDescription } from './financialParsersExtract.js';
+export { parseFinancialValue, extractTaxCashFlowAdjustment, extractIncomeTaxesPaid, extractStockCompensation, extractCapitalCashFlowFacts, extractAnnualWorkingCapitalChange, extractEquityIssuance, extractDebtCashFlow, parseLooseReportNumber, normalizeNumericCell, parseDollarAmount, extractRemainingAuthorization, extractRepurchaseProgramTerms, extractRepurchaseFactsFromText, extractExecutiveChangesFromText, isStaleExecutiveChange, isPlaceholderText, cleanAssetDescription } from './financialParsersExtract.js';
 export { parseLooseAmount, computeAllDebtAverageRate, computeEstimatedDebtRateFromIncome, formatFinancialValue, formatCellNumber, normalizeExtractedUnits, formatFiscalEndLabel } from './financialParsersFormat.js';
 
 /**

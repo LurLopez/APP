@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análisis IA — Explicación del código (Cifra)</title>
+<style>
+  :root {
+    --bg: #0f1520;
+    --panel: #182235;
+    --panel-2: #1e2a42;
+    --border: #2a3a5a;
+    --text: #e8edf6;
+    --muted: #9aa8c0;
+    --accent: #4da3ff;
+    --green: #3ddc97;
+    --red: #ff6b6b;
+    --amber: #ffb454;
+    --purple: #b48bf2;
+    --cyan: #4dd7e8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    padding: 40px 16px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+
+  .cat-frontend    { --cat: var(--accent); }
+  .cat-backend     { --cat: var(--green); }
+  .cat-api-datos   { --cat: var(--amber); }
+  .cat-analisis-ia { --cat: var(--purple); }
+
+  .hero {
+    background: linear-gradient(135deg, #16233c 0%, #1e2a42 60%, #21304d 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px;
+    text-align: center;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 80% 20%, rgba(77,163,255,.15), transparent 60%);
+    pointer-events: none;
+  }
+  .hero h1 { font-size: 1.7rem; position: relative; z-index: 1; }
+  .hero h1 span { color: var(--cat, var(--accent)); }
+  .hero p { color: var(--muted); margin-top: 8px; position: relative; z-index: 1; }
+  .badges { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; position: relative; z-index: 1; }
+  .badge {
+    display: inline-block; padding: 4px 12px; border-radius: 999px;
+    font-size: .78rem; font-weight: 600; border: 1px solid;
+  }
+  .b-blue  { color: var(--accent); border-color: var(--accent); background: rgba(77,163,255,.08); }
+  .b-green { color: var(--green); border-color: var(--green); background: rgba(61,220,151,.08); }
+  .b-amber { color: var(--amber); border-color: var(--amber); background: rgba(255,180,84,.08); }
+  .b-purple{ color: var(--purple); border-color: var(--purple); background: rgba(180,139,242,.08); }
+
+  .nav { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 24px; }
+  .nav a {
+    color: var(--muted); text-decoration: none; padding: 7px 14px;
+    border: 1px solid var(--border); border-radius: 999px; font-size: .88rem;
+  }
+  .nav a:hover { color: var(--text); border-color: var(--cat, var(--accent)); }
+  .nav a.active { color: var(--cat, var(--accent)); border-color: var(--cat, var(--accent)); background: rgba(77,163,255,.08); font-weight: 600; }
+
+  h2.section-title { font-size: 1.1rem; margin: 28px 0 14px; }
+  h2.section-title span { color: var(--muted); font-weight: 400; font-size: .9rem; }
+
+  .qa-list { display: flex; flex-direction: column; gap: 18px; }
+  .qa {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cat, var(--accent));
+    border-radius: 12px;
+    padding: 20px 22px;
+  }
+  .qa-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .qa-num { font-weight: 700; color: var(--cat, var(--accent)); font-family: 'Cascadia Code', Consolas, monospace; }
+  .qa-head h3 { font-size: 1.05rem; }
+  .qa-date { margin-left: auto; color: var(--muted); font-size: .8rem; }
+  .qa-body { margin-top: 10px; }
+  .qa-body p + p { margin-top: 8px; }
+  .qa-ref { color: var(--muted); font-size: .85rem; }
+  code {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 1px 6px; font-family: 'Cascadia Code', Consolas, monospace; font-size: .85em;
+  }
+  .empty { color: var(--muted); font-style: italic; }
+
+  footer { margin-top: 40px; text-align: center; color: var(--muted); font-size: .82rem; }
+</style>
+</head>
+<body class="cat-analisis-ia">
+<div class="wrap">
+  <header class="hero">
+    <h1><span>Análisis IA</span></h1>
+    <p>Agentes (<code>src/agents/</code>), prompts y knowledge, proveedores de IA, pipeline e informes/PDF.</p>
+    <div class="badges">
+      <span class="badge b-purple">Análisis IA · <span id="qa-count">0</span> preguntas</span>
+    </div>
+  </header>
+
+  <nav class="nav">
+    <a href="index.html">Índice</a>
+    <a href="frontend.html">Frontend</a>
+    <a href="backend.html">Backend</a>
+    <a href="api-datos.html">API/Datos</a>
+    <a href="analisis-ia.html" class="active">Análisis IA</a>
+  </nav>
+
+  <h2 class="section-title">Preguntas y respuestas <span>· se añaden al final, con fecha y numeración</span></h2>
+
+  <div class="qa-list" id="qa-list">
+    <p class="empty" id="qa-empty">Aún no hay preguntas apuntadas en esta categoría. Pídeselo al agente <code>explicador-codigo</code> cuando quieras guardar una.</p>
+    <!-- PLANTILLA Q&A (el agente explicador-codigo añade aquí los bloques &lt;article&gt; y actualiza #qa-count e index.html#count-analisis-ia):
+    <article class="qa" id="q-1">
+      <div class="qa-head">
+        <span class="qa-num">P1</span>
+        <h3>¿Pregunta?</h3>
+        <span class="qa-date">YYYY-MM-DD</span>
+      </div>
+      <div class="qa-body">
+        <p>Respuesta…</p>
+        <p class="qa-ref">Código: <code>ruta/archivo.js:120</code></p>
+      </div>
+    </article>
+    -->
+  </div>
+
+  <footer>Documentación interna de Cifra · Creada el 2026-09-20 · Se actualiza con el agente <code>explicador-codigo</code>.</footer>
+</div>
+</body>
+</html>

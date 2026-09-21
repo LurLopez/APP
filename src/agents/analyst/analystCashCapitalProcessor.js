@@ -33,38 +33,63 @@ function isTrimestralHorizon(horizon) {
 }
 
 /**
- * Redacta la cadena de ajustes del Cash Flow (circulante e impuestos) para que la tabla
- * no oculte dos ajustes grandes de signo opuesto tras un neto pequeño.
- * @param {object} params - Cifras del escenario normal, tras circulante, final y ajuste fiscal.
+ * Redacta la cadena de ajustes del Cash Flow (circulante, impuestos y stock options) para que la tabla
+ * no oculte ajustes grandes de signo opuesto tras un neto engañoso.
+ * @param {object} params - Cifras del escenario normal, tras circulante, final, ajuste fiscal y ajuste SBC.
  * @returns {string} Frase de desglose o cadena vacía si faltan datos.
  */
-export function buildCashFlowAdjustmentChain({ normalCfo, afterWc, finalCfo, taxAdjustment, language = 'es' }) {
+export function buildCashFlowAdjustmentChain({ normalCfo, afterWc, finalCfo, taxAdjustment, sbcAdjustment, language = 'es' }) {
   const lang = normalizeLanguage(language);
   const normal = Number(normalCfo);
   const afterWcNum = Number(afterWc);
   const final = Number(finalCfo);
   const tax = Number(taxAdjustment);
-  if (![normal, afterWcNum, final, tax].every(Number.isFinite)) return '';
+  const sbc = Number(sbcAdjustment);
+  const hasTax = Number.isFinite(tax) && tax !== 0;
+  const hasSbc = Number.isFinite(sbc) && sbc !== 0;
+
+  if (![normal, afterWcNum, final].every(Number.isFinite)) return '';
+  if (!hasTax && !hasSbc) return '';
+
   const wcAdjustment = Math.round((afterWcNum - normal) * 10) / 10;
   const netAdjustment = Math.round((final - normal) * 10) / 10;
-  const parts = [
-    t('La cifra final combina los dos ajustes sobre el Cash Flow: {normal}M {wc} (circulante) {tax} (impuestos) = {final}M.', {
-      normal: formatFinancialValue(normal, lang),
-      wc: formatSignedFinancial(wcAdjustment, lang),
-      tax: formatSignedFinancial(tax, lang),
-      final: formatFinancialValue(final, lang),
-    }, lang),
-  ];
-  const gross = Math.max(Math.abs(wcAdjustment), Math.abs(tax));
-  if (wcAdjustment !== 0 && tax !== 0 && Math.abs(netAdjustment) <= gross * 0.25) {
-    parts.push(t('El efecto neto es de solo {net}, porque ambos ajustes se cancelan en gran medida.', {
-      net: formatSignedFinancial(netAdjustment, lang),
-    }, lang));
+
+  if (!hasSbc) {
+    const parts = [
+      t('La cifra final combina los dos ajustes sobre el Cash Flow: {normal}M {wc} (circulante) {tax} (impuestos) = {final}M.', {
+        normal: formatFinancialValue(normal, lang),
+        wc: formatSignedFinancial(wcAdjustment, lang),
+        tax: formatSignedFinancial(tax, lang),
+        final: formatFinancialValue(final, lang),
+      }, lang),
+    ];
+    const gross = Math.max(Math.abs(wcAdjustment), Math.abs(tax));
+    if (wcAdjustment !== 0 && tax !== 0 && Math.abs(netAdjustment) <= gross * 0.25) {
+      parts.push(t('El efecto neto es de solo {net}, porque ambos ajustes se cancelan en gran medida.', {
+        net: formatSignedFinancial(netAdjustment, lang),
+      }, lang));
+    }
+    return parts.join(' ');
   }
-  return parts.join(' ');
+
+  const chainElements = [
+    `${formatFinancialValue(normal, lang)}M`,
+    `${formatSignedFinancial(wcAdjustment, lang)} (${t('circulante', null, lang)})`,
+  ];
+  if (hasTax) {
+    chainElements.push(`${formatSignedFinancial(tax, lang)} (${t('impuestos', null, lang)})`);
+  }
+  chainElements.push(`${formatSignedFinancial(sbc, lang)} (${t('stock options', null, lang)})`);
+  chainElements.push(`= ${formatFinancialValue(final, lang)}M.`);
+
+  const textIntro = hasTax
+    ? t('La cifra final combina los tres ajustes sobre el Cash Flow:', null, lang)
+    : t('La cifra final combina los ajustes sobre el Cash Flow:', null, lang);
+
+  return `${textIntro} ${chainElements.join(' ')}`;
 }
 
-export function normalizeCashFlowBlock(horizon, extracted, language = 'es') {
+export function normalizeCashFlowBlock(horizon, extracted, language = 'es', sector = null) {
   const lang = normalizeLanguage(language);
   if (!horizon.cashFlow) {
     horizon.cashFlow = {
@@ -88,19 +113,30 @@ export function normalizeCashFlowBlock(horizon, extracted, language = 'es') {
   const wcInfo = extracted.workingCapitalData;
   const targetScenarios = isTrimestral ? wcInfo?.quarterScenarios : wcInfo?.ytdScenarios;
   const targetVals = isTrimestral ? wcInfo?.quarterValues : wcInfo?.ytdValues;
-  const taxNorm = getTaxNormalizationData({ extracted, horizon, isTrimestral, language: lang });
+  const taxNorm = getTaxNormalizationData({ extracted, horizon, isTrimestral, language: lang, sector });
 
-  let taxChainNote = '';
-  if (taxNorm && targetVals?.cfo?.[1] != null) {
+  const rawSbc = isTrimestral
+    ? (extracted.facts?.stockCompensationQuarter
+       ?? extracted.cashFlow?.stockCompensationQuarter
+       ?? (extracted.fiscalQuarter === 1 ? (extracted.facts?.stockCompensation ?? extracted.cashFlow?.stockCompensation) : null))
+    : (extracted.facts?.stockCompensationYtd ?? extracted.facts?.stockCompensation ?? extracted.cashFlow?.stockCompensation ?? extracted.cashFlow?.stockCompensationYtd);
+  const sbcValue = toFiniteNumber(rawSbc);
+  const hasSbc = sbcValue != null && sbcValue > 0;
+  const sbcAdjustment = hasSbc ? -Math.round(sbcValue * 10) / 10 : 0;
+
+  let adjustmentChainNote = '';
+  if ((taxNorm || hasSbc) && targetVals?.cfo?.[1] != null) {
     const adjustedCfo = parseFinancialValue(targetVals.cfo[1]);
     if (Number.isFinite(adjustedCfo)) {
-      const finalCfo = Math.round((adjustedCfo + taxNorm.adjustment) * 10) / 10;
+      const taxAdj = taxNorm ? taxNorm.adjustment : 0;
+      const finalCfo = Math.round((adjustedCfo + taxAdj + sbcAdjustment) * 10) / 10;
       targetVals.cfo[1] = formatFinancialValue(finalCfo, lang);
-      taxChainNote = buildCashFlowAdjustmentChain({
+      adjustmentChainNote = buildCashFlowAdjustmentChain({
         normalCfo: parseFinancialValue(targetVals.cfo[0]),
         afterWc: adjustedCfo,
         finalCfo,
-        taxAdjustment: taxNorm.adjustment,
+        taxAdjustment: taxNorm ? taxNorm.adjustment : null,
+        sbcAdjustment: hasSbc ? sbcAdjustment : null,
         language: lang,
       });
       const adjustedCapex = parseFinancialValue(targetVals.capex?.[1]);
@@ -119,7 +155,7 @@ export function normalizeCashFlowBlock(horizon, extracted, language = 'es') {
 
   const cfoRow = horizon.cashFlow.rows.find((r) => /cash flow|flujo de caja/i.test(String(r.name)));
   if (cfoRow) {
-    if (taxNorm) cfoRow.cashFlowAdjustedNote = '*2';
+    if (taxNorm || hasSbc) cfoRow.cashFlowAdjustedNote = '*2';
     else delete cfoRow.cashFlowAdjustedNote;
   }
 
@@ -231,12 +267,29 @@ export function normalizeCashFlowBlock(horizon, extracted, language = 'es') {
     if (idx !== -1) horizon.cashFlow.notes[idx] = noteText;
     else horizon.cashFlow.notes.push(noteText);
   }
+  let nextNoteNum = 2;
   if (taxNorm) {
-    const baseTaxNote = `*2: ${taxNorm.explanation.replace(/^\*\d+:?\s*/, '')}`;
-    const taxNote = taxChainNote ? `${baseTaxNote} ${taxChainNote}` : baseTaxNote;
+    const baseTaxNote = `*${nextNoteNum}: ${taxNorm.explanation.replace(/^\*\d+:?\s*/, '')}`;
+    const taxNote = (!hasSbc && adjustmentChainNote) ? `${baseTaxNote} ${adjustmentChainNote}` : baseTaxNote;
     const idx = horizon.cashFlow.notes.findIndex((n) => /impuestos|taxes/i.test(n));
     if (idx !== -1) horizon.cashFlow.notes[idx] = taxNote;
     else horizon.cashFlow.notes.push(taxNote);
+    nextNoteNum++;
+  }
+
+  if (hasSbc) {
+    const sbcAdjustmentFormatted = formatFinancialValue(Math.abs(sbcAdjustment), lang);
+    const sbcFormatted = formatFinancialValue(sbcValue, lang);
+    const baseSbcExplanation = t('Stock Options / Compensación en acciones (SBC): La empresa reporta {sbc}M en remuneración basada en acciones añadida al flujo operativo. Al suponer una dilución efectiva del accionista y concederse habitualmente con descuento, bajo un criterio conservador se deduce el importe íntegro de esta partida (-{sbcAdjustment}M) del Cash Flow Ajustado.', {
+      sbc: sbcFormatted,
+      sbcAdjustment: sbcAdjustmentFormatted,
+    }, lang);
+    const sbcNoteText = adjustmentChainNote
+      ? `*${nextNoteNum}: ${baseSbcExplanation} ${adjustmentChainNote}`
+      : `*${nextNoteNum}: ${baseSbcExplanation}`;
+    const idx = horizon.cashFlow.notes.findIndex((n) => /stock options|sbc|compensación en acciones|share-based compensation/i.test(n));
+    if (idx !== -1) horizon.cashFlow.notes[idx] = sbcNoteText;
+    else horizon.cashFlow.notes.push(sbcNoteText);
   }
 }
 

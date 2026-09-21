@@ -11,6 +11,7 @@ import { Readable } from 'node:stream';
 import { USER_AGENT } from './statementConcepts.js';
 import { getCompanyFilings } from './filingPeriods.js';
 import { assertPublicUrl } from '../../utils/ssrfGuard.js';
+import { extractTextFromPdf, isReadablePdfText } from '../pdf.service.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -156,12 +157,13 @@ async function findFilingPdfUrl(company, filing) {
   if (!Array.isArray(items)) return null;
   const pdfs = items
     .filter((item) => typeof item.name === 'string' && item.name.toLowerCase().endsWith('.pdf'))
+    .filter((item) => !/unofficial/i.test(item.name))
     .map((item) => item.name);
   if (!pdfs.length) return null;
   const stem = filing.documentName.replace(/\.html?$/, '').toLowerCase();
   const match = pdfs.find((name) => name.toLowerCase().replace(/\.pdf$/, '') === stem);
   if (match) return match;
-  return pdfs.sort((a, b) => b.length - a.length)[0];
+  return null;
 }
 
 /**
@@ -193,7 +195,18 @@ export async function getFilingPdfPath(company, filing) {
   const filePath = filingPdfCachePath(filing);
   try {
     const stat = fs.statSync(filePath);
-    if (stat.isFile() && stat.size > 0) return filePath;
+    if (stat.isFile() && stat.size > 0) {
+      try {
+        const text = await extractTextFromPdf(fs.readFileSync(filePath));
+        if (isReadablePdfText(text)) {
+          return filePath;
+        }
+        console.warn(`[filingDocuments] El PDF en caché ${filePath} tiene texto no legible o corrupto. Se descarta para regenerarlo.`);
+        fs.unlinkSync(filePath);
+      } catch {
+        try { fs.unlinkSync(filePath); } catch {}
+      }
+    }
   } catch {
     // Generar o descargar
   }
@@ -209,8 +222,17 @@ export async function getFilingPdfPath(company, filing) {
         signal: AbortSignal.timeout(60000),
       });
       if (response.ok) {
-        fs.writeFileSync(filePath, Buffer.from(await response.arrayBuffer()));
-        return filePath;
+        const downloadedBuffer = Buffer.from(await response.arrayBuffer());
+        try {
+          const text = await extractTextFromPdf(downloadedBuffer);
+          if (isReadablePdfText(text)) {
+            fs.writeFileSync(filePath, downloadedBuffer);
+            return filePath;
+          }
+          console.warn(`[edgar:pdf] El PDF descargado ${realPdf} no tiene texto legible (fuentes corruptas o escaneado). Se renderizará el HTML oficial con Chrome.`);
+        } catch {
+          console.warn(`[edgar:pdf] No se pudo leer el texto del PDF descargado ${realPdf}. Se renderizará el HTML oficial con Chrome.`);
+        }
       }
     } catch {
       // Continuar con Chrome
@@ -291,7 +313,16 @@ export async function getFilingContentBuffer(ticker, accession) {
   if (!filing) return null;
   const filePath = await getFilingPdfPath(company, filing);
   if (filePath) {
-    return { filing, buffer: fs.readFileSync(filePath), kind: 'pdf' };
+    const buffer = fs.readFileSync(filePath);
+    try {
+      const text = await extractTextFromPdf(buffer);
+      if (isReadablePdfText(text)) {
+        return { filing, buffer, kind: 'pdf' };
+      }
+      console.warn(`[filingContent] El PDF en ${filePath} no tiene texto legible. Se recurre al HTML oficial de EDGAR.`);
+    } catch {
+      console.warn(`[filingContent] Error al extraer texto del PDF en ${filePath}. Se recurre al HTML oficial.`);
+    }
   }
   await assertPublicUrl(filing.documentUrl);
   const response = await fetch(filing.documentUrl, {

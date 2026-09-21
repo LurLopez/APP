@@ -59,8 +59,8 @@ jobs:
             set -e
             cd /var/www/cifra-prod
             git fetch origin production
-            git checkout -B production origin/production
             git reset --hard origin/production
+            git checkout -B production origin/production
             npm ci --omit=dev --no-audit --no-fund
             npm run db:migrate
             sudo fuser -k "3000/tcp" >/dev/null 2>&1 || true

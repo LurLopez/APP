@@ -5,6 +5,7 @@
 import { getFilingContentBuffer, getPresentationBuffers } from '../src/services/edgar.service.js';
 import { analyzePdf, analyzeText, htmlToText, buildPresentationText } from '../src/services/analysis.service.js';
 import { CONSUMER_STAPLES_UNIVERSE } from './data/consumer-staples.js';
+import { KNOWN_CONSUMER_DISCRETIONARY_TICKERS } from '../src/agents/sectorAgent.js';
 
 const args = process.argv.slice(2);
 
@@ -39,11 +40,24 @@ export const TARGET_PROVIDER = getArg('provider', process.env.WORKER_AI_PROVIDER
 
 export const UNIVERSE_MODE = String(getArg('universe', process.env.WORKER_UNIVERSE || 'curated')).trim().toLowerCase();
 
+// Sector del trabajador: 'staples' (por defecto) o 'discretionary'. El análisis
+// clasifica cada informe con el agente de sector, así que la única diferencia es
+// el universo de tickers que recorre el trabajador.
+export const SECTOR_SCOPE = String(getArg('sector', process.env.WORKER_SECTOR || 'staples')).trim().toLowerCase();
+export const IS_DISCRETIONARY_SCOPE = ['discretionary', 'discrecional', 'consumer_discretionary', 'consumer-discretionary'].includes(SECTOR_SCOPE);
+export const SECTOR_LABEL = IS_DISCRETIONARY_SCOPE ? 'CONSUMO DISCRECIONAL' : 'CONSUMO DEFENSIVO';
+
 const YEARS_OPTION = getArg('years', process.env.WORKER_YEARS || null);
 
 const FROM_YEAR_ARG = getArg('from-year', null);
 
 export function resolveUniverse(mode) {
+  if (IS_DISCRETIONARY_SCOPE) {
+    return {
+      label: `lista curada de consumo discrecional (${KNOWN_CONSUMER_DISCRETIONARY_TICKERS.size} empresas)`,
+      tickers: [...KNOWN_CONSUMER_DISCRETIONARY_TICKERS],
+    };
+  }
   if (['large', 'big', '1000', '1000m'].includes(mode)) {
     return {
       label: 'grandes de EE. UU. (>1.000M $)',
@@ -75,6 +89,8 @@ export function resolveYears() {
   const fromYear = new Date().getFullYear() - years + 1;
   return { fromYear, label: `últimos ${years} años (desde ${fromYear})` };
 }
+
+export const { fromYear: FROM_YEAR, label: YEARS_LABEL } = resolveYears();
 
 const CURATED_DEFENSIVE_CONSUMER_TICKERS = [
   // Bebidas (Refrescos, Agua, Café, Energéticas)

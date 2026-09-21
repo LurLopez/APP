@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { extractTextFromPdf } from './pdf.service.js';
+import { extractTextFromPdf, isReadablePdfText } from './pdf.service.js';
 import { aiContext } from './ai/modelProvider.js';
 import { getAgent } from '../agents/agentRegistry.js';
 import { AgentError } from '../agents/baseAgent.js';
@@ -183,9 +183,9 @@ export async function analyzeText(text, options = {}) {
  */
 export async function analyzePdf(buffer, options = {}) {
   const text = await extractTextFromPdf(buffer);
-  if (!text || text.trim().length < 100) {
+  if (!text || text.trim().length < 100 || !isReadablePdfText(text)) {
     throw new AgentError(
-      'El PDF no contiene texto legible (parece un escaneo o está compuesto por imágenes). Usa el PDF oficial descargado de SEC EDGAR.',
+      'El PDF no contiene texto legible (parece un escaneo, tiene fuentes corruptas o está compuesto por imágenes). Usa el PDF oficial descargado de SEC EDGAR.',
       'PDF_NOT_READABLE',
     );
   }

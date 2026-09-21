@@ -246,7 +246,7 @@ function checkNoteConsistency(horizon, findings) {
   const netRow = salesRows.find((row) => normalize(row.name) === 'beneficio neto');
   const netAdjusted = parseNumber(netRow?.adjusted);
   for (const note of horizon?.sales?.notes ?? []) {
-    const sentence = String(note).match(/Beneficio\s+Neto\s+Ajustado[^.]*?(?=\n|$)/i);
+    const sentence = String(note).match(/Beneficio\s+Neto\s+Ajustado([^.\n]*)(?:\.|$)/i);
     if (sentence && netAdjusted !== null) {
       const numbers = [...sentence[0].matchAll(/=\s*(-?[\d.,]+)\s*M/gi)];
       const noteValue = numbers.length ? parseNumber(numbers[numbers.length - 1][1]) : null;

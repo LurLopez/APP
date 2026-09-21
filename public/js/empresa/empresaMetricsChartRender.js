@@ -116,6 +116,11 @@
       });
     });
 
+    const allSeriesHidden = allSeries.length > 0 && allSeries.every((entry) => entry.hidden);
+    const toggleAllButton = allSeries.length > 1
+      ? `<button type="button" class="metrics-legend-toggle-all" id="metrics-legend-toggle-all" aria-pressed="${allSeriesHidden}">${allSeriesHidden ? 'Mostrar todos' : 'Ocultar todos'}</button>`
+      : '';
+
     legend.innerHTML = allSeries.map((entry) => `
       <span class="metrics-legend-item${entry.hidden ? ' is-hidden-series' : ''}">
         <button type="button" class="metrics-swatch" data-series-id="${escapeHtml(entry.id)}" aria-label="Cambiar el color de ${escapeHtml(entry.label)}" style="background:${entry.color}"></button>
@@ -123,7 +128,7 @@
         <span class="metrics-legend-type">${metricChartType(entry.metric) === 'bar' ? 'barras' : 'línea'}</span>
         <button type="button" class="metrics-legend-visibility${entry.hidden ? ' is-hidden' : ''}" data-series-id="${escapeHtml(entry.id)}" aria-pressed="${!entry.hidden}" aria-label="${entry.hidden ? 'Mostrar' : 'Ocultar'} ${escapeHtml(entry.label)} en el gráfico" title="${entry.hidden ? 'Mostrar en el gráfico' : 'Ocultar en el gráfico'}">${entry.hidden ? EYE_OFF_SVG : EYE_SVG}</button>
         <button type="button" class="metrics-legend-remove" data-remove-key="${escapeHtml(entry.metric.key)}" aria-label="Quitar ${escapeHtml(entry.metric.label)} del gráfico">×</button>
-      </span>`).join('');
+      </span>`).join('') + toggleAllButton;
 
     const body = document.querySelector('#metrics-chart-body');
     body.querySelectorAll('.metric-cagr-label').forEach((el) => el.remove());

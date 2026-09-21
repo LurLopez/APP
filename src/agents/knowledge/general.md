@@ -106,16 +106,22 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
   - La columna Normal muestra el flujo de caja reportado por la empresa.
   - La columna Ajustada normaliza la variación del capital circulante (Working Capital):
     1. **Circulante Base**: Variación del circulante reportada en el estado de flujos de caja.
-    2. **Circulante Teórico**: Calculado según la fórmula de la empresa y sector:
-       $$\text{WC}_{\text{caja}} = (\text{Cuentas por pagar} - \text{Inventario} - \text{Cuentas por cobrar}) \times (\text{inflación} + \text{volumen})$$
-       Esta formulación expresa directamente el impacto de caja: una inversión necesaria de circulante aparece con signo negativo. Es equivalente a $-(\text{Inventario} + \text{Cuentas por cobrar} - \text{Cuentas por pagar}) \times (\text{inflación} + \text{volumen})$.
-       Si no existe dato de volumen, se fija en 0 %. Si no existe inflación propia de la empresa, se utiliza la hipótesis sectorial definida para el sector y se etiqueta como estimación.
+    2. **Circulante Teórico**: Estimado con el peso agregado histórico del circulante sobre el flujo operativo sin circulante de los últimos 10 ejercicios (método único, también cuando el informe publica volumen):
+        $$\text{WC}_{\text{teórico}} = \left( \frac{\sum \Delta WC}{\sum (\text{CFO} - \Delta WC)} \right)_{\text{últimos 10 ejercicios}} \times (\text{CFO} - \Delta WC)_{\text{periodo}}$$
+        Ejemplo: CFO 80.000M con ΔWC −20.000M ⇒ base 100.000M y peso del −20 %. El sistema calcula esta estimación de forma determinista (serie histórica de EDGAR) y la entrega en `workingCapitalData`; no se inventa un volumen ni una inflación.
      3. **Ajuste del Flujo**: Se descuenta la diferencia entre el circulante base y el teórico ($\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - (\text{WC}_{\text{base}} - \text{WC}_{\text{teórico}})$), recalculando FCF, FCF/Acción y Libre.
        4. **Normalización fiscal del Cash Flow**: El trabajo analítico consiste en calcular cuántos impuestos debería pagar la empresa en realidad (23 % sobre el EBT ajustado) y cuánto consta que ha pagado en los cash flows (bien directamente por la línea de efectivo pagado como "Income tax (paid) received" / "Income taxes paid", o bien mediante la conciliación "Gasto fiscal - Ajuste fiscal del cash flow / impuestos diferidos"). Si existe una discrepancia entre los impuestos pagados y los normalizados, se ajusta el Cash Flow en la columna Ajustado:
           $$\text{Ajuste fiscal} = \text{Impuestos pagados en efectivo} - (0,23 \times \text{EBT Ajustado})$$
           $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{ajustado por WC}} + \text{Ajuste fiscal}$$
           Si la empresa pagó menos impuestos de lo normalizado, el Cash Flow disminuye (ajuste negativo); si pagó más, aumenta (ajuste positivo). Este ajuste se aplica ante cualquier discrepancia material para corregir la distorsión del flujo operativo, añadiéndose la Nota `*2: Impuestos: ...` con el desglose exacto de lo que debería haber pagado frente a lo pagado realmente.
-      - **Ejemplo**: EBT ajustado 1.385,4M, impuestos normalizados al 23 % = 318,6M. Si en el estado de flujos consta que pagó 131,4M, ha pagado 187,2M de menos: el Cash Flow Ajustado resta -187,2M y se añade la Nota `*2`. Si el EBT ajustado fuese 100M (23M normalizados) y pagó 30M, el Cash Flow Ajustado recibe +7M.
+        - **Ejemplo**: EBT ajustado 1.385,4M, impuestos normalizados al 23 % = 318,6M. Si en el estado de flujos consta que pagó 131,4M, ha pagado 187,2M de menos: el Cash Flow Ajustado resta -187,2M y se añade la Nota `*2`. Si el EBT ajustado fuese 100M (23M normalizados) y pagó 30M, el Cash Flow Ajustado recibe +7M.
+     5. **Ajuste de Stock Options / Compensación en Acciones (SBC)**:
+        - La remuneración basada en acciones (Stock-based compensation / Share-based compensation) añadida de vuelta al flujo operativo en el estado de flujos de caja no requiere salida de caja inmediata, pero diluye de forma directa a los accionistas existentes. Además, las opciones sobre acciones y planes de incentivos suelen concederse habitualmente con descuento.
+        - **Criterio conservador del importe íntegro**: Para reflejar el coste económico real que soporta el accionista por la dilución, en la columna **Ajustado** del Cash Flow se deduce obligatoriamente el **importe íntegro reportado** en esa partida del estado de flujos (sin multiplicadores adicionales):
+          $$\text{Ajuste SBC} = -\text{SBC}$$
+          $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{ajustado por WC / fiscal}} - \text{SBC}$$
+        - Este ajuste recalcula en cascada el FCF, el FCF/Acción y el Libre de la columna Ajustado.
+        - Se acompaña de la nota al pie correspondiente (`*2` o `*3`, según si existió previamente normalización fiscal), cuantificando la partida reportada, el importe íntegro deducido (−SBC) por efecto de la dilución y la conciliación matemática completa de los ajustes sobre el flujo de caja.
   - Queda estrictamente prohibido renderizar una sola columna en este bloque o duplicar los mismos valores en ambas columnas. Cada fila debe contener dos valores comparativos distintos cuando exista impacto de circulante. Queda prohibido dejar puntos suspensivos `(WC=...)` en las cabeceras; deben figurar los importes numéricos concretos.
 
 - **Deducción Trimestral Sistemática para Q2, Q3 y Q4**:

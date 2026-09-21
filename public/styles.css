@@ -663,6 +663,8 @@ body.screener-table-dragging {
 .metrics-legend-item.is-hidden-series { opacity: .6; }
 .metrics-legend-item.is-hidden-series .metrics-legend-label { text-decoration: line-through; }
 .metrics-legend-item.is-hidden-series .metrics-swatch { opacity: .35; filter: grayscale(1); }
+.metrics-legend-toggle-all { height: 22px; margin-left: 2px; padding: 0 10px; border: 1px dashed var(--line-mid); border-radius: 12px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 600; cursor: pointer; }
+.metrics-legend-toggle-all:hover { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
 .metric-favorite-btn { display: inline-grid; width: 18px; height: 18px; margin-right: 5px; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #b6bcc6; cursor: pointer; vertical-align: -4px; transition: color .12s, background .12s, transform .12s; }
 .metric-favorite-btn:hover { background: var(--red-bg); color: var(--red); transform: scale(1.12); }
 .metric-favorite-btn.is-favorite { color: var(--red); }

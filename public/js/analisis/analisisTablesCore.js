@@ -16,7 +16,7 @@
     return palette[(num - 1) % palette.length];
   }
 
-  function renderNotes(notes) {
+  function renderNotes(notes, options = {}) {
     const list = (Array.isArray(notes) ? notes : []).filter(Boolean);
     if (!list.length) return '';
     return `<ul class="report-notes">${list.map((note) => {
@@ -24,7 +24,8 @@
       const match = raw.match(/^\*(\d+):?\s*([\s\S]*)$/);
       if (match) {
         const num = match[1];
-        const cls = getHighlightClass(num);
+        const colorNum = (options.isCashFlow && (num === '3' || num === 3)) ? '2' : num;
+        const cls = getHighlightClass(colorNum);
         return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${escapeHtml(match[2]).replaceAll('\n', '<br>')}</li>`;
       }
       return `<li>${escapeHtml(raw)}</li>`;
@@ -161,7 +162,7 @@
         const lower = String(n || '').toLowerCase();
         return !lower.includes('deducido del acumulado') && !lower.includes('flujo trimestral deducido');
       });
-      html += renderNotes(cfNotes);
+      html += renderNotes(cfNotes, { isCashFlow: true });
     }
 
     const capital = horizon.capital ?? {};

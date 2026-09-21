@@ -19,13 +19,15 @@ export function pctColor(value) {
   return null;
 }
 
-export function buildNotes(notes) {
+export function buildNotes(notes, options = {}) {
   return (Array.isArray(notes) ? notes : []).filter(Boolean).map((note) => {
     const raw = sanitize(note);
     const match = raw.match(/^\*(\d+):?\s*([\s\S]*)$/);
     if (match) {
-      const scheme = getHighlight(match[1]);
-      return { marker: `*${match[1]}:`, text: match[2], bg: scheme.bg, color: scheme.text, italic: false };
+      const num = match[1];
+      const colorNum = (options.isCashFlow && (num === '3' || num === 3)) ? '2' : num;
+      const scheme = getHighlight(colorNum);
+      return { marker: `*${num}:`, text: match[2], bg: scheme.bg, color: scheme.text, italic: false };
     }
     return { marker: null, text: raw, italic: true, color: COLORS.muted };
   });
@@ -110,7 +112,7 @@ export function buildCashFlowSection(cashFlow, language = 'es') {
     return !lower.includes('deducido del acumulado') && !lower.includes('flujo trimestral deducido');
   });
 
-  return { title: t('2. CASH FLOW', null, lang), table: { columns, widths, headers, rows }, notes: buildNotes(notes) };
+  return { title: t('2. CASH FLOW', null, lang), table: { columns, widths, headers, rows }, notes: buildNotes(notes, { isCashFlow: true }) };
 }
 
 export function buildCapitalSection(capital, language = 'es') {

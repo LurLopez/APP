@@ -74,7 +74,7 @@ function drawCashFlow(doc, cashFlow, margin, y, lang) {
     const lower = String(n || '').toLowerCase();
     return !lower.includes('deducido del acumulado') && !lower.includes('flujo trimestral deducido');
   });
-  curY = drawNotes(doc, cfNotes, curY);
+  curY = drawNotes(doc, cfNotes, curY, { isCashFlow: true });
   return drawHorizontalRule(doc, curY);
 }
 

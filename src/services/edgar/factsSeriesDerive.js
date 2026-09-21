@@ -221,8 +221,13 @@ function deriveBalanceSheetMetrics(values) {
   });
   setDerived(values, 'totalDebt', (data) => {
     const toNum = (value) => (value === undefined || value === null) ? null : Number(value);
-    const parts = [toNum(data.longTermDebt), toNum(data.shortTermLoans), toNum(data.longTermDebtCurrent)]
-      .filter((value) => value !== null && Number.isFinite(value));
+    const ltd = toNum(data.longTermDebt);
+    let stl = toNum(data.shortTermLoans);
+    const ltdc = toNum(data.longTermDebtCurrent);
+    if (stl !== null && ltdc !== null && stl === ltdc) {
+      stl = null;
+    }
+    const parts = [ltd, stl, ltdc].filter((value) => value !== null && Number.isFinite(value));
     return parts.length ? parts.reduce((sum, value) => sum + value, 0) : undefined;
   });
   setDerived(values, 'netDebt', (data) => Number.isFinite(Number(data.totalDebt)) && Number.isFinite(Number(data.cashAndShortTermInvestments ?? data.cash))

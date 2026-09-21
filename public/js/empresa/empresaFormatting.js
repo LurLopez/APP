@@ -241,6 +241,7 @@
     if (isEn) {
       let sec = info.sector && info.sector !== '—' ? info.sector.toLowerCase() : '';
       if (sec.includes('consumo defensivo')) sec = 'consumer defensive';
+      if (sec.includes('consumo discrecional')) sec = 'consumer discretionary';
       const sectorPart = sec ? ` in the ${sec} sector` : '';
       const exchangePart = info.exchange ? ` Listed on ${info.exchange}.` : '';
       title = `${ticker} (${name}) — 10-Q & 10-K SEC Filings, Analysis | Cifra`;

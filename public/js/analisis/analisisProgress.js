@@ -32,7 +32,7 @@
     const processingTitle = document.querySelector('#processing-title');
     if (processingTitle) {
       processingTitle.textContent = failedAgent === 'sector'
-        ? 'La empresa no es de consumo defensivo'
+        ? 'Sector no admitido actualmente'
         : failedAgent === 'analyst'
           ? 'No se pudo generar el análisis'
           : 'No se pudo verificar el documento';
@@ -84,7 +84,7 @@
   }
 
   function failAnalysis(data) {
-    const failedAgent = data.code === 'NOT_DEFENSIVE_CONSUMER' ? 'sector'
+    const failedAgent = (data.code === 'NOT_DEFENSIVE_CONSUMER' || data.code === 'UNSUPPORTED_SECTOR') ? 'sector'
       : data.code === 'INVALID_MODEL_RESPONSE' || data.code === 'INVALID_REPORT_STRUCTURE' ? 'analyst'
         : 'origin';
     const message = data.error || 'No se pudo analizar el documento. Inténtalo de nuevo.';

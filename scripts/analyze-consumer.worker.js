@@ -6,7 +6,7 @@ import { getCompanyFilings } from '../src/services/edgar.service.js';
 import { findLatestDoneAnalysis } from '../db/repositories/analysisRepository.js';
 import { isAnalysisOutdated } from '../src/agents/sectorAgent.js';
 import { pool } from '../db/pool.js';
-import { RUN_ONCE, LIST_ONLY, SPECIFIC_TICKERS_RAW, MAX_QUARTERS, PER_FORM, FORCE, DELAY_MS, LOOP_DELAY_MINUTES, CONCURRENCY, TARGET_PROVIDER, UNIVERSE_MODE, resolveUniverse, shouldStop, sleep, runWithConcurrency, timestamp, handleSignals, analyzeSingleFiling, getFilingYear } from './analyze-consumer.core.js';
+import { RUN_ONCE, LIST_ONLY, SPECIFIC_TICKERS_RAW, MAX_QUARTERS, PER_FORM, FORCE, DELAY_MS, LOOP_DELAY_MINUTES, CONCURRENCY, TARGET_PROVIDER, UNIVERSE_MODE, SECTOR_LABEL, FROM_YEAR, YEARS_LABEL, resolveUniverse, shouldStop, sleep, runWithConcurrency, timestamp, handleSignals, analyzeSingleFiling, getFilingYear } from './analyze-consumer.core.js';
 
 async function processCompany(ticker, stats) {
   if (shouldStop) return;
@@ -112,7 +112,7 @@ export async function runWorker() {
   handleSignals();
 
   console.log('='.repeat(70));
-  console.log(' 🚀 TRABAJADOR DE PRE-ANÁLISIS CONTINUO - CONSUMO DEFENSIVO (EE. UU.)');
+  console.log(` 🚀 TRABAJADOR DE PRE-ANÁLISIS CONTINUO - ${SECTOR_LABEL} (EE. UU.)`);
   console.log('='.repeat(70));
   console.log(` • Proveedor IA activo:   ${TARGET_PROVIDER}`);
   console.log(` • Clave OpenCode Go:     ${process.env.OPENCODE_GO_API_KEY ? 'Configurada (OK)' : 'NO ENCONTRADA EN .ENV'}`);

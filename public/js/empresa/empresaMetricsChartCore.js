@@ -83,6 +83,24 @@
     renderMetricsChart();
   }
 
+  function getRenderedSeriesIds() {
+    return [...document.querySelectorAll('#metrics-chart-legend .metrics-legend-visibility')]
+      .map((button) => button.dataset.seriesId)
+      .filter(Boolean);
+  }
+
+  function toggleAllSeriesVisibility() {
+    const seriesIds = getRenderedSeriesIds();
+    if (!seriesIds.length) return;
+    const allHidden = seriesIds.every((seriesId) => hiddenSeries.has(seriesId));
+    seriesIds.forEach((seriesId) => {
+      if (allHidden) hiddenSeries.delete(seriesId);
+      else hiddenSeries.add(seriesId);
+    });
+    saveHiddenSeries();
+    renderMetricsChart();
+  }
+
   function pruneHiddenSeries(predicate) {
     let changed = false;
     [...hiddenSeries].forEach((seriesId) => {
@@ -347,6 +365,7 @@ window.MARGIN_DEFINITIONS = MARGIN_DEFINITIONS;
 window.chartHiddenSeries = hiddenSeries;
 window.isSeriesHidden = isSeriesHidden;
 window.toggleSeriesVisibility = toggleSeriesVisibility;
+window.toggleAllSeriesVisibility = toggleAllSeriesVisibility;
 window.replaceHiddenSeries = replaceHiddenSeries;
 window.pruneHiddenSeriesForMetric = pruneHiddenSeriesForMetric;
 window.pruneHiddenSeriesForCompany = pruneHiddenSeriesForCompany;

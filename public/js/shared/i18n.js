@@ -14,7 +14,7 @@
   const SUPPORTED_LANGUAGES = ['es', 'en'];
   const LANGUAGE_STORAGE_KEY = 'cifra_language';
   const ANALYSIS_LANGUAGE_STORAGE_KEY = 'cifra_analysis_language';
-  const DICTIONARY_VERSION = '10';
+  const DICTIONARY_VERSION = '15';
   const SKIP_SELECTOR = '[data-i18n-skip],script,style,noscript,textarea,pre,code[data-i18n-skip],[contenteditable="true"]';
   const TRANSLATABLE_ATTRIBUTES = ['placeholder', 'title', 'aria-label', 'alt'];
 

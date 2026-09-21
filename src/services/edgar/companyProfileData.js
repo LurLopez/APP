@@ -14,7 +14,7 @@ const SIC_SECTORS = {
   15: 'Construcción', 16: 'Construcción', 17: 'Construcción',
   22: 'Textil', 23: 'Ropa y accesorios', 24: 'Madera y papel', 25: 'Madera y papel', 26: 'Madera y papel',
   27: 'Publicaciones y medios', 29: 'Petróleo y gas', 30: 'Plásticos y caucho', 31: 'Cuero',
-  32: 'Vidrio y cerámica', 33: 'Metales', 34: 'Metales fabricados', 35: 'Maquinaria', 36: 'Electrónica',
+  32: 'Vidrio y cerámica', 33: 'Metales', 34: 'Metales fabricados', 35: 'Maquinaria', 36: 'Equipos eléctricos',
   37: 'Vehículos', 38: 'Instrumentos', 39: 'Manufactura diversa',
   40: 'Transporte', 41: 'Transporte', 42: 'Transporte', 43: 'Correos y mensajería', 44: 'Transporte marítimo',
   45: 'Transporte aéreo', 46: 'Transporte de mercancías', 47: 'Transporte y servicios relacionados',
@@ -24,7 +24,7 @@ const SIC_SECTORS = {
   57: 'Comercio minorista', 59: 'Comercio minorista', 58: 'Restauración',
   60: 'Bancos', 61: 'Bancos', 62: 'Intermediación bursátil', 63: 'Seguros', 64: 'Seguros',
   65: 'Finanzas e inmobiliario', 66: 'Finanzas e inmobiliario', 67: 'Finanzas e inmobiliario',
-  70: 'Hostelería y turismo', 72: 'Servicios personales', 73: 'Servicios informáticos',
+  70: 'Hostelería y turismo', 72: 'Servicios personales', 73: 'Servicios empresariales',
   75: 'Reparación y mantenimiento', 76: 'Reparación y mantenimiento', 78: 'Entretenimiento',
   79: 'Entretenimiento', 80: 'Sanidad', 81: 'Servicios jurídicos', 82: 'Educación', 83: 'Servicios sociales',
   84: 'Museos y exposiciones', 86: 'Organizaciones y asociaciones', 87: 'Servicios de ingeniería',
@@ -34,11 +34,12 @@ const SIC_SECTORS = {
 };
 
 export const WELL_KNOWN_ORIGINS = {
-  AAPL: { sector: 'Maquinaria', country: 'Estados Unidos', cik: 320193, name: 'Apple Inc.' },
+  AAPL: { sector: 'Informática', country: 'Estados Unidos', cik: 320193, name: 'Apple Inc.' },
   MSFT: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 789019, name: 'MICROSOFT CORP' },
   GOOGL: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 1652044, name: 'Alphabet Inc.' },
   GOOG: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 1652044, name: 'Alphabet Inc.' },
   NVDA: { sector: 'Electrónica', country: 'Estados Unidos', cik: 1045810, name: 'NVIDIA CORP' },
+  ADBE: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 796343, name: 'ADOBE INC.' },
   META: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 1326801, name: 'Meta Platforms, Inc.' },
   AMZN: { sector: 'Comercio minorista', country: 'Estados Unidos', cik: 1018724, name: 'AMAZON COM INC' },
   KO: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 21344, name: 'COCA COLA CO' },
@@ -46,13 +47,13 @@ export const WELL_KNOWN_ORIGINS = {
   PG: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 80424, name: 'PROCTER & GAMBLE Co' },
   CAG: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 23217, name: 'CONAGRA BRANDS INC.' },
   GIS: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 40704, name: 'GENERAL MILLS INC' },
-  JNJ: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 200406, name: 'JOHNSON & JOHNSON' },
-  PFE: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 78003, name: 'PFIZER INC' },
-  ABBV: { sector: 'Consumo defensivo', country: 'Estados Unidos', cik: 1551152, name: 'AbbVie Inc.' },
+  JNJ: { sector: 'Química y farmacéutica', country: 'Estados Unidos', cik: 200406, name: 'JOHNSON & JOHNSON' },
+  PFE: { sector: 'Química y farmacéutica', country: 'Estados Unidos', cik: 78003, name: 'PFIZER INC' },
+  ABBV: { sector: 'Química y farmacéutica', country: 'Estados Unidos', cik: 1551152, name: 'AbbVie Inc.' },
   UNH: { sector: 'Seguros', country: 'Estados Unidos', cik: 731766, name: 'UNITEDHEALTH GROUP INC' },
   JPM: { sector: 'Bancos', country: 'Estados Unidos', cik: 19617, name: 'JPMORGAN CHASE & CO' },
   BAC: { sector: 'Bancos', country: 'Estados Unidos', cik: 70858, name: 'BANK OF AMERICA CORP /DE/' },
-  V: { sector: 'Servicios informáticos', country: 'Estados Unidos', cik: 1403161, name: 'VISA INC.' },
+  V: { sector: 'Servicios empresariales', country: 'Estados Unidos', cik: 1403161, name: 'VISA INC.' },
   HD: { sector: 'Comercio minorista', country: 'Estados Unidos', cik: 354950, name: 'HOME DEPOT, INC.' },
   MCD: { sector: 'Restauración', country: 'Estados Unidos', cik: 63908, name: 'MCDONALDS CORP' },
   WMT: { sector: 'Comercio minorista', country: 'Estados Unidos', cik: 104169, name: 'Walmart Inc.' },
@@ -126,11 +127,31 @@ export function latestFactValue(facts, namespace, tags, unit, predicate = () => 
 export function profileSector(sic) {
   const code = Number(sic);
   if (!Number.isFinite(code)) return null;
-  if ((code >= 2000 && code <= 2199) || (code >= 2830 && code <= 2836) || (code >= 2840 && code <= 2844)) {
+  // Consumo defensivo admitido: alimentación, bebidas (incl. alcohólicas), tabaco
+  // y productos de hogar e higiene personal (jabones, detergentes, cosmética).
+  if ((code >= 2000 && code <= 2199) || (code >= 2840 && code <= 2844)) {
     return 'Consumo defensivo';
   }
-  if (code >= 2000 && code <= 2099) return 'Alimentación y bebidas';
-  if (code >= 2100 && code <= 2199) return 'Tabaco';
+  // Farmacéutica y biotecnología: sector NO admitido (no confundir con consumo defensivo).
+  if (code >= 2830 && code <= 2836) return 'Química y farmacéutica';
+  // Tecnología y software admitidos: hardware, semiconductores, componentes y servicios informáticos.
+  if (code >= 3570 && code <= 3579) return 'Informática';
+  if (code >= 3660 && code <= 3679) return 'Tecnología';
+  if (code >= 7370 && code <= 7379) return 'Servicios informáticos';
+  // Consumo discrecional admitido: retail y distribución, restaurantes, ropa y hogar,
+  // e-commerce, concesionarios, vivienda y materiales, y autopartes. Los fabricantes de
+  // automóviles (3711), hoteles (7011) y educación (8200s) quedan fuera. Rangos alineados
+  // con CONSUMER_DISCRETIONARY_SIC_RANGES de src/agents/sectorAgent.js.
+  const consumerDiscretionaryRanges = [
+    [5013, 5015], [5030, 5039], [5200, 5299], [5300, 5399], [5500, 5531],
+    [5600, 5699], [5700, 5799], [5731, 5731], [5734, 5734], [5812, 5813],
+    [5940, 5949], [5961, 5961], [5990, 5999], [2300, 2399], [2510, 2519],
+    [3021, 3021], [3140, 3149], [3630, 3639], [3651, 3651], [3940, 3949],
+    [1520, 1539], [2451, 2452], [3714, 3714],
+  ];
+  if (consumerDiscretionaryRanges.some(([min, max]) => code >= min && code <= max)) {
+    return 'Consumo discrecional';
+  }
   if (code >= 2800 && code <= 2899) return 'Química y farmacéutica';
   return SIC_SECTORS[Math.floor(code / 100)] ?? '—';
 }
@@ -178,11 +199,12 @@ export async function getCompanyOrigin(ticker) {
     return {
       sector: profileSector(submissions?.sic) ?? WELL_KNOWN_ORIGINS[up]?.sector ?? '—',
       country: profileCountry(submissions) ?? WELL_KNOWN_ORIGINS[up]?.country ?? '—',
+      sic: submissions?.sic ?? null,
     };
   } catch (error) {
     const fallback = WELL_KNOWN_ORIGINS[up] ?? WELL_KNOWN_ORIGINS[normalized];
     if (fallback) {
-      return { sector: fallback.sector, country: fallback.country };
+      return { sector: fallback.sector, country: fallback.country, sic: null };
     }
     throw error;
   }
@@ -294,8 +316,8 @@ export function buildCompanyProfile(company, facts, submissions, annual, quarter
       week52Low: market?.week52Low ?? null,
       week52High: market?.week52High ?? null,
       beta: market?.beta ?? null,
-      dividendPerShare: market?.dividendPerShare ?? annual[0]?.values?.dividendPerShare ?? null,
-      dividendYield: market?.dividendYield ?? (market?.price && annual[0]?.values?.dividendPerShare ? Math.round(((Number(annual[0].values.dividendPerShare) / Number(market.price)) * 100) * 100) / 100 : null),
+      dividendPerShare: Number(market?.dividendPerShare) > 0 ? Number(market.dividendPerShare) : (Number(annual[0]?.values?.dividendPerShare) > 0 ? Number(annual[0].values.dividendPerShare) : null),
+      dividendYield: Number(market?.dividendYield) > 0 ? Number(market.dividendYield) : (market?.price && Number(annual[0]?.values?.dividendPerShare) > 0 ? Math.round(((Number(annual[0].values.dividendPerShare) / Number(market.price)) * 100) * 100) / 100 : null),
       volume: market?.volume ?? null,
       revenue: values.revenue ?? null,
       eps: values.epsDiluted ?? null,

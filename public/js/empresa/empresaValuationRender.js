@@ -71,8 +71,8 @@
     const yieldEl = document.querySelector('#val-dividend-yield');
     const dpsEl = document.querySelector('#val-dps');
     const yieldPriceEl = document.querySelector('#val-yield-price');
-    if (yieldEl) yieldEl.textContent = formatPct(v.dividendYield);
-    if (dpsEl) dpsEl.textContent = formatPrice(v.dividendPerShare);
+    if (yieldEl) yieldEl.textContent = v.dividendYield !== null && v.dividendYield > 0 ? formatPct(v.dividendYield) : '—';
+    if (dpsEl) dpsEl.textContent = v.dividendPerShare !== null && v.dividendPerShare > 0 ? formatPrice(v.dividendPerShare) : '—';
     if (yieldPriceEl) yieldPriceEl.textContent = formatPrice(v.price);
 
     // Tarjeta 5: Payout del dividendo
@@ -83,8 +83,8 @@
 
     const activePayout = valPeAdjusted ? v.payoutRatioNormalized : v.payoutRatio;
 
-    if (payoutEl) payoutEl.textContent = activePayout !== null && activePayout >= 0 ? formatPct(activePayout) : '—';
-    if (payoutDpsEl) payoutDpsEl.textContent = formatPrice(v.dividendPerShare);
+    if (payoutEl) payoutEl.textContent = activePayout !== null && activePayout > 0 ? formatPct(activePayout) : '—';
+    if (payoutDpsEl) payoutDpsEl.textContent = v.dividendPerShare !== null && v.dividendPerShare > 0 ? formatPrice(v.dividendPerShare) : '—';
     if (payoutEpsEl) payoutEpsEl.textContent = activeEps !== null ? formatPrice(activeEps) : '—';
     if (payoutEpsLabelEl) payoutEpsLabelEl.textContent = window.I18n?.t?.(valPeAdjusted ? 'BPA ajustado' : 'BPA normal') ?? (valPeAdjusted ? 'BPA ajustado' : 'BPA normal');
 

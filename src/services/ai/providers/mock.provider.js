@@ -39,6 +39,19 @@ const PATTERNS = {
     /pharmaceutical|biotech|biotechnology/i,
     /oil\s+and\s+gas|petroleum|energy company/i,
   ],
+  tech: [
+    /software|cloud|technology company/i,
+    /semiconductor|chips?|computing/i,
+    /saas|cybersecurity|artificial intelligence/i,
+  ],
+  discretionary: [
+    /retailer|retail chain|department stores?/i,
+    /restaurants?|fast food|casual dining/i,
+    /apparel|footwear|clothing|jewelry/i,
+    /home improvement|homebuilder|furniture|appliances?/i,
+    /e-?commerce|online retail|catalog/i,
+    /auto parts|dealership|used vehicles?/i,
+  ],
 };
 
 function countMatches(text, patterns) {
@@ -63,7 +76,16 @@ function classifyOrigin(text) {
 
 function classifySector(text) {
   const isDefensiveConsumer = hasMatch(text, PATTERNS.defensive) && !hasMatch(text, PATTERNS.notDefensive);
-  return JSON.stringify({ isDefensiveConsumer });
+  const isTechnology = hasMatch(text, PATTERNS.tech);
+  const isConsumerDiscretionary = !isDefensiveConsumer && !isTechnology && hasMatch(text, PATTERNS.discretionary);
+  const sector = isDefensiveConsumer
+    ? 'defensive_consumer'
+    : isTechnology
+      ? 'technology'
+      : isConsumerDiscretionary
+        ? 'consumer_discretionary'
+        : 'unsupported';
+  return JSON.stringify({ sector, isDefensiveConsumer, isTechnology, isConsumerDiscretionary });
 }
 
 export const mockProvider = {
@@ -94,7 +116,7 @@ export const mockProvider = {
         model: 'mock',
       };
     }
-    if (systemPrompt.includes('isDefensiveConsumer')) {
+    if (systemPrompt.includes('isDefensiveConsumer') || systemPrompt.includes('verificador de sector')) {
       return { content: classifySector(text), model: 'mock' };
     }
     return { content: classifyOrigin(text), model: 'mock' };

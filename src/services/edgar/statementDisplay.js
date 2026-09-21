@@ -211,6 +211,7 @@ export const DISPLAY_STATEMENTS = {
     { key: 'changeOtherOperatingAssets', label: 'Variación en otros activos operativos netos' },
     { key: 'cfo', label: 'Efectivo de Operaciones', emphasis: true },
     { key: 'workingCapitalChange', label: 'Nota: Cambio en el capital circulante', italic: true },
+    { key: 'workingCapitalTheoretical', label: 'Nota: Circulante teórico (media 10 años)', italic: true, hint: 'Cuánto debería haber variado el capital circulante cada año según el peso agregado del circulante sobre el flujo operativo sin circulante (ΣΔWC / Σ(CFO − ΔWC)) de los últimos 10 ejercicios, aplicado al flujo de cada año.' },
     { key: 'capex', label: 'Gastos de capital', tone: 'negative' },
     { key: 'salePPE', label: 'Venta de inmovilizado material' },
     { key: 'acquisitions', label: 'Adquisiciones con efectivo', tone: 'negative' },

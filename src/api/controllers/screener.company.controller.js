@@ -5,7 +5,7 @@
 import { Readable } from 'node:stream';
 import { getCompanyResults, getCompanyFilings, getValuationSeries, getFilingsWithPresentations, getCachedFilingPresentations, getFilingsPresentationsMap, getFilingPresentations, getFilingDocumentStream } from '../../services/edgar.service.js';
 import { getAnalyzedAccessionsWithRatings } from '../../../db/repositories/analysisRepository.js';
-import { resolveAnalysisVersion, isAnalysisOutdated } from '../../agents/sectorAgent.js';
+import { resolveAnalysisVersion, isAnalysisOutdated, resolveSectorByTicker } from '../../agents/sectorAgent.js';
 import { getChartSeries, getCompanyHolders } from '../../services/market.service.js';
 import { resolveUser } from '../../middleware/auth.middleware.js';
 import { detectPriorityLanguage } from '../../utils/i18n.js';
@@ -122,7 +122,7 @@ export async function getCompanyFilingsHandler(req, res, next) {
       const analysisVersion = info?.latestVersion ?? null;
       const analysisSubsector = info?.latestSubsector ?? null;
       const versionOptions = {
-        sector: 'defensive_consumer',
+        sector: info?.latestSector ?? resolveSectorByTicker(ticker) ?? 'defensive_consumer',
         subsector: analysisSubsector,
         ticker,
         formType: filing.formType,

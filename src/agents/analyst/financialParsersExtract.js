@@ -50,11 +50,33 @@ export function extractIncomeTaxesPaid(text) {
   return null;
 }
 
+export function extractStockCompensation(text) {
+  const source = String(text ?? '');
+  const match = source.match(/(?:Stock-based|Share-based)\s+compensation(?:\s+(?:expense|cost|charges))?[^\d()]{0,40}([()\d.,-]+)/i)
+    || source.match(/(?:Share-based|Stock-based)\s+payments?[^\d()]{0,40}([()\d.,-]+)/i);
+  if (!match) return null;
+  const val = parseFinancialValue(match[1]);
+  return Number.isFinite(val) ? Math.abs(val) : null;
+}
+
 export function extractCapitalCashFlowFacts(text) {
   const source = String(text);
   const readFirstValue = (pattern) => {
     const match = source.match(pattern);
     return match ? parseFinancialValue(match[1]) : null;
+  };
+  // El estado de flujos puede publicar una única línea conjunta ("Proceeds from sales and
+  // maturities of marketable securities") o separar ventas y vencimientos en dos líneas
+  // (habitual en NVIDIA). Se suman las dos cuando van por separado para no perder el neto.
+  const readMarketableProceeds = () => {
+    const combined = readFirstValue(/Proceeds from (?:sales? and maturit(?:y|ies)|maturit(?:y|ies) and sales?) of (?:marketable securities|investments|available-for-sale securities)\s+([()\d.,-]+)/i)
+      ?? readFirstValue(/Maturities and sales of (?:marketable securities|investments|available-for-sale securities)\s+([()\d.,-]+)/i);
+    if (combined != null) return combined;
+    const sales = readFirstValue(/Proceeds from sale(?:s)? of (?:marketable securities|investments|available-for-sale securities)\s+([()\d.,-]+)/i);
+    const maturities = readFirstValue(/Proceeds from maturit(?:y|ies) of (?:marketable securities|investments|available-for-sale securities)\s+([()\d.,-]+)/i)
+      ?? readFirstValue(/Maturities of (?:marketable securities|investments|available-for-sale securities)\s+([()\d.,-]+)/i);
+    if (sales != null || maturities != null) return (sales ?? 0) + (maturities ?? 0);
+    return null;
   };
   return {
     shareBuybacks: readFirstValue(/Repurchases of common stock\s+([()\d.,-]+)/i)
@@ -63,13 +85,10 @@ export function extractCapitalCashFlowFacts(text) {
       ?? readFirstValue(/Common stock repurchased[^\d()-]{0,50}([()\d.,-]+)/i)
       ?? readFirstValue(/Treasury stock purchases[^\d()-]{0,50}([()\d.,-]+)/i),
     purchasesOfMarketableSecurities: readFirstValue(/Purchases of marketable securities\s+([()\d.,-]+)/i)
-      ?? readFirstValue(/Purchases of (?:available-for-sale|marketable) securities\s+([()\d.,-]+)/i)
+      ?? readFirstValue(/Purchases of (?:available-for-sale|debt|marketable) securities\s+([()\d.,-]+)/i)
       ?? readFirstValue(/Purchases of (?:investments|short-term investments)\s+([()\d.,-]+)/i)
       ?? readFirstValue(/Payments to acquire (?:investments|marketable securities)\s+([()\d.,-]+)/i),
-    proceedsFromSaleOfMarketableSecurities: readFirstValue(/Proceeds from sale(?:s)? (?:of|and maturity of) marketable securities\s+([()\d.,-]+)/i)
-      ?? readFirstValue(/Proceeds from (?:sales and maturities|maturities and sales) of (?:marketable securities|investments)\s+([()\d.,-]+)/i)
-      ?? readFirstValue(/Proceeds from (?:sale|sales) of (?:investments|available-for-sale securities)\s+([()\d.,-]+)/i)
-      ?? readFirstValue(/Maturities and sales of (?:marketable securities|investments)\s+([()\d.,-]+)/i),
+    proceedsFromSaleOfMarketableSecurities: readMarketableProceeds(),
     acquisitionsOfBusiness: readFirstValue(/Acquisitions? of businesses,? net of cash acquired\s+([()\d.,-]+)/i)
       ?? readFirstValue(/Acquisition of business,? net of cash acquired\s+([()\d.,-]+)/i)
       ?? readFirstValue(/Payments? to acquire businesses[^()\d-]{0,40}([()\d.,-]+)/i)
@@ -102,6 +121,52 @@ function detectStatementScale(source, fromIndex, windowSize = 4000) {
   const millions = window.lastIndexOf('in millions');
   if (thousands === -1 && millions === -1) return 1;
   return thousands > millions ? 1000 : 1;
+}
+
+/**
+ * Suma la sección "Changes in operating assets and liabilities" del estado de flujos anual
+ * (columna del ejercicio analizado). Es la variación de circulante REPORTADA con la que se
+ * compara la necesidad teórica; la IA la lee mal con frecuencia (NVIDIA FY2026: −5.949M frente
+ * a los −15.949M reales), así que el sistema la calcula de forma determinista.
+ * @param {string} text - Texto del filing.
+ * @returns {number|null} Variación neta en millones (signo del estado de flujos) o null.
+ */
+export function extractAnnualWorkingCapitalChange(text) {
+  const source = String(text ?? '');
+  const headingRe = /changes in operating assets and liabilities[^\n]*\n/gi;
+  let heading = null;
+  let match;
+  while ((match = headingRe.exec(source)) !== null) heading = match;
+  if (!heading) return null;
+  const start = heading.index + heading[0].length;
+  const tail = source.slice(start);
+  const end = tail.search(/net cash (?:provided by|used in)[^\n]{0,80}operating/i);
+  const section = tail.slice(0, end > 0 ? end : Math.min(tail.length, 8000));
+  const amountCellRe = /^\(?\s*\$?\s*[\d.,]+\s*\$?\)?$/;
+  let subtotal = null;
+  let sum = 0;
+  let count = 0;
+  for (const line of section.split('\n')) {
+    const cells = line.split(/\t|\s{2,}/).map((cell) => cell.trim()).filter(Boolean);
+    if (!cells.length) continue;
+    const firstAmount = cells.find((cell) => amountCellRe.test(cell) && /\d/.test(cell));
+    if (!firstAmount) continue;
+    const value = parseFinancialValue(firstAmount);
+    if (!Number.isFinite(value)) continue;
+    const label = line.slice(0, 100).toLowerCase();
+    // Si el estado publica un subtotal ("Net change in operating assets and liabilities"),
+    // manda el subtotal y no se suman además sus líneas.
+    if (/net change|changes in operating assets and liabilities/.test(label)) {
+      subtotal = value;
+      continue;
+    }
+    sum += value;
+    count += 1;
+  }
+  const total = subtotal != null ? subtotal : (count >= 2 ? sum : null);
+  if (total == null) return null;
+  const scale = detectStatementScale(source, start);
+  return Math.round((total / scale) * 10) / 10;
 }
 
 export function extractDebtCashFlow(text) {
@@ -276,10 +341,32 @@ export function extractRepurchaseFactsFromText(text) {
   return facts;
 }
 
-export function extractExecutiveChangesFromText(text) {
+/**
+ * Determina si un cambio directivo es histórico (una bio del 10-K, no un relevo del ejercicio).
+ * Un tramo como "en diciembre de 2007 fue nombrado CEO ... y en enero de 2017 fue nombrado Chair"
+ * no es un cambio de la cúpula directiva del ejercicio analizado.
+ * Solo se usan las fechas declaradas del cambio: los años del texto pueden ser la antigüedad del
+ * directivo saliente y no la fecha del relevo.
+ * @param {object} change - Cambio con announcementDate y/o effectiveDate.
+ * @param {number|null} fiscalYear - Año fiscal del informe.
+ * @returns {boolean} true si todas las fechas del cambio son anteriores al ejercicio anterior.
+ */
+export function isStaleExecutiveChange(change, fiscalYear) {
+  const year = Number(fiscalYear);
+  if (!Number.isFinite(year) || year < 2000) return false;
+  const years = [change?.announcementDate, change?.effectiveDate]
+    .map((value) => String(value ?? '').match(/(?:19|20)\d{2}/)?.[0])
+    .filter(Boolean)
+    .map(Number);
+  if (!years.length) return false;
+  return Math.max(...years) < year - 1;
+}
+
+export function extractExecutiveChangesFromText(text, options = {}) {
   const source = String(text ?? '');
   if (!source) return [];
 
+  const fiscalYear = Number(options?.fiscalYear) || null;
   const changes = [];
   const seenRoles = new Set();
 
@@ -308,52 +395,60 @@ export function extractExecutiveChangesFromText(text) {
 
   for (const { role, re, signalRe } of rolePatterns) {
     if (seenRoles.has(role)) continue;
-    let match = re.exec(source);
-    if (!match) match = signalRe.exec(source);
-    if (!match) continue;
+    // Se recorre cada patrón hasta encontrar un relevo vigente: las bio del 10-K mencionan
+    // nombramientos antiguos ("appointed our CEO" en 2007) que no son cambios del ejercicio.
+    for (const matcher of [re, signalRe]) {
+      matcher.lastIndex = 0;
+      let match;
+      while ((match = matcher.exec(source)) !== null) {
+        const start = Math.max(0, source.lastIndexOf('\n', match.index - 1));
+        const end = Math.min(source.length, source.indexOf('\n', match.index + match[0].length));
+        const sentence = source.slice(start, end > 0 ? end : match.index + 500).trim();
+        if (sentence.length < 20) continue;
 
-    const start = Math.max(0, source.lastIndexOf('\n', match.index - 1));
-    const end = Math.min(source.length, source.indexOf('\n', match.index + match[0].length));
-    const sentence = source.slice(start, end > 0 ? end : match.index + 500).trim();
-    if (sentence.length < 20) continue;
+        let reason = 'Transición directiva';
+        if (/retir|jubilaci/i.test(sentence)) reason = 'Retiro / Jubilación';
+        else if (/resign|dimisi[oó]n|renuncia/i.test(sentence)) reason = 'Dimisión / Renuncia';
+        else if (/succession|sucesi[oó]n|planificada/i.test(sentence)) reason = 'Sucesión planificada';
+        else if (/appoint|nombramiento|named/i.test(sentence)) reason = 'Nombramiento';
 
-    let reason = 'Transición directiva';
-    if (/retir|jubilaci/i.test(sentence)) reason = 'Retiro / Jubilación';
-    else if (/resign|dimisi[oó]n|renuncia/i.test(sentence)) reason = 'Dimisión / Renuncia';
-    else if (/succession|sucesi[oó]n|planificada/i.test(sentence)) reason = 'Sucesión planificada';
-    else if (/appoint|nombramiento|named/i.test(sentence)) reason = 'Nombramiento';
+        const effectiveMatch = sentence.match(/effective\s+([A-Z][a-z]+\s+\d{1,2},?\s*\d{4}|\d{4}-\d{2}-\d{2})/i)
+          || sentence.match(/efectiv[ao]\s+(?:el\s+)?(\d{1,2}\s+de\s+[a-z]+\s+de\s+\d{4})/i);
+        const effectiveDate = effectiveMatch ? effectiveMatch[1] : null;
 
-    const effectiveMatch = sentence.match(/effective\s+([A-Z][a-z]+\s+\d{1,2},?\s*\d{4}|\d{4}-\d{2}-\d{2})/i)
-      || sentence.match(/efectiv[ao]\s+(?:el\s+)?(\d{1,2}\s+de\s+[a-z]+\s+de\s+\d{4})/i);
-    const effectiveDate = effectiveMatch ? effectiveMatch[1] : null;
+        const announceMatch = sentence.match(/(?:On|In)\s+([A-Z][a-z]+(?:\s+\d{1,2})?,?\s*\d{4})/i);
+        const announcementDate = announceMatch ? announceMatch[1] : null;
 
-    const announceMatch = sentence.match(/(?:On|In)\s+([A-Z][a-z]+(?:\s+\d{1,2})?,?\s*\d{4})/i);
-    const announcementDate = announceMatch ? announceMatch[1] : null;
+        let oldName = null;
+        let newName = null;
+        const succeedMatch = sentence.match(/succeeding\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
+        if (succeedMatch) oldName = succeedMatch[1];
+        if (!oldName) {
+          const retiredMatch = sentence.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+(?:who\s+)?(?:retired|stepped down|resigned)/);
+          if (retiredMatch) oldName = retiredMatch[1];
+        }
+        const appointMatch = sentence.match(/(?:appointed|named)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+(?:as|to the role of)/)
+          || sentence.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+(?:was|has been|is)?\s*(?:appointed|named|elected)/);
+        if (appointMatch) newName = appointMatch[1];
 
-    let oldName = null;
-    let newName = null;
-    const succeedMatch = sentence.match(/succeeding\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
-    if (succeedMatch) oldName = succeedMatch[1];
-    if (!oldName) {
-      const retiredMatch = sentence.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+(?:who\s+)?(?:retired|stepped down|resigned)/);
-      if (retiredMatch) oldName = retiredMatch[1];
+        const change = {
+          role,
+          text: sentence.slice(0, 1000),
+          announcementDate,
+          effectiveDate,
+          reason,
+          oldExecutive: oldName ? { name: oldName, role: `${role} saliente` } : null,
+          newExecutive: newName ? { name: newName, origin: null } : null,
+          occurred: true,
+          source: 'SEC filing text (extracción determinista)',
+        };
+        if (isStaleExecutiveChange(change, fiscalYear)) continue;
+        seenRoles.add(role);
+        changes.push(change);
+        break;
+      }
+      if (seenRoles.has(role)) break;
     }
-    const appointMatch = sentence.match(/(?:appointed|named)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+(?:as|to the role of)/)
-      || sentence.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+(?:was|has been|is)?\s*(?:appointed|named|elected)/);
-    if (appointMatch) newName = appointMatch[1];
-
-    seenRoles.add(role);
-    changes.push({
-      role,
-      text: sentence.slice(0, 1000),
-      announcementDate,
-      effectiveDate,
-      reason,
-      oldExecutive: oldName ? { name: oldName, role: `${role} saliente` } : null,
-      newExecutive: newName ? { name: newName, origin: null } : null,
-      occurred: true,
-      source: 'SEC filing text (extracción determinista)',
-    });
   }
 
   return changes;

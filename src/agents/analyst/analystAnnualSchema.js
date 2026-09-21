@@ -37,7 +37,7 @@ export const ANNUAL_OUTPUT_SCHEMA = `{
           { "name": "Libre", "values": ["691", "712"] }
         ],
         "notes": [
-          "*1: WC = (Inventarios + Cuentas por cobrar - Cuentas por pagar) × (inflación + volumen) = (700 + 700 - 2800) × (0,05 + 0) = 70. Por lo tanto, hay que sumar 146 + 70 = 216 M al cash flow. Este año han gastado 131 M en impuestos cuando en principio debían pagar 316 M, restando 185 M al cash flow."
+          "*1: WC = peso agregado del circulante sobre el flujo operativo sin circulante en los últimos 10 ejercicios: 0,9% × 18556M = 167M en el periodo. Desviación del circulante reportado (146M) frente al WC teórico (167M): -21M. El Cash Flow tras el ajuste de circulante queda en: 1784M - (-21M) = 1805M."
         ]
       },
       "capital": {

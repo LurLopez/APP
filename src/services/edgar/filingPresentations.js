@@ -16,9 +16,13 @@ import { getIrDeckForFiling } from './irCrawler.js';
 import { assertPublicUrl } from '../../utils/ssrfGuard.js';
 
 const PRESENTATION_NAME_RE = /presentation|slides?|deck|investor.?present|webcast|earnings.?call/i;
-const PRESS_RELEASE_NAME_RE = /press.?release|news.?release|earnings.?release|releas|pressrelease|release.?\d|press.?releases/i;
-const EARNINGS_DOC_NAME_RE = /ex.?99|exhibit.?99|exhibits?99|earnings|results|press|presentation|slides?|deck/i;
+// Los comunicados de resultados no siempre se llaman "press release": NVIDIA y otras compañías
+// usan abreviaturas tipo "q4fy26pr.htm" (pr = press release) o "q4fy26er.htm" (er = earnings release).
+const PRESS_RELEASE_NAME_RE = /press.?release|news.?release|earnings.?release|releas|pressrelease|release.?\d|press.?releases|(?:^|[^a-z])(?:pr|er)(?:[^a-z]|$)/i;
+const EARNINGS_DOC_NAME_RE = /ex.?99|exhibit.?99|exhibits?99|earnings|results|press|presentation|slides?|deck|commentary|shareholder.?letter/i;
 const NON_EARNINGS_DOC_NAME_RE = /proxy|voting|annual.?meeting|bylaws|charter|code.?of.?ethics|compensation|employment|credit.?agreement|indenture|underwriting|auditor|consent/i;
+const EARNINGS_FILE_RE = /\.(pdf|htm|html)$/i;
+const INDEX_DOC_NAME_RE = /index|^r\d+\.(?:htm|html)$/i;
 
 const MAX_PRESENTATION_BYTES = 20 * 1024 * 1024;
 
@@ -77,8 +81,31 @@ export function classifyEarningsDocument(name, primaryDocument) {
   if (looksLikePresentationName(lower)) return 'presentation';
   if (/\.pdf$/i.test(lower) && !looksLikePressReleaseName(lower)) return 'presentation';
   if (/(?:^|[^a-z0-9]|x)(?:ex|exhibit)[-_.]?99(?:[._-][2-9]|d[2-9])(?![0-9])/i.test(lower) && !looksLikePressReleaseName(lower)) return 'presentation';
+  if (looksLikePressReleaseName(lower)) return 'release';
   if (EARNINGS_DOC_NAME_RE.test(lower)) return 'release';
   return null;
+}
+
+/**
+ * Respaldo permisivo para 8-K de resultados (Item 2.02) cuyo comunicado no sigue las
+ * convenciones de nombre habituales: cualquier documento ofimático del propio 8-K que no sea
+ * el cuerpo principal, un índice ni un anexo administrativo se considera comunicado de resultados.
+ * @param {Array<{name: string}>} items - Documentos del índice del filing.
+ * @param {string|null} primaryDocument - Documento principal del 8-K (se excluye).
+ * @returns {Array<{name: string, docType: string}>} Documentos candidatos con su tipo.
+ */
+export function pickEarningsDocumentsFallback(items, primaryDocument) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item) => typeof item?.name === 'string')
+    .filter((item) => EARNINGS_FILE_RE.test(item.name))
+    .filter((item) => item.name !== primaryDocument)
+    .filter((item) => !INDEX_DOC_NAME_RE.test(item.name))
+    .filter((item) => !NON_EARNINGS_DOC_NAME_RE.test(item.name.toLowerCase()))
+    .map((item) => ({
+      name: item.name,
+      docType: looksLikePresentationName(item.name) ? 'presentation' : 'release',
+    }));
 }
 
 export async function mapWithConcurrency(items, concurrency, mapper) {
@@ -192,6 +219,12 @@ async function findFilingPresentations(company, filing) {
         const docType = classifyEarningsDocument(item.name, entry.primaryDocument);
         if (!docType) continue;
         picks.push({ name: item.name, docType });
+      }
+      // Si el 8-K es de resultados (Item 2.02) y ningún documento encaja con los patrones de
+      // nombre, se incluyen sus anexos ofimáticos como comunicado (evita perder el guidance
+      // por convenciones de nombre inesperadas, p. ej. NVIDIA q4fy26pr.htm).
+      if (!picks.length && String(entry.items ?? '').includes('2.02')) {
+        picks.push(...pickEarningsDocumentsFallback(items, entry.primaryDocument));
       }
       picks.sort((a, b) => (a.docType === b.docType ? 0 : (a.docType === 'presentation' ? -1 : 1)));
       for (const pick of picks.slice(0, 2)) {

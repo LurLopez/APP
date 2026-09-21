@@ -12,6 +12,7 @@ import {
   normalizeExtractedUnits,
   extractTaxCashFlowAdjustment,
   extractIncomeTaxesPaid,
+  extractStockCompensation,
   extractCapitalCashFlowFacts,
   extractEquityIssuance,
   extractDebtCashFlow,
@@ -19,6 +20,7 @@ import {
   extractRepurchaseProgramTerms,
   extractRepurchaseFactsFromText,
   extractExecutiveChangesFromText,
+  isStaleExecutiveChange,
   parseLooseAmount,
 } from './financialParsers.js';
 import { buildDividendHistoryFromEdgar } from './historyBuilders.js';
@@ -39,6 +41,7 @@ import {
   normalizeCashFlowBlock,
   normalizeCapitalBlock,
 } from './analystHorizonProcessor.js';
+import { buildSectorPolicyDirective } from './sectorPolicy.js';
 import {
   processRepurchasesSection,
   processExecutiveChangesSection,
@@ -89,11 +92,13 @@ function assignIfMissing(target, key, value) {
 function applyCapitalCashFlowFallbacks(extracted, rawText) {
   const facts = extractCapitalCashFlowFacts(rawText);
   if (facts.shareBuybacks != null) assignIfMissing(extracted.facts, 'shareBuybacks', facts.shareBuybacks);
+  // El pipeline de asignación espera magnitudes positivas (neto = ventas − compras): en el
+  // estado de flujos las compras van entre paréntesis (negativas) y no deben invertir el neto.
   if (facts.purchasesOfMarketableSecurities != null) {
-    assignIfMissing(extracted.facts, 'purchasesOfMarketableSecuritiesYtd', facts.purchasesOfMarketableSecurities);
+    assignIfMissing(extracted.facts, 'purchasesOfMarketableSecuritiesYtd', Math.abs(facts.purchasesOfMarketableSecurities));
   }
   if (facts.proceedsFromSaleOfMarketableSecurities != null) {
-    assignIfMissing(extracted.facts, 'proceedsFromSaleOfMarketableSecuritiesYtd', facts.proceedsFromSaleOfMarketableSecurities);
+    assignIfMissing(extracted.facts, 'proceedsFromSaleOfMarketableSecuritiesYtd', Math.abs(facts.proceedsFromSaleOfMarketableSecurities));
   }
   if (facts.acquisitionsOfBusiness != null) assignIfMissing(extracted.facts, 'acquisitionsYtd', facts.acquisitionsOfBusiness);
   if (facts.proceedsFromAssetSales != null) assignIfMissing(extracted.facts, 'assetSalesYtd', facts.proceedsFromAssetSales);
@@ -114,6 +119,14 @@ function applyDebtAndTaxFallbacks(extracted, rawText) {
 
   const taxAdjustment = extractTaxCashFlowAdjustment(rawText);
   if (taxAdjustment != null) assignIfMissing(extracted.facts, 'taxCashFlowAdjustment', taxAdjustment);
+
+  const stockComp = extractStockCompensation(rawText);
+  if (stockComp != null) {
+    assignIfMissing(extracted.facts, 'stockCompensation', stockComp);
+    assignIfMissing(extracted.facts, 'stockCompensationYtd', stockComp);
+    extracted.cashFlow = extracted.cashFlow || {};
+    assignIfMissing(extracted.cashFlow, 'stockCompensation', stockComp);
+  }
 }
 
 function ensureAnnualRepurchases(extracted) {
@@ -151,12 +164,21 @@ export function applyTextFallbacks(extracted, rawText) {
   applyRepurchaseFallbacks(extracted, rawText);
 }
 
-export function applyExecutiveChangesFallback(extracted, rawText) {
+export function applyExecutiveChangesFallback(extracted, rawText, fiscalYear = null) {
   extracted.annualDetails = extracted.annualDetails || {};
-  const existing = extracted.annualDetails.executiveChanges;
-  if (Array.isArray(existing) && existing.length > 0) return;
-  const changes = extractExecutiveChangesFromText(rawText);
-  if (changes.length > 0) extracted.annualDetails.executiveChanges = changes;
+  const year = Number(fiscalYear) || Number(extracted.fiscalYear) || null;
+  const existing = Array.isArray(extracted.annualDetails.executiveChanges)
+    ? extracted.annualDetails.executiveChanges
+    : [];
+  // Las bio del 10-K ("en 2007 fue nombrado CEO, en 2017 Chair") no son cambios del ejercicio:
+  // se descartan antes de decidir si hace falta la extracción determinista.
+  const recent = existing.filter((change) => !isStaleExecutiveChange(change, year));
+  const changes = recent.length ? recent : extractExecutiveChangesFromText(rawText, { fiscalYear: year });
+  if (changes.length) {
+    extracted.annualDetails.executiveChanges = changes;
+  } else {
+    delete extracted.annualDetails.executiveChanges;
+  }
 }
 
 function toMillions(value) {
@@ -182,6 +204,15 @@ function applyEdgarCashFlowFallbacks(extracted, values) {
   if (values.capex != null) assignIfMissing(extracted.cashFlow, 'capex', toMillions(Math.abs(Number(values.capex))));
   if (values.dividendsCommon != null) {
     assignIfMissing(extracted.cashFlow, 'dividends', toMillions(Math.abs(Number(values.dividendsCommon))));
+  }
+  if (values.stockCompensation != null) {
+    const sbcM = toMillions(Math.abs(Number(values.stockCompensation)));
+    if (sbcM != null) {
+      assignIfMissing(extracted.cashFlow, 'stockCompensation', sbcM);
+      extracted.facts = extracted.facts || {};
+      assignIfMissing(extracted.facts, 'stockCompensation', sbcM);
+      assignIfMissing(extracted.facts, 'stockCompensationYtd', sbcM);
+    }
   }
 }
 
@@ -217,14 +248,110 @@ export function applyEdgarBalanceFallbacks(extracted, values) {
   if (values.receivables != null) assignIfMissing(extracted.balance, 'accountsReceivable', toMillions(values.receivables));
 }
 
+function annualRowYear(row) {
+  return Number(row?.period) || (row?.periodEnd ? Number(String(row.periodEnd).slice(0, 4)) : NaN);
+}
+
+/**
+ * Serie histórica del peso del circulante sobre el flujo de operaciones SIN circulante
+ * (CFO − ΔWC), base del método de estimación cuando la empresa no publica volúmenes.
+ * @param {object} edgarResults - Serie anual de EDGAR.
+ * @param {number} [maxYears=10] - Número máximo de ejercicios a conservar.
+ * @returns {Array<{year: number, cfo: number, wcChange: number}>} Puntos más recientes primero.
+ */
+export function buildWorkingCapitalHistory(edgarResults, maxYears = 10) {
+  const series = Array.isArray(edgarResults?.annual) ? edgarResults.annual : [];
+  return series
+    .map((row) => {
+      const year = annualRowYear(row);
+      const cfo = row.values?.cfo != null ? toMillions(row.values.cfo) : null;
+      const wcChange = row.values?.workingCapitalChange != null ? toMillions(row.values.workingCapitalChange) : null;
+      return { year, cfo, wcChange };
+    })
+    .filter((point) => Number.isFinite(point.year) && point.cfo != null && point.wcChange != null)
+    .sort((a, b) => b.year - a.year)
+    .slice(0, maxYears);
+}
+
+/**
+ * Fila anual inmediatamente anterior a la del ejercicio analizado (la primera de la serie
+ * EDGAR con año estrictamente menor). Permite calcular la necesidad de circulante sobre el
+ * saldo de INICIO de ejercicio y no sobre el de cierre (ya inflado por el propio crecimiento).
+ * @param {object} edgarResults - Serie anual de EDGAR.
+ * @param {object} targetRow - Fila del ejercicio analizado.
+ * @returns {object|null} Fila del ejercicio anterior.
+ */
+export function findPreviousAnnualRow(edgarResults, targetRow) {
+  const series = Array.isArray(edgarResults?.annual) ? edgarResults.annual : [];
+  const targetYear = annualRowYear(targetRow);
+  if (!Number.isFinite(targetYear)) return null;
+  return series
+    .filter((row) => {
+      const year = annualRowYear(row);
+      return Number.isFinite(year) && year < targetYear;
+    })
+    .sort((a, b) => annualRowYear(b) - annualRowYear(a))[0] ?? null;
+}
+
 function applyEdgarMetricFallbacks(extracted, { edgarResults, isAnnual, fiscalYear, reportingPeriod }) {
   if (!edgarResults) return;
   const reportYear = Number(fiscalYear) || (reportingPeriod ? Number(String(reportingPeriod).slice(0, 4)) : null);
-  const values = findTargetAnnualRow(edgarResults, { reportYear, isAnnual })?.values;
+  const targetRow = findTargetAnnualRow(edgarResults, { reportYear, isAnnual });
+  const values = targetRow?.values;
   if (!values) return;
   applyEdgarCashFlowFallbacks(extracted, values);
   applyEdgarPeriodFallbacks(extracted, values, isAnnual);
   applyEdgarBalanceFallbacks(extracted, values);
+
+  if (isAnnual) {
+    const previous = findPreviousAnnualRow(edgarResults, targetRow);
+    if (previous?.values) {
+      const previousBalances = {
+        inventories: previous.values.inventory != null ? toMillions(previous.values.inventory) : null,
+        accountsPayable: previous.values.payables != null ? toMillions(previous.values.payables) : null,
+        accountsReceivable: previous.values.receivables != null ? toMillions(previous.values.receivables) : null,
+      };
+      if (Object.values(previousBalances).some((value) => value != null)) {
+        extracted.balancePreviousYear = previousBalances;
+      }
+    }
+  }
+
+  // La serie histórica del peso del circulante se adjunta también en los 10-Q: el método de la
+  // media de 10 años es único en todos los horizontes (en trimestres el teórico anual se prorratea).
+  const history = buildWorkingCapitalHistory(edgarResults);
+  if (history.length) extracted.workingCapitalHistory = history;
+
+  if (isAnnual) {
+    // La variación de circulante del ejercicio analizado se toma de la misma serie histórica
+    // (definición homogénea año a año) para que la comparación con la media de 10 años sea
+    // coherente; el parser del estado de flujos queda como respaldo si EDGAR no la trae.
+    const edgarWcChange = values.workingCapitalChange != null ? toMillions(values.workingCapitalChange) : null;
+    if (edgarWcChange != null) {
+      extracted.workingCapital = extracted.workingCapital || {};
+      const aiWcChange = toOptionalNumber(extracted.workingCapital.reportedChangeYtd);
+      const differs = aiWcChange == null || Math.abs(edgarWcChange - aiWcChange) >= Math.max(100, Math.abs(edgarWcChange) * 0.05);
+      if (differs) {
+        if (aiWcChange != null) {
+          console.info(`[analyst] Variación de circulante del ejercicio tomada de EDGAR: ${aiWcChange}M -> ${edgarWcChange}M`);
+        }
+        extracted.workingCapital.reportedChangeYtd = edgarWcChange;
+      }
+    }
+
+    // Flujo neto de deuda con caja del ejercicio según XBRL (emisiones − amortizaciones), para
+    // distinguir en la asignación de capital la deuda que entró en efectivo de los movimientos
+    // no monetarios (efecto divisa, valor razonable): MCD 2025, balance +1.549M frente a -78M
+    // de caja, con 1.627M no monetarios que descuadraban la tabla. El parser de texto no se usa
+    // aquí porque en estados multi-columna lee importes de columnas equivocadas.
+    const debtIssued = values.debtIssued != null ? toMillions(values.debtIssued) : null;
+    const debtPaid = values.debtPaid != null ? toMillions(values.debtPaid) : null;
+    if (debtIssued != null || debtPaid != null) {
+      const netDebtCash = Math.round(((debtIssued ?? 0) + (debtPaid ?? 0)) * 10) / 10;
+      extracted.systemDebtCash = { ...(extracted.systemDebtCash ?? {}), ytd: netDebtCash };
+      console.info(`[analyst] Flujo neto de deuda del ejercicio tomado de EDGAR: ${netDebtCash}M`);
+    }
+  }
 }
 
 /**
@@ -372,8 +499,8 @@ function buildEdgarDebtHistory(annualSeries, reportYear) {
       const netDebt = Number(row.values?.netDebt);
       return {
         year,
-        totalDebt: Number.isFinite(totalDebt) ? (totalDebt > 1e6 ? Math.round(totalDebt / 1e6) : Math.round(totalDebt)) : null,
-        netDebt: Number.isFinite(netDebt) ? (netDebt > 1e6 ? Math.round(netDebt / 1e6) : Math.round(netDebt)) : null,
+        totalDebt: Number.isFinite(totalDebt) ? (Math.abs(totalDebt) > 1e6 ? Math.round(totalDebt / 1e6) : Math.round(totalDebt)) : null,
+        netDebt: Number.isFinite(netDebt) ? (Math.abs(netDebt) > 1e6 ? Math.round(netDebt / 1e6) : Math.round(netDebt)) : null,
       };
     })
     .filter((point) => Number.isFinite(point.year) && Number.isFinite(point.totalDebt))
@@ -382,7 +509,7 @@ function buildEdgarDebtHistory(annualSeries, reportYear) {
     .slice(-10);
 }
 
-function buildAnnualEdgarData(edgarAnnual, reportYear) {
+export function buildAnnualEdgarData(edgarAnnual, reportYear) {
   const annualSeries = edgarAnnual?.annual || [];
   const data = {
     edgarDebtHistory: buildEdgarDebtHistory(annualSeries, reportYear),
@@ -390,9 +517,31 @@ function buildAnnualEdgarData(edgarAnnual, reportYear) {
     edgarDividendHistory: buildDividendHistoryFromEdgar(annualSeries, reportYear),
   };
 
+  // Intereses del ejercicio (XBRL) para que la sección de deuda pueda mostrar cuánto paga la
+  // empresa por su deuda aunque la extracción no traiga el gasto o el pago en efectivo.
+  const reportRow = annualSeries.find((row) => Number(row.period) === Number(reportYear))
+    ?? annualSeries[0];
+  const positiveMillions = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) && num !== 0 ? toMillions(Math.abs(num)) : null;
+  };
+  data.edgarInterestExpense = reportRow?.values?.interestExpense != null
+    ? positiveMillions(reportRow.values.interestExpense)
+    : null;
+  data.edgarInterestPaid = reportRow?.values?.interestPaid != null
+    ? positiveMillions(reportRow.values.interestPaid)
+    : null;
+
   const maturities = edgarAnnual?.debtMaturities;
   if (Array.isArray(maturities?.years) && maturities.years.length) {
-    if (!reportYear || Math.abs(Number(maturities.baseYear) - reportYear) <= 1) {
+    const baseYear = Number(maturities.baseYear);
+    // El calendario parcial inferido de la porción corriente ("LongTermDebtCurrent") solo vale para
+    // el ejercicio que publica ese saldo: si es de un ejercicio anterior, los vencimientos que
+    // recoge (baseYear + 1) ya se amortizaron y no deben pintarse como futuros (caso Adobe FY2025).
+    const acceptable = maturities.partial === true
+      ? (!reportYear || baseYear === Number(reportYear))
+      : (!reportYear || Math.abs(baseYear - reportYear) <= 1);
+    if (acceptable) {
       data.edgarDebtMaturities = maturities;
     }
   }
@@ -564,11 +713,12 @@ export async function recoverAnnualRefinancing(debtDetails, rawText) {
   if (recovered) debtDetails.refinancing = recovered;
 }
 
-export async function structureReport(extractedForModel, { isAnnual, rules, languageDirective }) {
+export async function structureReport(extractedForModel, { isAnnual, rules, languageDirective, sector }) {
   const basePrompt = isAnnual ? ANNUAL_SYSTEM_PROMPT : SYSTEM_PROMPT;
   const schema = isAnnual ? ANNUAL_OUTPUT_SCHEMA : OUTPUT_SCHEMA;
   const systemPrompt = `${basePrompt
     .replace('{REGLAS}', rules.trim())
+    .replace('{SECTOR_POLICY}', buildSectorPolicyDirective(sector))
     .replace('{SCHEMA}', schema.trim())}\n\n${languageDirective}`;
 
   try {
@@ -598,10 +748,10 @@ export function selectAnnualHorizon(result, language) {
   result.horizons = [horizon];
 }
 
-export function normalizeHorizons(result, extracted, language) {
+export function normalizeHorizons(result, extracted, language, sector = null) {
   for (const horizon of result.horizons) {
-    normalizeSalesBlock(horizon, extracted, language);
-    normalizeCashFlowBlock(horizon, extracted, language);
+    normalizeSalesBlock(horizon, extracted, language, sector);
+    normalizeCashFlowBlock(horizon, extracted, language, sector);
     normalizeCapitalBlock(horizon, extracted, language);
   }
 }

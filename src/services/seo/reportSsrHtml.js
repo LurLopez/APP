@@ -25,7 +25,7 @@ export function getHighlightClassSsr(noteNumber) {
  * @param {string[]} notes - Lista de notas.
  * @returns {string} HTML renderizado de notas.
  */
-export function renderNotesSsr(notes) {
+export function renderNotesSsr(notes, options = {}) {
   const list = (Array.isArray(notes) ? notes : []).filter(Boolean);
   if (!list.length) return '';
   return `<ul class="report-notes">${list.map((note) => {
@@ -33,7 +33,8 @@ export function renderNotesSsr(notes) {
     const match = raw.match(/^\*(\d+):?\s*([\s\S]*)$/);
     if (match) {
       const num = match[1];
-      const cls = getHighlightClassSsr(num);
+      const colorNum = (options.isCashFlow && (num === '3' || num === 3)) ? '2' : num;
+      const cls = getHighlightClassSsr(colorNum);
       return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${escapeHtml(match[2]).replaceAll('\n', '<br>')}</li>`;
     }
     return `<li>${escapeHtml(raw)}</li>`;
@@ -162,7 +163,7 @@ export function renderHorizonSsr(horizon, language = 'es') {
       const lower = String(n || '').toLowerCase();
       return !lower.includes('deducido del acumulado') && !lower.includes('flujo trimestral deducido');
     });
-    html += renderNotesSsr(cfNotes);
+    html += renderNotesSsr(cfNotes, { isCashFlow: true });
   }
 
   const capital = horizon?.capital ?? {};

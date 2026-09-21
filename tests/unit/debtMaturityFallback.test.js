@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildMaturityScheduleFromDebtTable, buildMaturityScheduleFromFilingText, normalizeMaturityPayload, maturityItemsLookBucketed, maturityTableLooksIncomplete, maturityWindowBounds, pickCoveringMaturitySchedule, shouldRecoverMaturitySchedule, hasWideRangeLabels } from '../../src/agents/analyst/debtMaturityFallback.js';
 import { processDebtSection, processAcquisitionsDividendsAndWatchlist } from '../../src/agents/analyst/annualConclusionSections.js';
-import { extractDebtFilingText } from '../../src/agents/analyst/filingExtractor.js';
+import { buildAnnualEdgarData } from '../../src/agents/analyst/analystRunSteps.js';
+import { extractDebtFilingText, extractKeyFilingSections } from '../../src/agents/analyst/filingExtractor.js';
 import { buildDebtMaturityModel } from '../../src/services/reportExport/debtMaturityModel.js';
 
 // Tabla real de PepsiCo 2018 (Note 8 — Debt Obligations), que ordena la deuda por año de vencimiento.
@@ -119,6 +120,43 @@ Total $ 28,295`;
   assert.ok(fallback.includes('DEUDA:'));
 
   assert.equal(extractDebtFilingText('No hay nota de deuda en este texto.'), '');
+});
+
+test('extractDebtFilingText captura la tabla de tipos por divisa (caso MCD 10-K 2025)', () => {
+  const filingText = `DEBT OBLIGATIONS
+The Company has incurred debt obligations principally through public and private offerings.
+Interest rates
+December 31
+Amounts outstanding
+December 31
+In millions of U.S. Dollars \tMaturity dates \t2025 \t2024 \t2025 \t2024
+Fixed \t4.4 % \t4.2 % \t$ 23,233 \t$ 24,134
+Floating \t5.1 \t5.7 \t1,298 \t1,290
+Total U.S. Dollar \t2027-2053 \t24,531 \t25,424
+Total debt obligations \t$ 39,973 \t$ 38,424`;
+  const debtText = extractDebtFilingText(filingText);
+  assert.ok(debtText.includes('Interest rates'));
+  assert.ok(debtText.includes('4.4 %'));
+  assert.ok(debtText.includes('Total U.S. Dollar'));
+});
+
+test('extractKeyFilingSections incluye la tabla de tipos por divisa y la del tipo medio publicado (caso MCD)', () => {
+  const filingText = `Debt highlights(1)
+Fixed-rate debt as a percent of total debt(2,3) \t97 % \t96 % \t96 %
+Weighted-average annual interest rate of total debt(3) \t4.0 \t4.0 \t3.7
+Foreign currency-denominated debt as a percent of total debt(2) \t39 \t34 \t38
+See reconciliation in Exhibit 99.1.
+Interest rates
+December 31
+Amounts outstanding
+December 31
+In millions of U.S. Dollars \tMaturity dates \t2025 \t2024 \t2025 \t2024
+Fixed \t4.4 % \t4.2 % \t$ 23,233 \t$ 24,134`;
+  const sections = extractKeyFilingSections(filingText);
+  assert.ok(sections.includes('Weighted-average annual interest rate of total debt'));
+  assert.ok(sections.includes('4.0'));
+  assert.ok(sections.includes('Interest rates'));
+  assert.ok(sections.includes('4.4 %'));
 });
 
 test('marca como estimados los tipos medios cuando las partidas promedian varios cupones', () => {
@@ -304,8 +342,7 @@ test('shouldRecoverMaturitySchedule reconstruye cuando la tabla de deuda llega r
   assert.equal(shouldRecoverMaturitySchedule(yearByYear, [], 2018), false);
 });
 
-test('extractDebtFilingText localiza las filas "due <mes> <año>" de la nota de deuda', () => {
-  const filingText = `4. LONG-TERM DEBT
+test('extractDebtFilingText localiza las filas "due <mes> <año>" de la nota de deuda', () => {  const filingText = `4. LONG-TERM DEBT
 May 31, 2026 May 25, 2025
 5.4% senior debt due November 2048 $ 1,000.0 $ 1,000.0
 4.65% senior debt due January 2043 176.7 176.7
@@ -343,6 +380,72 @@ test('buildMaturityScheduleFromFilingText lee las tablas con columna Maturity Da
   ]);
   assert.equal(result.afterYearFive, 1650, '2031 (500) y 2052 (1.150) van a vencimientos posteriores al año 5');
   assert.ok(!result.items.some((item) => /revolving|credit agreement/i.test(item.label)), 'El revólver no es deuda dispuesta');
+});
+
+// Nota real de Adobe 10-K FY2025: tabla por emisión con columnas "Issuance Date" / "Due Date" en
+// mes y año (sin día). Los tramos de 2025 ya se amortizaron (saldo del ejercicio actual "—") y no
+// deben pintarse como vencimientos futuros.
+const ADOBE_DEBT_TEXT = `The carrying value of our borrowings as of November 28, 2025 and November 29, 2024 were as follows:
+(dollars in millions) \tIssuance Date \tDue Date Effective
+Interest Rate \t2025 \t2024
+1.90% 2025 Notes \tFebruary 2020 February 2025 \t2.07% $ \t— $ \t500
+3.25% 2025 Notes \tJanuary 2015 \tFebruary 2025 \t3.67% \t— \t1,000
+2.15% 2027 Notes \tFebruary 2020 February 2027 \t2.26% \t850 \t850
+4.85% 2027 Notes \tApril 2024 \tApril 2027 \t5.03% \t500 \t500
+4.75% 2028 Notes \tJanuary 2025 \tJanuary 2028 \t4.93% \t800 \t—
+4.80% 2029 Notes \tApril 2024 \tApril 2029 \t4.93% \t750 \t750
+4.95% 2030 Notes \tJanuary 2025 \tJanuary 2030 \t5.09% \t700 \t—
+2.30% 2030 Notes \tFebruary 2020 February 2030 \t2.69% \t1,300 \t1,300
+4.95% 2034 Notes \tApril 2024 \tApril 2034 \t5.03% \t750 \t750
+5.30% 2035 Notes \tJanuary 2025 \tJanuary 2035 \t5.40% \t500 \t—
+Total debt outstanding, at par \t$ \t6,150 $ \t5,650
+Less: Current portion of debt, at par \t— \t(1,500)
+Fair value of interest rate swaps \t86 \t—
+Carrying value of long-term debt \t$ \t6,210 $ \t4,129
+In January 2025, we issued $800 million of senior notes due January 17, 2028, $700 million of senior notes due January 17,
+2030 and $500 million of senior notes due January 17, 2035.
+In February 2025, $1.5 billion of senior notes became due and were repaid.`;
+
+test('buildMaturityScheduleFromFilingText lee tablas con Due Date en mes y año (caso Adobe 10-K FY2025)', () => {
+  const result = buildMaturityScheduleFromFilingText(ADOBE_DEBT_TEXT, 2025, '2025-11-28');
+  assert.ok(result, 'Debe reconstruir el calendario desde la tabla por emisión');
+  assert.deepEqual(result.items.map((item) => [item.year, item.amount, item.rate]), [
+    [2027, 850, 2.15],
+    [2027, 500, 4.85],
+    [2028, 800, 4.75],
+    [2029, 750, 4.8],
+  ]);
+  assert.equal(result.afterYearFive, 3250, '2030 (700+1.300), 2034 (750) y 2035 (500) van después del año 5');
+  assert.ok(!result.items.some((item) => item.year <= 2025), 'Los tramos de 2025 ya amortizados no se pintan');
+  assert.equal(result.weightedAverageRate.rate, 3.98);
+});
+
+test('extractDebtFilingText localiza la nota con columnas Issuance Date / Due Date (caso Adobe 10-K FY2025)', () => {
+  const filingText = `ITEM 1A. RISK FACTORS
+Our existing and future debt obligations may adversely affect our financial condition and future financial results.
+As of November 28, 2025, we had $6.15 billion in senior unsecured notes outstanding and a $3 billion commercial paper program.
+ITEM 7. MD&A
+NOTE 17. DEBT
+The carrying value of our borrowings as of November 28, 2025 and November 29, 2024 were as follows:
+(dollars in millions) \tIssuance Date \tDue Date Effective
+Interest Rate \t2025 \t2024
+1.90% 2025 Notes \tFebruary 2020 February 2025 \t2.07% $ \t— $ \t500
+2.15% 2027 Notes \tFebruary 2020 February 2027 \t2.26% \t850 \t850`;
+  const debtText = extractDebtFilingText(filingText);
+  assert.ok(debtText.includes('Issuance Date'));
+  assert.ok(debtText.includes('2.15% 2027 Notes'));
+});
+
+test('buildAnnualEdgarData descarta el calendario parcial de deuda de un ejercicio anterior (caso Adobe FY2025)', () => {
+  const partial = { baseYear: 2024, partial: true, years: [{ year: 2025, amount: 1500 }] };
+  assert.equal(buildAnnualEdgarData({ annual: [], debtMaturities: partial }, 2025).edgarDebtMaturities, null);
+  assert.deepEqual(
+    buildAnnualEdgarData({ annual: [], debtMaturities: partial }, 2024).edgarDebtMaturities.years,
+    [{ year: 2025, amount: 1500 }],
+  );
+
+  const full = { baseYear: 2024, years: [{ year: 2025, amount: 500 }] };
+  assert.ok(buildAnnualEdgarData({ annual: [], debtMaturities: full }, 2025).edgarDebtMaturities);
 });
 
 const CAG_DEBT_TEXT = `4. LONG-TERM DEBT

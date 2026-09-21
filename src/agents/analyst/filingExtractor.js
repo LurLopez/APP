@@ -7,7 +7,11 @@ import { readFile } from 'node:fs/promises';
 
 export const KNOWLEDGE_DIR = new URL('../knowledge/', import.meta.url);
 export const PROMPTS_DIR = new URL('../prompts/', import.meta.url);
-export const SECTOR_FILES = { defensive_consumer: 'consumo-defensivo' };
+export const SECTOR_FILES = {
+  defensive_consumer: 'consumo-defensivo',
+  technology: 'tecnologia',
+  consumer_discretionary: 'consumo-discrecional',
+};
 
 /**
  * Carga las reglas markdown de conocimiento aplicables a un sector, subsector, tipo de formulario y empresa.
@@ -89,6 +93,16 @@ export async function loadKnowledgeRules(sector, subsector, formType = '10-Q', t
 
 const KEY_SECTION_PATTERNS = [
   { re: /(?:Note\s+\d+[\s.:–-]+)?Debt Obligations[\s\S]{0,120}?(?:As of|\(In millions\)|December\s+\d{1,2},)/i, before: 400, after: 8500, label: 'DEUDA: NOTA DE OBLIGACIONES CON CUPONES Y VENCIMIENTOS' },
+  // Tabla de deuda con tipos por tipo/divisa ("Interest rates / Amounts outstanding / Maturity
+  // dates" con filas Fixed/Floating y totales por divisa, caso MCD): sin esta ventana la tabla
+  // no llega al extractor y no puede mostrar los tipos medios efectivos por divisa. La fila de
+  // cabecera va separada por tabuladores (parece un índice para el heurístico), así que se
+  // exime del filtro de entradas de índice.
+  { re: /interest\s+rates?[\s\S]{0,400}?(?:amounts?\s+outstanding|maturity\s+dates?)/i, before: 800, after: 7000, label: 'DEUDA: TIPOS DE INTERÉS Y SALDOS POR DIVISA', skipIndexCheck: true },
+  // Tabla de ratios de deuda del MD&A ("Fixed-rate debt as a percent of total debt" /
+  // "Weighted-average annual interest rate of total debt", caso MCD): es la fuente del tipo
+  // medio publicado; sin esta ventana el extractor no lo ve.
+  { re: /Fixed-rate debt as a percent of total debt[\s\S]{0,500}?Weighted-average annual interest rate/i, before: 300, after: 1200, label: 'DEUDA: RATIOS Y TIPO MEDIO PUBLICADO', skipIndexCheck: true },
   { re: /(?:Note\s+\d+[\s.:–-]+)?Long-Term Debt:?\s*(?:The following table|The components|The Company)|Long-term debt obligations[^\n]{0,140}(?:table|summariz)/i, before: 300, after: 8500, label: 'DEUDA: NOTA DE DEUDA A LARGO PLAZO CON CUPONES' },
   { re: /aggregate principal maturities|principal maturities of our long-term debt|(?:scheduled\s+)?maturities of (?:long-term )?debt/i, before: 1500, after: 2500, label: 'DEUDA: VENCIMIENTOS DE PRINCIPAL POR EJERCICIO' },
   { re: /Material Cash Requirements[^\n]{0,90}Obligations|Contractual (?:Cash )?Maturities/i, before: 300, after: 5500, label: 'DEUDA: VENCIMIENTOS CONTRACTUALES' },
@@ -117,7 +131,7 @@ function pickKeySections(source, labelPrefix) {
     let chosen = null;
     while ((match = regex.exec(source)) !== null) {
       const snippet = source.slice(match.index, match.index + 260);
-      if (!INDEX_ENTRY_PATTERN.test(snippet)) { chosen = match; break; }
+      if (item.skipIndexCheck || !INDEX_ENTRY_PATTERN.test(snippet)) { chosen = match; break; }
       regex.lastIndex = match.index + 1;
     }
     if (!chosen || chosen.index == null) continue;
@@ -193,6 +207,23 @@ export function extractDebtFilingText(text) {
       re: /(?:issuance\s+)?maturity\s+date[\s\S]{0,100}?(?:rate|interest|cup[oó]n|carrying)/gi,
       before: 2500,
       after: 9000,
+    },
+    {
+      // Tabla de deuda por emisión con columnas "Issuance Date" y "Due Date" en mes y año, sin día
+      // ("1.90% 2025 Notes February 2020 February 2025 2.07% $ — $ 500", caso Adobe 10-K). Sin esta
+      // ventana la extracción cae en la mención de riesgo "debt obligations" del Item 1A y pierde
+      // la tabla real de la nota.
+      re: /issuance\s+date[\s\S]{0,160}?due\s+date/gi,
+      before: 1500,
+      after: 12000,
+    },
+    {
+      // Tabla de deuda agrupada por tipo y divisa con tipos medios efectivos ("Interest rates /
+      // Amounts outstanding / Maturity dates" y filas Fixed/Floating + "Total U.S. Dollar",
+      // "Total Euro"...; caso MCD). Sin esta ventana la pasada focalizada de deuda pierde la tabla.
+      re: /interest\s+rates?[\s\S]{0,400}?(?:amounts?\s+outstanding|maturity\s+dates?)/gi,
+      before: 800,
+      after: 7000,
     },
   ];
 

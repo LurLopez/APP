@@ -8,7 +8,7 @@ import { getFilingPreview } from '../../services/edgar.service.js';
 import { buildDownloadBase } from '../../services/analysis.service.js';
 import { generateReportPdf, GENERATED_DIR } from '../../services/report.service.js';
 import { getAnalysisVersions, findUserAnalysis, createAnalysis, updateAnalysis } from '../../../db/repositories/analysisRepository.js';
-import { resolveAnalysisVersion, isAnalysisOutdated } from '../../agents/sectorAgent.js';
+import { resolveAnalysisVersion, isAnalysisOutdated, resolveSectorByTicker } from '../../agents/sectorAgent.js';
 import { resolveUser } from '../../middleware/auth.middleware.js';
 import { handleEdgarError } from './screener.controller.js';
 import { TICKER_PATTERN, ACCESSION_PATTERN, PAGE_PATTERN, PREVIEWS_DIR, normalizeAccession } from './filing.analysis.controller.js';
@@ -25,7 +25,7 @@ export async function getFilingVersionsHandler(req, res, next) {
     const versions = await getAnalysisVersions({ ticker, accession, userId: user?.id ?? null });
     const latest = versions[0] ?? null;
     const versionOptions = {
-      sector: 'defensive_consumer',
+      sector: latest?.sector ?? resolveSectorByTicker(ticker) ?? 'defensive_consumer',
       subsector: latest?.subsector ?? null,
       ticker,
       formType: latest?.form_type ?? null,

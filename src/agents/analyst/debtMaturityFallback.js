@@ -486,6 +486,50 @@ function parseDatedMaturityRows(source) {
   return rows;
 }
 
+const MONTH_YEAR_PATTERN = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+((?:19|20)\d{2})\b/gi;
+
+/**
+ * Parser de tablas de deuda por emisión con columnas "Issuance Date" / "Due Date" en formato
+ * mes y año, sin día ("1.90% 2025 Notes February 2020 February 2025 2.07% $ — $ 500",
+ * "2.15% 2027 Notes February 2020 February 2027 2.26% 850 850"). Cubre notas que listan cada
+ * tramo con su cupón (efectivo) y los saldos del ejercicio actual y anterior (p. ej. Adobe 10-K).
+ * Toma el año de la fecha de vencimiento (la última del tramo) y el importe de la columna del
+ * ejercicio actual: si el saldo actual es un guion ("—") el tramo ya se amortizó y no es un
+ * vencimiento futuro.
+ * @param {string} source - Texto de la nota de deuda.
+ * @returns {Array<object>} Filas con year, label, amount y rate.
+ */
+function parseMonthYearMaturityRows(source) {
+  const rows = [];
+  for (const line of String(source ?? '').split(/\r?\n/)) {
+    const text = line.replace(/\s+/g, ' ').trim();
+    if (!text || text.length > 300 || TEXT_INDEX_LINE.test(text)) continue;
+    // Las filas "due <mes> <año>" ya las procesa el parser de líneas: aquí se evitan para no duplicarlas.
+    if (/\bdue\s+(?:on\s+)?(?:[A-Za-z]+\s+)?(?:19|20)\d{2}\b/i.test(text)) continue;
+    if (/\b(?:through|thru|until)\s+(?:19|20)\d{2}\b/i.test(text)) continue;
+    const dates = [...text.matchAll(MONTH_YEAR_PATTERN)];
+    if (!dates.length) continue;
+    const label = text.slice(0, dates[0].index).trim();
+    if (!label || !DATED_DEBT_LABEL.test(label) || DATED_EXCLUDED_LABEL.test(label)) continue;
+    if (TEXT_AGGREGATE_LABEL.test(label)) continue;
+    const due = dates[dates.length - 1];
+    const dueYear = Number(due[2]);
+    if (!Number.isFinite(dueYear)) continue;
+    const { amount, rate } = datedMaturityTail(text, due.index + due[0].length);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    const labelRate = rateFromText(label);
+    rows.push({
+      year: dueYear,
+      dateText: due[0],
+      label,
+      amount,
+      rate: labelRate?.rate ?? rate ?? null,
+      estimated: labelRate?.estimated === true,
+    });
+  }
+  return rows;
+}
+
 /**
  * Localiza la tabla explícita "maturities of long-term debt" (año → importe) que muchas
  * notas publican tras un encabezado del tipo "The following table summarizes the maturities
@@ -652,6 +696,29 @@ export function buildMaturityScheduleFromFilingText(text, fiscalYear, periodEnd)
       amount: row.amount,
       rate: row.rate ?? null,
       estimated: false,
+      type: maturityType(row.label),
+    };
+    if (row.year < minYear) return;
+    if (row.year > maxYear) {
+      afterYearFive = (afterYearFive ?? 0) + row.amount;
+      ratedItems.push(item);
+      return;
+    }
+    ratedItems.push(item);
+    items.push(item);
+  });
+
+  // Tablas por emisión con "Issuance Date" / "Due Date" en mes y año (sin día), p. ej. Adobe 10-K.
+  parseMonthYearMaturityRows(source).forEach((row) => {
+    const key = `${row.dateText}|${row.label}|${row.amount}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const item = {
+      year: row.year,
+      label: `${row.label} ${row.dateText}`.trim(),
+      amount: row.amount,
+      rate: row.rate ?? null,
+      estimated: row.estimated === true,
       type: maturityType(row.label),
     };
     if (row.year < minYear) return;

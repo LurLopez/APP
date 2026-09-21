@@ -30,6 +30,10 @@
     });
 
     document.querySelector('#metrics-chart-legend')?.addEventListener('click', (event) => {
+      if (event.target.closest('.metrics-legend-toggle-all')) {
+        toggleAllSeriesVisibility();
+        return;
+      }
       const swatch = event.target.closest('.metrics-swatch');
       if (swatch) {
         const seriesId = swatch.dataset.seriesId;

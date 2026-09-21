@@ -26,15 +26,15 @@ A) ESTRUCTURA GENERAL
 B) BLOQUE VENTAS (Cuenta de Resultados)
 - Filas en orden: Ventas, Beneficio Bruto, Beneficio Operativo, EBT, Beneficio Neto (con sufijo M).
 - Comparativo del mismo periodo del año anterior; prohibido copiar el actual o dejar «—» si el filing lo da.
-- Deterioros/impairments: se suman de vuelta en la columna Ajustado (u «Anterior Ajustado» si fueron del año anterior). Resalte (isAdjusted/adjustedNote) SOLO en la casilla donde nace el ajuste: Beneficio Operativo para intangibles/deterioros, Beneficio Neto para impuestos. No se propaga a EBT ni Neto por arrastre.
+- Deterioros/impairments: se suman de vuelta en la columna Ajustado (u «Anterior Ajustado» si fueron del año anterior) solo los deterioros que la política sectorial ajusta: el de fondo de comercio/goodwill siempre; el de intangibles, marcas o activos (no fondo de comercio) solo en los sectores que lo permiten (en tecnología NO se ajusta: permanece como coste en la columna Ajustado y no lleva resalte). Resalte (isAdjusted/adjustedNote) SOLO en la casilla donde nace el ajuste: Beneficio Operativo para intangibles/deterioros, Beneficio Neto para impuestos. No se propaga a EBT ni Neto por arrastre.
 - Impuestos: si el impuesto reportado se desvía más del ±20 % del 23 % del EBT ajustado, se normaliza (impuesto = 23 % × EBT ajustado; Beneficio Neto Ajustado = EBT ajustado × 0,77) con nota explicativa (*2) que desglose EBT ajustado, tipo e impuesto.
-- Anterior Ajustado: si el año anterior tuvo impairment, se suma de vuelta; si no, hereda el valor de Anterior Normal.
+- Anterior Ajustado: si el año anterior tuvo un deterioro ajustable según la política sectorial, se suma de vuelta; si no (o si el único deterioro es de la parte no ajustable, como intangibles en tecnología), hereda el valor de Anterior Normal.
 - EPS y acciones: acciones a cierre, BPA ajustado, y comparativa coherente.
 
 C) BLOQUE CASH FLOW
 - Filas: Cash Flow, CAPEX, FCF, FCF/Acción, Dividendo, Libre. Dos columnas: Normal (WC=valor) y Ajustado*1 (WC=valor), con los WC numéricos explícitos.
 - FCF = Cash Flow − CAPEX; Libre = FCF − Dividendo (en ambas columnas).
-- Debe existir nota *1 con la fórmula WC = (Cuentas por pagar − Inventarios − Cuentas por cobrar) × (inflación + volumen) y el ajuste resultante con su signo correcto.
+- Debe existir nota *1 con la estimación del circulante teórico según el peso agregado histórico (WC = peso agregado % × flujo operativo sin circulante, media de los últimos 10 ejercicios) y el ajuste resultante con su signo correcto.
 - Normalización fiscal en efectivo: si los impuestos pagados difieren del gasto devengado normalizado, se ajusta el Cash Flow con nota *2 que cierre la cadena Normal → circulante → impuestos → Ajustado.
 - Prohibido el ajuste trimestral por deducción de flujos acumulados como nota; la deducción es aritmética ordinaria.
 
@@ -67,7 +67,7 @@ CONVENCIONES OFICIALES DE CIFRA (NO son errores; no las reportes):
 - Filas materiales: las filas de Asignación de Capital (recompras, adquisiciones, desinversiones, inversiones…) solo se pintan si son materiales (>= 50M). Omitir una partida por debajo de ese umbral es correcto. Los DIVIDENDOS no son fila de capital: están dentro del Libre (FCF − Dividendo).
 - La fila «Libre» de Asignación de Capital usa el escenario Normal del Cash Flow; que difiera del Libre Ajustado es correcto por diseño.
 - Micro-caps: en empresas con ventas por debajo de ~200M, redondear a millones puede mostrar 0M para importes de cientos de miles; no es un error material.
-- «Beneficio Operativo Ajustado»: es la suma de deterioros y amortización de intangibles al beneficio operativo reportado; no tiene por qué coincidir con el adjusted operating income no-GAAP de la compañía. Solo es error si la suma de las partidas citadas no cuadra con la tabla.
+- «Beneficio Operativo Ajustado»: es la suma de los deterioros y amortizaciones de intangibles que la política sectorial ajusta al beneficio operativo reportado; no tiene por qué coincidir con el adjusted operating income no-GAAP de la compañía. En tecnología, el deterioro y la amortización de intangibles no se suman: si la tabla los mantiene como coste, es correcto. Solo es error si la suma de las partidas citadas no cuadra con la tabla.
 - Deuda: la fila, la nota y el histórico usan la deuda del BALANCE (incluye porción corriente y arrendamientos financieros). Un «Total debt» no-GAAP del MD&A/press release distinto no invalida la cifra por sí solo; solo es error si el informe presenta dos cifras de deuda distintas sin explicar la diferencia.
 - Impuestos pagados estimados: si la nota dice que el pago se ha estimado por la conciliación de gasto fiscal menos impuestos diferidos (porque el estado de flujos no lo desglosa), la cifra es válida; solo es error si el número contradice el filing de forma evidente. Si la nota afirma «según el estado de flujos» y el estado no lo muestra, es una imprecisión MENOR de redacción, no un cifra inventada.
 - Q1: en el primer trimestre el acumulado del año ES el trimestre; usar el dato acumulado en Q1 es correcto.

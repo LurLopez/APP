@@ -33,11 +33,17 @@
     const points = [...byYear.values()].sort((a, b) => a.year - b.year).slice(-10);
     if (points.length < 2) return '';
 
-    const max = Math.max(...points.flatMap((p) => [p.totalDebt, p.netDebt || 0])) || 1;
+    const max = Math.max(...points.flatMap((p) => [p.totalDebt, Number.isFinite(p.netDebt) ? p.netDebt : 0])) || 1;
+    const min = Math.min(0, ...points.flatMap((p) => [p.totalDebt, Number.isFinite(p.netDebt) ? p.netDebt : 0]));
     const W = 640, H = 260, padL = 52, padR = 14, padT = 32, padB = 44;
     const plotW = W - padL - padR, plotH = H - padT - padB;
     const step = max > 5000 ? 1000 : (max > 1000 ? 500 : (max > 200 ? 100 : 50));
     const niceMax = Math.ceil(max / step) * step || max;
+    const niceMin = min < 0 ? -Math.ceil(Math.abs(min) / step) * step : 0;
+    const range = niceMax - niceMin || niceMax;
+    const yFor = (v) => padT + plotH * (niceMax - v) / range;
+    const baseY = yFor(0);
+    const hasNegative = niceMin < 0;
     const slotW = plotW / points.length;
     const groupW = Math.min(48, slotW * 0.76);
     const barW = (groupW - 4) / 2;
@@ -48,26 +54,38 @@
     parts.push('<rect x="330" y="10" width="10" height="10" rx="2" fill="#d97706"/>');
     parts.push('<text x="345" y="18" font-size="8.5" font-weight="700" fill="#334155">Deuda Neta</text>');
 
-    for (let g = 0; g <= 3; g += 1) {
-      const v = (niceMax * (3 - g)) / 3;
-      const gy = padT + plotH * (1 - v / niceMax);
-      parts.push(`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="${g === 3 ? '#cbd5e1' : '#e2e8f0'}" stroke-width="1"${g === 3 ? ' stroke-dasharray="4 3"' : ''}/>`);
-      parts.push(`<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">$${Math.round(v)}M</text>`);
+    for (let g = 0; g <= 4; g += 1) {
+      const v = niceMax - (range * g) / 4;
+      const gy = yFor(v);
+      const isBottom = g === 4 && !hasNegative;
+      parts.push(`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="${isBottom ? '#cbd5e1' : '#e2e8f0'}" stroke-width="1"${isBottom ? ' stroke-dasharray="4 3"' : ''}/>`);
+      parts.push(`<text x="${padL - 6}" y="${(gy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#64748b">${v < 0 ? '-' : ''}$${Math.round(Math.abs(v))}M</text>`);
+    }
+    if (hasNegative) {
+      parts.push(`<line x1="${padL}" y1="${baseY.toFixed(1)}" x2="${W - padR}" y2="${baseY.toFixed(1)}" stroke="#94a3b8" stroke-width="1.2"/>`);
     }
 
     points.forEach((p, i) => {
       const cx = padL + slotW * (i + 0.5);
-      const top1 = padT + plotH * (1 - p.totalDebt / niceMax);
-      const top2 = Number.isFinite(p.netDebt) ? padT + plotH * (1 - Math.max(0, p.netDebt) / niceMax) : padT + plotH;
+      const top1 = yFor(p.totalDebt);
+      const xTotal = cx - groupW / 2;
+      const xNet = cx - groupW / 2 + barW + 4;
 
-      parts.push(`<rect x="${(cx - groupW / 2).toFixed(1)}" y="${top1.toFixed(1)}" width="${barW.toFixed(1)}" height="${(padT + plotH - top1).toFixed(1)}" rx="2" fill="#1e40af"/>`);
-      parts.push(`<text x="${(cx - groupW / 2 + barW / 2).toFixed(1)}" y="${(top1 - 3).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#1e40af">${Math.round(p.totalDebt)}M</text>`);
+      parts.push(`<rect x="${xTotal.toFixed(1)}" y="${Math.min(top1, baseY).toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.abs(baseY - top1).toFixed(1)}" rx="2" fill="#1e40af"/>`);
+      parts.push(`<text x="${(xTotal + barW / 2).toFixed(1)}" y="${(top1 - 3).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#1e40af">${Math.round(p.totalDebt)}M</text>`);
 
       if (Number.isFinite(p.netDebt)) {
-        parts.push(`<rect x="${(cx - groupW / 2 + barW + 4).toFixed(1)}" y="${top2.toFixed(1)}" width="${barW.toFixed(1)}" height="${(padT + plotH - top2).toFixed(1)}" rx="2" fill="#d97706"/>`);
-        parts.push(`<text x="${(cx - groupW / 2 + barW + 4 + barW / 2).toFixed(1)}" y="${(top2 - 3).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#d97706">${Math.round(p.netDebt)}M</text>`);
+        const yNet = yFor(p.netDebt);
+        if (p.netDebt >= 0) {
+          parts.push(`<rect x="${xNet.toFixed(1)}" y="${Math.min(yNet, baseY).toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.abs(baseY - yNet).toFixed(1)}" rx="2" fill="#d97706"/>`);
+          parts.push(`<text x="${(xNet + barW / 2).toFixed(1)}" y="${(yNet - 3).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#d97706">${Math.round(p.netDebt)}M</text>`);
+        } else {
+          parts.push(`<rect x="${xNet.toFixed(1)}" y="${baseY.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.abs(yNet - baseY).toFixed(1)}" rx="2" fill="#d97706"/>`);
+          parts.push(`<text x="${(xNet + barW / 2).toFixed(1)}" y="${(yNet + 9).toFixed(1)}" text-anchor="middle" font-size="7" font-weight="700" fill="#d97706">${Math.round(p.netDebt)}M</text>`);
+        }
       }
-      parts.push(`<text x="${cx.toFixed(1)}" y="${(padT + plotH + 13).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#334155">${p.year}</text>`);
+      const yearY = padT + plotH + (hasNegative ? 24 : 13);
+      parts.push(`<text x="${cx.toFixed(1)}" y="${yearY.toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#334155">${p.year}</text>`);
     });
 
     const title = `EVOLUCIÓN DE LA DEUDA: NORMAL VS NETA (${points[0].year}–${points[points.length - 1].year})`;

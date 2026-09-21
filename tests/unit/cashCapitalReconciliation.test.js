@@ -7,6 +7,8 @@ import {
 } from '../../src/agents/analyst/analystCashCapitalProcessor.js';
 import { visibleCapitalRows } from '../../src/utils/capitalRows.js';
 import { buildCapitalAllocationFromBalance } from '../../src/agents/analyst/capitalAllocationHelpers.js';
+import { applyTextFallbacks } from '../../src/agents/analyst/analystRunSteps.js';
+import { extractCapitalCashFlowFacts } from '../../src/agents/analyst/financialParsers.js';
 import { rederiveCashValues } from '../../src/services/edgar/rederiveStatements.js';
 
 function buildAnnualHorizon() {
@@ -338,6 +340,162 @@ test('buildCapitalAllocationFromBalance no inventa la deuda no monetaria si la d
     systemDebtCash: { ytd: 753, quarter: -582 },
   });
   assert.equal(tooBig.ytd.nonCashDebt, 0);
+});
+
+test('buildCapitalAllocationFromBalance explica la deuda no monetaria anual con el flujo de EDGAR (caso MCD 2025)', () => {
+  const extracted = {
+    fiscalQuarter: 4,
+    fiscalYear: 2025,
+    ticker: 'MCD',
+    balance: {
+      totalDebt: 39973,
+      totalDebtBeginningOfYear: 38424,
+      cash: 774,
+      cashBeginningOfYear: 1085,
+    },
+    facts: {
+      acquisitionsYtd: 354,
+      shareBuybacks: 2056,
+      brandDivestitures: 0,
+      assetSalesYtd: 476,
+    },
+    systemDebtCash: { ytd: -78 },
+  };
+
+  const data = buildCapitalAllocationFromBalance(extracted, 'es', 'consumer_discretionary', true);
+  assert.equal(data.ytd.deuda, 1549, '39.973M − 38.424M');
+  assert.equal(data.ytd.assumedDebt, 0, 'la deuda del balance no se asume en compras');
+  assert.equal(data.ytd.nonCashDebt, 1627, '1.549M de balance frente a -78M de caja: efecto divisa/valor razonable');
+
+  // El mismo caso sin el flujo de deuda de EDGAR no inventa el movimiento no monetario.
+  const withoutEdgar = buildCapitalAllocationFromBalance({ ...extracted, systemDebtCash: undefined }, 'es', 'consumer_discretionary', true);
+  assert.equal(withoutEdgar.ytd.nonCashDebt, 0);
+});
+
+test('normalizeCapitalBlock cuadra la asignación anual de MCD 2025 explicando la deuda no monetaria', () => {
+  const extracted = {
+    fiscalQuarter: 4,
+    fiscalYear: 2025,
+    ticker: 'MCD',
+    balance: {
+      totalDebt: 39973,
+      totalDebtBeginningOfYear: 38424,
+      cash: 774,
+      cashBeginningOfYear: 1085,
+    },
+    facts: {
+      acquisitionsYtd: 354,
+      shareBuybacks: 2056,
+      brandDivestitures: 0,
+      assetSalesYtd: 476,
+    },
+    systemDebtCash: { ytd: -78 },
+  };
+  extracted.capitalAllocationData = buildCapitalAllocationFromBalance(extracted, 'es', 'consumer_discretionary', true);
+
+  const horizon = {
+    label: 'EN TODO EL AÑO (12 MESES)',
+    cashFlow: { rows: [{ name: 'Libre', values: ['2071'] }] },
+    capital: {
+      rows: [
+        { name: 'Libre', value: '2071' },
+        { name: 'En total', value: '0' },
+      ],
+      notes: [],
+      verification: '',
+    },
+  };
+
+  normalizeCapitalBlock(horizon, extracted, 'es');
+
+  const rows = Object.fromEntries(horizon.capital.rows.map((row) => [row.name.replace(/\*\d+/g, '').trim(), row.value]));
+  assert.equal(rows['Libre'], '2071');
+  assert.equal(rows['Desinversiones'], '476');
+  assert.equal(rows['Adquisiciones'], '-354');
+  assert.equal(rows['Recompras'], '-2056');
+  assert.equal(rows['Caja'], '311');
+  assert.equal(rows['Deuda'], '1549');
+  assert.equal(rows['En total'], '1997', 'la tabla solo pinta movimientos de caja');
+  assert.match(horizon.capital.verification, /Más o menos cuadra/);
+  assert.doesNotMatch(horizon.capital.verification, /No cuadra/);
+  assert.match(horizon.capital.verification, /deuda no monetaria[^;]* -1627M/);
+  assert.match(horizon.capital.verification, /resto sin explicar sería \+370M, dentro del margen razonable/);
+});
+
+test('buildWorkingCapitalHistory construye la serie de hasta 10 años con CFO y variación de circulante', async () => {
+  const { buildWorkingCapitalHistory } = await import('../../src/agents/analyst/analystRunSteps.js');
+  const edgarResults = {
+    annual: [
+      { period: 2026, values: { cfo: 100e9, workingCapitalChange: -10e9 } },
+      { period: 2025, values: { cfo: 80e9, workingCapitalChange: -8e9 } },
+      { period: 2024, values: { cfo: 60e9, workingCapitalChange: -6e9 } },
+      { period: 2023, values: { cfo: 40e9, workingCapitalChange: -4e9 } },
+      { period: 2022, values: { cfo: 20e9 } },
+    ],
+  };
+  const history = buildWorkingCapitalHistory(edgarResults);
+  assert.deepEqual(history, [
+    { year: 2026, cfo: 100000, wcChange: -10000 },
+    { year: 2025, cfo: 80000, wcChange: -8000 },
+    { year: 2024, cfo: 60000, wcChange: -6000 },
+    { year: 2023, cfo: 40000, wcChange: -4000 },
+  ]);
+  assert.equal(buildWorkingCapitalHistory(edgarResults, 2).length, 2);
+});
+
+test('extractAnnualWorkingCapitalChange suma la sección de cambios del circulante del 10-K (caso NVIDIA)', async () => {
+  const { extractAnnualWorkingCapitalChange } = await import('../../src/agents/analyst/financialParsers.js');
+  const statementSample = [
+    'Net cash provided by operating activities 102,718 64,089 28,090',
+    'Changes in operating assets and liabilities, net of acquisitions:',
+    'Accounts receivable \t(15,399) \t(13,063) \t(6,172)',
+    'Inventories \t(11,324) \t(4,781) \t(98)',
+    'Prepaid expenses and other assets \t577 \t(395) \t(1,522)',
+    'Accounts payable \t3,096 \t3,357 \t1,531',
+    'Accrued and other current liabilities \t5,257 \t4,278 \t2,025',
+    'Other long-term liabilities \t1,844 \t1,221 \t514',
+    'Net cash provided by operating activities \t102,718 \t64,089 \t28,090',
+  ].join('\n');
+  assert.equal(extractAnnualWorkingCapitalChange(statementSample), -15949);
+  assert.equal(extractAnnualWorkingCapitalChange('sin sección de circulante'), null);
+});
+
+test('extractCapitalCashFlowFacts suma ventas y vencimientos separados de marketable securities (caso NVIDIA)', () => {
+  const filingSample = `
+    Cash flows from investing activities:
+    Proceeds from sales of marketable securities 15,157
+    Proceeds from maturities of marketable securities 11,226
+    Purchases of marketable securities (40,616)
+  `;
+  const facts = extractCapitalCashFlowFacts(filingSample);
+  assert.equal(facts.proceedsFromSaleOfMarketableSecurities, 26383, 'Ventas (15.157) + vencimientos (11.226)');
+  assert.equal(facts.purchasesOfMarketableSecurities, -40616, 'Las compras van entre paréntesis en el estado de flujos');
+});
+
+test('las compras/ventas de marketable securities se normalizan a positivas y el neto de la fila es correcto (caso NVIDIA)', () => {
+  const rawText = `
+    Cash flows from investing activities:
+    Proceeds from sales of marketable securities 15,157
+    Proceeds from maturities of marketable securities 11,226
+    Purchases of marketable securities (40,616)
+  `;
+  const extracted = {
+    facts: {},
+    balance: { shortTermInvestments: 51951, shortTermInvestmentsBeginningOfYear: 34621 },
+  };
+  applyTextFallbacks(extracted, rawText);
+  assert.equal(extracted.facts.purchasesOfMarketableSecuritiesYtd, 40616);
+  assert.equal(extracted.facts.proceedsFromSaleOfMarketableSecuritiesYtd, 26383);
+
+  const { ytd } = buildCapitalAllocationFromBalance(extracted);
+  assert.equal(ytd.inversionesCortoPlazo, -14233, 'Neto ventas − compras = 26.383 − 40.616');
+
+  // La IA puede devolver las compras con el signo del estado de flujos: el neto no se invierte.
+  const fromAi = buildCapitalAllocationFromBalance({
+    balance: extracted.balance,
+    facts: { purchasesOfMarketableSecuritiesYtd: -40616, proceedsFromSaleOfMarketableSecuritiesYtd: 26383 },
+  });
+  assert.equal(fromAi.ytd.inversionesCortoPlazo, -14233);
 });
 
 test('normalizeCapitalBlock explica la deuda no monetaria bajo la tabla y no como fila (caso KHC)', () => {
