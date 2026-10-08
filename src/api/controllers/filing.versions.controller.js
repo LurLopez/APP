@@ -51,6 +51,7 @@ export async function getFilingVersionsHandler(req, res, next) {
         reviewedAt: entry.reviewed_at ?? null,
         reviewedBy: entry.reviewed_by ?? null,
         modelUsed: entry.model_used ?? null,
+        audit: entry.audit ?? null,
         formType: entry.form_type ?? null,
         language: entry.language ?? 'es',
         createdAt: entry.created_at,
@@ -115,6 +116,7 @@ export async function serveExistingAnalysis(existing, ticker, accession, user, r
           origin: existing.origin ?? null,
           sector: existing.sector ?? null,
           report: existing.report,
+          audit: existing.audit ?? null,
           model_used: existing.model_used ?? null,
         });
       } catch (saveErr) {
@@ -148,6 +150,7 @@ export async function serveExistingAnalysis(existing, ticker, accession, user, r
       ...versionOptions,
     }),
     report: existing.report,
+    audit: existing.audit ?? null,
     pdfUrl,
     downloadBase: buildDownloadBase(existing.report, formType),
     language: existing.language ?? existing.report?.language ?? 'es',

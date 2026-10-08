@@ -226,6 +226,26 @@
     link.remove();
   }
 
+  /**
+   * Descarga el HTML del informe tal y como lo generó el analista, antes de los ajustes
+   * del auditor. Solo está disponible si la revisión se ejecutó para ese análisis.
+   * @returns {void}
+   */
+  function downloadAuditBeforeHtml() {
+    const url = AS.currentAnalysisAudit?.htmlAntes;
+    if (!url) {
+      if (typeof showToast === 'function') showToast('Este análisis no tiene HTML previo a los ajustes.');
+      return;
+    }
+    const cleanName = String(AS.currentDownloadName || 'analisis-cifra').replace(/\.(pdf|docx|odt|html)$/i, '');
+    const link = document.createElement('a');
+    link.href = `${url}?download=1&name=${encodeURIComponent(`${cleanName}-antes`)}`;
+    link.download = `${cleanName}-antes.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   function renderAnalysisVersionsMenu() {
     const menu = document.querySelector('#analysis-versions-menu');
     if (!menu) return;
@@ -262,6 +282,7 @@ window.submitErrorReport = submitErrorReport;
 window.runRealAnalysis = runRealAnalysis;
 window.runFilingAnalysis = runFilingAnalysis;
 window.downloadReport = downloadReport;
+window.downloadAuditBeforeHtml = downloadAuditBeforeHtml;
 window.renderAnalysisVersionsMenu = renderAnalysisVersionsMenu;
 
 })(window);

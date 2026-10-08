@@ -5,7 +5,7 @@
 import { query } from '../pool.js';
 
 const ANALYSIS_COLUMNS = `
-    id, user_id, is_public, filename, status, error, origin, sector, report,
+    id, user_id, is_public, filename, status, error, origin, sector, report, audit,
     model_used, version, subsector, sector_version, is_reviewed, reviewed_at, reviewed_by,
     ticker, company_name, period_end, pdf_url, source_url, accession, language, created_at
 `;
@@ -25,12 +25,13 @@ export async function createAnalysis({
   subsector = null,
   sectorVersion = null,
   language = 'es',
+  audit = null,
 } = {}) {
   const { rows } = await query(
-    `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession, version, subsector, sector_version, language)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    `INSERT INTO analyses (user_id, is_public, filename, status, ticker, company_name, period_end, pdf_url, source_url, accession, version, subsector, sector_version, language, audit)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING ${ANALYSIS_COLUMNS}`,
-    [userId, Boolean(isPublic), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession, version, subsector, sectorVersion, language],
+    [userId, Boolean(isPublic), filename, status, ticker, companyName, periodEnd, pdfUrl, sourceUrl, accession, version, subsector, sectorVersion, language, audit],
   );
   return rows[0];
 }
@@ -126,7 +127,7 @@ export async function listAnalyses({
 
 export async function updateAnalysis(id, fields) {
   const allowed = [
-    'status', 'error', 'origin', 'sector', 'report', 'model_used', 'version', 'subsector', 'sector_version', 'is_public',
+    'status', 'error', 'origin', 'sector', 'report', 'audit', 'model_used', 'version', 'subsector', 'sector_version', 'is_public',
     'ticker', 'company_name', 'period_end', 'pdf_url', 'source_url', 'accession', 'language',
   ];
   const entries = Object.entries(fields).filter(([key]) => allowed.includes(key));

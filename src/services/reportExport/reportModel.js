@@ -20,6 +20,56 @@ import { t, normalizeLanguage } from '../../utils/i18n.js';
  * @param {string} language - Idioma del informe.
  * @returns {Array<object>} Lista de tarjetas con sus modelos analíticos y tablas.
  */
+const GUIDANCE_STATUS_LABELS = {
+  raised: 'Guidance revisado al alza',
+  lowered: 'Guidance revisado a la baja',
+  maintained: 'Guidance mantenido',
+  reaffirmed: 'Guidance reiterado',
+  new: 'Guidance nuevo',
+  withdrawn: 'Guidance retirado',
+};
+
+function guidanceStatusLabel(status, lang) {
+  const key = String(status || '').trim().toLowerCase();
+  return t(GUIDANCE_STATUS_LABELS[key] || 'Guidance', null, lang);
+}
+
+/**
+ * Construye el modelo de las notas del trimestre (10-Q): guidance y hechos relevantes de los últimos 3 meses.
+ * @param {object} quarterNotes - Sección quarterNotes del informe.
+ * @param {string} language - Idioma del informe.
+ * @returns {object|null} Modelo de la sección o null si no hay contenido.
+ */
+function buildQuarterNotesModel(quarterNotes, language = 'es') {
+  const lang = normalizeLanguage(language);
+  if (!quarterNotes || typeof quarterNotes !== 'object') return null;
+  const cards = [];
+  const guidance = quarterNotes.guidance;
+  if (guidance && (guidance.text || guidance.secSnippet)) {
+    let table = buildSecSnippetTable(guidance.secSnippet);
+    if (table && !guidance.secSnippet?.title) table.title = t('EXTRACTO OFICIAL SEC', null, lang);
+    cards.push({
+      title: `${t('Guidance', null, lang)} · ${guidanceStatusLabel(guidance.status, lang)}`,
+      text: guidance.text || null,
+      table,
+    });
+  }
+  const notes = Array.isArray(quarterNotes.notes) ? quarterNotes.notes : [];
+  notes.forEach((note) => {
+    if (!note || (!note.text && !note.title)) return;
+    cards.push({
+      title: note.title || t('Información relevante', null, lang),
+      text: note.text || null,
+    });
+  });
+  if (!cards.length) return null;
+  return {
+    title: quarterNotes.title || t('NOTAS DEL TRIMESTRE E INFORMACIÓN RELEVANTE', null, lang),
+    subtitle: t('Información relevante de los últimos 3 meses extraída de las notas y del MD&A del 10-Q', null, lang),
+    cards,
+  };
+}
+
 function buildConclusionCards(conc, report, language = 'es') {
   const lang = normalizeLanguage(language);
   const cards = [];
@@ -151,6 +201,7 @@ export function buildReportModel(report, language = null) {
         (Array.isArray(horizon.capital?.rows) && horizon.capital.rows.length) ? buildCapitalSection(horizon.capital, lang) : null,
       ].filter(Boolean),
     })),
+    quarterNotes: buildQuarterNotesModel(report?.quarterNotes, lang),
     conclusion: null,
     rating: null,
     footer: t('Generado por Cifra · beta 0.1 · La IA ordena la información. Tú decides qué significa.', null, lang),

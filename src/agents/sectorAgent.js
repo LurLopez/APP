@@ -156,9 +156,11 @@ Responde únicamente con un JSON válido con esta forma exacta:
 {"sector": "defensive_consumer" | "technology" | "consumer_discretionary" | "unsupported"}`;
 
 // La versión del análisis es jerárquica: general.sector[.subsector][.empresa].
-// El número de cada nivel se declara al principio de su .md en
-// src/agents/knowledge/ (p. ej. general.md, <sector>/sector.md,
-// <sector>/subsectores/<slug>/subsector.md y <sector>/empresas/<ticker>/empresa.md).
+// El nivel general es la mayor versión entre la parte financiera y la de notas
+// (financiero/general.md y notas/trimestral.md | notas/anual.md). El número de
+// cada nivel se declara al principio de su .md en src/agents/knowledge/
+// (p. ej. <sector>/sector.md, <sector>/subsectores/<slug>/subsector.md y
+// <sector>/empresas/<ticker>/empresa.md).
 export class SectorAgent extends BaseAgent {
   constructor() {
     super({

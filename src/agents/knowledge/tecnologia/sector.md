@@ -32,7 +32,7 @@
 4. **Impuestos Normalizados (Beneficio Neto)**:
    - Se compara el impuesto reportado con el **23 % del EBT ajustado**.
    - Si la desviación relativa supera `-20 %` o `+20 %`, se normalizan los impuestos al 23 %: Beneficio Neto Ajustado = EBT Ajustado × 0,77.
-   - Si la desviación está dentro de ±20 %, se mantiene el impuesto reportado efectivo.
+   - Si la desviación está dentro de ±20 %, se mantiene el impuesto reportado efectivo, **sin nota fiscal ni resalte alguno** (prohibido explicar en nota un ajuste que finalmente no se aplica). Aplica también al comparativo: si su impuesto se desvía, se normaliza el «Anterior Ajustado» con su cierre en la nota y resalte en esa casilla.
    - **Casilla exclusiva de resalte**: La llamada (`*2`) y su color se aplican **ÚNICAMENTE a la casilla de Beneficio Neto**.
 
 5. **Cash Flow, Ingresos Diferidos y Capital Circulante en Tecnología**:
@@ -40,7 +40,7 @@
    - El capital circulante teórico se estima con el **peso agregado histórico** del circulante sobre el flujo operativo sin circulante de los últimos 10 ejercicios (método único, común a todos los sectores admitidos):
      $$\text{WC}_{\text{teórico}} = \left( \frac{\sum \Delta WC}{\sum (\text{CFO} - \Delta WC)} \right)_{\text{últimos 10 ejercicios}} \times (\text{CFO} - \Delta WC)_{\text{periodo}}$$
      Ejemplo: CFO 80.000M con ΔWC −20.000M ⇒ base 100.000M y peso del −20 %. No aplica ninguna hipótesis de volumen plano ni de inflación sectorial: el sistema calcula la estimación de forma determinista (serie histórica de EDGAR) y la entrega en `workingCapitalData`.
-   - El peso se aplica al flujo del horizonte analizado (el trimestre usa su propio flujo CFO − ΔWC; el acumulado YTD usa el suyo), sin prorrateos aritméticos.
+   - El peso se aplica al flujo del horizonte: en informes trimestrales el teórico anual se prorratea (se divide entre 4 por trimestre). La nota al pie debe ser breve: solo la media (%) de los últimos 10 ejercicios aplicada, la indicación del ÷4 en trimestrales y el ajuste resultante, sin listar los ratios de cada ejercicio.
    - En la cabecera de la tabla de Cash Flow se presentan los dos escenarios:
      * **`Normal (WC=valorBase)`**: Flujos con la variación de circulante reportada.
      * **`Ajustado*1 (WC=valorAjustado)`**: Flujos normalizados con el circulante teórico.

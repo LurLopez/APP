@@ -1,0 +1,109 @@
+{
+  "tag": "deepseek-v4.1-flash",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "ticker": "AMZN",
+  "accession": "0001018724-26-000004",
+  "formType": "10-K",
+  "sector": "consumer_discretionary",
+  "subsector": null,
+  "language": "es",
+  "analysisId": 826,
+  "segundos": 78.8,
+  "fases": {
+    "analisis": {
+      "segundos": 30.7,
+      "costeConocido": true,
+      "llamadas": 2,
+      "promptTokens": 70001,
+      "completionTokens": 7552,
+      "reasoningTokens": 0,
+      "cacheHitTokens": 47104,
+      "cacheMissTokens": 22897,
+      "totalTokens": 77553,
+      "costeUsd": 0.008107
+    },
+    "revision": {
+      "segundos": 32.4,
+      "costeConocido": true,
+      "llamadas": 2,
+      "promptTokens": 158921,
+      "completionTokens": 9075,
+      "reasoningTokens": 0,
+      "cacheHitTokens": 5376,
+      "cacheMissTokens": 153545,
+      "totalTokens": 167996,
+      "costeUsd": 0.028493,
+      "nota": 6.5,
+      "veredicto": "correcto_con_reservas",
+      "errores": 5,
+      "corregido": true,
+      "cambios": 4
+    },
+    "pdf": {
+      "segundos": 2.2
+    }
+  },
+  "consumo": {
+    "llamadas": 4,
+    "promptTokens": 228922,
+    "completionTokens": 16627,
+    "reasoningTokens": 0,
+    "cacheHitTokens": 52480,
+    "cacheMissTokens": 176442,
+    "totalTokens": 245549,
+    "costeUsd": 0.0366,
+    "costeConocido": true
+  },
+  "costeUsd": 0.0366,
+  "costeConocido": true,
+  "costeReferenciaDeepseekFlashUsd": 0.0366,
+  "rating": {
+    "score": 7,
+    "label": "NOTA DE RESULTADOS: 7",
+    "rationale": "Calificación puramente financiera basada exclusivamente en la realidad de las cuentas del año, las metas expuestas en el outlook oficial y la asignación de capital ejecutada. Amazon cerró 2025 con un crecimiento de ventas del 12,38 %, un beneficio operativo ajustado de 81.275M (+18,49 %) y un beneficio neto ajustado de 69.994,54M (+32,48 %), con una posición de caja neta de -57.381M. El punto débil es el Free Cash Flow, que se comprimió hasta 7.695M por un CAPEX de 131.819M, y la ausencia total de retorno al accionista (sin dividendos ni recompras). El guidance trimestral apunta a un crecimiento de ventas del 11 % al 15 % con beneficio operativo de 16.500M – 21.500M. Sin especulación sobre el cumplimiento futuro."
+  },
+  "audit": {
+    "nota": 6.5,
+    "veredicto": "correcto_con_reservas",
+    "errores": 5,
+    "corregibles": 5,
+    "corregido": true,
+    "revertido": false,
+    "fuenteRecortada": true,
+    "cambios": 4,
+    "fallosDeterministas": {
+      "antes": 0,
+      "despues": 0
+    },
+    "htmlAntes": "/api/reports/2068c836-446e-41e0-8574-44e1bf4bd470-antes.html",
+    "htmlDespues": "/api/reports/2068c836-446e-41e0-8574-44e1bf4bd470.html"
+  },
+  "auditCambios": [
+    {
+      "ruta": "horizons.0.sales.notes.1",
+      "antes": "*2: Impuestos: el gasto fiscal reportado fue 19087M sobre un EBT de 97311M (tipo efectivo del 19,61 %). No procede normalizar el gasto, que ya incluye el impuesto asociado a la partida no recurrente excluida; el Beneficio Neto Ajustado queda en 69994,54M.",
+      "despues": "*2: Impuestos: el gasto fiscal reportado fue 19087M sobre un EBT de 97311M (tipo efectivo del 19,61 %), que se desvía más del 20 % del 23 % de referencia (18,4 %-27,6 %), por lo que se normaliza el impuesto al 23 % del EBT ajustado: 90902M × 0,23 = 20907,46M. Beneficio Neto Ajustado = 90902M × 0,77 = 69994,54M."
+    },
+    {
+      "ruta": "horizons.0.cashFlow.notes.0",
+      "antes": "*1: WC = peso agregado del circulante sobre el flujo operativo sin circulante en los últimos 10 ejercicios: -3,8% × 138618M = -5287,8M en el periodo. Ratios de los ejercicios: -1,9%; 0,6%; -1,8%; -1,7%; -15%; -24,5%; 10,8%; -6,7%; -8%; -6,4%. Desviación del circulante reportado (896M) frente al WC teórico (-5287,8M): 6183,8M. El Cash Flow tras el ajuste de circulante queda en: 139514M - (6183,8M) …",
+      "despues": "*1: WC = peso agregado del circulante sobre el flujo operativo sin circulante en los últimos 10 ejercicios: -3,8% × 138618M = -5287,8M en el periodo. Ratios de los ejercicios: -1,9%; 0,6%; -1,8%; -1,7%; -15%; -24,5%; 10,8%; -6,7%; -8%; -6,4%. Desviación del circulante reportado (896M) frente al WC teórico (-5287,8M): 6183,8M. El Cash Flow tras el ajuste de circulante queda en un subtotal intermedi…"
+    },
+    {
+      "ruta": "conclusion.outlook.riskFactors",
+      "antes": "Los principales riesgos de costes son el encarecimiento de la infraestructura tecnológica (servidores y equipos de red, con un cambio de estimación de vida útil de **seis a cinco años** que añadió **1.400M** de depreciación y redujo el beneficio neto en **1.000M**), los costes laborales y de cumplimiento (cargos por **2.500M** del acuerdo con la FTC y **2.700M** de indemnizaciones por reducción de…",
+      "despues": "Los principales riesgos de costes son el encarecimiento de la infraestructura tecnológica (servidores y equipos de red, con un cambio de estimación de vida útil de **seis a cinco años** que añadió **1.400M** de depreciación y redujo el beneficio neto en **1.000M**), los costes laborales y de cumplimiento (cargo por **2.500M** del acuerdo con la FTC registrado en Q3 2025 y **2.700M** de costes esti…"
+    },
+    {
+      "ruta": "rating.rationale",
+      "antes": "Calificación puramente financiera basada exclusivamente en la realidad de las cuentas del año, las metas expuestas en el outlook oficial y la asignación de capital ejecutada. Amazon cerró 2025 con un crecimiento de ventas del 12,38 %, un beneficio operativo ajustado de 81.275M (+18,49 %) y un beneficio neto ajustado de 75.930,47M (+28,16 %), con una posición de caja neta de -57.381M. El punto débi…",
+      "despues": "Calificación puramente financiera basada exclusivamente en la realidad de las cuentas del año, las metas expuestas en el outlook oficial y la asignación de capital ejecutada. Amazon cerró 2025 con un crecimiento de ventas del 12,38 %, un beneficio operativo ajustado de 81.275M (+18,49 %) y un beneficio neto ajustado de 69.994,54M (+32,48 %), con una posición de caja neta de -57.381M. El punto débi…"
+    }
+  ],
+  "html": [
+    "AMZN-2025-10K_deepseek-v4.1-flash.html",
+    "AMZN-2025-10K_deepseek-v4.1-flash-antes-auditoria.html"
+  ],
+  "generadoEn": "2026-09-21T23:57:55.342Z"
+}

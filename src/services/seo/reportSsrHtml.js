@@ -7,6 +7,7 @@ import { escapeHtml } from './seoConstants.js';
 import { getExecutiveChanges, getExecutiveFieldLabels } from '../reportExport/executiveChanges.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
 import { visibleCapitalRows } from '../../utils/capitalRows.js';
+import { resolveAdjustedCells } from '../../utils/salesHighlight.js';
 
 /**
  * Obtiene la clase CSS para resaltar notas numéricas.
@@ -28,6 +29,10 @@ export function getHighlightClassSsr(noteNumber) {
 export function renderNotesSsr(notes, options = {}) {
   const list = (Array.isArray(notes) ? notes : []).filter(Boolean);
   if (!list.length) return '';
+  const renderNoteText = (text) => escapeHtml(String(text ?? ''))
+    .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+?)__/g, '<u>$1</u>')
+    .replaceAll('\n', '<br>');
   return `<ul class="report-notes">${list.map((note) => {
     const raw = String(note ?? '');
     const match = raw.match(/^\*(\d+):?\s*([\s\S]*)$/);
@@ -35,9 +40,9 @@ export function renderNotesSsr(notes, options = {}) {
       const num = match[1];
       const colorNum = (options.isCashFlow && (num === '3' || num === 3)) ? '2' : num;
       const cls = getHighlightClassSsr(colorNum);
-      return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${escapeHtml(match[2]).replaceAll('\n', '<br>')}</li>`;
+      return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${renderNoteText(match[2])}</li>`;
     }
-    return `<li>${escapeHtml(raw)}</li>`;
+    return `<li>${renderNoteText(raw)}</li>`;
   }).join('')}</ul>`;
 }
 
@@ -69,7 +74,7 @@ export function renderTableSsr(headers, rows, metaRows = [], options = {}) {
 
   const tbody = rows.map((row, rowIdx) => {
     const meta = metaRows[rowIdx] || {};
-    const isRowAdjusted = isSalesTable && meta.isAdjusted === true;
+    const adjustedSides = isSalesTable ? resolveAdjustedCells(meta) : null;
     let noteNum = 1;
     const noteMatch = String(meta.adjustedNote || '').match(/\*?(\d+)/);
     if (noteMatch) noteNum = parseInt(noteMatch[1], 10);
@@ -78,7 +83,8 @@ export function renderTableSsr(headers, rows, metaRows = [], options = {}) {
     const cells = row.map((cell, colIdx) => {
       const isBoldCol = boldColumns.includes(colIdx);
       const isPctCol = percentColumns.includes(colIdx);
-      const isAdjustedCell = isSalesTable && colIdx === 1 && isRowAdjusted;
+      const isAdjustedCell = isSalesTable
+        && ((colIdx === 1 && adjustedSides.current) || (colIdx === 2 && adjustedSides.previous));
       const isTaxAdjustedCell = isCashFlowTable && colIdx === 2 && meta.cashFlowAdjustedNote;
       const isCapitalValCell = isCapitalTable && colIdx === 1;
 
@@ -182,6 +188,52 @@ export function renderHorizonSsr(horizon, language = 'es') {
   return html;
 }
 
+const GUIDANCE_STATUS_LABELS = {
+  raised: 'Guidance revisado al alza',
+  lowered: 'Guidance revisado a la baja',
+  maintained: 'Guidance mantenido',
+  reaffirmed: 'Guidance reiterado',
+  new: 'Guidance nuevo',
+  withdrawn: 'Guidance retirado',
+};
+
+/**
+ * Renderiza el bloque de notas del trimestre (guidance y hechos relevantes) de un 10-Q.
+ * @param {object} quarterNotes - Sección quarterNotes del informe.
+ * @returns {string} HTML del bloque.
+ */
+export function renderQuarterNotesSsr(quarterNotes, language = 'es') {
+  const lang = normalizeLanguage(language);
+  if (!quarterNotes || typeof quarterNotes !== 'object') return '';
+  const guidance = quarterNotes.guidance && typeof quarterNotes.guidance === 'object' ? quarterNotes.guidance : null;
+  const notes = Array.isArray(quarterNotes.notes)
+    ? quarterNotes.notes.filter((note) => note && (note.text || note.title))
+    : [];
+  const snippet = guidance?.secSnippet;
+  const hasSnippet = snippet && Array.isArray(snippet.rows) && snippet.rows.length;
+  if (!guidance?.text && !hasSnippet && !notes.length) return '';
+
+  let html = `<div class="report-block"><h5>${escapeHtml(quarterNotes.title || t('NOTAS DEL TRIMESTRE E INFORMACIÓN RELEVANTE', null, lang))}</h5>`;
+  if (guidance?.text || hasSnippet) {
+    const statusKey = String(guidance.status || '').trim().toLowerCase();
+    const statusLabel = t(GUIDANCE_STATUS_LABELS[statusKey] || 'Guidance', null, lang);
+    html += `<p class="report-extras">${escapeHtml(`${t('Guidance', null, lang)} · ${statusLabel}`)}</p>`;
+    if (guidance.text) {
+      html += `<p style="font-size:12px;line-height:1.5;color:var(--ink-secondary);">${escapeHtml(guidance.text)}</p>`;
+    }
+    if (hasSnippet) {
+      const headers = Array.isArray(snippet.headers) && snippet.headers.length ? snippet.headers : null;
+      const rows = snippet.rows.map((row) => (Array.isArray(row) ? row : [row.metric ?? row.name, row.value]));
+      html += renderTableSsr(headers || rows[0].map(() => ''), rows);
+    }
+  }
+  if (notes.length) {
+    html += `<ul class="report-notes">${notes.map((note) => `<li>${note.title ? `<strong>${escapeHtml(note.title)}</strong>${note.text ? ': ' : ''}` : ''}${note.text ? escapeHtml(note.text) : ''}</li>`).join('')}</ul>`;
+  }
+  html += '</div>';
+  return html;
+}
+
 /**
  * Renderiza el bloque de conclusiones, perspectivas y watchlist.
  * @param {object} conclusion - Datos de conclusiones.
@@ -258,6 +310,7 @@ export function renderReportSsrHtml(report) {
   const lang = normalizeLanguage(report?.language);
   const horizons = Array.isArray(report?.horizons) ? report.horizons : [];
   let html = horizons.map((horizon) => renderHorizonSsr(horizon, lang)).join('');
+  if (report?.quarterNotes) html += renderQuarterNotesSsr(report.quarterNotes, lang);
   if (report?.conclusion) html += renderConclusionSsr(report.conclusion, lang);
   if (report?.rating?.label) {
     html += `<div class="report-block"><h5>${escapeHtml(t('VALORACIÓN GENERAL', null, lang))}</h5><p><strong>${escapeHtml(report.rating.label)}</strong>${report.rating.rationale ? ` — ${escapeHtml(report.rating.rationale)}` : ''}</p></div>`;

@@ -21,6 +21,7 @@ import {
 import { escapeXml } from '../../utils/escapeXml.js';
 import { getFeaturedCompanies } from './featuredCompanies.service.js';
 import { buildReportSlug, loadPublicReportsForSitemap } from './reportSeo.service.js';
+import { canonicalCompanyTicker } from './companyMeta.service.js';
 
 let llmsFullCache = { text: null, at: 0 };
 const LLMS_FULL_TTL = 30 * 60 * 1000;
@@ -167,8 +168,13 @@ export async function getSitemapXml() {
   const publicReports = await loadPublicReportsForSitemap();
   const dbTickersMap = new Map();
   for (const row of rows.rows) {
-    const t = String(row.ticker ?? '').toUpperCase();
-    if (t) dbTickersMap.set(t, row.lastmod ? new Date(row.lastmod).toISOString() : null);
+    const t = canonicalCompanyTicker(row.ticker);
+    if (!t) continue;
+    const iso = row.lastmod ? new Date(row.lastmod).toISOString() : null;
+    const previous = dbTickersMap.get(t) ?? null;
+    if (!dbTickersMap.has(t) || (iso && previous && iso > previous) || (iso && !previous)) {
+      dbTickersMap.set(t, iso);
+    }
   }
 
   let newestGuideLastmod = null;
@@ -179,11 +185,17 @@ export async function getSitemapXml() {
     }
   }
 
+  let latestDbLastmod = null;
+  for (const iso of dbTickersMap.values()) {
+    if (iso && (!latestDbLastmod || iso > latestDbLastmod)) latestDbLastmod = iso;
+  }
+
   const nowIso = new Date().toISOString();
+  const siteLastmod = [latestDbLastmod, newestGuideLastmod].filter(Boolean).sort().pop() ?? nowIso;
   const urls = [
-    { loc: `${config.siteUrl}/`, priority: '1.0', changefreq: 'daily', lastmod: nowIso },
-    { loc: `${config.siteUrl}/empresa`, priority: '0.8', changefreq: 'weekly', lastmod: nowIso },
-    { loc: `${config.siteUrl}/guias`, priority: '0.8', changefreq: 'weekly', lastmod: newestGuideLastmod || nowIso },
+    { loc: `${config.siteUrl}/`, priority: '1.0', changefreq: 'daily', lastmod: siteLastmod },
+    { loc: `${config.siteUrl}/empresa`, priority: '0.8', changefreq: 'weekly', lastmod: latestDbLastmod || siteLastmod },
+    { loc: `${config.siteUrl}/guias`, priority: '0.8', changefreq: 'weekly', lastmod: newestGuideLastmod || siteLastmod },
   ];
 
   for (const guide of GUIDES) {
@@ -217,20 +229,20 @@ export async function getSitemapXml() {
   }
 
   for (const comp of BENCHMARK_CONSUMER_DEFENSIVE) {
-    const ticker = comp.ticker.toUpperCase();
+    const ticker = canonicalCompanyTicker(comp.ticker);
     if (seen.has(ticker)) continue;
     seen.add(ticker);
     urls.push({
       loc: `${config.siteUrl}/empresa/${encodeURIComponent(ticker)}`,
       priority: '0.8',
       changefreq: 'weekly',
-      lastmod: nowIso,
+      lastmod: null,
     });
   }
 
   const seenReportSlugs = new Set();
   for (const report of publicReports) {
-    const ticker = String(report.ticker ?? report.report?.ticker ?? '').toUpperCase();
+    const ticker = canonicalCompanyTicker(report.ticker ?? report.report?.ticker);
     if (!ticker) continue;
     const slug = buildReportSlug(report);
     const key = `${ticker}/${slug}`;

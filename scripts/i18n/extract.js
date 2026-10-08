@@ -32,6 +32,8 @@ const EXCLUDED_FILES = new Set([
   'translationPrompt.js',
   'auditorPrompt.js',
   'auditorAgent.js',
+  'auditPolicy.js',
+  'correctorPrompt.js',
   'deterministicChecks.js',
   'sectorPolicy.js',
 ]);

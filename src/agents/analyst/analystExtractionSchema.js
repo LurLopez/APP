@@ -79,6 +79,8 @@ export const EXTRACTION_SCHEMA = `{
     "effectiveTaxRate": 14.4,
     "incomeTaxExpenseQuarter": 134,
     "incomeTaxExpenseYtd": 163,
+    "incomeTaxExpensePrevQuarter": 142,
+    "incomeTaxExpensePrevYtd": 155,
     "taxCashFlowAdjustmentQuarter": -20,
     "taxCashFlowAdjustmentYtd": 30.9,
     "incomeTaxesPaidQuarter": 131.4,
@@ -275,7 +277,6 @@ export const EXTRACTION_SCHEMA = `{
       }
     },
     "debt": {
-      "maturitiesSchedule": "2026: 2.364M, 2027: 0.5M, 2028: 0.5M, 2029: 1.7M, 2030: 0.5M, después de 2030: 3.841,6M",
       "maturityAfterFive": 3841.6,
       "allDebtAverageRate": null,
       "allDebtAverageRateSource": null,
@@ -315,5 +316,16 @@ export const EXTRACTION_SCHEMA = `{
       }
     }
   },
-  "extraNotes": ["*3: ...", "Descripción de partidas extraordinarias o ventas de negocios"]
+  "extraNotes": ["*3: ...", "Descripción de partidas extraordinarias o ventas de negocios"],
+  "quarterDetails": {
+    "guidance": {
+      "mentioned": true,
+      "status": "raised | lowered | maintained | reaffirmed | new | withdrawn | not_mentioned",
+      "text": "Explicación con cifras: qué guidance comunica la dirección y si lo mantiene o lo revisa (al alza/a la baja/retirado) respecto al anterior, o null si no menciona guidance.",
+      "secTable": { "headers": ["Métrica", "Año anterior", "Guidance anterior", "Guidance actual"], "rows": [["...", "...", "...", "..."]] }
+    },
+    "notes": [
+      { "title": "Título breve de un hecho MUY importante del trimestre", "text": "Solo hechos de la lista cerrada: cambios de dirección, guidance, dividendos, recompras anunciadas o ejecutadas >1 % de las acciones, operaciones corporativas grandes, deterioros/cargos grandes, planes nuevos o modificados y financiación relevante; con cifras e impacto." }
+    ]
+  }
 }`;

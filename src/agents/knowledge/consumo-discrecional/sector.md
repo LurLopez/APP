@@ -35,11 +35,12 @@ Solo se admiten estos subsectores; cualquier otro negocio de consumo discreciona
    - **Casilla exclusiva de resalte**: El color de resalte y la llamada de nota (`*1`) se aplican **ÚNICAMENTE a la casilla de Beneficio Operativo**.
    - **Líneas derivadas**: EBT y Beneficio Neto recalculan su importe en la columna Ajustado arrastrando el nuevo beneficio operativo, pero **no se colorean ni llevan asterisco por este concepto**.
 
-3. **Impuestos Normalizados (Beneficio Neto)**: Se compara el impuesto reportado con el **23 % del EBT ajustado**. Si la desviación relativa supera `-20 %` o `+20 %`, se normalizan los impuestos al 23 %: Beneficio Neto Ajustado = EBT Ajustado × 0,77. Si queda dentro de ±20 %, se conserva el impuesto reportado o el tipo efectivo aplicable.
+3. **Impuestos Normalizados (Beneficio Neto)**: Se compara el impuesto reportado con el **23 % del EBT ajustado**. Si la desviación relativa supera `-20 %` o `+20 %`, se normalizan los impuestos al 23 %: Beneficio Neto Ajustado = EBT Ajustado × 0,77. Si queda dentro de ±20 %, se conserva el impuesto reportado o el tipo efectivo aplicable, **sin nota fiscal ni resalte alguno** (prohibido explicar en nota un ajuste que finalmente no se aplica). Aplica también al comparativo: si su impuesto se desvía, se normaliza el «Anterior Ajustado» con su cierre en la nota y resalte en esa casilla.
    - **Casilla exclusiva de resalte**: El color de resalte y la llamada de nota (`*2`) se aplican **ÚNICAMENTE a la casilla de Beneficio Neto**.
 
 4. **Cash Flow con Capital Circulante (WC)**: El capital circulante teórico se estima con el **peso agregado histórico** del circulante sobre el flujo operativo sin circulante de los últimos 10 ejercicios (método único, común a todos los sectores admitidos):
    $$\text{WC}_{\text{teórico}} = \left( \frac{\sum \Delta WC}{\sum (\text{CFO} - \Delta WC)} \right)_{\text{últimos 10 ejercicios}} \times (\text{CFO} - \Delta WC)_{\text{periodo}}$$
+   - En informes trimestrales el importe anual se divide entre 4 por trimestre. La nota al pie debe ser breve: solo la media (%) aplicada y el ajuste resultante, sin listar los ratios anuales.
    - En retail el circulante suele ser **negativo** (las cuentas por pagar a proveedores financian el inventario): una necesidad teórica negativa es normal y no un error.
    - **Estacionalidad**: el inventario y la caja se concentran en el trimestre clave (navidad en retail generalista, verano en ocio). Comparar siempre trimestre actual contra el mismo trimestre del año anterior, no contra el trimestre inmediatamente anterior.
    - **E-commerce**: vigilar los ingresos diferidos (*deferred revenue*) por tarjetas regalo, suscripciones y pedidos no entregados, y explicar su efecto en la caja operativa.

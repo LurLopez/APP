@@ -145,6 +145,7 @@ export async function uploadAndAnalyzePdf(req, res, next) {
       formType: result.formType,
       sector: result.sector,
       report: result.report,
+      audit: result.audit ?? null,
       pdfUrl: result.pdfUrl,
       language: result.language ?? DEFAULT_LANGUAGE,
       saved: true,

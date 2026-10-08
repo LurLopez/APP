@@ -15,9 +15,9 @@ export const ANNUAL_OUTPUT_SCHEMA = `{
         "rows": [
           { "name": "Ventas", "adjusted": "13040M", "prevAdjusted": "13734M", "pctAdjusted": "-5,05 %", "normal": "13040M", "prevNormal": "13734M", "pctNormal": "-5,05 %", "isAdjusted": false },
           { "name": "Beneficio Bruto", "adjusted": "4274M", "prevAdjusted": "4533M", "pctAdjusted": "-5,71 %", "normal": "4274M", "prevNormal": "4533M", "pctNormal": "-5,71 %", "isAdjusted": false },
-          { "name": "Beneficio Operativo", "adjusted": "1583M", "prevAdjusted": "1753M", "pctAdjusted": "-9,70 %", "normal": "-2366M", "prevNormal": "1753M", "pctNormal": "—", "isAdjusted": true, "adjustedNote": "*1" },
+          { "name": "Beneficio Operativo", "adjusted": "1583M", "prevAdjusted": "1753M", "pctAdjusted": "-9,70 %", "normal": "-2366M", "prevNormal": "1753M", "pctNormal": "—", "isAdjusted": true, "adjustedNote": "*1", "adjustedCell": "current" },
           { "name": "EBT", "adjusted": "1402M", "prevAdjusted": "1503M", "pctAdjusted": "-6,72 %", "normal": "-2518M", "prevNormal": "1503M", "pctNormal": "—", "isAdjusted": false },
-          { "name": "Beneficio Neto", "adjusted": "1086M", "prevAdjusted": "1164M", "pctAdjusted": "-6,70 %", "normal": "-2180M", "prevNormal": "1157M", "pctNormal": "—", "isAdjusted": true, "adjustedNote": "*2" }
+          { "name": "Beneficio Neto", "adjusted": "1086M", "prevAdjusted": "1164M", "pctAdjusted": "-6,70 %", "normal": "-2180M", "prevNormal": "1157M", "pctNormal": "—", "isAdjusted": true, "adjustedNote": "*2", "adjustedCell": "current" }
         ],
         "notes": [
           "*1: Ha habido una depreciación del fondo de comercio de 3645 M. Además, de lo que aparece en el apartado 'Other Operating Income', unos -275 M corresponden a otras depreciaciones. En total, hay que sumar 3920 M.",
@@ -37,7 +37,7 @@ export const ANNUAL_OUTPUT_SCHEMA = `{
           { "name": "Libre", "values": ["691", "712"] }
         ],
         "notes": [
-          "*1: WC = peso agregado del circulante sobre el flujo operativo sin circulante en los últimos 10 ejercicios: 0,9% × 18556M = 167M en el periodo. Desviación del circulante reportado (146M) frente al WC teórico (167M): -21M. El Cash Flow tras el ajuste de circulante queda en: 1784M - (-21M) = 1805M."
+          "*1: WC = media de los últimos 10 ejercicios: 0,9% × 18556M = 167M en el periodo. Desviación del circulante reportado (146M) frente al WC teórico (167M): -21M. El Cash Flow tras el ajuste de circulante queda en: 1784M - (-21M) = 1805M."
         ]
       },
       "capital": {

@@ -15,7 +15,9 @@ Web que analiza con IA informes financieros de EE. UU. (10-Q trimestral, 10-K an
 
 1. **Verificador de origen** — ¿empresa de EE. UU.? No → error.
 2. **Verificador de sector** — ¿consumo defensivo? No → error.
-3. **Analista principal** — análisis financiero e informe final (2 fases: extracción + estructuración) + PDF generado.
+3. **Analista principal** — análisis financiero e informe final (2 fases: extracción + estructuración).
+4. **Auditor** — audita el informe contra el **texto completo** del filing y las **mismas reglas `.md`** que el analista: nota 1-10 (guardada en `analyses.audit` y en el registro, sin mostrarse al usuario en la interfaz), errores probados y comprobaciones deterministas. Si hay errores graves o menores, el mismo agente los corrige sobre el informe y se regenera con la versión corregida; si la corrección no supera las validaciones, se conserva el original. Desactivable con `AI_AUDIT_ENABLED=false`. Cada análisis deja un **registro exacto** (ticker, tipo y año, tiempos y costes del análisis y de la revisión, nota, cambios aplicados y coste total) en `logs/analisis.log` y `analysis_logs`.
+5. **PDF generado** con el informe final (corregido si hubo fallos).
 
 **Regla fundamental:** las dos formas de llegar al análisis (subida manual de PDF o buscador por ticker/filing de la SEC) deben ejecutar exactamente el mismo proceso y dar el mismo resultado. ✅ Verificada.
 
@@ -23,7 +25,7 @@ Web que analiza con IA informes financieros de EE. UU. (10-Q trimestral, 10-K an
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| 1 | Subida manual de PDF → análisis (beta) | ✅ Pipeline completo funcionando (3 agentes + informe + PDF + guardado); modelo activo DeepSeek directo |
+| 1 | Subida manual de PDF → análisis (beta) | ✅ Pipeline completo funcionando (4 agentes + informe + PDF + guardado); modelo activo DeepSeek directo |
 | 2 | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | ✅ Buscador, cribador (sin huecos), perfil, gráfico, filings con vista previa/descarga y botón "Analizar" implementados |
 | 3 | Registro / inicio de sesión | ✅ Implementado con verificación por correo y recuperación de contraseña; planes pendientes (Fase 5) |
 | 4 | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |

@@ -6,6 +6,7 @@
 import PDFDocument from 'pdfkit';
 import { sanitize, drawHorizontalRule } from './pdfStyles.js';
 import { drawHorizons } from './pdfHorizonsDrawer.js';
+import { drawQuarterNotes } from './pdfQuarterNotesDrawer.js';
 import { drawConclusion } from './pdfConclusionDrawer.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
 import { BRAND_URL, BRAND_LABEL, BRAND_LOGO_PATH, BRAND_LOGO_RATIO, hasBrandLogo } from '../reportExport/reportBranding.js';
@@ -73,6 +74,7 @@ export function buildReportPdf(report) {
 
     y = drawHorizontalRule(doc, y);
     y = drawHorizons(doc, report.horizons, y, lang);
+    y = drawQuarterNotes(doc, report, y);
     y = drawConclusion(doc, report, y);
 
     doc.end();

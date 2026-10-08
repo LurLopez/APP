@@ -10,6 +10,7 @@ import {
   resolveDiscardedImpairment,
 } from './sectorPolicy.js';
 import { t, formatPercent, normalizeLanguage } from '../../utils/i18n.js';
+import { resolveAdjustedCells } from '../../utils/salesHighlight.js';
 
 const TAX_NORMALIZATION_RATE = 0.23;
 const TAX_DEVIATION_LIMIT = 0.2;
@@ -70,6 +71,60 @@ function buildTaxNormalizationNote(data, lang) {
     deviation: formatPercent(data.deviation * 100, { digits: 2, lang }),
     ebtAdjusted: fmt(data.ebtAdjusted),
     adjustedNet: fmt(data.adjustedNet),
+  }, lang);
+}
+
+const TAX_NOTE_PATTERN = /impuesto|fiscal|23\s*%|\btasa\b|cr[eé]dito|\btax|\brate\b|\bcredit\b/i;
+
+/**
+ * ¿La nota trata de impuestos? Se excluyen las notas de deterioros/amortizaciones que
+ * puedan mencionar impuestos de forma accesoria.
+ * @param {string} note - Nota al pie del bloque de Ventas.
+ * @returns {boolean}
+ */
+function isTaxNoteText(note) {
+  const str = String(note);
+  return TAX_NOTE_PATTERN.test(str) && !/deterioro|impairment|amortizaci/i.test(str);
+}
+
+/**
+ * Redacta la frase fiscal del periodo comparable cuando su impuesto también se normaliza.
+ * Se enlaza en la misma nota única de impuestos, tras la frase del periodo actual.
+ * @param {object} data - Resultado de resolveTaxNormalization para el comparativo.
+ * @param {string} lang - Idioma del informe.
+ * @returns {string} Frase de la normalización del comparativo.
+ */
+function buildPreviousTaxNormalizationNote(data, lang) {
+  const fmt = (value) => `${formatCellNumber(value, lang)}M`;
+  const rateText = data.ebtNormal > 0 && data.reportedTax > 0
+    ? ` ${t('(tipo efectivo del {rate} %)', { rate: formatCellNumber((data.reportedTax / data.ebtNormal) * 100, lang) }, lang)}`
+    : '';
+  return t('En el periodo comparable, el gasto fiscal reportado fue {reported} sobre un EBT de {ebt}{rateText}. La desviación de su tipo efectivo frente al 23 % de referencia es del {deviation}, fuera del umbral de ±20 %, por lo que se normaliza el gasto al 23 % del EBT ajustado ({ebtAdjusted}): Beneficio Neto Anterior Ajustado = EBT Ajustado × 0,77 = {adjustedNet}.', {
+    reported: fmt(data.reportedTax),
+    ebt: fmt(data.ebtNormal),
+    rateText,
+    deviation: formatPercent(data.deviation * 100, { digits: 2, lang }),
+    ebtAdjusted: fmt(data.ebtAdjusted),
+    adjustedNet: fmt(data.adjustedNet),
+  }, lang);
+}
+
+/**
+ * Frase determinista para el gasto fiscal del periodo actual cuando NO procede normalizarlo
+ * (ya incorpora el impuesto de la partida no recurrente excluida).
+ * @param {object} data - Gasto reportado, EBT normal y Beneficio Neto Ajustado.
+ * @param {string} lang - Idioma del informe.
+ * @returns {string} Frase con el prefijo «Impuestos: ».
+ */
+function buildNoNormalizationTaxText({ reportedTax, ebtNormal, netAdjusted }, lang) {
+  const rateText = Number.isFinite(reportedTax) && Number.isFinite(ebtNormal) && ebtNormal > 0
+    ? ` ${t('(tipo efectivo del {rate} %)', { rate: formatCellNumber((reportedTax / ebtNormal) * 100, lang) }, lang)}`
+    : '';
+  return t('Impuestos: el gasto fiscal reportado fue {reported}M sobre un EBT de {ebt}M{rateText}. No procede normalizar el gasto, que ya incluye el impuesto asociado a la partida no recurrente excluida; el Beneficio Neto Ajustado queda en {netAdj}M.', {
+    reported: Number.isFinite(reportedTax) ? formatFinancialValue(reportedTax, lang) : '—',
+    ebt: Number.isFinite(ebtNormal) ? formatFinancialValue(ebtNormal, lang) : '—',
+    rateText,
+    netAdj: formatCellNumber(netAdjusted, lang) ?? '—',
   }, lang);
 }
 
@@ -500,44 +555,102 @@ export function normalizeSalesBlock(horizon, extracted, language = 'es', sector 
   }
 
   // La columna Anterior Ajustado sigue la misma regla: si el impuesto del ejercicio
-  // comparable se desvía más del ±20 %, se normaliza al 23 % del EBT ajustado.
+  // comparable se desvía más del ±20 %, se normaliza al 23 % del EBT ajustado. Se usa el
+  // gasto fiscal extraído del comparativo cuando existe; si no, el implícito (EBT − neto).
+  let previousTaxNormalization = null;
   if (taxEbtRow && taxNetRow) {
     const prevEbtNormal = parseFinancialValue(taxEbtRow.prevNormal);
     const prevEbtAdjusted = parseFinancialValue(taxEbtRow.prevAdjusted);
     const prevNetNormal = parseFinancialValue(taxNetRow.prevNormal);
-    const previousTaxNormalization = resolveTaxNormalization({
+    const prevTaxFact = Number(facts[isTrimestral ? 'incomeTaxExpensePrevQuarter' : 'incomeTaxExpensePrevYtd']);
+    const prevReportedTax = Number.isFinite(prevTaxFact) && prevTaxFact !== 0
+      ? prevTaxFact
+      : prevEbtNormal - prevNetNormal;
+    previousTaxNormalization = resolveTaxNormalization({
       ebtNormal: prevEbtNormal,
       ebtAdjusted: prevEbtAdjusted,
       netNormal: prevNetNormal,
-      reportedTax: prevEbtNormal - prevNetNormal,
+      reportedTax: prevReportedTax,
       isPrevious: true,
     });
     if (previousTaxNormalization) {
       taxNetRow.prevAdjusted = `${formatCellNumber(previousTaxNormalization.adjustedNet, lang)}M`;
       recomputeAdjustedPctFor(taxNetRow);
+      console.info(`[analyst] Normalización fiscal del comparativo aplicada (${horizon.label}): EBT ajustado ${prevEbtAdjusted}M, impuesto reportado ${prevReportedTax}M, desviación ${(previousTaxNormalization.deviation * 100).toFixed(2)} % -> Beneficio Neto Anterior Ajustado ${taxNetRow.prevAdjusted}`);
     }
   }
 
   // Notas al pie de ventas
   horizon.sales.notes = Array.isArray(horizon.sales.notes) ? [...horizon.sales.notes] : [];
 
-  if (currentTaxNormalization && taxNetRow) {
-    const isTaxNote = (note) => {
-      const str = String(note);
-      return /impuesto|fiscal|\btax/i.test(str) && !/deterioro|impairment|amortizaci/i.test(str);
-    };
-    const existingIdx = horizon.sales.notes.findIndex(isTaxNote);
+  // Nota fiscal única y determinista si la normalización se aplica de verdad, en el periodo
+  // actual y/o en el comparativo. La columna del resalte sigue la casilla de origen:
+  // «Ajustado» si es del trimestre, «Anterior Aj.» si es del comparativo y «both» si es en las dos.
+  if ((currentTaxNormalization || previousTaxNormalization) && taxNetRow) {
+    const existingIdx = horizon.sales.notes.findIndex(isTaxNoteText);
     const existingMarker = existingIdx !== -1 ? String(horizon.sales.notes[existingIdx]).match(/^\*(\d+)/) : null;
     const usedMarkers = new Set(horizon.sales.notes
       .map((note) => String(note).match(/^\*(\d+)/)?.[1])
       .filter(Boolean));
+    const nextFreeMarker = () => {
+      let marker = 1;
+      while (usedMarkers.has(String(marker))) marker += 1;
+      return String(marker);
+    };
     const noteNumber = existingMarker
       ? existingMarker[1]
-      : (usedMarkers.has('2') ? String(horizon.sales.notes.length + 1) : '2');
-    const taxNote = `*${noteNumber}: ${buildTaxNormalizationNote(currentTaxNormalization, lang)}`;
-    if (existingIdx !== -1) horizon.sales.notes[existingIdx] = taxNote;
-    else horizon.sales.notes.push(taxNote);
+      : (usedMarkers.has('2') ? nextFreeMarker() : '2');
+    const sentences = [];
+    if (currentTaxNormalization) sentences.push(buildTaxNormalizationNote(currentTaxNormalization, lang));
+    if (previousTaxNormalization) sentences.push(buildPreviousTaxNormalizationNote(previousTaxNormalization, lang));
+    // Con partida no recurrente excluida y normalización solo del comparativo, la misma nota
+    // cierra también el gasto fiscal del periodo actual (no procede normalizarlo).
+    if (previousTaxNormalization && !currentTaxNormalization && nonOperatingApplied) {
+      const currentText = buildNoNormalizationTaxText({
+        reportedTax: resolveReportedTaxExpense({
+          facts,
+          isTrimestral,
+          ebtNormal: parseFinancialValue(taxEbtRow.normal),
+          netNormal: parseFinancialValue(taxNetRow.normal),
+        }),
+        ebtNormal: parseFinancialValue(taxEbtRow.normal),
+        netAdjusted: parseFinancialValue(taxNetRow.adjusted),
+      }, lang).replace(/^Impuestos:\s*/, '');
+      sentences.push(currentText.charAt(0).toUpperCase() + currentText.slice(1));
+    }
+    const noteBody = currentTaxNormalization ? sentences.join(' ') : `${t('Impuestos', null, lang)}: ${sentences[0]}${sentences.length > 1 ? ` ${sentences.slice(1).join(' ')}` : ''}`;
+    const taxNote = `*${noteNumber}: ${noteBody}`;
+    const others = horizon.sales.notes.filter((note) => !isTaxNoteText(note));
+    const insertAt = existingIdx === -1 ? others.length : Math.min(existingIdx, others.length);
+    others.splice(insertAt, 0, taxNote);
+    horizon.sales.notes = others;
+    taxNetRow.isAdjusted = true;
     taxNetRow.adjustedNote = `*${noteNumber}`;
+    taxNetRow.adjustedCell = currentTaxNormalization && previousTaxNormalization
+      ? 'both'
+      : (previousTaxNormalization ? 'previous' : 'current');
+  } else if (!nonOperatingApplied && taxNetRow) {
+    // Ninguna normalización procede (tipo efectivo actual y comparativo dentro del ±20 %):
+    // no debe quedar ninguna nota de impuestos ni resalte en Beneficio Neto, porque explicar
+    // un ajuste que finalmente no se aplica confunde. Las notas restantes se renumeran para
+    // no dejar huecos y las llamadas de las filas se remapean con ellas.
+    if (horizon.sales.notes.some(isTaxNoteText)) {
+      const markerOf = (note) => Number(String(note).match(/^\*(\d+)/)?.[1] ?? Number.POSITIVE_INFINITY);
+      const remaining = horizon.sales.notes.filter((note) => !isTaxNoteText(note)).sort((a, b) => markerOf(a) - markerOf(b));
+      const markerMap = new Map();
+      horizon.sales.notes = remaining.map((note, idx) => {
+        const oldMarker = String(note).match(/^\*(\d+)/)?.[1];
+        if (oldMarker) markerMap.set(oldMarker, String(idx + 1));
+        return `*${idx + 1}: ${String(note).replace(/^\*\d+:?\s*/, '')}`;
+      });
+      (horizon.sales.rows ?? []).forEach((row) => {
+        const oldMarker = String(row.adjustedNote ?? '').match(/\*?(\d+)/)?.[1];
+        if (oldMarker && markerMap.has(oldMarker)) row.adjustedNote = `*${markerMap.get(oldMarker)}`;
+      });
+    }
+    taxNetRow.isAdjusted = false;
+    taxNetRow.adjustedNote = undefined;
+    taxNetRow.adjustedCell = undefined;
   }
 
   // La nota de la partida no operativa se escribe de forma determinista en el EBT (casilla de
@@ -577,13 +690,9 @@ export function normalizeSalesBlock(horizon, extracted, language = 'es', sector 
       taxEbtRow.isAdjusted = true;
       taxEbtRow.adjustedNote = `*${gainsMarker}`;
     }
-    if (!currentTaxNormalization) {
-      const isTaxNote = (note) => {
-        const str = String(note);
-        return /impuesto|fiscal|\btax/i.test(str) && !/deterioro|impairment|amortizaci/i.test(str);
-      };
+    if (!currentTaxNormalization && !previousTaxNormalization) {
       // La propia nota de la partida no operativa no debe confundirse con la nota fiscal.
-      const taxIdx = horizon.sales.notes.findIndex((note, idx) => idx !== gainsNoteIdx && isTaxNote(note));
+      const taxIdx = horizon.sales.notes.findIndex((note, idx) => idx !== gainsNoteIdx && isTaxNoteText(note));
       const taxMarker = taxIdx !== -1 ? String(horizon.sales.notes[taxIdx]).match(/^\*(\d+)/) : null;
       const taxNumber = taxMarker ? taxMarker[1] : nextFreeMarker();
       const ebtNormal = parseFinancialValue(taxEbtRow.normal);
@@ -593,15 +702,10 @@ export function normalizeSalesBlock(horizon, extracted, language = 'es', sector 
         ebtNormal,
         netNormal: parseFinancialValue(taxNetRow.normal),
       });
-      const rateText = Number.isFinite(reportedTax) && Number.isFinite(ebtNormal) && ebtNormal > 0
-        ? ` ${t('(tipo efectivo del {rate} %)', { rate: formatCellNumber((reportedTax / ebtNormal) * 100, lang) }, lang)}`
-        : '';
-      const netAdjustedText = formatCellNumber(parseFinancialValue(taxNetRow.adjusted), lang);
-      const text = t('Impuestos: el gasto fiscal reportado fue {reported}M sobre un EBT de {ebt}M{rateText}. No procede normalizar el gasto, que ya incluye el impuesto asociado a la partida no recurrente excluida; el Beneficio Neto Ajustado queda en {netAdj}M.', {
-        reported: Number.isFinite(reportedTax) ? formatFinancialValue(reportedTax, lang) : '—',
-        ebt: Number.isFinite(ebtNormal) ? formatFinancialValue(ebtNormal, lang) : '—',
-        rateText,
-        netAdj: netAdjustedText ?? '—',
+      const text = buildNoNormalizationTaxText({
+        reportedTax,
+        ebtNormal,
+        netAdjusted: parseFinancialValue(taxNetRow.adjusted),
       }, lang);
       const taxNote = `*${taxNumber}: ${text}`;
       if (taxIdx !== -1) horizon.sales.notes[taxIdx] = taxNote;
@@ -639,6 +743,16 @@ export function normalizeSalesBlock(horizon, extracted, language = 'es', sector 
     const nextIdx = horizon.sales.notes.length + 1;
     horizon.sales.notes.push(`*${nextIdx}: ${t('El deterioro de intangibles de {amount}M se mantiene como coste en la columna Ajustado y no se revierte.', { amount: Math.round(excludedCurrIntangible) }, lang)}`);
   }
+
+  // Casilla del resalte: el color y la llamada de nota deben pintarse en la columna donde nace el
+  // ajuste —«Ajustado» si es del periodo actual; «Anterior Aj.» si el deterioro sumado de vuelta
+  // es del ejercicio comparable—. Se fija "adjustedCell" para que web, PDF y exportaciones
+  // coincidan, también cuando el resalte lo haya puesto la IA sin indicar la columna.
+  (horizon.sales.rows ?? []).forEach((row) => {
+    if (row.isAdjusted !== true || row.adjustedCell) return;
+    const sides = resolveAdjustedCells(row);
+    row.adjustedCell = sides.current && sides.previous ? 'both' : (sides.previous ? 'previous' : 'current');
+  });
 
   // Las notas se muestran por orden de llamada (*1, *2, *3...), independientemente del orden en
   // que las generen los distintos ajustes deterministas.

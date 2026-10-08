@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { balanceSheetDebt, balanceSheetDebtWithoutCurrentPortion } from '../../src/services/edgar/previousQuarterCashFlow.js';
+import { balanceSheetDebt, balanceSheetDebtWithoutCurrentPortion, sumPreviousFiscalYearAcquisitions } from '../../src/services/edgar/previousQuarterCashFlow.js';
 import { matchConceptKeys, parseInstanceFacts, mergeInstanceFacts } from '../../src/services/edgar/instanceFacts.js';
 import { rederiveCashValues } from '../../src/services/edgar/rederiveStatements.js';
 import { applyEdgarBalanceFallbacks, pickPreviousQuarterDebt, deduceQuarterCashFlow, storePreviousQuarterCashFlow } from '../../src/agents/analyst/analystRunSteps.js';
@@ -93,6 +93,37 @@ test('pickPreviousQuarterDebt conserva la porción corriente cuando es real (cas
     currentBalanceSheetDebtWithoutCurrentPortion: 5700.3,
   };
   assert.equal(pickPreviousQuarterDebt(prevFlow, 7709.6), 6271.9);
+});
+
+test('pickPreviousQuarterDebt ignora la porción corriente narrativa cuando el trimestre actual no la desglosa (caso PEP 2026-Q3)', () => {
+  const prevFlow = {
+    balanceSheetDebt: 54814,
+    balanceSheetDebtWithoutCurrentPortion: 53214,
+    currentBalanceSheetDebt: 51881,
+    currentBalanceSheetDebtWithoutCurrentPortion: 51881,
+  };
+  // La deuda del balance del Q3 (51.881) y el trimestre previo sin porción corriente (53.214)
+  // dan una amortización de 1.333M; sumar el 1.600M narrativo daba -2.933M y descuadraba la tabla.
+  assert.equal(pickPreviousQuarterDebt(prevFlow, 51881), 53214);
+});
+
+test('reconstruye el acumulado de adquisiciones del trimestre previo sumando las columnas de 3 meses (caso PEP 2026-Q2)', () => {
+  const q1 = { period: '2026-Q1', periodEnd: '2026-03-21', values: { acquisitions: millions(-67) } };
+  const q2 = { period: '2026-Q2', periodEnd: '2026-06-13', values: { acquisitions: millions(-81) } };
+  const q3Prior = { period: '2025-Q3', periodEnd: '2025-09-06', values: { acquisitions: millions(-46) } };
+  const q4Prior = { period: '2025-Q4', periodEnd: '2025-12-27', values: { acquisitions: millions(-215) } };
+  assert.equal(sumPreviousFiscalYearAcquisitions([q2, q1, q4Prior], q2), millions(148));
+  assert.equal(sumPreviousFiscalYearAcquisitions([q4Prior, q3Prior], q4Prior), null, 'sin todas las columnas del año no se acepta la suma');
+  const incomplete = [{ ...q2 }, { period: '2026-Q1', periodEnd: '2026-03-21', values: {} }, q4Prior];
+  assert.equal(sumPreviousFiscalYearAcquisitions(incomplete, incomplete[0]), null);
+});
+
+test('la deducción de recompras manda sobre la columna de 12 semanas del estado de patrimonio (caso PEP 2026-Q3)', () => {
+  // La IA leyó 267M del estado de patrimonio (base devengo); la caja del trimestre es 739 − 479 = 260M.
+  const extracted = { facts: { shareBuybacks: 739, shareBuybacksQuarter: 267 } };
+  const prevFlow = { period: '2026-Q2', buybacksYtd: 479, currentQuarterData: {} };
+  storePreviousQuarterCashFlow(extracted, prevFlow, deduceQuarterCashFlow(extracted, prevFlow));
+  assert.equal(extracted.facts.shareBuybacksQuarter, 260);
 });
 
 test('applyEdgarBalanceFallbacks corrige el doble conteo de préstamos a corto plazo (caso TAP 2026-Q2)', () => {

@@ -128,7 +128,11 @@
     downloadsMenu?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-format]');
       if (!button) return;
-      downloadReport(button.dataset.format);
+      if (button.dataset.format === 'html-antes') {
+        if (typeof window.downloadAuditBeforeHtml === 'function') window.downloadAuditBeforeHtml();
+      } else {
+        downloadReport(button.dataset.format);
+      }
       downloadsMenu.hidden = true;
       downloadsToggle?.setAttribute('aria-expanded', 'false');
     });

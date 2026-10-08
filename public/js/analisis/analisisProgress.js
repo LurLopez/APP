@@ -130,6 +130,7 @@
     setAnalysisVersionState({
       version: data.version ?? null,
       subsector: data.subsector ?? null,
+      audit: data.audit ?? null,
       currentVersion: data.currentVersion ?? data.version ?? null,
       versionOutdated: data.versionOutdated === true,
     });

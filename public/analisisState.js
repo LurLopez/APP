@@ -33,6 +33,7 @@ window.AnalisisState = {
   currentAnalysisCurrentVersion: null,
   currentAnalysisVersionOutdated: false,
   currentAnalysisIsReviewed: false,
+  currentAnalysisAudit: null,
   currentAnalysisVersions: [],
   pendingVersionsMenuOpen: false,
   currentUserRating: 0,

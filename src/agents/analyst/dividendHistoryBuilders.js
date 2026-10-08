@@ -5,6 +5,7 @@
 import { parseFinancialValue, formatFinancialValue, extractIncomeTaxesPaid } from './financialParsers.js';
 import { getSectorPolicy, resolveImpairmentAddBack } from './sectorPolicy.js';
 import { t } from '../../utils/i18n.js';
+import { underlineFigure } from '../../utils/noteText.js';
 
 export function buildDividendHistoryFromEdgar(annualSeries, maxYear) {
   if (!Array.isArray(annualSeries) || !annualSeries.length) return null;
@@ -182,6 +183,9 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral, lang
 
   const adjustment = Math.round((cashTaxesPaid - normalizedCashTaxes) * 10) / 10;
   if (Math.abs(adjustment) < 0.5) return null;
+  // Ajuste insignificante: si la discrepancia no supera el 10 % del impuesto teórico, no se
+  // aplica ni se menciona (evita notas *2 de ajustes irrelevantes que ensucian el informe).
+  if (Math.abs(adjustment) <= normalizedCashTaxes * 0.1) return null;
 
   const normTaxText = `${formatFinancialValue(normalizedCashTaxes, language)}M`;
   const paidTaxText = `${formatFinancialValue(cashTaxesPaid, language)}M`;
@@ -197,11 +201,11 @@ export function getTaxNormalizationData({ extracted, horizon, isTrimestral, lang
     normalizedRate,
     normalizedCashTaxes,
     adjustment,
-    explanation: t('Impuestos: La empresa debería haber pagado {normTaxText} en impuestos (23 % sobre el EBT ajustado de {ebtText}) {paidSourceText}. Ajuste de {adjText} al Cash Flow Ajustado por la discrepancia fiscal.', {
+    explanation: underlineFigure(t('Impuestos: La empresa debería haber pagado {normTaxText} en impuestos (23 % sobre el EBT ajustado de {ebtText}) {paidSourceText}. Ajuste de {adjText} al Cash Flow Ajustado por la discrepancia fiscal.', {
       normTaxText,
       ebtText: `${formatFinancialValue(ebtAdjusted, language)}M`,
       paidSourceText,
       adjText,
-    }, language),
+    }, language), adjText),
   };
 }

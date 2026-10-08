@@ -16,6 +16,13 @@
     return palette[(num - 1) % palette.length];
   }
 
+  function renderNoteText(text) {
+    return escapeHtml(String(text ?? ''))
+      .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_]+?)__/g, '<u>$1</u>')
+      .replaceAll('\n', '<br>');
+  }
+
   function renderNotes(notes, options = {}) {
     const list = (Array.isArray(notes) ? notes : []).filter(Boolean);
     if (!list.length) return '';
@@ -26,10 +33,43 @@
         const num = match[1];
         const colorNum = (options.isCashFlow && (num === '3' || num === 3)) ? '2' : num;
         const cls = getHighlightClass(colorNum);
-        return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${escapeHtml(match[2]).replaceAll('\n', '<br>')}</li>`;
+        return `<li><mark class="highlight-note ${cls}">*${escapeHtml(num)}:</mark> ${renderNoteText(match[2])}</li>`;
       }
-      return `<li>${escapeHtml(raw)}</li>`;
+      return `<li>${renderNoteText(raw)}</li>`;
     }).join('')}</ul>`;
+  }
+
+  function parseAdjustmentNumber(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') return isFinite(value) ? value : null;
+    const raw = String(value).replace(/[^0-9.,-]/g, '');
+    if (!raw || raw === '-' || raw === '—') return null;
+    const lastComma = raw.lastIndexOf(',');
+    const lastDot = raw.lastIndexOf('.');
+    let normalized = raw;
+    if (lastComma > lastDot) normalized = raw.replace(/\./g, '').replace(',', '.');
+    else if (lastDot > lastComma) normalized = raw.replace(/,/g, '');
+    const parsed = Number(normalized);
+    return isFinite(parsed) ? parsed : null;
+  }
+
+  // El resalte y la nota deben pintarse en la columna donde nace el ajuste: «Ajustado» (columna 1)
+  // si es del periodo actual, «Anterior Aj.» (columna 2) si el deterioro sumado de vuelta es del
+  // ejercicio comparable. Sin el campo "adjustedCell" (informes antiguos) se infiere por cifras.
+  function resolveAdjustedSides(meta) {
+    if (!meta || meta.isAdjusted !== true) return { current: false, previous: false };
+    const declared = String(meta.adjustedCell ?? '').toLowerCase();
+    if (declared === 'previous') return { current: false, previous: true };
+    if (declared === 'both') return { current: true, previous: true };
+    if (declared === 'current') return { current: true, previous: false };
+    const adjusted = parseAdjustmentNumber(meta.adjusted);
+    const normal = parseAdjustmentNumber(meta.normal);
+    const prevAdjusted = parseAdjustmentNumber(meta.prevAdjusted);
+    const prevNormal = parseAdjustmentNumber(meta.prevNormal);
+    const currentDiffers = adjusted !== null && normal !== null && Math.abs(adjusted - normal) >= 0.5;
+    const previousDiffers = prevAdjusted !== null && prevNormal !== null && Math.abs(prevAdjusted - prevNormal) >= 0.5;
+    if (previousDiffers && !currentDiffers) return { current: false, previous: true };
+    return { current: true, previous: currentDiffers && previousDiffers };
   }
 
   function renderTable(headers, rows, metaRows = [], options = {}) {
@@ -55,7 +95,7 @@
     const tbody = rows
       .map((row, rowIdx) => {
         const meta = metaRows[rowIdx] || {};
-        const isRowAdjusted = isSalesTable && meta.isAdjusted === true;
+        const adjustedSides = isSalesTable ? resolveAdjustedSides(meta) : null;
         let noteNum = 1;
         const noteMatch = String(meta.adjustedNote || '').match(/\*?(\d+)/);
         if (noteMatch) noteNum = parseInt(noteMatch[1], 10);
@@ -64,7 +104,8 @@
         const cells = row.map((cell, colIdx) => {
           const isBoldCol = boldColumns.includes(colIdx);
           const isPctCol = percentColumns.includes(colIdx);
-          const isAdjustedCell = isSalesTable && colIdx === 1 && isRowAdjusted;
+          const isAdjustedCell = isSalesTable
+            && ((colIdx === 1 && adjustedSides.current) || (colIdx === 2 && adjustedSides.previous));
           const isTaxAdjustedCell = isCashFlowTable && colIdx === 2 && meta.cashFlowAdjustedNote;
           const isCapitalValCell = isCapitalTable && valueColumn != null && colIdx === valueColumn;
 

@@ -18,7 +18,9 @@ export const IR_BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWeb
 
 export const IR_DECK_TTL = 12 * 60 * 60 * 1000;
 
-export const IR_DECK_EMPTY_TTL = 5 * 60 * 1000;
+// Un rastreo sin decks puede tardar varios minutos (webs de IR lentas): se cachea el
+// resultado vacío 30 min para no repetir el coste en cada análisis o visita.
+export const IR_DECK_EMPTY_TTL = 30 * 60 * 1000;
 
 export const irDeckCache = new Map();
 

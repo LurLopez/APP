@@ -15,6 +15,30 @@ import {
 } from './seoConstants.js';
 import { buildCompanyJsonLd, jsonLdScript } from './jsonLd.service.js';
 
+/**
+ * Alias de tickers que apuntan a la misma empresa (clases de acciones y
+ * variantes con punto/guion). Evita páginas duplicadas con canonical propio
+ * y consolida las señales SEO en una única URL canónica.
+ */
+export const COMPANY_TICKER_ALIASES = {
+  'BF.A': 'BF-B',
+  'BF-A': 'BF-B',
+  'BF.B': 'BF-B',
+  'BRK.A': 'BRK-B',
+  'BRK-A': 'BRK-B',
+  'BRK.B': 'BRK-B',
+};
+
+/**
+ * Devuelve el ticker canónico para una posible variante (BF.A/BF-A/BF.B → BF-B).
+ * @param {string} ticker - Ticker solicitado.
+ * @returns {string} Ticker canónico en mayúsculas.
+ */
+export function canonicalCompanyTicker(ticker) {
+  const clean = String(ticker ?? '').trim().toUpperCase();
+  return COMPANY_TICKER_ALIASES[clean] ?? clean;
+}
+
 export function buildCompanyDescription(profile, name, lang = 'es') {
   const isEn = lang === 'en';
   let sector = profile.sector && profile.sector !== '—' ? profile.sector.toLowerCase() : null;
@@ -33,7 +57,7 @@ export function buildCompanyDescription(profile, name, lang = 'es') {
 }
 
 export async function buildCompanyMeta(ticker, lang = 'es') {
-  const cleanTicker = String(ticker ?? '').trim().toUpperCase();
+  const cleanTicker = canonicalCompanyTicker(ticker);
   if (!/^[A-Z0-9.-]{1,10}$/.test(cleanTicker)) return null;
 
   const isEn = lang === 'en';

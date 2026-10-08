@@ -6,6 +6,7 @@
 import { cell, headerCell, getHighlight, noteNumberOf, sanitize, COLORS } from './exportColors.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
 import { visibleCapitalRows } from '../../utils/capitalRows.js';
+import { resolveAdjustedCells } from '../../utils/salesHighlight.js';
 
 export function isPctHeader(header) {
   return ['% Aj.', '% N.', '% Ajustado', '% Normal', '%', '% Adj.', '% N.', '% Adjusted', '% Normal'].includes(String(header).trim());
@@ -21,7 +22,7 @@ export function pctColor(value) {
 
 export function buildNotes(notes, options = {}) {
   return (Array.isArray(notes) ? notes : []).filter(Boolean).map((note) => {
-    const raw = sanitize(note);
+    const raw = sanitize(note, { keepBold: true });
     const match = raw.match(/^\*(\d+):?\s*([\s\S]*)$/);
     if (match) {
       const num = match[1];
@@ -42,7 +43,7 @@ export function buildSalesSection(sales, language = 'es') {
   const pctColumns = [3, 6];
   const rows = (sales.rows ?? []).map((row, index) => {
     const stripeBg = index % 2 === 0 ? COLORS.stripe : null;
-    const isRowAdjusted = row.isAdjusted === true;
+    const adjustedSides = resolveAdjustedCells(row);
     const scheme = getHighlight(noteNumberOf(row.adjustedNote));
     const nameText = sanitize(row.name);
     const nameNoteMatch = nameText.match(/\*(\d+)/);
@@ -53,7 +54,7 @@ export function buildSalesSection(sales, language = 'es') {
     const values = [row.adjusted, row.prevAdjusted, row.pctAdjusted, row.normal, row.prevNormal, row.pctNormal];
     const valueCells = values.map((value, i) => {
       const base = { bold: boldColumns.includes(i + 1), color: COLORS.ink, bg: stripeBg };
-      if (i === 0 && isRowAdjusted) {
+      if ((i === 0 && adjustedSides.current) || (i === 1 && adjustedSides.previous)) {
         return cell(value, { bold: true, color: scheme.text, bg: scheme.bg });
       }
       if (pctColumns.includes(i + 1)) {

@@ -98,6 +98,7 @@ const EXTRACTED_FACT_MONEY_KEYS = [
   'goodwillImpairmentQuarter', 'goodwillImpairmentPrevQuarter', 'goodwillImpairmentYtd', 'goodwillImpairmentPrevYtd',
   'intangibleImpairmentQuarter', 'intangibleImpairmentPrevQuarter', 'intangibleImpairmentYtd', 'intangibleImpairmentPrevYtd',
   'intangiblesAmortization', 'incomeTaxExpenseQuarter', 'incomeTaxExpenseYtd',
+  'incomeTaxExpensePrevQuarter', 'incomeTaxExpensePrevYtd',
   'intangiblesAmortizationQuarter', 'intangiblesAmortizationYtd',
   'incomeTaxesPaidQuarter', 'incomeTaxesPaidYtd',
   'taxCashFlowAdjustmentQuarter', 'taxCashFlowAdjustmentYtd', 'netChangeInCash', 'totalDebt',

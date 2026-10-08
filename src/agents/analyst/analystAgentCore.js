@@ -8,6 +8,7 @@ import { BaseAgent, AgentError } from '../baseAgent.js';
 import { normalizeExtractedUnits, extractAnnualWorkingCapitalChange } from './financialParsers.js';
 import { buildCapitalAllocationFromBalance, buildWorkingCapitalDataFallback } from './capitalAllocationHelpers.js';
 import { getLanguageDirective } from './languageDirective.js';
+import { getPreviousQuarterPresentationText } from '../../services/analysis/presentationText.service.js';
 import {
   resolveAnalysisInput,
   loadSectorRules,
@@ -24,6 +25,7 @@ import {
   selectAnnualHorizon,
   normalizeHorizons,
   applyAnnualConclusion,
+  applyQuarterNotes,
   normalizeAnnualRating,
 } from './analystRunSteps.js';
 
@@ -49,9 +51,14 @@ export class AnalystAgent extends BaseAgent {
     const languageDirective = getLanguageDirective(language);
     const rules = await loadSectorRules({ sector, subsector, formType, ticker: input.ticker ?? null });
 
+    const previousGuidanceText = !isAnnual && input.ticker && input.accession
+      ? await getPreviousQuarterPresentationText(input.ticker, input.accession)
+      : null;
+
     const extracted = await runExtraction({
       text: input.text,
       presentationText: input.presentationText,
+      previousGuidanceText,
       languageDirective,
     });
 
@@ -124,6 +131,7 @@ export class AnalystAgent extends BaseAgent {
       result.isAnnual = true;
       result.formType = '10-K';
     } else {
+      applyQuarterNotes(result, extracted, language);
       result.isAnnual = false;
       result.formType = input.formType ?? '10-Q';
     }

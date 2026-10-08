@@ -6,7 +6,15 @@
   const AS = window.AnalisisState;
     const analysisVersionsCache = new Map();
 
+  // El botón «Web antes de ajustes» solo se ofrece si el análisis conserva la
+  // instantánea HTML previa a las correcciones del auditor.
+  function updateBeforeAuditHtmlButton() {
+    const beforeButton = document.querySelector('#analysis-downloads-menu [data-format="html-antes"]');
+    if (beforeButton) beforeButton.hidden = !AS.currentAnalysisAudit?.htmlAntes;
+  }
+
   function renderAnalysisVersionControl() {
+    updateBeforeAuditHtmlButton();
     const box = document.querySelector('#analysis-version-box');
     if (!box) return;
     const hasAnyVersion = Boolean(AS.currentAnalysisVersion || AS.currentAnalysisVersions.length);
@@ -84,6 +92,7 @@
       const matching = AS.currentAnalysisVersions.find((v) => String(v.id) === String(AS.currentAnalysisId));
       if (matching) {
         AS.currentAnalysisIsReviewed = Boolean(matching.isReviewed ?? matching.is_reviewed);
+        if (matching.audit) AS.currentAnalysisAudit = matching.audit;
       }
     }
     renderAnalysisVersionControl();
@@ -126,6 +135,7 @@
     AS.currentAnalysisSubsector = source.subsector ?? null;
     if (typeof source.isReviewed === 'boolean') AS.currentAnalysisIsReviewed = source.isReviewed;
     else if (typeof source.is_reviewed === 'boolean') AS.currentAnalysisIsReviewed = source.is_reviewed;
+    if ('audit' in source) AS.currentAnalysisAudit = source.audit ?? null;
     if (source.currentVersion) AS.currentAnalysisCurrentVersion = source.currentVersion;
     AS.currentAnalysisVersionOutdated = source.versionOutdated === true;
     renderAnalysisVersionControl();
@@ -138,6 +148,7 @@
     AS.currentAnalysisCurrentVersion = null;
     AS.currentAnalysisVersionOutdated = false;
     AS.currentAnalysisIsReviewed = false;
+    AS.currentAnalysisAudit = null;
     AS.currentAnalysisVersions = [];
     AS.pendingVersionsMenuOpen = false;
     AS.currentAnalysisFormType = null;
@@ -152,6 +163,7 @@
     if (menu) menu.hidden = true;
     const reviewedBadge = document.querySelector('#analysis-reviewed-badge');
     if (reviewedBadge) reviewedBadge.hidden = true;
+    updateBeforeAuditHtmlButton();
     const reviewedToggle = document.querySelector('#analysis-reviewed-toggle');
     if (reviewedToggle) reviewedToggle.hidden = true;
   }
@@ -237,6 +249,7 @@
       version: analysis.version ?? null,
       subsector: analysis.subsector ?? null,
       isReviewed: Boolean(analysis.isReviewed ?? analysis.is_reviewed),
+      audit: analysis.audit ?? null,
       currentVersion: analysis.currentVersion ?? null,
       versionOutdated: analysis.versionOutdated === true,
     });

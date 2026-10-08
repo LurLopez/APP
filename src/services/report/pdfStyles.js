@@ -3,6 +3,8 @@
  * @module services/report/pdfStyles
  */
 
+import { parseRichSegments } from '../reportExport/exportColors.js';
+
 export const PDF_SAFE_CHARS = [
   ['−', '-'],
   ['Δ', 'Delta'],
@@ -18,12 +20,13 @@ export const PDF_SAFE_CHARS = [
 /**
  * Sanea texto para evitar caracteres incompatibles con fuentes estándar de PDFKit.
  * @param {unknown} value - Valor textual.
+ * @param {{ keepBold?: boolean }} [options] - `keepBold` conserva los marcadores `**…**`.
  * @returns {string} Cadena saneada.
  */
-export function sanitize(value) {
+export function sanitize(value, options = {}) {
   if (value === null || value === undefined) return '—';
   let str = String(value);
-  str = str.replace(/\*\*(.+?)\*\*/gs, '$1').replace(/\*\*/g, '');
+  if (!options.keepBold) str = str.replace(/\*\*(.+?)\*\*/gs, '$1').replace(/\*\*/g, '');
   for (const [from, to] of PDF_SAFE_CHARS) str = str.replaceAll(from, to);
   return str;
 }
@@ -160,7 +163,7 @@ export function drawNotes(doc, notes, y, options = {}) {
   const availablePageWidth = doc.page.width - left * 2;
 
   filtered.forEach((note) => {
-    const raw = sanitize(note);
+    const raw = sanitize(note, { keepBold: true });
     const match = raw.match(/^\*(\d+):?\s*([\s\S]*)$/);
     if (match) {
       const num = match[1];
@@ -174,7 +177,8 @@ export function drawNotes(doc, notes, y, options = {}) {
       const textWidth = availablePageWidth - markerWidth - 4;
 
       doc.font('Helvetica').fontSize(7.5);
-      const textHeight = doc.heightOfString(rest, { width: textWidth });
+      const plainRest = rest.replace(/\*\*/g, '').replace(/__/g, '');
+      const textHeight = doc.heightOfString(plainRest, { width: textWidth });
       const itemHeight = Math.max(12, textHeight + 4);
 
       if (currentY + itemHeight > pageBottom - 10 && currentY > doc.page.margins.top + 10) {
@@ -185,9 +189,17 @@ export function drawNotes(doc, notes, y, options = {}) {
       const noteTop = currentY;
       doc.rect(left, noteTop, markerWidth, 10).fill(colorScheme.bg);
       doc.fillColor(colorScheme.text).font('Helvetica-Bold').fontSize(7.5).text(marker, left + 3, noteTop + 1.5, { lineBreak: false });
-      doc.fillColor('#4b5563').font('Helvetica').fontSize(7.5).text(rest, left + markerWidth + 4, noteTop + 1.5, {
-        width: textWidth,
-        lineBreak: true,
+      const segments = parseRichSegments(rest, { autoBold: false });
+      let firstSegment = true;
+      segments.forEach((seg, i) => {
+        const isLast = i === segments.length - 1;
+        doc.font(seg.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(7.5).fillColor(seg.bold ? '#111827' : '#4b5563');
+        if (firstSegment) {
+          doc.text(seg.text, left + markerWidth + 4, noteTop + 1.5, { width: textWidth, lineBreak: true, continued: !isLast, underline: seg.underline === true });
+          firstSegment = false;
+        } else {
+          doc.text(seg.text, { width: textWidth, lineBreak: true, continued: !isLast, underline: seg.underline === true });
+        }
       });
       currentY = Math.max(doc.y, noteTop + 10) + 4;
     } else {

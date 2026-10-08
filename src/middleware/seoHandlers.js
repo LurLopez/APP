@@ -33,6 +33,7 @@ import {
 } from '../services/seo.service.js';
 import { getGuidesSeoContent, getGuidesSeoMeta } from '../services/seo/guidesSeo.service.js';
 import { getPageMeta } from '../services/seo/pageMeta.service.js';
+import { canonicalCompanyTicker } from '../services/seo/companyMeta.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
@@ -260,6 +261,15 @@ export async function handleCompanyRoutes(pathname, parsed, req, res, next) {
   const isEn = pathname === '/en' || pathname.startsWith('/en/');
   const cleanPathname = isEn ? (pathname.replace(/^\/en/, '') || '/') : pathname;
   const lang = isEn ? 'en' : 'es';
+
+  if (cleanPathname.startsWith('/empresa/') && !cleanPathname.endsWith('.md')) {
+    const requested = decodeURIComponent(cleanPathname.slice('/empresa/'.length));
+    const canonical = canonicalCompanyTicker(requested);
+    if (canonical && canonical !== requested.toUpperCase()) {
+      res.redirect(301, `${isEn ? '/en' : ''}/empresa/${encodeURIComponent(canonical)}${parsed.search || ''}`);
+      return true;
+    }
+  }
 
   const companyMdMatch = cleanPathname.match(/^\/empresa\/([A-Za-z0-9.-]{1,10})\.md$/);
   if (companyMdMatch || (cleanPathname.startsWith('/empresa/') && req.headers.accept?.includes('text/markdown'))) {

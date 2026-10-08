@@ -10,7 +10,7 @@ export async function getAnalysisVersions({ ticker, accession, userId = null } =
   const { rows } = await query(
     `SELECT
        id, version, sector, subsector, sector_version, model_used, is_public, pdf_url, language, created_at,
-       is_reviewed, reviewed_at, reviewed_by,
+       is_reviewed, reviewed_at, reviewed_by, audit,
        report->>'formType' AS form_type
      FROM analyses
      WHERE UPPER(ticker) = UPPER($1)

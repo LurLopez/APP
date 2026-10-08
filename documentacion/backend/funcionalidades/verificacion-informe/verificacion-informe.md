@@ -1,25 +1,28 @@
 # Funcionalidad: Análisis del informe (10-Q / 10-K de EE. UU.) — Backend
 
-> Capa: **backend** · Fecha: 2026-08-12 (verificadores) · Actualizado: 2026-08-13/14 (pipeline completo) · Estado: **implementado y probado (origen + sector + analista + PDF + guardado)**
+> Capa: **backend** · Fecha: 2026-08-12 (verificadores) · Actualizado: 2026-09-21 (auditor + corrección, nota visible y registro por fases) · Estado: **implementado y probado (origen + sector + analista + auditor + PDF + guardado)**
 
 ---
 
 ## 1. Objetivo
 
-Ejecutar el **pipeline completo de análisis** de un informe financiero 10-Q / 10-K de una empresa de EE. UU. del sector de consumo defensivo: **verificar el origen**, **verificar el sector** y **generar el informe estructurado** con su PDF. Si el informe no cumple el alcance, se devuelve un error claro y legible. El mismo pipeline se ejecuta tanto desde la **subida manual de PDF** como desde el **botón "Analizar con IA"** de un filing de la SEC (regla fundamental del proyecto: mismo proceso y mismo resultado).
+Ejecutar el **pipeline completo de análisis** de un informe financiero 10-Q / 10-K de una empresa de EE. UU. del sector de consumo defensivo: **verificar el origen**, **verificar el sector**, **generar el informe estructurado** con su PDF y **auditarlo** contra el texto completo del filing (el auditor corrige los fallos que encuentra). Si el informe no cumple el alcance, se devuelve un error claro y legible. El mismo pipeline se ejecuta tanto desde la **subida manual de PDF** como desde el **botón "Analizar con IA"** de un filing de la SEC (regla fundamental del proyecto: mismo proceso y mismo resultado).
 
 ## 2. Alcance
 
 **Incluido:**
-- `POST /api/upload` (multipart, campo `file`, máx. 25 MB) → texto → **3 agentes** → informe JSON + **PDF generado** + guardado opcional.
+- `POST /api/upload` (multipart, campo `file`, máx. 25 MB) → texto → **4 agentes** → informe JSON + **PDF generado** + guardado opcional.
 - `POST /api/screener/company/:ticker/filings/:accession/analyze` → mismo pipeline con el contenido del filing (PDF real, PDF generado o HTML).
 - Agente **verificador de origen**: ¿financiero? ¿EE. UU.? ¿10-Q/10-K?
 - Agente **verificador de sector**: ¿consumo defensivo? (rechazo seguro sin evidencia).
-- Agente **analista principal**: extracción de cifras en dos fases + informe estructurado según `src/agents/prompts/consumo-defensivo.md` (dos horizontes; bloques Ventas / Cash Flow / Asignación de Capital).
+- Agente **analista principal**: extracción de cifras en dos fases + informe estructurado con las reglas `.md` del sector (dos horizontes; bloques Ventas / Cash Flow / Asignación de Capital).
+- Agente **auditor**: nota 1-10, errores probados y comprobaciones deterministas contra el **texto completo** del filing y las **mismas reglas `.md`** que el analista; si hay errores graves o menores, el mismo agente genera el informe corregido y se publica esa versión. Interruptores `AI_AUDIT_ENABLED` / `AI_AUDIT_FIX_ENABLED`.
+- **Nota de la auditoría** guardada en `analyses.audit` y devuelta por la API (`audit`), sin mostrarse al usuario en la interfaz (se conserva en el registro interno y para los agentes admin).
 - Generador de **PDF** del informe (`report.service.js`, pdfkit) servido en `GET /api/reports/:file`.
 - Capa de modelos IA con proveedores `deepseek` (activo), `opencode-go` y `mock`; reintentos (`chatJson`), timeout y límite de tokens configurables.
 - Errores controlados con código (`AgentError`) y mensajes en español.
 - Guardado en `analyses` si hay sesión (`saved: true/false`) — ver `historico-analisis`.
+- **Registro exacto por análisis** en `logs/analisis.log` (JSONL) y `analysis_logs`: tipo y año, tiempo/coste del análisis y de la revisión+corrección, nota, cambios aplicados y coste total (sección 13).
 
 **Excluido (pendiente):**
 - Análisis multi-periodo de empresa completa (Fase 4).
@@ -42,6 +45,7 @@ Ejecutar el **pipeline completo de análisis** de un informe financiero 10-Q / 1
   "formType": "10-Q",
   "sector": "defensive_consumer",
   "report": { "company": "...", "ticker": "...", "periodTitle": "...", "reportingPeriod": "2026-06-27", "horizons": [...] },
+  "audit": { "nota": 6.5, "veredicto": "correcto_con_reservas", "errores": 5, "corregibles": 5, "corregido": true, "revertido": false, "fuenteRecortada": false, "cambios": 6 },
   "pdfUrl": "/api/reports/<uuid>.pdf",
   "saved": true
 }
@@ -67,9 +71,13 @@ POST /api/upload (multipart, campo file)
                       → { sector: 'defensive_consumer' }
       3. analystAgent → fase 1: extracción de cifras (JSON)
                       → fase 2: informe estructurado (2 horizontes, 3 bloques)
+      4. auditorAgent → audita contra el texto completo del filing y las mismas reglas .md
+                      → { nota 1-10, veredicto, errores, comprobaciones deterministas }
+                      → si hay errores graves/menores: corrige el informe (si AI_AUDIT_FIX_ENABLED)
+                      → si la corrección no valida (estructura/horizontes/deterministas), conserva el original
       → report.service: generateReportPdf(report) → pdfUrl
-      → si hay userId: saveAnalysis (status done, ticker, company, period_end, pdf_url, report, model_used)
-  → 200 { ok, origin, formType, sector, report, pdfUrl, saved }
+      → si hay userId: saveAnalysis (status done, ticker, company, period_end, pdf_url, report, audit, model_used)
+  → 200 { ok, origin, formType, sector, report, audit, pdfUrl, saved }
 ```
 
 **Desde un filing de la SEC** (`.../filings/:accession/analyze`): `getFilingContentBuffer` devuelve el PDF (real de la SEC o generado con Chrome) o el HTML primario; PDF → `analyzePdf`, HTML → `htmlToText` + `analyzeText`. El resto es idéntico (misma regla fundamental).
@@ -117,10 +125,19 @@ POST /api/upload (multipart, campo file)
 ### `analystAgent` (analista principal)
 
 - **Entrada**: `{ text, sector }`. Dos fases con `chatJson`:
-  1. **Extracción** (`EXTRACTION_PROMPT`): JSON con empresa, ticker, `reportingPeriod` (AAAA-MM-DD), trimestre/acumulado (y comparativos), cash flow y hechos relevantes. La ventana de texto se construye con `buildAnalysisText`: cabecera (30.000) + sección de estados financieros detectada por marcadores (15.000 antes / 50.000 después), recortada a 80.000.
-  2. **Informe** (`SYSTEM_PROMPT` + reglas de `src/agents/prompts/consumo-defensivo.md` cargadas por sector): dos horizontes (trimestre y acumulado del año), bloques **Ventas / Cash Flow / Asignación de Capital** con filas ajustadas/normales, notas en español, variaciones %, BPA.
+  1. **Extracción** (`EXTRACTION_PROMPT`): JSON con empresa, ticker, `reportingPeriod` (AAAA-MM-DD), trimestre/acumulado (y comparativos), cash flow, hechos relevantes y, en 10-Q, `quarterDetails` (estado del guidance y notas relevantes del trimestre). La ventana de texto se construye con `buildAnalysisText`: cabecera (30.000) + sección de estados financieros detectada por marcadores (15.000 antes / 50.000 después), recortada a 80.000.
+  2. **Informe** (`SYSTEM_PROMPT` + reglas cargadas por sector desde `src/agents/knowledge/`): parte financiera común (`financiero/general.md`), parte cualitativa según formulario (`notas/trimestral.md` en 10-Q y `notas/anual.md` en 10-K) y reglas de sector (`consumo-defensivo.md`). Dos horizontes en 10-Q (trimestre y acumulado del año) o uno de 12 meses en 10-K, bloques **Ventas / Cash Flow / Asignación de Capital** con filas ajustadas/normales, notas en español, variaciones %, BPA y, en 10-Q, la sección `quarterNotes` (**notas del trimestre**: estado del guidance mantenido/al alza/a la baja/retirado/nuevo y hechos relevantes de los últimos 3 meses; `applyQuarterNotes` la completa desde la extracción).
 - Validación de la estructura (`horizons` no vacío) → `INVALID_REPORT_STRUCTURE`.
 - Errores: `EMPTY_DOCUMENT`, `NO_SECTOR_RULES` (sin reglas para el sector), `INVALID_MODEL_RESPONSE`.
+
+### `auditorAgent` (auditor + corrector)
+
+- **Entrada**: `{ report, sourceText, filingMeta, rules }`, donde `sourceText` es el **texto completo** del filing (recortado a `AI_AUDIT_MAX_SOURCE_CHARS`, 200.000 por defecto, conservando inicio y final; el presupuesto se reduce con las reglas `.md`, así que el filing enviado queda en ~150.000 caracteres) y `rules` son las **mismas reglas** que recibe el analista (`loadKnowledgeRules`: generales, sector, subsector y empresa).
+- **Contexto compartido y caché de prefijo**: las reglas `.md` y las comprobaciones deterministas viajan en un bloque idéntico al inicio del mensaje de sistema de la auditoría y de la corrección (`buildSharedAuditContext`), de modo que el proveedor reutiliza su caché de prefijo y la corrección paga el contexto a precio de cache-hit.
+- **Fase 1 (auditoría)**: `chatJson` con la rúbrica (`auditorPrompt.js`) + comprobaciones deterministas (`deterministicChecks.js`: aritmética de porcentajes, sumas, umbrales, estructura, coherencia de notas). Devuelve `{ score 1-10, veredicto, resumen, errores[], aciertos[], bloques, cifrasClave[], dudas[] }`.
+- **Fase 2 (corrección, `fix`)**: si hay errores graves o menores, `correctorPrompt.js` devuelve el informe completo corregido (en cascada: porcentajes, sumas, notas y textos afectados). El corrector **no recibe el filing completo**: cada error de la auditoría ya incluye el valor correcto (`esperado`) y su prueba (`evidencia`), y las reglas viajan en el contexto compartido. La corrección solo sustituye al original si `validateCorrectedReport` conserva estructura/horizontes/metadatos y `runDeterministicChecks` no empeora; si no, se conserva el original. `diffReports` registra los cambios aplicados.
+- **Degradación segura**: cualquier fallo del auditor o del corrector (IA no disponible, JSON inválido, contexto excedido) no interrumpe el análisis: se publica el informe del analista y el error queda en el log.
+- **Desactivación**: `AI_AUDIT_ENABLED=false` (o `0/no/off/disabled/desactivado`) desactiva la revisión; `AI_AUDIT_FIX_ENABLED=false` audita sin corregir.
 
 ### Errores (`AgentError`)
 
@@ -137,7 +154,7 @@ POST /api/upload (multipart, campo file)
 
 ## 7. Generación del PDF (`src/services/report.service.js`)
 
-- **pdfkit**: cabecera (empresa, ticker, periodo), dos horizontes, bloques **1. VENTAS / 2. CASH FLOW / 3. ASIGNACIÓN DE CAPITAL** con tablas (cabecera oscura, filas alternas, notas en cursiva gris) y paginación automática.
+- **pdfkit**: cabecera (empresa, ticker, periodo), dos horizontes, bloques **1. VENTAS / 2. CASH FLOW / 3. ASIGNACIÓN DE CAPITAL** con tablas (cabecera oscura, filas alternas, notas en cursiva gris), sección **NOTAS DEL TRIMESTRE E INFORMACIÓN RELEVANTE** en los 10-Q (`pdfQuarterNotesDrawer.js`) y paginación automática.
 - Guarda en `uploads/generated/` con nombre UUID; `GET /api/reports/:file` lo sirve validando contra path traversal.
 
 ## 8. Errores y casos límite del endpoint
@@ -168,7 +185,9 @@ POST /api/upload (multipart, campo file)
 | `src/services/ai/modelProvider.js` | Capa de abstracción; `chat`/`chatJson` (reintentos). |
 | `src/services/ai/providers/{deepseek,opencode-go,mock}.provider.js` | Proveedores. |
 | `src/agents/baseAgent.js` | `BaseAgent` + `AgentError`. |
-| `src/agents/originAgent.js` / `sectorAgent.js` / `analystAgent.js` | Los 3 agentes del pipeline. |
+| `src/agents/originAgent.js` / `sectorAgent.js` / `analystAgent.js` | Los 3 agentes de verificación y análisis del pipeline. |
+| `src/agents/auditor/{auditorAgent,auditorPrompt,correctorPrompt,deterministicChecks,auditPolicy}.js` | Auditor: rúbrica, corrección, comprobaciones deterministas y reglas de decisión/validación. |
+| `src/services/analysis/analysisLogger.service.js` | Registro exacto del análisis en `logs/analisis.log` y `analysis_logs`. |
 | `src/agents/prompts/consumo-defensivo.md` | Reglas de análisis del sector (derivadas del PDF de referencia del usuario). |
 | `src/services/report.service.js` | Generador de PDF (pdfkit). |
 | `src/api/routes/analysis.routes.js` | `POST /api/upload`, `GET /api/analyses`, `GET /api/reports/:file`. |
@@ -208,7 +227,33 @@ Dependencias: `multer`, `pdf-parse` (2.4.5), `pdfkit`.
 - **Auth**: `resolveUser` decide si se guarda (`saved`).
 - **Fase 5 (planes)**: el proveedor de IA se elegirá por plan (la capa ya lo permite).
 
-## 13. Pendientes
+## 13. Registro exacto de cada análisis
+
+Cada análisis escribe una línea JSON en `logs/analisis.log` (`ANALYSIS_LOG_DIR` configurable) y una fila en la tabla `analysis_logs` (misma información, consultable con SQL). Campos:
+
+| Campo | Contenido |
+|---|---|
+| `fechaHora` | Fecha y hora ISO del análisis. |
+| `ticker`, `accession`, `filename`, `tipo`, `periodo`, `anio` | Empresa e informe: tipo (`10-Q`/`10-K`), periodo (`2025-12-31`) y ejercicio (`2025`). |
+| `fases.analisis` | **Primer análisis** (origen + sector + analista): `segundos`, `llamadas`, tokens y `costeUsd`. |
+| `fases.revision` | **Revisión + corrección** (auditor + corrector): `segundos`, `llamadas`, tokens, `costeUsd`, `nota`, `veredicto`, `errores`, `corregido` y número de `cambios`. Es `null` si la auditoría está desactivada. |
+| `fases.pdf` | Generación del PDF: `segundos` (sin coste de IA). |
+| `auditoria` | Resumen de la auditoría: `nota`, `veredicto`, `errores`, `corregibles`, `corregido`, `revertido`, `motivo`, `fuenteRecortada`, `cambios`, `fallosDeterministas` (`antes`/`despues`). |
+| `cambiosAuditoria` | **Detalle de los cambios del segundo agente**: lista `{ ruta, antes, despues }` (máx. 80, valores recortados a 400 caracteres). `null` si no hubo corrección. |
+| `proveedores`, `modelos`, `llamadas`, `tokens`, `costeUsd`, `costeConocido`, `duracionSegundos` | Totales del análisis completo (la suma de las fases coincide con el total). |
+
+Columnas equivalentes en `analysis_logs`: `form_type`, `fiscal_year`, `period_end`, `analysis_seconds`, `analysis_cost_usd`, `audit_seconds`, `audit_cost_usd`, `audit_score`, `audit_corrected` y `audit_changes` (JSONB), además de las ya existentes (`cost_usd` y `duration_seconds` son los totales).
+
+### Instantáneas HTML antes y después de los ajustes
+
+Cuando la auditoría está activa, cada análisis guarda dos versiones HTML del informe con el mismo UUID base:
+
+- `uploads/generated/<uuid>-antes.html` — el informe tal y como lo generó el analista, **antes** de la corrección (instantánea histórica, no se regenera).
+- `uploads/generated/<uuid>.html` — el informe **final** (corregido si hubo fallos), junto al PDF/DOCX/ODT.
+
+Las URLs viajan en `audit.htmlAntes` y `audit.htmlDespues` y se pueden descargar con la misma protección que el resto del informe: `GET /api/reports/<uuid>-antes.html` (público/owner/admin, igual que el PDF). En la web aparecen en el menú «Descargar → Web antes de ajustes (.html)». `cleanupGeneratedReports` borra también la instantánea previa al eliminar el análisis.
+
+## 14. Pendientes
 
 - Decidir el modelo final a medio plazo (DeepSeek vs OpenCode Go; hoy funciona DeepSeek directo).
 - Refinar las reglas del prompt del analista con los informes de referencia del usuario.

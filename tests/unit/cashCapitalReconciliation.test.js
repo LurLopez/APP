@@ -60,7 +60,7 @@ test('buildCashFlowAdjustmentChain explicita los dos ajustes cuando el neto es p
     finalCfo: 9423,
     taxAdjustment: 654.7,
   });
-  assert.match(chain, /9415M -646,7M \(circulante\) \+654,7M \(impuestos\) = 9423M/);
+  assert.match(chain, /\*\*9415M __-646,7M__ \(circulante\) __\+654,7M__ \(impuestos\) = 9423M\*\*/);
   assert.match(chain, /el efecto neto es de solo \+8M/i);
 });
 
@@ -78,7 +78,7 @@ test('normalizeCashFlowBlock cierra la cadena de los dos ajustes en la nota *2 y
   const taxNote = horizon.cashFlow.notes.find((n) => n.startsWith('*2:'));
   assert.ok(taxNote, 'Debe existir la nota fiscal *2');
   assert.match(taxNote, /8768,3M|9415M/);
-  assert.match(taxNote, /-646,7M \(circulante\) \+654,7M \(impuestos\) = 9423M/);
+  assert.match(taxNote, /__-646,7M__ \(circulante\) __\+654,7M__ \(impuestos\) = 9423M/);
   assert.match(taxNote, /se cancelan en gran medida/i);
 });
 

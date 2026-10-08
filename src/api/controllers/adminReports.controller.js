@@ -17,8 +17,9 @@ import {
 } from '../../../db/repositories/analysisRepository.js';
 import { getReportsStats } from '../../../db/repositories/generalReportsRepository.js';
 import { cleanupGeneratedReports } from '../../services/report.service.js';
-import { getFilingContentBuffer, getPresentationBuffers } from '../../services/edgar.service.js';
-import { analyzePdf, analyzeText, htmlToText, buildPresentationText } from '../../services/analysis.service.js';
+import { getFilingContentBuffer } from '../../services/edgar.service.js';
+import { analyzePdf, analyzeText, htmlToText } from '../../services/analysis.service.js';
+import { getFilingPresentationText } from '../../services/analysis/presentationText.service.js';
 import { AgentError } from '../../agents/baseAgent.js';
 import { AiProviderError, chatJson } from '../../services/ai/modelProvider.js';
 import { invalidateReportCache } from '../../services/seo.service.js';
@@ -258,13 +259,7 @@ export async function regenerateAiAnalysisHandler(req, res, next) {
       return;
     }
 
-    let presentationText = null;
-    try {
-      const presentations = await getPresentationBuffers(ticker, accession);
-      if (presentations.length) presentationText = await buildPresentationText(presentations);
-    } catch (presentationError) {
-      console.warn('[analysis:presentation]', presentationError.message);
-    }
+    const presentationText = await getFilingPresentationText(ticker, accession);
 
     const options = {
       userId: existing.is_public ? null : req.user.id,

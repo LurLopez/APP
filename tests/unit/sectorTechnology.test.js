@@ -129,7 +129,7 @@ test('normalizeCashFlowBlock aplica la deducción íntegra de stock options (SBC
     shares: 413,
     facts: {
       stockCompensation: 1942,
-      incomeTaxesPaidYtd: 2219,
+      incomeTaxesPaidYtd: 2600,
       incomeTaxExpenseYtd: 2000,
     },
     workingCapitalData: {
@@ -155,13 +155,13 @@ test('normalizeCashFlowBlock aplica la deducción íntegra de stock options (SBC
 
   // Normal: 10031M.
   // WC: +108.2M -> 10139.2M
-  // Tax: +174.1M -> 10313.3M
+  // Tax: +555.1M (23 % del EBT ajustado = 2044.9M) -> 10694.3M
   // SBC: -1942M (importe íntegro)
-  // Final CFO: 10313.3 - 1942 = 8371.3M
-  assert.equal(cfoRow.values[1], '8371,3');
-  assert.equal(fcfRow.values[1], '8192,3');
-  assert.equal(fcfPerShareRow.values[1], '19,84 $');
-  assert.equal(libreRow.values[1], '8192,3');
+  // Final CFO: 10694.3 - 1942 = 8752.3M
+  assert.equal(cfoRow.values[1], '8752,3');
+  assert.equal(fcfRow.values[1], '8573,3');
+  assert.equal(fcfPerShareRow.values[1], '20,76 $');
+  assert.equal(libreRow.values[1], '8573,3');
 
   const sbcNote = horizon.cashFlow.notes.find((n) => /stock options|sbc/i.test(n));
   assert.ok(sbcNote, 'Debe existir la nota de Stock Options');
@@ -171,7 +171,8 @@ test('normalizeCashFlowBlock aplica la deducción íntegra de stock options (SBC
   assert.doesNotMatch(sbcNote, /120\s*%/);
   assert.match(sbcNote, /importe íntegro/);
   assert.match(sbcNote, /dilución efectiva del accionista/);
-  assert.match(sbcNote, /10031M \+108,2M \(circulante\) \+174,1M \(impuestos\) -1942M \(stock options\)/);
+  assert.match(sbcNote, /10031M __\+108,2M__ \(circulante\) __\+555,1M__ \(impuestos\) __-1942M__ \(stock options\)/);
+  assert.match(sbcNote, /\(__-1942M__\)/, 'El importe ajustado del SBC va subrayado');
 });
 
 test('normalizeCashFlowBlock asigna nota *2 a SBC cuando no hay normalización fiscal', async () => {
@@ -225,7 +226,7 @@ test('normalizeCashFlowBlock asigna nota *2 a SBC cuando no hay normalización f
   assert.match(sbcNote, /^\*2:/);
   assert.match(sbcNote, /500M/);
   assert.match(sbcNote, /-500M/);
-  assert.match(sbcNote, /5000M -200M \(circulante\) -500M \(stock options\)/);
+  assert.match(sbcNote, /5000M __-200M__ \(circulante\) __-500M__ \(stock options\)/);
 });
 
 test('buildWorkingCapitalDataFallback calcula el circulante para tecnología usando el crecimiento de ventas y no volumen plano (caso NVDA)', async () => {
@@ -296,10 +297,10 @@ test('el circulante usa siempre la media histórica de 10 años, incluso con vol
 
   // Tecnología: siempre método histórico cuando hay serie suficiente.
   const tech = buildWorkingCapitalDataFallback(baseExtracted, 'es', 'technology');
-  assert.match(tech.explanationYtd, /peso agregado/);
-  assert.match(tech.explanationYtd, /10 ejercicios/);
+  assert.match(tech.explanationYtd, /media de los últimos 10 ejercicios/);
   assert.match(tech.explanationYtd, /-20%/);
   assert.match(tech.explanationYtd, /-20000M en el periodo/);
+  assert.doesNotMatch(tech.explanationYtd, /Ratios de los ejercicios/);
   assert.deepEqual(tech.ytdScenarios, ['Normal (WC=-20000)', 'Ajustado*1 (WC=-20000)']);
 
   // Consumo defensivo sin dato de volumen: mismo método.
@@ -308,8 +309,7 @@ test('el circulante usa siempre la media histórica de 10 años, incluso con vol
     'es',
     'defensive_consumer',
   );
-  assert.match(consumerNoVolume.explanationYtd, /peso agregado/);
-  assert.match(consumerNoVolume.explanationYtd, /10 ejercicios/);
+  assert.match(consumerNoVolume.explanationYtd, /media de los últimos 10 ejercicios/);
   assert.doesNotMatch(consumerNoVolume.explanationYtd, /inflación \+ volumen/);
 
   // Consumo defensivo con volumen reportado: el método histórico es el único (WC_METHOD=historical).
@@ -318,14 +318,12 @@ test('el circulante usa siempre la media histórica de 10 años, incluso con vol
     'es',
     'defensive_consumer',
   );
-  assert.match(consumerVolume.explanationYtd, /peso agregado/);
-  assert.match(consumerVolume.explanationYtd, /10 ejercicios/);
+  assert.match(consumerVolume.explanationYtd, /media de los últimos 10 ejercicios/);
   assert.doesNotMatch(consumerVolume.explanationYtd, /inflación \+ volumen/);
 
   // En inglés el método histórico también se traduce.
   const techEn = buildWorkingCapitalDataFallback(baseExtracted, 'en', 'technology');
-  assert.match(techEn.explanationYtd, /aggregate share/);
-  assert.match(techEn.explanationYtd, /10 fiscal years/);
+  assert.match(techEn.explanationYtd, /average of the last 10 fiscal years/);
 });
 
 test('WC_METHOD=formula restaura el comportamiento anterior (inflación + volumen con volumen reportado)', async () => {
@@ -376,23 +374,21 @@ test('el circulante trimestral usa la media histórica prorrateada (Q1 1/4, Q2 2
   });
 
   const q1 = buildWorkingCapitalDataFallback(makeExtracted(3, 1), 'es', 'defensive_consumer');
-  assert.match(q1.explanationYtd, /-20% × 100000M/);
-  assert.match(q1.explanationYtd, /-20000M en todo el año/);
-  assert.match(q1.explanationYtd, /en 3 meses = -5000M/);
+  assert.match(q1.explanationYtd, /media de los últimos 10 ejercicios/);
+  assert.match(q1.explanationYtd, /divide entre 4 = -5000M/);
   assert.deepEqual(q1.ytdScenarios, ['Normal (WC=-6000)', 'Ajustado*1 (WC=-5000)']);
   assert.deepEqual(q1.quarterScenarios, ['Normal (WC=-2500)', 'Ajustado*1 (WC=-5000)']);
 
   const q2 = buildWorkingCapitalDataFallback(makeExtracted(6, 2), 'es', 'defensive_consumer');
-  assert.match(q2.explanationYtd, /flujo anual de 2026/);
-  assert.match(q2.explanationYtd, /en 6 meses = -10000M/);
+  assert.match(q2.explanationYtd, /divide entre 4 por trimestre: -10000M en 6 meses/);
   assert.deepEqual(q2.ytdScenarios, ['Normal (WC=-6000)', 'Ajustado*1 (WC=-10000)']);
-  assert.match(q2.explanation3M, /en 3 meses = -5000M/);
+  assert.match(q2.explanation3M, /divide entre 4 = -5000M/);
   assert.deepEqual(q2.quarterScenarios, ['Normal (WC=-2500)', 'Ajustado*1 (WC=-5000)']);
 
   const q3 = buildWorkingCapitalDataFallback(makeExtracted(9, 3), 'es', 'defensive_consumer');
-  assert.match(q3.explanationYtd, /en 9 meses = -15000M/);
+  assert.match(q3.explanationYtd, /divide entre 4 por trimestre: -15000M en 9 meses/);
   assert.deepEqual(q3.ytdScenarios, ['Normal (WC=-6000)', 'Ajustado*1 (WC=-15000)']);
-  assert.match(q3.explanation3M, /en 3 meses = -5000M/);
+  assert.match(q3.explanation3M, /divide entre 4 = -5000M/);
 });
 
 test('la política sectorial de tecnología no suma la amortización ni el deterioro de intangibles y sí el de fondo de comercio; la de consumo suma ambas', async () => {
@@ -558,6 +554,24 @@ test('renderNotesSsr, renderNotes y buildNotes coordinan el color de *2 y *3 en 
   assert.equal(exported[2].marker, '*3:');
   assert.equal(exported[2].bg, '#fed7aa', 'La nota *3 de exportación debe tener el mismo fondo que la nota *2');
   assert.equal(exported[2].color, '#c2410c');
+});
+
+test('la cadena de cierre del Cash Flow se destaca en negrita en notas web, SSR y export', async () => {
+  const { renderNotesSsr } = await import('../../src/services/seo/reportSsrHtml.js');
+  const { buildNotes } = await import('../../src/services/reportExport/reportSections.js');
+  const { renderHtmlNotes } = await import('../../src/services/reportExport/htmlExporter.js');
+  const chain = 'La cifra final combina los tres ajustes sobre el Cash Flow: **2088M -504,8M (circulante) +2,2M (impuestos) -53M (stock options) = 1530,2M.**';
+  const notes = [`*3: Stock Options / Compensación en acciones (SBC): ${chain}`];
+
+  const ssrHtml = renderNotesSsr(notes, { isCashFlow: true });
+  assert.match(ssrHtml, /<strong>2088M -504,8M \(circulante\) \+2,2M \(impuestos\) -53M \(stock options\) = 1530,2M\.<\/strong>/);
+  assert.doesNotMatch(ssrHtml, /\*\*/, 'Los marcadores ** no deben mostrarse en el HTML');
+
+  const exported = buildNotes(notes, { isCashFlow: true });
+  assert.match(exported[0].text, /\*\*2088M/, 'El modelo de export conserva los marcadores de negrita');
+  const exportHtml = renderHtmlNotes(exported);
+  assert.match(exportHtml, /<strong>2088M -504,8M \(circulante\)/);
+  assert.doesNotMatch(exportHtml, /\*\*/);
 });
 
 

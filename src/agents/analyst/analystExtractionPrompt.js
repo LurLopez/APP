@@ -30,7 +30,7 @@ Instrucciones:
   * REGLA DEL DESGLOSE (CRÍTICA): separa SIEMPRE el deterioro en fondo de comercio ("goodwillImpairment*") y en intangibles/marcas/activos ("intangibleImpairment*") según lo que desglose el 10-Q/10-K (notas de Goodwill and Other Intangible Assets, Asset Impairments, Impairment Charges). Los campos "impairments*" deben ser la SUMA exacta de ambas partes. Si el informe no permite distinguir la naturaleza, deja los campos de desglose en null y rellena solo "impairments*" con el total; nunca dupliques un importe en ambos componentes.
   * intangiblesAmortization: amortización ORDINARIA (recurrente) de intangibles en millones del periodo acumulado del año (YTD). intangiblesAmortizationQuarter: amortización EXCLUSIVAMENTE del trimestre de 3 meses; intangiblesAmortizationYtd: acumulada del año. Si el informe solo publica el acumulado, deja intangiblesAmortizationQuarter en null; nunca copies el acumulado en el campo trimestral. Es una partida distinta de los deterioros: no la incluyas en impairments* ni en los deterioros de goodwill/intangibles.
   * effectiveTaxRate: tipo impositivo efectivo en %.
-  * incomeTaxExpenseQuarter: gasto por impuestos reconocido EXCLUSIVAMENTE en el trimestre de 3 meses (si el informe solo muestra el acumulado, déjalo null; nunca copies el acumulado). incomeTaxExpenseYtd: gasto por impuestos acumulado del año.
+  * incomeTaxExpenseQuarter: gasto por impuestos reconocido EXCLUSIVAMENTE en el trimestre de 3 meses (si el informe solo muestra el acumulado, déjalo null; nunca copies el acumulado). incomeTaxExpenseYtd: gasto por impuestos acumulado del año. incomeTaxExpensePrevQuarter / incomeTaxExpensePrevYtd: el MISMO gasto por impuestos del periodo comparable del ejercicio anterior (columna comparativa del estado de resultados), si el informe lo muestra; null si no consta. Ej. STZ 2027-Q2: incomeTaxExpenseQuarter = 147.1, incomeTaxExpensePrevQuarter = 296.8.
   * taxCashFlowAdjustmentQuarter / taxCashFlowAdjustmentYtd: línea "Deferred income taxes and income taxes payable, net" o "Deferred income tax provision/(benefit)" del cash flow, con su signo tal como aparece. Es un ajuste no monetario, no impuestos pagados. Si existe cualquiera de esas líneas, estos campos son obligatorios.
   * incomeTaxesPaidQuarter / incomeTaxesPaidYtd: importe pagado en efectivo por impuestos sobre las ganancias en el periodo ("Income taxes paid", "Income tax (paid) received", "Total net cash income taxes paid", "Cash paid for income taxes"). Número positivo en $M (ej. 131.4). Si la empresa desglosa los impuestos pagados en efectivo en el estado de flujos o en la nota de impuestos, este campo es prioritario. IMPORTANTE: incomeTaxesPaidQuarter es EXCLUSIVAMENTE el importe de los 3 meses del trimestre; si el estado de flujos solo publica el acumulado del año, deja incomeTaxesPaidQuarter en null (nunca copies el acumulado en el campo trimestral ni la primera cifra que aparezca).
   * nonOperatingGainsQuarter / nonOperatingGainsPrevQuarter / nonOperatingGainsYtd / nonOperatingGainsPrevYtd: importe POSITIVO de las partidas NO OPERATIVAS extraordinarias o no recurrentes incluidas en el EBT del periodo (revalorizaciones no realizadas de inversiones, plusvalías u "upward adjustments" por cambios de precio observable, ventas puntuales de participaciones, acuerdos legales no recurrentes). Excluye intereses, dividendos y otros ingresos financieros recurrentes. 0/null si no hay ninguna. Ej. real AMZN Q2 2026: 50.486M en el trimestre y 62.814M acumulado ("upward adjustments relating to equity investments in private companies", principalmente Anthropic); el comparativo (Q2 2025 / seis meses 2025) no tenía partidas de este tipo.
@@ -129,7 +129,27 @@ Instrucciones:
     - "refinancing": RELLÉNALO ÚNICAMENTE si la compañía ejecutó o acordó firmemente una refinanciación durante el ejercicio (amortización anticipada con caja, ofertas de compra o canje, nueva emisión de deuda destinada a repagar otra, o extensión/refinanciación firmada de vencimientos). En ese caso marca "occurred": true y rellena "description", "oldDebtRate", "newDebtRate", "amountRefinanced", "annualInterestImpact" y "epsImpact" cuando consten. Si NO hubo ninguna operación de refinanciación en el ejercicio, deja "refinancing" en null aunque existan vencimientos próximos que la compañía solo esté evaluando o mencionando como posible: NO devuelvas un objeto con "occurred": false ni estimes tipos de emisiones futuras. Un vencimiento futuro sin decisión anunciada no es una refinanciación.
     - "secTable": copia la tabla de la nota de deuda (Long-Term Debt / Debt Obligations) con TODAS sus filas y sus columnas reales (obligación/categoría, vencimiento, tipo de interés y saldo del último ejercicio), SIN resumir ni colapsar filas: incluye los subtotales, cada fila "Notes due 20XX", las filas de rango ("Other, due 2018-2026"), la deducción de la porción corriente y el total. Si la nota resume la deuda por categorías con rangos de cupón (ej. "3.000 % – 7.125 %"), incluye cada categoría con su rango tal cual y su saldo; en ese caso NO inventes un único tipo por categoría ni tramos individuales.
 - "extraNotes": partidas extraordinarias, ventas de negocios, o cualquier hecho relevante que afecte a la comparabilidad (ej. "impairment de 1428M el año anterior"). En español. Vacío si no hay nada.
+- "quarterDetails" (OBLIGATORIO para informes trimestrales Form 10-Q; en 10-K déjalo null o vacío):
+  * "guidance": si el 10-Q, su MD&A (Item 2) o la sección complementaria mencionan previsiones de la dirección (guidance anual o trimestral: ventas, BPA, FCF, márgenes, CAPEX, intereses, tipo fiscal...), rellena "mentioned": true y:
+    - "status": "raised" si el guidance se revisa al alza, "lowered" si se revisa a la baja, "maintained" si se mantiene sin cambios, "reaffirmed" si se reitera o reafirma explícitamente, "new" si es la primera vez que se publica y "withdrawn" si se retira o suspende. Usa "mentioned": false y "status": "not_mentioned" si el documento no menciona ningún guidance. Fíjate en expresiones como "we reaffirm our guidance", "we are raising our full-year outlook", "we are lowering our guidance", "maintain our previous guidance", "updating our outlook", "withdrawing our guidance", "reiterates". Si el comunicado mezcla métricas revisadas y otras mantenidas (ej. "updates reported EPS outlook... and reaffirms comparable EPS..."), el status refleja la revisión (raised/lowered).
+    - "text": explicación detallada con las cifras del guidance que diga EXPRESAMENTE si ha cambiado o no respecto al guidance anterior (ej. "Mantiene el guidance anual de ventas planas y BPA de 4,50-4,70 $ comunicado tras el trimestre anterior" o "Revisa al alza el FCF previsto hasta 1.200M, frente a los 1.100M anteriores"). Si hay métricas revisadas y otras mantenidas/reafirmadas, detállalas MÉTRICA A MÉTRICA sin contradicciones (nunca "mantiene" global si el status es raised/lowered). Si no se publica guidance cuantitativo pero la dirección sí habla de previsiones cualitativas, descríbelo y escribe "Sin guidance cuantitativo publicado". Queda TERMINANTEMENTE PROHIBIDO inventar cifras.
+    - "secTable": tabla del guidance con las columnas "Métrica" y "Guidance actual" SIEMPRE, y además "Año anterior" y/o "Guidance anterior" SOLO si el documento aporta datos reales para ellas. Nunca dejes una columna entera llena de "—": si no hay ningún valor real, OMITE la columna.
+      - "Año anterior": el dato REAL del periodo de referencia (año fiscal cerrado; p. ej. FY26 real). Rellénalo en todas las filas en que el documento lo dé; nunca lo inventes. Si el documento no ofrece el dato del año anterior para NINGUNA métrica, omite la columna "Año anterior" por completo.
+      - "Guidance anterior": el último guidance comunicado ANTES de este trimestre para la misma métrica, tomado del bloque "[GUIDANCE ANTERIOR...]" si está presente o de la cifra anterior que cite el propio comunicado ("from $X", "anteriormente..."). Si no consta para ninguna métrica, omite la columna "Guidance anterior" por completo; si consta solo para algunas, usa "—" únicamente en las que falten. PROHIBIDO inventarlo.
+      - "Guidance actual": el guidance comunicado ahora (el del 10-Q/comunicado actual). No calcules cifras proyectadas propias: esta tabla compara año anterior, guidance anterior y guidance actual.
+      Si no hay tabla de guidance, null.
+  * "notes": array con las informaciones CUALITATIVAS VERDADERAMENTE IMPORTANTES de los últimos 3 meses (habitualmente 1-3; como máximo 4), tomadas de las notas del 10-Q, el MD&A y la sección complementaria. SOLO se incluye un hecho si pertenece a esta LISTA CERRADA:
+    - Cambios de alta dirección o gobierno corporativo (CEO, CFO, consejero delegado, presidente...).
+    - Guidance: anuncio, revisión al alza/a la baja, reiteración relevante o retirada de previsiones.
+    - Dividendos: anuncio, subida, recorte, suspensión, dividendo extraordinario o cambio relevante de política.
+    - Recompras ANUNCIADAS (nuevo programa o ampliación) y recompras EJECUTADAS en el trimestre solo si superan el 1 % de las acciones en circulación (si no, se omiten).
+    - Operaciones corporativas GRANDES y verificables: adquisiciones, desinversiones o fusiones de negocios con importe material para la compañía o carácter transformador. Si el importe no consta con claridad y no hay relevancia estratégica evidente, no la incluyas.
+    - Deterioros o cargos extraordinarios GRANDES (materiales sobre el beneficio operativo o las ventas del trimestre; los deterioros del periodo comparable sin efecto en caja del trimestre solo si son enormes y transformadores).
+    - Planes importantes ANUNCIADOS O MODIFICADOS EN EL TRIMESTRE (reestructuración, productividad, inversiones, spin-offs...). Un plan antiguo re-mencionado sin novedad no es noticia.
+    - Financiación relevante: emisiones o refinanciaciones de deuda y ampliaciones de capital significativas (importe material o que financien una operación del trimestre).
+  Quedan EXCLUIDOS: recompras ejecutadas por menos del 1 % de las acciones, deterioros y ajustes pequeños, partidas rutinarias (impuestos ordinarios, litigios menores), planes antiguos sin novedad, acuerdos de marcas, participaciones financieras o movimientos de cartera no materiales y cualquier cifra pequeña para el tamaño de la empresa. En caso de duda, NO se incluye la nota. Cada elemento lleva "title" breve y "text" con los datos concretos, cifras e impacto. Solo hechos verificables en el documento; array vacío si no hay nada realmente importante.
 - DOCUMENTO COMPLEMENTARIO: El texto puede incluir una sección "[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]" con la presentación de diapositivas o el comunicado del 8-K de resultados:
+  * En informes trimestrales (10-Q) la sección complementaria es también la fuente principal para "quarterDetails.guidance" (el comunicado de resultados suele incluir la tabla de guidance y la comparación con lo comunicado anteriormente) y para "quarterDetails.notes".
   * La sección complementaria es LA FUENTE PRIMARIA Y PRINCIPAL para "annualDetails.outlook": si el informe principal (10-K) no incluye tabla ni narrativa de guidance/outlook, extrae OBLIGATORIAMENTE de la sección complementaria las metas oficiales anunciadas por la dirección —para el siguiente ejercicio fiscal o, si solo publica guidance trimestral, para el próximo trimestre con su etiqueta (ej. "Q1 FY2027E")— en los campos guidanceSales, guidanceEbt, guidanceEps, guidanceFcf, guidanceCapex, guidanceNetInterest, costSavingsPlan y commodityRisks, y la tabla del guidance ("secTable") con sus métricas y rangos tal como aparecen publicados.
   * Los estados financieros del informe principal (10-K) tienen SIEMPRE prioridad sobre la presentación para los datos contables históricos ("quarter", "ytd", "cashFlow", "balance" y "facts").
   * Queda TERMINANTEMENTE PROHIBIDO inventar cifras o copiar los números de ejemplo del schema. Si tras revisar minuciosamente tanto el 10-K como la sección complementaria la compañía no ha publicado ningún guidance cuantitativo para el próximo año, indica en guidanceSales "Sin guidance cuantitativo publicado" y deja el resto de campos numéricos en null.
@@ -147,7 +167,7 @@ export const OUTPUT_SCHEMA = `{
         "rows": [
           { "name": "Ventas", "adjusted": "3251M", "prevAdjusted": "3258M", "pctAdjusted": "-0,21 %", "normal": "3251M", "prevNormal": "3258M", "pctNormal": "-0,21 %", "isAdjusted": false },
           { "name": "Beneficio Bruto", "adjusted": "1298M", "prevAdjusted": "1342M", "pctAdjusted": "-3,28 %", "normal": "1298M", "prevNormal": "1342M", "pctNormal": "-3,28 %", "isAdjusted": false },
-          { "name": "Beneficio Operativo", "adjusted": "520M", "prevAdjusted": "560M", "pctAdjusted": "-7,14 %", "normal": "485M", "prevNormal": "560M", "pctNormal": "-13,39 %", "isAdjusted": true, "adjustedNote": "*1" },
+          { "name": "Beneficio Operativo", "adjusted": "520M", "prevAdjusted": "560M", "pctAdjusted": "-7,14 %", "normal": "485M", "prevNormal": "560M", "pctNormal": "-13,39 %", "isAdjusted": true, "adjustedNote": "*1", "adjustedCell": "current" },
           { "name": "EBT", "adjusted": "490M", "prevAdjusted": "520M", "pctAdjusted": "-5,77 %", "normal": "455M", "prevNormal": "520M", "pctNormal": "-12,50 %", "isAdjusted": false },
           { "name": "Beneficio Neto", "adjusted": "377M", "prevAdjusted": "400M", "pctAdjusted": "-5,75 %", "normal": "342M", "prevNormal": "400M", "pctNormal": "-14,50 %", "isAdjusted": false }
         ],
@@ -166,7 +186,7 @@ export const OUTPUT_SCHEMA = `{
           { "name": "Libre", "values": ["461,5", "393,2"] }
         ],
         "notes": [
-          "*1: WC = peso agregado del circulante sobre el flujo operativo sin circulante en los últimos 10 ejercicios: -2,2% × 909M = -20M en el periodo. Desviación del circulante reportado (150M) frente al WC teórico (-20M): 170M. El Cash Flow tras el ajuste de circulante queda en: 718,3M - (170M) = 548,3M."
+          "*1: WC = media de los últimos 10 ejercicios: -2,2%. Al ser trimestral, el importe anual se divide entre 4 = -20M. Desviación del circulante reportado (150M) frente al WC teórico (-20M): 170M. El Cash Flow tras el ajuste de circulante queda en: 718,3M - (170M) = 548,3M."
         ]
       },
       "capital": {
@@ -186,7 +206,7 @@ export const OUTPUT_SCHEMA = `{
         "rows": [
           { "name": "Ventas", "adjusted": "8000,0", "prevAdjusted": "7800,0", "pctAdjusted": "+2,56 %", "normal": "8000,0", "prevNormal": "7800,0", "pctNormal": "+2,56 %" },
           { "name": "Beneficio bruto", "adjusted": "2400,0", "prevAdjusted": "2300,0", "pctAdjusted": "+4,35 %", "normal": "2400,0", "prevNormal": "2300,0", "pctNormal": "+4,35 %" },
-          { "name": "Beneficio operativo", "adjusted": "1200,0", "prevAdjusted": "1100,0", "pctAdjusted": "+9,09 %", "normal": "1150,0", "prevNormal": "1100,0", "pctNormal": "+4,55 %", "isAdjusted": true, "adjustedNote": "*1" },
+          { "name": "Beneficio operativo", "adjusted": "1200,0", "prevAdjusted": "1100,0", "pctAdjusted": "+9,09 %", "normal": "1150,0", "prevNormal": "1100,0", "pctNormal": "+4,55 %", "isAdjusted": true, "adjustedNote": "*1", "adjustedCell": "current" },
           { "name": "EBT", "adjusted": "950,0", "prevAdjusted": "880,0", "pctAdjusted": "+7,95 %", "normal": "900,0", "prevNormal": "880,0", "pctNormal": "+2,27 %" },
           { "name": "Beneficio neto", "adjusted": "730,0", "prevAdjusted": "677,0", "pctAdjusted": "+7,83 %", "normal": "693,0", "prevNormal": "677,0", "pctNormal": "+2,36 %" }
         ],
@@ -205,7 +225,7 @@ export const OUTPUT_SCHEMA = `{
           { "name": "Libre", "values": ["1120,0", "895,0"] }
         ],
         "notes": [
-          "*1: WC = peso agregado del circulante sobre el flujo operativo sin circulante en los últimos 10 ejercicios: -2,2% × 2045M = -45M en el periodo."
+          "*1: WC = media de los últimos 10 ejercicios: -2,2%. Al ser trimestral, el importe anual se divide entre 4 por trimestre: -45M en 9 meses."
         ]
       },
       "capital": {
@@ -226,5 +246,22 @@ export const OUTPUT_SCHEMA = `{
         ]
       }
     }
-  ]
+  ],
+  "quarterNotes": {
+    "title": "NOTAS DEL TRIMESTRE E INFORMACIÓN RELEVANTE",
+    "guidance": {
+      "status": "maintained",
+      "text": "La dirección mantiene sin cambios el guidance anual comunicado tras el trimestre anterior: ventas planas +/- 1 % y BPA de 2,90-3,10 $, pese a la ligera caída de volúmenes del trimestre.",
+      "secSnippet": {
+        "title": "Guidance oficial del trimestre",
+        "summary": "Tabla de previsiones publicada por la compañía",
+        "headers": ["Métrica", "Año anterior", "Guidance anterior", "Guidance actual"],
+        "rows": [["Ventas", "3251M", "3.300M - 3.350M", "Flat +/- 1 %"]]
+      }
+    },
+    "notes": [
+      { "title": "Reestructuración del negocio europeo", "text": "La compañía anunció un plan de reestructuración con un coste previsto de 120M que afectará a dos plantas y permitirá un ahorro anual de 60M a partir de 2027." },
+      { "title": "Vencimiento de deuda", "text": "En el trimestre vencieron 500M de notas que se refinanciaron con una nueva emisión al 5,1 %, frente al 3,2 % anterior." }
+    ]
+  }
 }`;

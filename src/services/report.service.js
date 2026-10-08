@@ -20,7 +20,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const GENERATED_DIR = path.join(__dirname, '..', '..', 'uploads', 'generated');
 
 /**
- * Elimina los archivos generados (.pdf, .docx, .odt, .html) asociados a una URL.
+ * Elimina los archivos generados (.pdf, .docx, .odt, .html) asociados a una URL,
+ * incluido el HTML previo a los ajustes del auditor (`<base>-antes.html`).
  * @param {string} pdfUrl - URL del informe generado a limpiar.
  * @returns {Promise<void>}
  */
@@ -29,8 +30,12 @@ export async function cleanupGeneratedReports(pdfUrl) {
   const baseName = path.basename(pdfUrl).replace(/\.[^.]+$/, '');
   if (!baseName) return;
   const extensions = ['.pdf', '.docx', '.odt', '.html'];
+  const targets = [];
   for (const ext of extensions) {
-    const file = path.join(GENERATED_DIR, `${baseName}${ext}`);
+    targets.push(path.join(GENERATED_DIR, `${baseName}${ext}`));
+  }
+  targets.push(path.join(GENERATED_DIR, `${baseName}-antes.html`));
+  for (const file of targets) {
     try {
       if (fs.existsSync(file)) {
         await unlink(file);
@@ -46,7 +51,7 @@ export { buildReportPdf };
 /**
  * Genera todos los formatos descargables del informe (PDF, HTML, DOCX, ODT) y los persiste en disco.
  * @param {object} report - Objeto completo del informe financiero.
- * @returns {Promise<{filename: string, url: string, docxUrl: string, odtUrl: string}>} URLs de acceso público.
+ * @returns {Promise<{id: string, filename: string, url: string, htmlUrl: string, docxUrl: string, odtUrl: string}>} Identificador y URLs de acceso público.
  */
 export async function generateReportPdf(report) {
   const [pdf, html, docx, odt] = await Promise.all([
@@ -66,8 +71,10 @@ export async function generateReportPdf(report) {
   ]);
 
   return {
+    id,
     filename: `${id}.pdf`,
     url: `/api/reports/${id}.pdf`,
+    htmlUrl: `/api/reports/${id}.html`,
     docxUrl: `/api/reports/${id}.docx`,
     odtUrl: `/api/reports/${id}.odt`,
   };

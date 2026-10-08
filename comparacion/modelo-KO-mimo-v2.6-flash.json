@@ -1,0 +1,100 @@
+{
+  "tag": "mimo-v2.6-flash",
+  "ticker": "KO",
+  "accession": "0001628280-26-010047",
+  "formType": "10-K",
+  "analysisId": 824,
+  "provider": "opencode-go",
+  "model": "mimo-v2.6-flash",
+  "segundos": 159.2,
+  "consumo": {
+    "prompt": 396265,
+    "completion": 37515,
+    "reasoning": 0,
+    "cacheHit": 0,
+    "cacheMiss": 396265,
+    "total": 433780
+  },
+  "costeUsd": 0,
+  "audit": {
+    "nota": 7.5,
+    "veredicto": "correcto_con_reservas",
+    "errores": 6,
+    "corregibles": 4,
+    "corregido": true,
+    "revertido": false,
+    "fuenteRecortada": true,
+    "cambios": 12,
+    "fallosDeterministas": {
+      "antes": 0,
+      "despues": 0
+    },
+    "htmlAntes": "/api/reports/621aa291-7f2d-4110-9490-b3892e59e458-antes.html",
+    "htmlDespues": "/api/reports/621aa291-7f2d-4110-9490-b3892e59e458.html"
+  },
+  "cambios": [
+    {
+      "ruta": "horizons.0.sales.rows.2.prevAdjusted",
+      "antes": "9992M",
+      "despues": "10752M"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.2.pctAdjusted",
+      "antes": "+47,34 %",
+      "despues": "+36,92 %"
+    },
+    {
+      "ruta": "horizons.0.sales.notes.0",
+      "antes": "*1: Deterioro de intangibles de 960M (marca BODYARMOR) reconocido en \"Other operating charges\" durante el 4T 2025, sumado de vuelta al Beneficio Operativo ajustado: 13762M + 960M = 14722M. El año anterior no hubo deterioros por este concepto, por lo que Anterior Ajustado = Anterior Normal = 9992M.",
+      "despues": "*1: Deterioro de intangibles de 960M (marca BODYARMOR) reconocido en \"Other operating charges\" durante el 4T 2025, sumado de vuelta al Beneficio Operativo ajustado: 13762M + 960M = 14722M. El año anterior hubo un deterioro de 760M de la misma marca (BODYARMOR) en 2024, por lo que Anterior Ajustado = 9992M + 760M = 10752M."
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.0.values.1",
+      "antes": "11825,8",
+      "despues": "12104,8"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.2.values.1",
+      "antes": "9713,8",
+      "despues": "9992,8"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.3.values.1",
+      "antes": "2,26 $",
+      "despues": "2,32 $"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.5.values.1",
+      "antes": "934,8",
+      "despues": "1213,8"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.notes.1",
+      "antes": "*2: Impuestos: La empresa debería haber pagado 3900,3M en impuestos (23 % sobre el EBT ajustado de 16958M) y solamente ha pagado 2873M en efectivo según el estado de flujos. Ajuste de -1027,3M al Cash Flow Ajustado por la discrepancia fiscal.",
+      "despues": "*2: Impuestos: La empresa debería haber pagado 3900,3M en impuestos (23 % sobre el EBT ajustado de 16958M) y solamente ha pagado 2873M en efectivo según el estado de flujos. Ajuste de -1027,3M al Cash Flow Ajustado por la discrepancia fiscal. La cifra final combina los dos ajustes sobre el Cash Flow: 7408M +5724,1M (circulante) -1027,3M (impuestos) = 12104,8M."
+    },
+    {
+      "ruta": "horizons.0.cashFlow.notes.2",
+      "antes": "*3: Stock Options / Compensación en acciones (SBC): La empresa reporta 279M en remuneración basada en acciones añadida al flujo operativo. Al suponer una dilución efectiva del accionista y concederse habitualmente con descuento, bajo un criterio conservador se deduce el importe íntegro de esta partida (-279M) del Cash Flow Ajustado. La cifra final combina los tres ajustes sobre el Cash Flow: 7408M…",
+      "despues": null
+    },
+    {
+      "ruta": "horizons.0.capital.verification",
+      "antes": "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle. La tabla solo incluye movimientos de caja; los siguientes no pasan por caja: efectivo restringido (consignaciones o liberaciones) -80M; deuda no monetaria (recompras o amortizaciones anticipadas de deuda con ganancia o pérdida, efecto divisa) -957M. Con ellos, el resto sin explicar sería -776M, dentro del margen razonable.",
+      "despues": "Más o menos cuadra. Aun así, puede ser que no haya visto algún detalle. La tabla solo incluye movimientos de caja; el resto sin explicar (-776M) correspondería a movimientos no monetarios o reclasificaciones de balance (efectivo restringido, efecto divisa, deuda no monetaria) a revisar en las notas de flujos y balance del 10-K, dentro del margen razonable."
+    },
+    {
+      "ruta": "conclusion.acquisitions.text",
+      "antes": "**Adquisiciones:** El ejercicio **2025 no registró adquisiciones materiales**. Las adquisiciones de negocios, inversiones de método de equity y valores no negociables sumaron **461M**, cifra inferior al umbral de materialidad para una compañía de **47.941M** de ingresos, y no constituyen una operación corporativa significativa.\n\n**Desinversiones y ventas de participaciones:** En **2025** la compañ…",
+      "despues": "**Adquisiciones:** El ejercicio **2025 no registró adquisiciones materiales**. Las adquisiciones de negocios, inversiones de método de equity y valores no negociables sumaron **461M**, cifra inferior al umbral de materialidad para una compañía de **47.941M** de ingresos, y no constituyen una operación corporativa significativa.\n\n**Desinversiones y ventas de participaciones:** En **2025** la compañ…"
+    },
+    {
+      "ruta": "rating.rationale",
+      "antes": "Calificación puramente financiera basada en la realidad de las cuentas del año, las metas del outlook oficial y la asignación de capital ejecutada. Puntos a favor: ingresos orgánicos +5 %, Beneficio Operativo ajustado de 14.722M (+47,3 %), deuda neta estable (-54M), tipo de interés medio contenido en 3,3 % y FCF guiado de ~12.200M para 2026. Puntos en contra: el FCF reportado de 5.296M no cubre el…",
+      "despues": "Calificación puramente financiera basada en la realidad de las cuentas del año, las metas del outlook oficial y la asignación de capital ejecutada. Puntos a favor: ingresos orgánicos +5 %, Beneficio Operativo ajustado de 14.722M (+36,9 %), deuda neta estable (-54M), tipo de interés medio contenido en 3,3 % y FCF guiado de ~12.200M para 2026. Puntos en contra: el FCF reportado de 5.296M no cubre el…"
+    }
+  ],
+  "html": [],
+  "nota": "regenerado desde logs/analisis.log (los JSON originales fueron sobrescritos por la pasada AMZN)",
+  "generadoEn": "2026-09-21T23:44:41.543Z"
+}

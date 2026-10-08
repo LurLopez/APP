@@ -17,19 +17,41 @@ const __dirname = path.dirname(__filename);
 // El nombre del archivo solo puede contener letras, números y guiones (UUID de informe).
 // Prohibido "_" para que no pueda actuar como comodín en el LIKE de PostgreSQL.
 const FILE_NAME_PATTERN = /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)\.(pdf|docx|odt|html)$/;
+// Sufijo del HTML previo a los ajustes del auditor (mismo UUID base + "-antes").
+const AUDIT_BEFORE_SUFFIX = '-antes';
+
+/**
+ * Resuelve la base del fichero a servir a partir de la base guardada en la BD y la solicitada.
+ * Solo admite la base exacta o, para HTML, la variante previa a los ajustes (`<base>-antes`).
+ * @param {string} storedBase - Base del informe guardada en la BD (UUID).
+ * @param {string} requestedBase - Base solicitada en la URL.
+ * @param {string} ext - Extensión solicitada (pdf, docx, odt, html).
+ * @returns {{base: string, auditBefore: boolean}|null} Base efectiva o null si no es válida.
+ */
+export function resolveReportFileBase(storedBase, requestedBase, ext) {
+  if (ext === 'html' && requestedBase === `${storedBase}${AUDIT_BEFORE_SUFFIX}`) {
+    return { base: `${storedBase}${AUDIT_BEFORE_SUFFIX}`, auditBefore: true };
+  }
+  if (storedBase === requestedBase) return { base: storedBase, auditBefore: false };
+  return null;
+}
 
 /**
  * Localiza el análisis propietario del informe solicitado por igualdad exacta de `pdf_url`
  * resolviendo el identificador base del archivo (UUID con sufijo .pdf), nunca mediante comodines.
+ * Admite el HTML previo a los ajustes (`<uuid>-antes.html`), que resuelve al mismo análisis.
  * Devuelve también la visibilidad para autorizar la descarga.
  * @private
- * @param {string} file - Nombre de archivo solicitado (ej. "uuid.pdf", "uuid.docx", "uuid.odt", "uuid.html").
+ * @param {string} file - Nombre de archivo solicitado (ej. "uuid.pdf", "uuid.docx", "uuid.odt", "uuid.html", "uuid-antes.html").
  * @returns {Promise<{ id: number, user_id: number|null, is_public: boolean, report: object, created_at: Date, pdf_url: string }|null>}
  */
 async function findAnalysisByReportFile(file) {
   const baseName = path.basename(file, path.extname(file));
-  const relativePath = `/api/reports/${baseName}.pdf`;
-  const absolutePath = `${config.siteUrl}/api/reports/${baseName}.pdf`;
+  const lookupBase = baseName.endsWith(AUDIT_BEFORE_SUFFIX)
+    ? baseName.slice(0, -AUDIT_BEFORE_SUFFIX.length)
+    : baseName;
+  const relativePath = `/api/reports/${lookupBase}.pdf`;
+  const absolutePath = `${config.siteUrl}/api/reports/${lookupBase}.pdf`;
   const { rows } = await pool.query(
     `SELECT id, user_id, is_public, report, created_at, pdf_url
        FROM analyses
@@ -64,10 +86,21 @@ function checkIfRegenerationRequired(filePath, dbCreatedAt, forceRefresh) {
     const stats = fs.statSync(filePath);
     const reportServicePath = path.join(__dirname, '../../services/report.service.js');
     const exportServicePath = path.join(__dirname, '../../services/reportExport.service.js');
+    // Los módulos de pintado (tabla PDF, secciones exportables y exportadores DOCX/ODT) también
+    // invalidan los informes guardados: si cambia el resaltado o el formato, el archivo se
+    // regenera al descargarlo.
+    const pdfTablePath = path.join(__dirname, '../../services/report/pdfTableDrawer.js');
+    const exportSectionsPath = path.join(__dirname, '../../services/reportExport/reportSections.js');
+    const docxExporterPath = path.join(__dirname, '../../services/reportExport/docxExporter.js');
+    const odtExporterPath = path.join(__dirname, '../../services/reportExport/odtExporter.js');
 
     const codeMtime = Math.max(
       fs.existsSync(reportServicePath) ? fs.statSync(reportServicePath).mtimeMs : 0,
       fs.existsSync(exportServicePath) ? fs.statSync(exportServicePath).mtimeMs : 0,
+      fs.existsSync(pdfTablePath) ? fs.statSync(pdfTablePath).mtimeMs : 0,
+      fs.existsSync(exportSectionsPath) ? fs.statSync(exportSectionsPath).mtimeMs : 0,
+      fs.existsSync(docxExporterPath) ? fs.statSync(docxExporterPath).mtimeMs : 0,
+      fs.existsSync(odtExporterPath) ? fs.statSync(odtExporterPath).mtimeMs : 0,
     );
     const dbTime = dbCreatedAt ? new Date(dbCreatedAt).getTime() : 0;
     return stats.mtimeMs < codeMtime || stats.mtimeMs < dbTime;
@@ -146,15 +179,22 @@ export async function downloadReportFile(req, res, next) {
     // nunca del nombre recibido por URL: así no se pueden escribir ficheros
     // arbitrarios ni reutilizar comodines.
     const storedBase = path.basename(String(analysis.pdf_url), path.extname(String(analysis.pdf_url)));
-    if (storedBase !== requestedBase) {
+    const resolved = resolveReportFileBase(storedBase, requestedBase, ext);
+    if (!resolved) {
       res.status(404).json({ error: 'El informe solicitado no existe.' });
       return;
     }
-
-    const filePath = path.join(GENERATED_DIR, `${storedBase}.${ext}`);
+    const { base: fileBase, auditBefore: isAuditBefore } = resolved;
+    const filePath = path.join(GENERATED_DIR, `${fileBase}.${ext}`);
     const forceRefresh = (req.query.refresh === '1' || req.query.force === '1') && (isOwner || isAdmin);
 
-    const needsRegen = checkIfRegenerationRequired(filePath, analysis.created_at, forceRefresh);
+    // El HTML previo a los ajustes es una instantánea histórica: no se regenera.
+    if (isAuditBefore && !fs.existsSync(filePath)) {
+      res.status(404).json({ error: 'Este análisis no tiene HTML previo a los ajustes.' });
+      return;
+    }
+
+    const needsRegen = !isAuditBefore && checkIfRegenerationRequired(filePath, analysis.created_at, forceRefresh);
     if (needsRegen) {
       await regenerateAllReportFormats(storedBase, analysis.report);
       if (!fs.existsSync(filePath)) {

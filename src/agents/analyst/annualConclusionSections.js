@@ -6,6 +6,7 @@ import { cleanAssetDescription } from './financialParsers.js';
 import { mergeHistoryByYear, mergeDividendHistory } from './historyBuilders.js';
 import { withOutlookComparison, completeOutlookPriorColumn, mergeOutlookRows } from './outlookHelpers.js';
 import { buildMaturityScheduleFromDebtTable, maturityItemsLookBucketed } from './debtMaturityFallback.js';
+import { stripEmptySnippetColumns } from './snippetHelpers.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
 
 function formatAcquisitionAmount(value, language = 'es') {
@@ -191,10 +192,10 @@ export function processOutlookSection(conclusion, rawAnn, result, language = 'es
     out.secSnippet = rawAnn.outlookSecTable;
   }
   if (out.secSnippet) {
-    out.secSnippet = completeOutlookPriorColumn(
+    out.secSnippet = stripEmptySnippetColumns(completeOutlookPriorColumn(
       mergeOutlookRows(withOutlookComparison(out.secSnippet, result, lang), extractionOut.secTable),
       extractionOut,
-    );
+    ));
   }
 }
 

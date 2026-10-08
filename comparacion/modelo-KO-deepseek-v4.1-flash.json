@@ -1,0 +1,90 @@
+{
+  "tag": "deepseek-v4.1-flash",
+  "ticker": "KO",
+  "accession": "0001628280-26-010047",
+  "formType": "10-K",
+  "analysisId": 820,
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "segundos": 73.2,
+  "consumo": {
+    "prompt": 242377,
+    "completion": 18901,
+    "reasoning": 0,
+    "cacheHit": 34304,
+    "cacheMiss": 208073,
+    "total": 261278
+  },
+  "costeUsd": 0.042654,
+  "audit": {
+    "nota": 6.5,
+    "veredicto": "correcto_con_reservas",
+    "errores": 9,
+    "corregibles": 9,
+    "corregido": true,
+    "revertido": false,
+    "fuenteRecortada": true,
+    "cambios": 10,
+    "fallosDeterministas": {
+      "antes": 0,
+      "despues": 0
+    },
+    "htmlAntes": "/api/reports/a100db60-98a9-44d3-9155-8cd57f3fdeb0-antes.html",
+    "htmlDespues": "/api/reports/a100db60-98a9-44d3-9155-8cd57f3fdeb0.html"
+  },
+  "cambios": [
+    {
+      "ruta": "horizons.0.sales.rows.4.adjusted",
+      "antes": "12996,86M",
+      "despues": "13026,86M"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.4.pctAdjusted",
+      "antes": "+20,17 %",
+      "despues": "+20,43 %"
+    },
+    {
+      "ruta": "horizons.0.sales.notes.1",
+      "antes": "*2: Impuestos: el gasto fiscal reportado fue 2861M sobre un EBT de 15998M (tipo efectivo del 17,88 %). La desviación de su tipo efectivo frente al 23 % de referencia es del -22,25 %, fuera del umbral de ±20 %, por lo que se normaliza el gasto al 23 % del EBT ajustado (16918M): Beneficio Neto Ajustado = EBT Ajustado × 0,77 = 12996,86M.",
+      "despues": "*2: Impuestos: el gasto fiscal reportado fue 2861M sobre un EBT de 15998M (tipo efectivo del 17,88 %). La desviación de su tipo efectivo frente al 23 % de referencia es del -22,25 %, fuera del umbral de ±20 %, por lo que se normaliza el gasto al 23 % del EBT ajustado (16918M): Beneficio Neto Ajustado = EBT Ajustado × 0,77 = 13026,86M."
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.0.values.1",
+      "antes": "11835",
+      "despues": "12114"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.2.values.1",
+      "antes": "9723",
+      "despues": "10002"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.3.values.1",
+      "antes": "2,26 $",
+      "despues": "2,32 $"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.5.values.1",
+      "antes": "944",
+      "despues": "1223"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.notes.1",
+      "antes": "*2: Impuestos: La empresa debería haber pagado 3891,1M en impuestos (23 % sobre el EBT ajustado de 16918M) y solamente ha pagado 2873M en efectivo según el estado de flujos. Ajuste de -1018,1M al Cash Flow Ajustado por la discrepancia fiscal.",
+      "despues": "*2: Impuestos: La empresa debería haber pagado 3891,1M en impuestos (23 % sobre el EBT ajustado de 16918M) y solamente ha pagado 2873M en efectivo según el estado de flujos. Ajuste de -1018,1M al Cash Flow Ajustado por la discrepancia fiscal. La cifra final combina los dos ajustes sobre el Cash Flow: 7408M +5724,1M (circulante) -1018,1M (impuestos) = 12114M."
+    },
+    {
+      "ruta": "horizons.0.cashFlow.notes.2",
+      "antes": "*3: Stock Options / Compensación en acciones (SBC): La empresa reporta 279M en remuneración basada en acciones añadida al flujo operativo. Al suponer una dilución efectiva del accionista y concederse habitualmente con descuento, bajo un criterio conservador se deduce el importe íntegro de esta partida (-279M) del Cash Flow Ajustado. La cifra final combina los tres ajustes sobre el Cash Flow: 7408M…",
+      "despues": null
+    },
+    {
+      "ruta": "conclusion.outlook.secSnippet.rows.2.1",
+      "antes": "$5,300M",
+      "despues": "$5,296M"
+    }
+  ],
+  "html": [],
+  "nota": "regenerado desde logs/analisis.log (los JSON originales fueron sobrescritos por la pasada AMZN)",
+  "generadoEn": "2026-09-21T23:27:39.290Z"
+}

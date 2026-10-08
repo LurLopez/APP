@@ -36,8 +36,8 @@ function createOdtStyleRegistry() {
   const cellStyles = new Map();
   const columnStyles = new Map();
 
-  const textStyleFor = ({ bold, italic, color, size, bg }) => {
-    const key = `${bold ? 'b' : ''}${italic ? 'i' : ''}|${color ?? 'auto'}|${size ?? 7.5}|${bg ?? ''}`;
+  const textStyleFor = ({ bold, italic, underline, color, size, bg }) => {
+    const key = `${bold ? 'b' : ''}${italic ? 'i' : ''}${underline ? 'u' : ''}|${color ?? 'auto'}|${size ?? 7.5}|${bg ?? ''}`;
     if (!textStyles.has(key)) {
       const name = `T${textStyles.size + 1}`;
       const props = [
@@ -45,6 +45,7 @@ function createOdtStyleRegistry() {
         bg ? `fo:background-color="${bg}"` : '',
         bold ? 'fo:font-weight="bold" style:font-weight-asian="bold"' : '',
         italic ? 'fo:font-style="italic"' : '',
+        underline ? 'style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"' : '',
         size ? `fo:font-size="${size}pt"` : '',
       ].filter(Boolean).join(' ');
       textStyles.set(key, { name, props });
@@ -85,7 +86,12 @@ function createOdtStyleRegistry() {
     const texts = [...textStyles.values()].map((s) => `<style:style style:name="${s.name}" style:family="text"><style:text-properties ${s.props}/></style:style>`).join('');
     const cells = [...cellStyles.values()].map((s) => `<style:style style:name="${s.name}" style:family="table-cell"><style:table-cell-properties ${s.props}/></style:style>`).join('');
     const columns = [...columnStyles.values()].map((s) => `<style:style style:name="${s.name}" style:family="table-column"><style:table-column-properties ${s.props}/></style:style>`).join('');
-    return `${texts}${cells}${columns}${graphicStyles}<style:style style:name="PBreak" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:break-before="page"/></style:style><style:style style:name="PBody" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:margin-top="0.02in" fo:margin-bottom="0.04in"/></style:style><style:style style:name="TReport" style:family="table"><style:table-properties style:width="6.69in" table:align="left"/></style:style><style:style style:name="TBox" style:family="table"><style:table-properties style:width="6.35in" table:align="left"/></style:style>`;
+    // Título de tarjeta (nota/conclusión): regla inferior fina y espaciado para separar las
+    // notas sin forzar una página nueva por cada una, con `keep-with-next` para no dejarlo suelto.
+    const cardTitleProps = 'fo:margin-top="0.15in" fo:margin-bottom="0.05in" fo:padding-bottom="0.03in" fo:border-bottom="0.5pt solid #e2e8f0" fo:keep-with-next="always"';
+    const cardTitle = `<style:style style:name="PCardTitle" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties ${cardTitleProps}/></style:style>`;
+    const cardTitleBreak = `<style:style style:name="PCardTitleBreak" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties ${cardTitleProps} fo:break-before="page"/></style:style>`;
+    return `${texts}${cells}${columns}${graphicStyles}<style:style style:name="PBreak" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:break-before="page"/></style:style><style:style style:name="PBody" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:margin-top="0.02in" fo:margin-bottom="0.04in"/></style:style>${cardTitle}${cardTitleBreak}<style:style style:name="PReportFooter" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:margin-top="0.18in"/></style:style><style:style style:name="TReport" style:family="table"><style:table-properties style:width="6.69in" table:align="left"/></style:style><style:style style:name="TBox" style:family="table"><style:table-properties style:width="6.35in" table:align="left"/></style:style>`;
   };
 
   return { textStyleFor, cellStyleFor, columnStyleFor, frameStyle, automaticStyles };
@@ -127,10 +133,11 @@ function odtExecutiveChangesBlock(ctx, section, language = 'es') {
   if (section?.disclaimer) ctx.paragraph(section.disclaimer, { italic: true, color: '#94a3b8', size: 7 });
 }
 
-function appendCardsToOdt(body, cards, images, styles, ctx, language = 'es') {
+function appendCardsToOdt(body, cards, images, styles, ctx, language = 'es', { pageBreakBetweenCards = false } = {}) {
   const lang = normalizeLanguage(language);
   cards.forEach((card, cardIndex) => {
-    ctx.paragraph(card.title, { bold: true, color: COLORS.ink, size: 11, pageBreakBefore: cardIndex > 0 });
+    const cardStyle = pageBreakBetweenCards && cardIndex > 0 ? 'PCardTitleBreak' : 'PCardTitle';
+    ctx.paragraph(card.title, { bold: true, color: COLORS.ink, size: 11, pStyle: cardStyle });
     if (card.text) ctx.richParagraph(card.text, { color: COLORS.ink, size: 8.5 });
     if (card.executiveChanges) odtExecutiveChangesBlock(ctx, card.executiveChanges, lang);
     if (card.badges?.length) card.badges.forEach((b) => ctx.richParagraph(`• ${b}`, { color: '#854d0e', boldColor: '#7c2d12', size: 8 }));
@@ -171,7 +178,7 @@ function buildOdtContent(model, images = {}, language = 'es') {
 
   const paragraph = (text, opts = {}) => {
     const styleName = styles.textStyleFor({ bold: opts.bold, italic: opts.italic, color: opts.color, size: opts.size, bg: opts.bg });
-    const pStyle = opts.pageBreakBefore ? 'PBreak' : 'PBody';
+    const pStyle = opts.pStyle || (opts.pageBreakBefore ? 'PBreak' : 'PBody');
     body.push(`<text:p text:style-name="${pStyle}"><text:span text:style-name="${styleName}">${esc(text)}</text:span></text:p>`);
   };
 
@@ -179,6 +186,7 @@ function buildOdtContent(model, images = {}, language = 'es') {
     const styleName = styles.textStyleFor({
       bold: seg.bold ? true : (opts.bold ?? false),
       italic: opts.italic,
+      underline: seg.underline === true,
       color: seg.bold ? (opts.boldColor ?? '#0f172a') : (opts.color ?? COLORS.ink),
       size: opts.size,
       bg: opts.bg,
@@ -197,12 +205,14 @@ function buildOdtContent(model, images = {}, language = 'es') {
 
   const notes = (list) => {
     (list ?? []).forEach((note) => {
+      const richSpans = (text, opts) => parseRichSegments(text, { autoBold: false })
+        .map((seg) => `<text:span text:style-name="${styles.textStyleFor({ ...opts, bold: seg.bold ? true : opts.bold, underline: seg.underline === true })}">${esc(seg.text)}</text:span>`)
+        .join('');
       if (note.marker) {
         const markerStyle = styles.textStyleFor({ bold: true, color: note.color, size: 7.5 });
-        const textStyle = styles.textStyleFor({ color: COLORS.noteText, size: 7.5 });
-        body.push(`<text:p text:style-name="PBody"><text:span text:style-name="${markerStyle}">${esc(note.marker)}</text:span><text:span text:style-name="${textStyle}"> ${esc(note.text)}</text:span></text:p>`);
+        body.push(`<text:p text:style-name="PBody"><text:span text:style-name="${markerStyle}">${esc(note.marker)}</text:span>${richSpans(` ${note.text}`, { color: COLORS.noteText, size: 7.5 })}</text:p>`);
       } else {
-        paragraph(note.text, { italic: true, color: note.color, size: 7.5 });
+        body.push(`<text:p text:style-name="PBody">${richSpans(note.text, { italic: true, color: note.color, size: 7.5 })}</text:p>`);
       }
     });
   };
@@ -262,10 +272,16 @@ function buildOdtContent(model, images = {}, language = 'es') {
   });
 
   const ctx = { paragraph, richParagraph, notes, table, image, refinancingBox };
+  if (model.quarterNotes) {
+    paragraph(model.quarterNotes.title, { bold: true, color: COLORS.ink, size: 14, pageBreakBefore: true });
+    if (model.quarterNotes.subtitle) paragraph(model.quarterNotes.subtitle, { italic: true, color: COLORS.muted, size: 9 });
+    appendCardsToOdt(body, model.quarterNotes.cards, images, styles, ctx, lang);
+  }
+
   if (model.conclusion) {
     paragraph(model.conclusion.title, { bold: true, color: COLORS.ink, size: 14, pageBreakBefore: true });
     if (model.conclusion.subtitle) paragraph(model.conclusion.subtitle, { italic: true, color: COLORS.muted, size: 9 });
-    appendCardsToOdt(body, model.conclusion.cards, images, styles, ctx, lang);
+    appendCardsToOdt(body, model.conclusion.cards, images, styles, ctx, lang, { pageBreakBetweenCards: true });
   }
 
   if (model.rating) {
@@ -273,7 +289,7 @@ function buildOdtContent(model, images = {}, language = 'es') {
     paragraph(model.rating.rationale, { color: COLORS.ink, size: 9 });
     paragraph(model.rating.disclaimer, { italic: true, color: COLORS.muted, size: 7.5 });
   }
-  paragraph(model.footer, { color: COLORS.soft, size: 8 });
+  paragraph(model.footer, { color: COLORS.soft, size: 8, pStyle: 'PReportFooter' });
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" office:version="1.2"><office:automatic-styles>${styles.automaticStyles()}</office:automatic-styles><office:body><office:text>${body.join('')}</office:text></office:body></office:document-content>`;

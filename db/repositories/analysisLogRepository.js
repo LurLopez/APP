@@ -12,6 +12,9 @@ export async function createAnalysisLog({
   accession = null,
   filename = null,
   version = null,
+  formType = null,
+  fiscalYear = null,
+  periodEnd = null,
   providers = [],
   models = [],
   calls = 0,
@@ -24,14 +27,23 @@ export async function createAnalysisLog({
   costUsd = 0,
   costKnown = true,
   durationSeconds = 0,
+  analysisSeconds = 0,
+  analysisCostUsd = 0,
+  auditSeconds = 0,
+  auditCostUsd = 0,
+  auditScore = null,
+  auditCorrected = false,
+  auditChanges = null,
 } = {}) {
   const { rows } = await query(
     `INSERT INTO analysis_logs (
        analysis_id, user_id, actor, status, error, ticker, accession, filename, version,
+       form_type, fiscal_year, period_end,
        providers, models, calls, prompt_tokens, completion_tokens, reasoning_tokens,
-       cache_hit_tokens, cache_miss_tokens, total_tokens, cost_usd, cost_known, duration_seconds
+       cache_hit_tokens, cache_miss_tokens, total_tokens, cost_usd, cost_known, duration_seconds,
+       analysis_seconds, analysis_cost_usd, audit_seconds, audit_cost_usd, audit_score, audit_corrected, audit_changes
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
      RETURNING id, created_at`,
     [
       analysisId,
@@ -43,6 +55,9 @@ export async function createAnalysisLog({
       accession,
       filename,
       version,
+      formType,
+      fiscalYear,
+      periodEnd,
       providers,
       models,
       calls,
@@ -55,6 +70,13 @@ export async function createAnalysisLog({
       costUsd,
       costKnown,
       durationSeconds,
+      analysisSeconds,
+      analysisCostUsd,
+      auditSeconds,
+      auditCostUsd,
+      auditScore,
+      auditCorrected,
+      auditChanges,
     ],
   );
   return rows[0] ?? null;

@@ -52,51 +52,65 @@ export const CHART_IMAGE_SLOTS = {
 /**
  * Sanea un valor textual eliminando marcadores de negrita markdown y caracteres no seguros.
  * @param {unknown} value - Valor a sanear.
- * @returns {string} Cadena saneada sin marcadores de formato.
+ * @param {{ keepBold?: boolean }} [options] - `keepBold` conserva los marcadores `**…**`.
+ * @returns {string} Cadena saneada.
  */
-export function sanitize(value) {
+export function sanitize(value, options = {}) {
   if (value === null || value === undefined) return '—';
-  return String(value)
-    .replace(/\*\*(.+?)\*\*/gs, '$1')
-    .replace(/\*\*/g, '')
-    .replaceAll('−', '-');
+  const text = String(value);
+  const withoutMarkers = options.keepBold
+    ? text
+    : text.replace(/\*\*(.+?)\*\*/gs, '$1').replace(/\*\*/g, '');
+  return withoutMarkers.replaceAll('−', '-');
 }
 
 /**
  * Descompone un texto en segmentos normales y resaltados (negrita o cifras autodetectadas).
  * @param {string} text - Texto fuente en formato Markdown simple.
+ * @param {{ autoBold?: boolean }} [options] - `autoBold: false` solo respeta los `**…**` explícitos.
  * @returns {Array<{text: string, bold: boolean}>} Lista de segmentos contiguos.
  */
-export function parseRichSegments(text) {
+export function parseRichSegments(text, options = {}) {
   if (!text) return [];
-  const rawParts = String(text).split(/(\*\*.*?\*\*)/g).filter(Boolean);
+  const autoBold = options.autoBold !== false;
   const result = [];
 
-  for (const part of rawParts) {
-    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
-      result.push({ text: part.slice(2, -2), bold: true });
-    } else {
-      const autoRegex = /(\bflat\s*(?:[±+\-/]+|\+\/-)\s*\d+(?:[\.,]\d+)?\s*%?|\b[~±+\-]?\s*\$?\d+(?:[\.,]\d+)?\s*(?:M|B|k|%)?\s*(?:al?|to|-)\s*[~±+\-]?\s*\$?\d+(?:[\.,]\d+)?\s*(?:M|B|k|%|\$|€)?|[~±+\-]?\s*\$?\d+(?:[\.,]\d+)*\s*(?:M|B|k|%|\$|€)(?:\s*(?:[±+\-/]+|\+\/-)\s*\d+(?:[\.,]\d+)?\s*%)?|\b20\d\d\s*-\s*20\d\d\b)/gi;
-      let last = 0;
-      let match;
-      while ((match = autoRegex.exec(part)) !== null) {
-        if (match.index > last) {
-          result.push({ text: part.slice(last, match.index), bold: false });
+  // Segmentos anidados: `**negrita**` y `__subrayado__` pueden combinarse (p. ej. la cadena de
+  // ajustes del Cash Flow va en negrita y cada importe ajustado subrayado dentro).
+  const pushStyled = (chunk, style) => {
+    const parts = String(chunk).split(/(\*\*[\s\S]*?\*\*|__[\s\S]*?__)/g).filter(Boolean);
+    for (const part of parts) {
+      if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+        pushStyled(part.slice(2, -2), { ...style, bold: true });
+      } else if (part.startsWith('__') && part.endsWith('__') && part.length >= 4) {
+        pushStyled(part.slice(2, -2), { ...style, underline: true });
+      } else if (!autoBold) {
+        result.push({ text: part, bold: style.bold === true, underline: style.underline === true });
+      } else {
+        const autoRegex = /(\bflat\s*(?:[±+\-/]+|\+\/-)\s*\d+(?:[\.,]\d+)?\s*%?|\b[~±+\-]?\s*\$?\d+(?:[\.,]\d+)?\s*(?:M|B|k|%)?\s*(?:al?|to|-)\s*[~±+\-]?\s*\$?\d+(?:[\.,]\d+)?\s*(?:M|B|k|%|\$|€)?|[~±+\-]?\s*\$?\d+(?:[\.,]\d+)*\s*(?:M|B|k|%|\$|€)(?:\s*(?:[±+\-/]+|\+\/-)\s*\d+(?:[\.,]\d+)?\s*%)?|\b20\d\d\s*-\s*20\d\d\b)/gi;
+        let last = 0;
+        let match;
+        while ((match = autoRegex.exec(part)) !== null) {
+          if (match.index > last) {
+            result.push({ text: part.slice(last, match.index), bold: style.bold === true, underline: style.underline === true });
+          }
+          result.push({ text: match[0], bold: true, underline: style.underline === true });
+          last = match.index + match[0].length;
         }
-        result.push({ text: match[0], bold: true });
-        last = match.index + match[0].length;
-      }
-      if (last < part.length) {
-        result.push({ text: part.slice(last), bold: false });
+        if (last < part.length) {
+          result.push({ text: part.slice(last), bold: style.bold === true, underline: style.underline === true });
+        }
       }
     }
-  }
+  };
+  pushStyled(String(text), { bold: false, underline: false });
 
   const merged = [];
   for (const seg of result) {
     if (!seg.text) continue;
-    if (merged.length && merged[merged.length - 1].bold === seg.bold) {
-      merged[merged.length - 1].text += seg.text;
+    const prev = merged[merged.length - 1];
+    if (prev && prev.bold === seg.bold && prev.underline === seg.underline) {
+      prev.text += seg.text;
     } else {
       merged.push({ ...seg });
     }

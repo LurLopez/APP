@@ -46,18 +46,25 @@ test('aplica la normalización fiscal al superar el ±20 % y reescribe la nota *
   assert.equal(horizon.sales.notes.length, 2);
 });
 
-test('no normaliza cuando la desviación está dentro del ±20 %', async () => {
+test('no normaliza cuando la desviación está dentro del ±20 % y retira la nota fiscal sobrante', async () => {
   const { normalizeSalesBlock } = await import('../../src/agents/analyst/analystSalesProcessor.js');
   const horizon = buildAdbeHorizon();
-  horizon.sales.rows.find((row) => row.name === 'Beneficio Neto').adjusted = '7200M';
+  const netRow = horizon.sales.rows.find((row) => row.name === 'Beneficio Neto');
+  netRow.adjusted = '7200M';
+  // Reproduce el caso STZ: el modelo dejó la nota fiscal y el resalte explicando que no se ajusta.
+  netRow.isAdjusted = true;
+  netRow.adjustedNote = '*2';
 
   // Impuesto reportado = 23 % exacto del EBT ajustado -> desviación 0 %.
   normalizeSalesBlock(horizon, { facts: { incomeTaxExpenseYtd: 2008.82 }, fiscalYear: 2025 }, 'es', 'technology');
 
   const rows = Object.fromEntries(horizon.sales.rows.map((row) => [row.name, row]));
   assert.equal(rows['Beneficio Neto'].adjusted, '7200M');
-  assert.equal(horizon.sales.notes.filter((note) => /^\*2:/.test(note)).length, 1);
-  assert.match(horizon.sales.notes.find((note) => /^\*2:/.test(note)), /No obstante/);
+  assert.equal(rows['Beneficio Neto'].isAdjusted, false);
+  assert.equal(rows['Beneficio Neto'].adjustedNote, undefined);
+  // La nota fiscal que explicaba una normalización no aplicada se elimina y la numeración queda contigua.
+  assert.deepEqual(horizon.sales.notes.map((note) => note.slice(0, 2)), ['*1']);
+  assert.doesNotMatch(horizon.sales.notes.join(' '), /Impuestos|No obstante/);
 });
 
 test('normaliza también cuando el impuesto reportado supera el techo del +20 %', async () => {
@@ -83,11 +90,15 @@ test('normaliza también cuando el impuesto reportado supera el techo del +20 %'
   assert.equal(rows['Beneficio Neto'].adjusted, '770M');
   assert.equal(rows['Beneficio Neto'].isAdjusted, true);
   assert.equal(rows['Beneficio Neto'].adjustedNote, '*2');
+  // El comparativo también se desvía (900 × 0,23 = 207M frente a 360M) y se normaliza en la misma nota.
+  assert.equal(rows['Beneficio Neto'].prevAdjusted, '693M');
+  assert.equal(rows['Beneficio Neto'].adjustedCell, 'both');
   const taxNote = horizon.sales.notes.find((note) => /^\*2:/.test(note));
-  assert.match(taxNote, /= 770M\.$/);
+  assert.match(taxNote, /Beneficio Neto Ajustado = EBT Ajustado × 0,77 = 770M\./);
+  assert.match(taxNote, /Beneficio Neto Anterior Ajustado = EBT Ajustado × 0,77 = 693M\.$/);
 });
 
-test('normaliza la columna Anterior Ajustado cuando su impuesto también supera el ±20 %', async () => {
+test('normaliza la columna Anterior Ajustado cuando su impuesto también supera el ±20 % (con nota y resalte)', async () => {
   const { normalizeSalesBlock } = await import('../../src/agents/analyst/analystSalesProcessor.js');
   const horizon = {
     label: 'EN TODO EL AÑO (12 MESES)',
@@ -104,13 +115,20 @@ test('normaliza la columna Anterior Ajustado cuando su impuesto también supera 
   };
 
   // Actual: impuesto 276M = 23 % exacto -> sin cambios. Anterior: impuesto 600M (60 %)
-  // frente a 230M -> se normaliza a 1000M × 0,77 = 770M.
+  // frente a 230M -> se normaliza a 1000M × 0,77 = 770M con nota y resalte en «Anterior Aj.».
   normalizeSalesBlock(horizon, { facts: { incomeTaxExpenseYtd: 276 } }, 'es', 'technology');
 
   const rows = Object.fromEntries(horizon.sales.rows.map((row) => [row.name, row]));
   assert.equal(rows['Beneficio Neto'].adjusted, '924M');
   assert.equal(rows['Beneficio Neto'].prevAdjusted, '770M');
   assert.equal(rows['Beneficio Neto'].pctAdjusted, '+20 %');
+  assert.equal(rows['Beneficio Neto'].isAdjusted, true);
+  assert.equal(rows['Beneficio Neto'].adjustedNote, '*2');
+  assert.equal(rows['Beneficio Neto'].adjustedCell, 'previous');
+  const taxNote = horizon.sales.notes.find((note) => /^\*2:/.test(note));
+  assert.match(taxNote, /^\*2: Impuestos: En el periodo comparable/);
+  assert.match(taxNote, /Beneficio Neto Anterior Ajustado = EBT Ajustado × 0,77 = 770M\.$/);
+  assert.doesNotMatch(taxNote, /Beneficio Neto Ajustado = EBT Ajustado × 0,77 = 924M/);
 });
 
 test('excluye del EBT y del Beneficio Neto Ajustado las partidas no operativas no recurrentes (AMZN 2026-Q2)', async () => {
@@ -214,12 +232,16 @@ test('reescribe la única nota del modelo que mezclaba impuestos y la partida no
 
   const rows = Object.fromEntries(horizon.sales.rows.map((row) => [row.name, row]));
   assert.equal(rows['EBT'].adjusted, '30371M');
-  assert.equal(rows['EBT'].adjustedNote, '*1');
+  assert.equal(rows['EBT'].adjustedNote, '*2');
   assert.equal(rows['Beneficio Neto'].adjusted, '23772,78M');
-  assert.equal(rows['Beneficio Neto'].adjustedNote, '*2');
+  assert.equal(rows['Beneficio Neto'].adjustedNote, '*1');
   assert.deepEqual(horizon.sales.notes.map((note) => note.slice(0, 2)), ['*1', '*2']);
-  assert.match(horizon.sales.notes[0], /se excluye del EBT Ajustado la partida de 50486M/);
-  assert.match(horizon.sales.notes[1], /Beneficio Neto Ajustado queda en 23772,78M/);
+  // La nota *1 es la fiscal: normalización del comparativo + cierre del gasto actual sin normalizar.
+  assert.match(horizon.sales.notes[0], /En el periodo comparable/);
+  assert.match(horizon.sales.notes[0], /Beneficio Neto Anterior Ajustado = EBT Ajustado × 0,77 = 16059,89M\./);
+  assert.match(horizon.sales.notes[0], /El gasto fiscal reportado fue 18199M sobre un EBT de 80857M/);
+  assert.match(horizon.sales.notes[0], /Beneficio Neto Ajustado queda en 23772,78M/);
+  assert.match(horizon.sales.notes[1], /se excluye del EBT Ajustado la partida de 50486M/);
   assert.doesNotMatch(horizon.sales.notes.join(' '), /no se ha ajustado/);
 });
 
@@ -262,5 +284,114 @@ test('el auditor determinista detecta la nota fiscal que no cierra con la tabla'
   assert.ok(
     findings.some((finding) => finding.check === 'notas.beneficio_neto'),
     'Debe marcar la incoherencia entre la nota fiscal y la celda Ajustado',
+  );
+});
+
+test('el auditor determinista detecta la nota fiscal sin normalización aplicada', async () => {
+  const { runDeterministicChecks } = await import('../../src/agents/auditor/deterministicChecks.js');
+  const report = {
+    horizons: [
+      {
+        label: 'ÚLTIMOS 3 MESES',
+        sales: {
+          rows: [
+            { name: 'Ventas', normal: '2633M', prevNormal: '2481M', adjusted: '2633M', prevAdjusted: '2481M' },
+            { name: 'Beneficio Bruto', normal: '1393M', prevNormal: '1310M', adjusted: '1393M', prevAdjusted: '1310M' },
+            { name: 'Beneficio Operativo', normal: '805M', prevNormal: '874M', adjusted: '854,8M', prevAdjusted: '874M', isAdjusted: true, adjustedNote: '*1' },
+            { name: 'EBT', normal: '729,4M', prevNormal: '782,9M', adjusted: '779,2M', prevAdjusted: '782,9M' },
+            { name: 'Beneficio Neto', normal: '565,8M', prevNormal: '466M', adjusted: '632,1M', prevAdjusted: '466M', isAdjusted: true, adjustedNote: '*2' },
+          ],
+          notes: [
+            '*1: En el trimestre se registraron 49,8M de asset impairment.',
+            '*2: Impuestos: el impuesto reportado fue de 147,1M. El impuesto normalizado al 23 % sobre el EBT ajustado sería 179,22M, la desviación relativa es de -17,9 %, dentro del umbral de ±20 %, por lo que se conserva el impuesto reportado.',
+          ],
+        },
+        cashFlow: { rows: [], notes: [] },
+        capital: { rows: [] },
+      },
+    ],
+  };
+
+  const { findings } = runDeterministicChecks(report);
+  assert.ok(
+    findings.some((finding) => finding.check === 'ventas.nota_fiscal_sin_ajuste'),
+    'Debe marcar la nota fiscal que explica una normalización que finalmente no se aplica',
+  );
+});
+
+test('con la normalización solo en el comparativo, la nota explica el año anterior y no el actual (caso STZ)', async () => {
+  const { normalizeSalesBlock } = await import('../../src/agents/analyst/analystSalesProcessor.js');
+  const horizon = {
+    label: 'ÚLTIMOS 3 MESES',
+    sales: {
+      rows: [
+        { name: 'Ventas', normal: '2633M', prevNormal: '2481M', adjusted: '2633M', prevAdjusted: '2481M' },
+        { name: 'Beneficio Bruto', normal: '1393M', prevNormal: '1310M', adjusted: '1393M', prevAdjusted: '1310M' },
+        { name: 'Beneficio Operativo', normal: '805M', prevNormal: '874M', adjusted: '854,8M', prevAdjusted: '874M', isAdjusted: true, adjustedNote: '*1' },
+        { name: 'EBT', normal: '729,4M', prevNormal: '782,9M', adjusted: '779,2M', prevAdjusted: '782,9M' },
+        { name: 'Beneficio Neto', normal: '565,8M', prevNormal: '466M', adjusted: '632,1M', prevAdjusted: '466M', isAdjusted: true, adjustedNote: '*2' },
+      ],
+      notes: [
+        '*1: En el trimestre se registraron 49,8M de asset impairment and related expenses.',
+        '*2: Impuestos: el impuesto reportado fue de 147,1M (tipo efectivo del 20,2 % sobre el EBT normal de 729,4M). El impuesto normalizado al 23 % sobre el EBT ajustado sería 179,22M: la desviación relativa es de -17,9 %, dentro del umbral de ±20 %, por lo que se conserva el impuesto reportado. Beneficio Neto Ajustado = 779,2M − 147,1M = 632,1M.',
+      ],
+    },
+  };
+  const extracted = {
+    fiscalYear: 2027,
+    quarter: {
+      sales: 2633,
+      operatingIncome: 805,
+      ebt: 729.4,
+      netIncome: 565.8,
+      prev: { sales: 2481, operatingIncome: 874, ebt: 782.9, netIncome: 466 },
+    },
+    facts: { incomeTaxExpenseQuarter: 147.1, incomeTaxExpensePrevQuarter: 296.8 },
+  };
+
+  normalizeSalesBlock(horizon, extracted, 'es', 'consumer_defensive');
+
+  const rows = Object.fromEntries(horizon.sales.rows.map((row) => [row.name, row]));
+  // El trimestre actual no se normaliza: sin resalte y sin la nota que explicaba algo que no se ajusta.
+  assert.equal(rows['Beneficio Neto'].adjusted, '632,1M');
+  // El comparativo sí se normaliza con su impuesto real (296,8M; desviación +64,8 %): 782,9 × 0,77.
+  assert.equal(rows['Beneficio Neto'].prevAdjusted, '602,83M');
+  assert.equal(rows['Beneficio Neto'].isAdjusted, true);
+  assert.equal(rows['Beneficio Neto'].adjustedNote, '*2');
+  assert.equal(rows['Beneficio Neto'].adjustedCell, 'previous');
+  const taxNote = horizon.sales.notes.find((note) => /^\*2:/.test(note));
+  assert.match(taxNote, /^\*2: Impuestos: En el periodo comparable/);
+  assert.match(taxNote, /el gasto fiscal reportado fue 296,8M/);
+  assert.match(taxNote, /Beneficio Neto Anterior Ajustado = EBT Ajustado × 0,77 = 602,83M\.$/);
+  assert.doesNotMatch(taxNote, /conserva el impuesto reportado/);
+  assert.equal(horizon.sales.notes.length, 2);
+});
+
+test('el auditor determinista detecta la normalización del comparativo sin nota ni resalte', async () => {
+  const { runDeterministicChecks } = await import('../../src/agents/auditor/deterministicChecks.js');
+  const report = {
+    horizons: [
+      {
+        label: 'ÚLTIMOS 3 MESES',
+        sales: {
+          rows: [
+            { name: 'Ventas', normal: '2633M', prevNormal: '2481M', adjusted: '2633M', prevAdjusted: '2481M' },
+            { name: 'Beneficio Bruto', normal: '1393M', prevNormal: '1310M', adjusted: '1393M', prevAdjusted: '1310M' },
+            { name: 'Beneficio Operativo', normal: '805M', prevNormal: '874M', adjusted: '854,8M', prevAdjusted: '874M' },
+            { name: 'EBT', normal: '729,4M', prevNormal: '782,9M', adjusted: '779,2M', prevAdjusted: '782,9M' },
+            { name: 'Beneficio Neto', normal: '565,8M', prevNormal: '466M', adjusted: '632,1M', prevAdjusted: '602,83M' },
+          ],
+          notes: ['*1: En el trimestre se registraron 49,8M de asset impairment.'],
+        },
+        cashFlow: { rows: [], notes: [] },
+        capital: { rows: [] },
+      },
+    ],
+  };
+
+  const { findings } = runDeterministicChecks(report);
+  assert.ok(
+    findings.some((finding) => finding.check === 'ventas.nota_fiscal_anterior'),
+    'Debe marcar el Beneficio Neto «Anterior Aj.» normalizado sin nota ni resalte',
   );
 });

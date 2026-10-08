@@ -4,6 +4,7 @@
  */
 
 import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { underlineFigure } from '../../utils/noteText.js';
 import { parseLooseReportNumber } from './financialParsers.js';
 import { resolveSectorByTicker } from '../sectorAgent.js';
 import { getAssumedDebtPolicy, isBusinessAcquisitionDescription } from './sectorPolicy.js';
@@ -91,20 +92,23 @@ export function buildCashMovementDetails({ prev, curr, caja, periodYear, prevLab
 
 export function buildWcDeviationSentence({ reported, wcReq, deviation, cfo, adjusted, language = 'es' }) {
   const lang = normalizeLanguage(language);
+  const deviationFigure = `${formatWcNumber(deviation, lang)}M`;
   const base = t('Desviación del circulante reportado ({reported}M) frente al WC teórico ({wcReq}M): {deviation}M.', {
     reported: formatWcNumber(reported, lang),
     wcReq: formatWcNumber(wcReq, lang),
     deviation: formatWcNumber(deviation, lang),
   }, lang);
-  if (Number.isFinite(Number(cfo)) && Number.isFinite(Number(adjusted))) {
-    return t('{base} El Cash Flow tras el ajuste de circulante queda en: {cfo}M - ({deviation}M) = {adjusted}M.', {
+  const text = Number.isFinite(Number(cfo)) && Number.isFinite(Number(adjusted))
+    ? t('{base} El Cash Flow tras el ajuste de circulante queda en: {cfo}M - ({deviation}M) = {adjusted}M.', {
       base,
       cfo: formatWcNumber(cfo, lang),
       deviation: formatWcNumber(deviation, lang),
       adjusted: formatWcNumber(adjusted, lang),
-    }, lang);
-  }
-  return base;
+    }, lang)
+    : base;
+  // El importe ajustado (la desviación del circulante) va subrayado, tanto en la frase como en la
+  // cadena «CFO − (desviación) = Cash Flow ajustado».
+  return underlineFigure(text, deviationFigure);
 }
 
 export function buildCapitalAllocationFromBalance(extracted, language = 'es', sector = null, isAnnual = false) {
@@ -489,10 +493,8 @@ export function buildWorkingCapitalDataFallback(extracted, language = 'es', sect
       : t('WC = (Cuentas por pagar - Inventarios - Cuentas por cobrar) × (crecimiento de ventas) / (1 + crecimiento) = ({pay} - {inv} - {rec}) × ({growth}%) / (1 + {growth}%) = {annual}M en todo el año -> en {months} meses = {ytd}M. {deviation}', payload, lang);
   };
   const historicalWcExplanation = ({ annual, periodBase, deviation }) => {
-    const list = wcRatioPoints.map((point) => `${formatGrowth(point.ratio * 100)}%`).join('; ');
-    return t('WC = peso agregado del circulante sobre el flujo operativo sin circulante en los últimos {years} ejercicios: {ratio}% × {base}M = {annual}M en el periodo. Ratios de los ejercicios: {list}. {deviation}', {
+    return t('WC = media de los últimos {years} ejercicios: {ratio}% × {base}M = {annual}M en el periodo. {deviation}', {
       years: wcRatioPoints.length,
-      list,
       ratio: formatGrowth(historicalRatio * 100),
       base: formatWcNumber(periodBase, lang),
       annual: formatWcNumber(annual, lang),
@@ -500,23 +502,18 @@ export function buildWorkingCapitalDataFallback(extracted, language = 'es', sect
     }, lang);
   };
   const proratedWcExplanation = ({ ytdValue, quarterValue, deviation }) => {
-    const list = wcRatioPoints.map((point) => `${formatGrowth(point.ratio * 100)}%`).join('; ');
     const payload = {
       years: wcRatioPoints.length,
-      list,
       ratio: formatGrowth(historicalRatio * 100),
-      baseAnual: formatWcNumber(historyAnchor.base, lang),
-      anchorYear: Number.isFinite(historyAnchor.year) ? historyAnchor.year : '',
-      annual: formatWcNumber(annualHistoryWc, lang),
       deviation,
     };
     if (quarterValue != null) {
-      return t('WC = peso agregado del circulante sobre el flujo operativo sin circulante en los últimos {years} ejercicios: {ratio}% × {baseAnual}M (flujo anual de {anchorYear}) = {annual}M en todo el año -> en 3 meses = {quarter}M. Ratios de los ejercicios: {list}. {deviation}', {
+      return t('WC = media de los últimos {years} ejercicios: {ratio}%. Al ser trimestral, el importe anual se divide entre 4 = {quarter}M. {deviation}', {
         ...payload,
         quarter: formatWcNumber(quarterValue, lang),
       }, lang);
     }
-    return t('WC = peso agregado del circulante sobre el flujo operativo sin circulante en los últimos {years} ejercicios: {ratio}% × {baseAnual}M (flujo anual de {anchorYear}) = {annual}M en todo el año -> en {months} meses = {ytd}M. Ratios de los ejercicios: {list}. {deviation}', {
+    return t('WC = media de los últimos {years} ejercicios: {ratio}%. Al ser trimestral, el importe anual se divide entre 4 por trimestre: {ytd}M en {months} meses. {deviation}', {
       ...payload,
       months,
       ytd: formatWcNumber(ytdValue, lang),
@@ -550,7 +547,7 @@ export function buildWorkingCapitalDataFallback(extracted, language = 'es', sect
     : (months <= 3 ? ytdWcReq : Math.round(annualWcReqQuarter / 4 * 10) / 10);
   const deviationSentenceYtd = buildWcDeviationSentence({ reported: repYtd, wcReq: ytdWcReq, deviation: wcDiffYtd, cfo, adjusted: cfoAdjYtd, language: lang });
   const explanationYtd = useProratedHistory
-    ? proratedWcExplanation({ ytdValue: ytdWcReq, deviation: deviationSentenceYtd })
+    ? proratedWcExplanation({ ytdValue: ytdWcReq, quarterValue: months <= 3 ? ytdWcReq : null, deviation: deviationSentenceYtd })
     : useHistoricalRatio
     ? historicalWcExplanation({ annual: ytdWcReq, periodBase: cfo - repYtd, deviation: deviationSentenceYtd })
     : wcBaseReady

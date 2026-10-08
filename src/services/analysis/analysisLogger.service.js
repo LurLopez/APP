@@ -40,6 +40,9 @@ async function resolveActor(options) {
 export async function logAnalysis({ options, result = null, error = null, startedAt }) {
   const usage = getSessionUsage();
   const report = result?.report ?? null;
+  const phases = result?.phases ?? null;
+  const audit = result?.audit ?? null;
+  const fiscalYear = Number(report?.fiscalYear);
   const entry = {
     fechaHora: new Date().toISOString(),
     usuario: await resolveActor(options),
@@ -50,7 +53,13 @@ export async function logAnalysis({ options, result = null, error = null, starte
     ticker: report?.ticker ?? options.ticker ?? null,
     accession: options.accession ?? null,
     filename: options.filename ?? null,
+    tipo: report?.formType ?? result?.formType ?? options.formType ?? null,
+    periodo: report?.reportingPeriod ?? null,
+    anio: Number.isFinite(fiscalYear) ? fiscalYear : null,
     version: result?.version ?? null,
+    fases: phases,
+    auditoria: audit,
+    cambiosAuditoria: result?.auditChanges ?? null,
     proveedores: usage.proveedores,
     modelos: usage.modelos,
     llamadas: usage.llamadas,
@@ -80,6 +89,9 @@ export async function logAnalysis({ options, result = null, error = null, starte
       accession: entry.accession,
       filename: entry.filename,
       version: entry.version,
+      formType: entry.tipo,
+      fiscalYear: entry.anio,
+      periodEnd: entry.periodo,
       providers: entry.proveedores,
       models: entry.modelos,
       calls: entry.llamadas,
@@ -92,6 +104,13 @@ export async function logAnalysis({ options, result = null, error = null, starte
       costUsd: entry.costeUsd,
       costKnown: entry.costeConocido,
       durationSeconds: entry.duracionSegundos,
+      analysisSeconds: phases?.analisis?.segundos ?? 0,
+      analysisCostUsd: phases?.analisis?.costeUsd ?? 0,
+      auditSeconds: phases?.revision?.segundos ?? 0,
+      auditCostUsd: phases?.revision?.costeUsd ?? 0,
+      auditScore: Number.isFinite(Number(audit?.nota)) ? Number(audit.nota) : null,
+      auditCorrected: Boolean(audit?.corregido),
+      auditChanges: entry.cambiosAuditoria ? JSON.stringify(entry.cambiosAuditoria) : null,
     });
   } catch (dbError) {
     console.error('[analysis-log:db]', dbError.message);

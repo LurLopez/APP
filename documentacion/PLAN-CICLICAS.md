@@ -30,7 +30,7 @@ Nuevo cuarto sector para empresas cíclicas de industrias hoy rechazadas (quími
 
 - **Sin ajuste de intangibles.** La amortización de activos productivos es coste real y no se suma de vuelta (a diferencia de defensivo/discrecional).
 - **Deterioro de goodwill/marcas:** no se pone a 0; se mantiene en la tabla con nota, porque en cíclicas es informativo (señal de haber sobrepagado en el pico).
-- El resto de reglas transversales se heredan del Nivel 1 (`knowledge/general.md` y `knowledge/anual/general.md`): WC con peso agregado histórico, impuestos normalizados al 23 %, etc.
+- El resto de reglas transversales se heredan del Nivel 1 (`knowledge/financiero/general.md` + `knowledge/notas/trimestral.md` o `notas/anual.md`): WC con peso agregado histórico, impuestos normalizados al 23 %, etc.
 - Implementación: política propia en `src/agents/analyst/sectorPolicy.js` y reglas en `src/agents/knowledge/ciclicas/sector.md` (Nivel 2, versión 1). Reglas anuales específicas, si hacen falta, en `src/agents/knowledge/anual/ciclicas/sector.md`.
 
 ---

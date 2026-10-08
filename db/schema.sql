@@ -68,6 +68,9 @@ ALTER TABLE analyses ADD COLUMN IF NOT EXISTS is_reviewed BOOLEAN NOT NULL DEFAU
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS reviewed_by INT REFERENCES users(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_analyses_reviewed ON analyses (is_reviewed);
+-- Resumen de la auditoría automática del informe (agente auditor): nota 1-10, veredicto,
+-- número de errores, si se corrigió o se revirtió la corrección y si la fuente se recortó.
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS audit JSONB;
 -- Análisis creados antes del versionado jerárquico (sin sector_version): su versión
 -- antigua no es comparable con la compuesta general.sector[.subsector][.empresa],
 -- así que se marca como desconocida para ofrecer su regeneración con la vigente.
@@ -112,6 +115,20 @@ CREATE TABLE IF NOT EXISTS analysis_logs (
 CREATE INDEX IF NOT EXISTS idx_analysis_logs_created ON analysis_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_analysis_logs_actor ON analysis_logs (actor);
 CREATE INDEX IF NOT EXISTS idx_analysis_logs_ticker ON analysis_logs (ticker);
+
+-- Desglose exacto por fases del análisis: tipo de informe y año, tiempo y coste del
+-- análisis del primer agente y de la revisión+corrección del auditor, nota de la
+-- auditoría, si hubo corrección y el detalle de los cambios aplicados.
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS form_type TEXT;
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS fiscal_year INT;
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS period_end DATE;
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS analysis_seconds NUMERIC(8, 1) NOT NULL DEFAULT 0;
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS analysis_cost_usd NUMERIC(14, 6) NOT NULL DEFAULT 0;
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS audit_seconds NUMERIC(8, 1) NOT NULL DEFAULT 0;
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS audit_cost_usd NUMERIC(14, 6) NOT NULL DEFAULT 0;
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS audit_score NUMERIC(3, 1);
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS audit_corrected BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE analysis_logs ADD COLUMN IF NOT EXISTS audit_changes JSONB;
 
 CREATE TABLE IF NOT EXISTS filings (
     id            SERIAL PRIMARY KEY,

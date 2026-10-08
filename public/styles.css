@@ -11573,6 +11573,41 @@ th.sorted-desc::after { content: '↓'; }
   color: var(--amber-text);
 }
 
+/* Notas del trimestre (10-Q) */
+.quarter-guidance-card {
+  border-left: 3px solid var(--accent);
+}
+
+.quarter-note-card {
+  border-left: 3px solid var(--line-mid);
+}
+
+.quarter-guidance-badge {
+  margin-left: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.quarter-guidance-badge.status-raised {
+  background: var(--green-bg);
+  border-color: var(--green-border);
+  color: var(--green-text-2);
+}
+
+.quarter-guidance-badge.status-lowered,
+.quarter-guidance-badge.status-withdrawn {
+  background: var(--red-bg);
+  border-color: var(--red-border);
+  color: var(--red-text);
+}
+
+.quarter-guidance-badge.status-new,
+.quarter-guidance-badge.status-reaffirmed {
+  background: var(--amber-bg);
+  border-color: var(--amber-border);
+  color: var(--amber-text);
+}
+
 /* Gráfico de evolución del número de acciones */
 .shares-chart {
   margin: 8px 0 12px;

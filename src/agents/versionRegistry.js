@@ -72,9 +72,21 @@ export async function resolveAnalysisVersionInfo({
 } = {}) {
   const sectorSlug = sectorSlugOf(sector);
   const isAnnual = String(formType ?? '').toUpperCase().includes('10-K');
-  const generalPath = isAnnual ? 'anual/general.md' : 'general.md';
+  // La estructura por contenido (financiero + notas) aporta dos documentos al
+  // nivel general: la versión vigente es la mayor de ambos. Se mantiene la
+  // compatibilidad con la estructura antigua (general.md / anual/general.md).
+  const generalPaths = ['financiero/general.md', isAnnual ? 'notas/anual.md' : 'notas/trimestral.md'];
+  const generalVersions = (await Promise.all(generalPaths.map((path) => readLevelVersion(path))))
+    .filter((value) => value != null);
+  let generalVersion = generalVersions.reduce(
+    (max, value) => (compareVersions(value, max) > 0 ? value : max),
+    String(DEFAULT_LEVEL_VERSION),
+  );
+  if (!generalVersions.length) {
+    generalVersion = await readLevelVersion(isAnnual ? 'anual/general.md' : 'general.md')
+      ?? String(DEFAULT_LEVEL_VERSION);
+  }
 
-  const generalVersion = await readLevelVersion(generalPath) ?? String(DEFAULT_LEVEL_VERSION);
   const levels = [generalVersion];
 
   const sectorVersion = await readLevelVersion(`${sectorSlug}/sector.md`);

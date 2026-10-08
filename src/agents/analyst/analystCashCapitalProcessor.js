@@ -6,6 +6,7 @@
 import { parseFinancialValue, formatFinancialValue, parseLooseReportNumber, formatCellNumber, normalizeNumericCell } from './financialParsers.js';
 import { getTaxNormalizationData } from './historyBuilders.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
+import { underlineFigure } from '../../utils/noteText.js';
 
 function toFiniteNumber(value) {
   if (value == null || value === '') return null;
@@ -54,9 +55,24 @@ export function buildCashFlowAdjustmentChain({ normalCfo, afterWc, finalCfo, tax
   const wcAdjustment = Math.round((afterWcNum - normal) * 10) / 10;
   const netAdjustment = Math.round((final - normal) * 10) / 10;
 
+  // Cada importe ajustado (circulante, impuestos y stock options) se subraya con `__…__` para que
+  // el lector identifique de un vistazo la cifra que se ha sumado o restado en la cadena.
+  const decorate = (text) => {
+    let out = text;
+    const figures = [
+      formatSignedFinancial(wcAdjustment, lang),
+      hasTax ? formatSignedFinancial(tax, lang) : null,
+      hasSbc ? formatSignedFinancial(sbc, lang) : null,
+    ];
+    for (const figure of figures) {
+      if (figure) out = underlineFigure(out, figure);
+    }
+    return out;
+  };
+
   if (!hasSbc) {
     const parts = [
-      t('La cifra final combina los dos ajustes sobre el Cash Flow: {normal}M {wc} (circulante) {tax} (impuestos) = {final}M.', {
+      t('La cifra final combina los dos ajustes sobre el Cash Flow: **{normal}M {wc} (circulante) {tax} (impuestos) = {final}M**.', {
         normal: formatFinancialValue(normal, lang),
         wc: formatSignedFinancial(wcAdjustment, lang),
         tax: formatSignedFinancial(tax, lang),
@@ -69,7 +85,7 @@ export function buildCashFlowAdjustmentChain({ normalCfo, afterWc, finalCfo, tax
         net: formatSignedFinancial(netAdjustment, lang),
       }, lang));
     }
-    return parts.join(' ');
+    return decorate(parts.join(' '));
   }
 
   const chainElements = [
@@ -86,7 +102,7 @@ export function buildCashFlowAdjustmentChain({ normalCfo, afterWc, finalCfo, tax
     ? t('La cifra final combina los tres ajustes sobre el Cash Flow:', null, lang)
     : t('La cifra final combina los ajustes sobre el Cash Flow:', null, lang);
 
-  return `${textIntro} ${chainElements.join(' ')}`;
+  return decorate(`${textIntro} **${chainElements.join(' ')}**`);
 }
 
 export function normalizeCashFlowBlock(horizon, extracted, language = 'es', sector = null) {
@@ -275,15 +291,20 @@ export function normalizeCashFlowBlock(horizon, extracted, language = 'es', sect
     if (idx !== -1) horizon.cashFlow.notes[idx] = taxNote;
     else horizon.cashFlow.notes.push(taxNote);
     nextNoteNum++;
+  } else {
+    // Sin ajuste fiscal aplicable (discrepancia ≤ 10 % o sin datos): se retira cualquier nota
+    // fiscal que hubiera redactado la IA para no mencionar un ajuste que no se aplica.
+    horizon.cashFlow.notes = horizon.cashFlow.notes
+      .filter((n) => !/^\*?\d*:?\s*(Impuestos|Taxes)\b|discrepancia fiscal|tax discrepancy/i.test(String(n)));
   }
 
   if (hasSbc) {
     const sbcAdjustmentFormatted = formatFinancialValue(Math.abs(sbcAdjustment), lang);
     const sbcFormatted = formatFinancialValue(sbcValue, lang);
-    const baseSbcExplanation = t('Stock Options / Compensación en acciones (SBC): La empresa reporta {sbc}M en remuneración basada en acciones añadida al flujo operativo. Al suponer una dilución efectiva del accionista y concederse habitualmente con descuento, bajo un criterio conservador se deduce el importe íntegro de esta partida (-{sbcAdjustment}M) del Cash Flow Ajustado.', {
+    const baseSbcExplanation = underlineFigure(t('Stock Options / Compensación en acciones (SBC): La empresa reporta {sbc}M en remuneración basada en acciones añadida al flujo operativo. Al suponer una dilución efectiva del accionista y concederse habitualmente con descuento, bajo un criterio conservador se deduce el importe íntegro de esta partida (-{sbcAdjustment}M) del Cash Flow Ajustado.', {
       sbc: sbcFormatted,
       sbcAdjustment: sbcAdjustmentFormatted,
-    }, lang);
+    }, lang), `-${sbcAdjustmentFormatted}M`);
     const sbcNoteText = adjustmentChainNote
       ? `*${nextNoteNum}: ${baseSbcExplanation} ${adjustmentChainNote}`
       : `*${nextNoteNum}: ${baseSbcExplanation}`;

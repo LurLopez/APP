@@ -1,145 +1,13 @@
-# Reglas Generales de Análisis Financiero Anual (Cifra)
+# Reglas de las Notas e Indagación a Fondo (10-K)
 
-> Nivel 1 — Marco Universal aplicable a todos los análisis anuales (Form 10-K) para cualquier empresa, sector y subsector.
-> Documento de referencia canónico: `TAP 2025_ANNUAL ANÁLISIS_ES.pdf` (almacenado en `src/agents/knowledge/anual/ejemplos/`).
+> Nivel 1 — Parte cualitativa del análisis anual (Form 10-K): indagación a fondo, conclusiones y nota de resultados. La parte financiera se rige por `financiero/general.md`.
+> Documento de referencia canónico: `anual/ejemplos/TAP 2025_ANNUAL ANÁLISIS_ES.pdf`.
+>
 > Versión: 0
 
 ---
 
-## 1. Arquitectura y Estructura Global del Informe Anual
-
-El informe de análisis anual se divide de forma estricta en **tres partes consecutivas**:
-
-```text
-INFORME ANUAL (FORM 10-K)
-├── PARTE I: RESUMEN DE CUENTAS (Idéntica a la estructura trimestral)
-│   ├── Encabezado: "[AÑO] ANNUAL results — [TICKER]"
-│   ├── Periodo: "EN TODO EL AÑO (12 MESES)" (o "URTE GUZTIAN")
-│   ├── Bloque 1: VENTAS (Cuenta de Resultados en doble columna + notas + BPA/Acciones)
-│   ├── Bloque 2: CASH FLOW (Doble columna Normal/Ajustado + Working Capital 12M + ajuste fiscal)
-│   └── Bloque 3: ASIGNACIÓN DE CAPITAL (Balance anual directo + notas de deuda y cuadre)
-│
-├── PARTE II: CONCLUSIÓN E INDAGACIÓN A FONDO EN PUNTOS CRÍTICOS
-│   ├── 1. Recompras de Acciones (Share Repurchases) + Captura SEC obligatoria
-│   ├── (+) Cambios en la dirección (justo después de Recompras, solo si aplica)
-│   ├── 2. Outlook y Perspectivas Futuras (Guidance) + Captura SEC obligatoria
-│   ├── 3. Deuda y Calendario de Vencimientos (Debt Maturity) + Captura SEC obligatoria
-│   ├── 4. Operaciones Corporativas (si existen: adquisiciones, desinversiones y
-│   │        ventas de participaciones ≥ 5 %, spin-offs anunciados o en curso y
-│   │        reestructuraciones)
-│   ├── (+) Puntos condicionales según materialidad (Dividendos, Impairments,
-│   │        Litigios, Impuestos, Pensiones, Concentración de clientes)
-│   └── 5. Puntos Clave a Vigilar para el Próximo Ejercicio (Watchlist)
-│
-└── PARTE III: NOTA DE RESULTADOS (1 a 10)
-    └── Calificación numérica puramente financiera sin especulación sobre cumplimiento
-```
-
----
-
-## 2. PARTE I — Resumen de Cuentas (Estructura Canónica)
-
-La primera parte replica fielmente la mecánica contable y visual de los informes trimestrales, adaptada al horizonte de ejercicio fiscal completo (12 meses):
-
-- **Horizonte Temporal Único**:
-  - Encabezado: **`[AÑO] ANNUAL results`** con el ticker de la compañía (ej. `2025 ANNUAL results — TAP`).
-  - Subtítulo de periodo: **`EN TODO EL AÑO (12 MESES)`** (o `URTE GUZTIAN`).
-  - **Sin deducciones trimestrales intermedias**: Las magnitudes de resultados, flujos y balances provienen directamente del Form 10-K auditado.
-
-### Bloque 1 — VENTAS (Cuenta de Resultados)
-
-- **Filas obligatorias**:
-  1. Ventas (Revenue / Net Sales)
-  2. Beneficio Bruto (Gross Profit)
-  3. Beneficio Operativo (Operating Income / EBIT)
-  4. EBT (Beneficio antes de impuestos)
-  5. Beneficio Neto (Net Income)
-
-- **Columnas y Jerarquía Visual**:
-  - `Ajustado` (**Negrita**)
-  - `Anterior Ajustado` (Regular)
-  - `% Ajustado` (Regular, verde si $>0$, rojo si $<0$)
-  - `Normal` (**Negrita**)
-  - `Anterior Normal` (Regular)
-  - `% Normal` (Regular, verde si $>0$, rojo si $<0$)
-
-- **Notas Explicativas con Resaltado Exclusivo en Origen**:
-  - `*1` **Depreciaciones y Deterioros (Impairments)**:
-    - Se suman de vuelta al Beneficio Operativo los deterioros extraordinarios de fondo de comercio (*goodwill*), marcas o intangibles, así como depreciaciones atípicas en otras partidas operativas (ej. *Other Operating Income/Expense*).
-    - El fondo de color (Amarillo `#fef08a`) y la llamada `*1` van **únicamente en la celda de Beneficio Operativo**.
-    - EBT y Beneficio Neto recalculan su importe arrastrando el nuevo resultado operativo sin colorearse.
-  - `*2` **Normalización de Impuestos**:
-    - Si la empresa reporta un beneficio o anomalía fiscal (tipo efectivo alejado del normalizado), se ajusta el gasto fiscal al tipo de referencia (ej. $22,5\,\% - 23\,\%$ sobre el EBT ajustado).
-    - La celda de **Beneficio Neto** lleva la llamada `*2` y el fondo Naranja (`#fed7aa`).
-    - En la nota se desglosa el cálculo: impuestos reportados vs impuestos normalizados y la diferencia neta resultante, señalando expresamente su implicación para el ajuste de Cash Flow.
-
-- **Métricas por Acción al Pie de la Tabla**:
-  - **`ACCIONES`**: Cifra exacta de acciones en circulación al cierre definitivo del ejercicio fiscal (al final del año, **no el promedio ponderado diluido**):
-    - Se indica la variación porcentual y absoluta frente al ejercicio anterior: `X M (al final del [AÑO], no el promedio) -> %X menos/más (Y M) -> efecto en el BPA: +%Z`.
-  - **`BPA`**: Cifra de Beneficio Por Acción ajustado:
-    - Se indica el valor en dólares y la variación porcentual frente al año anterior: `X,XX $ -> %Y menos/más (Z,ZZ $)`.
-
----
-
-### Bloque 2 — CASH FLOW
-
-- **Estructura en Dos Columnas**:
-  - `Normal (WC=valor)`
-  - `Ajustado*N (WC=valor)`
-
-- **Filas obligatorias**:
-  1. Cash Flow (Flujo de caja operativo anual)
-  2. CAPEX (Inversiones en inmovilizado material y equipos)
-  3. FCF (Free Cash Flow anual = Cash Flow − CAPEX)
-  4. FCF/Acción (FCF dividido entre el número de acciones a cierre)
-  5. Dividendo (Total de dividendos pagados en efectivo en el año fiscal)
-  6. Libre (Remanente de caja = FCF − Dividendo)
-
-- **Cálculo de Capital Circulante Anual (Working Capital / WC)**:
-  - La necesidad teórica se estima con el **peso agregado histórico** del circulante sobre el flujo operativo sin circulante de los últimos 10 ejercicios (método único, también cuando el informe publica volumen):
-    $$\text{WC}_{\text{teórico}} = \left( \frac{\sum \Delta WC}{\sum (\text{CFO} - \Delta WC)} \right)_{\text{últimos 10 ejercicios}} \times (\text{CFO} - \Delta WC)_{\text{ejercicio}}$$
-    Ejemplo: CFO 80.000M con ΔWC −20.000M ⇒ base 100.000M y peso del −20 %. Como el WC se expresa en términos de impacto en caja, un valor **positivo** significa que el circulante **libera** caja (las cuentas por pagar crecen más que inventarios y cobros) y un valor **negativo** que el circulante **consume** caja. El sistema calcula esta estimación de forma determinista (serie histórica de EDGAR) y la entrega en `workingCapitalData`.
-  - La diferencia entre el WC reportado y el teórico se ajusta en el Cash Flow con esta convención estricta (que el sistema ya calcula):
-    $$\text{Desviación WC} = \text{WC}_{\text{reportado}} - \text{WC}_{\text{teórico}}$$
-    $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - \text{Desviación WC}$$
-  - **Regla de signos en la nota (obligatoria)**: la desviación conserva su signo y el ajuste se escribe como una resta explícita. Ejemplo correcto: `Desviación del circulante reportado (-147M) frente al WC teórico (12,1M): -159,1M. El Cash Flow tras el ajuste de circulante queda en: 1784,4M - (-159,1M) = 1943,5M.` Queda terminantemente prohibido escribir frases contradictorias como `ajuste de -159M (1784,4M + 159,1M)`. **Prohibido llamar «Cash Flow Ajustado» al resultado del ajuste de circulante cuando después se aplica un ajuste fiscal (nota *2): ese resultado es un subtotal intermedio; el único «Cash Flow Ajustado» es el valor final de la tabla, que la nota *2 debe cerrar.**
-   - **Ajuste fiscal del Cash Flow**: Se compara lo que la empresa debería pagar en realidad (23 % sobre el EBT ajustado) frente a lo que consta que ha pagado en el estado de flujos (en la línea de efectivo pagado "Income tax (paid) received" / "Income taxes paid" o en la conciliación de impuestos diferidos). Si existe una discrepancia, se ajusta el Cash Flow en la columna Ajustado: si pagó menos de lo normalizado se resta la diferencia; si pagó más, se suma. Se añade la Nota `*2: Impuestos: ...` explicando cuántos impuestos debería haber pagado y cuánto ha pagado realmente.
-   - **Doble ajuste (circulante + impuestos)**: cuando se apliquen ambos ajustes, la Nota `*2` debe cerrar la cadena completa `Cash Flow Normal -> ajuste de circulante -> ajuste fiscal -> Cash Flow Ajustado`, mostrando CADA ajuste con su importe y su signo y aclarando si ambos se compensan. Ejemplo: `La cifra final combina los dos ajustes: 9415M -646,7M (circulante) +654,7M (impuestos) = 9423M; el efecto neto es de solo +8M porque ambos ajustes se cancelan en gran medida.` Queda prohibido dejar la impresión de que el ajuste fue irrelevante cuando hubo dos ajustes brutos grandes de signo opuesto.
-   - La nota explicativa al pie detalla minuciosamente ambos ajustes (circulante e impuestos).
-
----
-
-### Bloque 3 — ASIGNACIÓN DE CAPITAL
-
-- **Filas obligatorias según materialidad ($\ge 50\text{M}$)**:
-  1. `Libre`: Toma el valor resultante de la fila Libre del Bloque 2.
-  2. `Inversiones a corto plazo`: Flujo **neto** de valores negociables = ventas/cobros ("proceeds from sale of marketable securities") − compras ("purchases of marketable securities"). Signo negativo `-` si el neto es comprador (ej. compras de 1.724 y ventas de 686 => -1038), positivo `+` si el neto es vendedor. Si no consta el detalle, usar la variación del saldo de balance.
-  3. `Recompras`: Desembolso en recompra de acciones propias (signo negativo `-`).
-  4. `Desinversiones`: Cobros por venta de negocios, marcas o activos (signo positivo `+`).
-  5. `Adquisiciones`: Pagos por compra de negocios o empresas (signo negativo `-`).
-  6. `Efectivo restringido`: Variación del efectivo restringido / escrow / colateral (negativo `-` si aumenta, positivo `+` si disminuye). Es distinto de la fila `Caja`, que solo recoge el efectivo no restringido del balance. Fila obligatoria si la variación es $\ge 50\text{M}$.
-  7. `Emisión de preferentes` y `Venta de participaciones`: fuentes de capital (signo positivo `+`) por emisión de preferentes o venta de participaciones no controladoras; cada fila si es $\ge 50\text{M}$.
-  8. `Deuda asumida (no-cash)`: SOLO si el ejercicio tuvo una adquisición material y la deuda del balance AUMENTÓ en parte por deuda preexistente de la empresa adquirida (campo `capitalAllocationData.assumedDebt`, siempre $\ge 50\text{M}$), con signo negativo `-`, para que la fila `Deuda` refleje solo la deuda con caja. Si `assumedDebt` es 0 o no existe, esta fila NO se incluye nunca: prohibido inventarla o usarla para duplicar la variación de deuda del balance.
-  9. `Caja`: Variación de tesorería del balance de cierre anual (negativo `-` si la caja aumentó, positivo `+` si disminuyó).
-  10. `Deuda`: Variación de deuda total en balance durante el ejercicio (positivo `+` si la deuda creció, negativo `-` si se amortizó).
-  11. `En total`: Suma algebraica de todas las partidas.
-
-- **Filas sin importe prohibidas**: queda prohibido incluir filas con valor `0` o `—` en la Asignación de Capital. Solo `Libre` y `En total` son obligatorias; el resto aparece únicamente si su importe es material ($\ge 50\text{M}$) y consta en el JSON de extracción.
-
-- **Movimientos no monetarios y reclasificaciones (obligatorio)**: además de las partidas anteriores, se mapean siempre las variaciones que no suponen entrada o salida real de caja y que rompen el cuadre: efectivo restringido/escrow de adquisiciones o colaterales (fila `Efectivo restringido`), deuda asumida en compras (fila `Deuda asumida (no-cash)`), efecto divisa sobre la caja y reclasificaciones entre caja e inversiones a corto plazo detectadas en las notas. Si tras mapearlas el `En total` sigue descuadrado, la verificación indica el importe exacto del desfase y que corresponde a movimientos no monetarios o reclasificaciones a revisar en las notas de flujos y balance; nunca se deja el descuadre sin cifra ni sin explicación, ni se oculta con una fila genérica sin desglose.
-
-- **Nota Obligatoria de Deuda y Caja (balance)**:
-  - Toda tabla anual debe incluir la nota con el formato exacto:
-    > `*N: Deuda balance: <anterior>M -> <actual>M (<variación>M). Deuda neta: <anterior_neta>M -> <actual_neta>M (<variación_neta>M). Caja balance: <anterior>M -> <actual>M (<variación>M); la caja aumentó: uso de capital (-) / la caja disminuyó: fuente de liquidez (+); fila Caja = <valor>M.`
-  - La caja y la deuda se miden SIEMPRE por la variación de saldos del balance (nunca por el cambio neto de efectivo del estado de flujos de caja) y la cifra de la fila `Caja` debe coincidir con la de la nota. Si el estado de flujos presenta un neto de caja distinto, se explica la diferencia (efectivo restringido, efecto divisa u otras partidas no monetarias) citando las notas del 10-K.
-
-- **Veredicto Analítico de Cuadre**:
-  - Al pie se emite el veredicto con criterio profesional (ej. *"No cuadra del todo, pero más o menos ha gastado todo lo que estaba libre en recompras."* o *"El resultado cuadra razonablemente."*).
-  - Si el descuadre supera el umbral (máximo de 50M, 20 % del capital Libre y 10 % de la suma bruta de movimientos), el veredicto debe incluir el importe exacto del desfase y señalar que corresponde a movimientos no monetarios o reclasificaciones de balance (efectivo restringido, efecto divisa en caja, deuda asumida en compras, reclasificaciones caja/inversiones) a revisar en las notas de flujos y balance del 10-K.
-
----
-
-## 3. PARTE II — Conclusión e Indagación a Fondo en Puntos Críticos
+## 1. Indagación a Fondo en Puntos Críticos (Parte II del informe anual)
 
 En los análisis anuales es **obligatorio** profundizar rigurosamente en los motores estratégicos y financieros de la empresa, incorporando **capturas visuales del filing oficial de la SEC** en cada sección relevante:
 
@@ -326,7 +194,7 @@ Además de los puntos canónicos 1-4, la Parte II incorpora —siempre **despué
 
 ---
 
-## 4. PARTE III — NOTA DE RESULTADOS (1 a 10)
+## 2. Nota de Resultados (1 a 10, Parte III del informe anual)
 
 Al cierre del informe anual, se emite una calificación numérica única:
 
@@ -350,7 +218,7 @@ $$\mathbf{NOTA\ DE\ RESULTADOS:\ [1-10]}$$
 
 ---
 
-## 5. Protocolo de Capturas y Extractos Visuales de la SEC
+## 3. Protocolo de Capturas y Extractos Visuales de la SEC
 
 Para dar respaldo documental y valor visual a la Parte II:
 
@@ -363,22 +231,3 @@ Para dar respaldo documental y valor visual a la Parte II:
 4. **Comentarios de Apoyo**:
    - El texto del informe debe dialogar directamente con la captura (ej. *"Como se puede ver en la tabla adjunta de deuda..."*, *"En el cuadro de guidance de 2026 se observa..."*).
 
----
-
-## 6. Formato Numérico y Convenciones de Estilo
-
-- **Prohibición de redondeo**: Todas las cifras deben ser **exactas**, copiadas tal cual de los estados financieros y del JSON de extracción (que el sistema completa desde el XBRL de la SEC). Queda terminantemente prohibido redondear o estimar cifras reportadas (ej. no escribir `4500M` si la cifra es `4462M`, ni `800M` si es `801M`, ni `1900M` si es `1898M`). Si una cifra no consta en ninguna fuente, se indica que no consta; nunca se sustituye por una aproximación redondeada.
-- **Moneda**: Millones de dólares estadounidenses con sufijo **`M`** (ej. `13040M`, `2300M`). Símbolo **`$`** para precios y ratios por acción (ej. `5,69 $`, `50 $`). Para miles de millones en texto libre se puede usar `M` o `millones de $`.
-- **Decimales**: todas las cifras (flujos, asignación de capital, etc.) llevan **como máximo 2 decimales** tras la coma y nunca muestran artefactos de coma flotante (ej. prohibido `1827,1000000000004`; correcto `1827,1`).
-- **Porcentajes**: Con **coma decimal** y signo explícito.
-  - Positivos en **verde** (`#16a34a`).
-  - Negativos en **rojo** (`#dc2626`).
-- **Negrita**: Cifras de las columnas **`Ajustado`** y **`Normal`** siempre en negrita en las tablas de la Parte I.
-- **Paleta Cromática de Notas en Parte I**:
-  - Nota 1: Amarillo flúor (`#fef08a`)
-  - Nota 2: Naranja (`#fed7aa`)
-  - Nota 3: Verde lima (`#bbf7d0`)
-  - Nota 4: Morado / Malva (`#e9d5ff`)
-  - Nota 5: Celeste pastel (`#bae6fd`)
-  - Nota 6: Rosa pastel (`#fbcfe8`)
-- **Tono y Redacción**: Analista financiero sénior independiente, analítico, crítico, pedagógico y transparente.

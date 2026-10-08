@@ -4,6 +4,7 @@
  */
 
 import { sanitize, getPdfHighlightColor } from './pdfStyles.js';
+import { resolveAdjustedCells } from '../../utils/salesHighlight.js';
 
 /**
  * Dibuja una tabla financiera con soporte para saltos de página automáticos, filas cebra y resaltados.
@@ -90,7 +91,7 @@ export function drawTable(doc, columns, rows, options = {}) {
     x += nameWidth;
 
     const meta = metaRows[index] || {};
-    const isRowAdjusted = isSalesTable && meta.isAdjusted === true;
+    const adjustedSides = isSalesTable ? resolveAdjustedCells(meta) : null;
     let noteNum = 1;
     const noteMatch = String(meta.adjustedNote || '').match(/\*?(\d+)/);
     if (noteMatch) noteNum = parseInt(noteMatch[1], 10);
@@ -100,7 +101,8 @@ export function drawTable(doc, columns, rows, options = {}) {
       const colIdx = i + 1;
       const isBoldCol = boldColumns.includes(colIdx);
       const isPctCol = pctColumns.includes(colIdx);
-      const isAdjustedCell = isSalesTable && i === 0 && isRowAdjusted;
+      const isAdjustedCell = isSalesTable
+        && ((i === 0 && adjustedSides.current) || (i === 1 && adjustedSides.previous));
       const isTaxAdjustedCell = isCashFlowTable && i === 1 && meta.cashFlowAdjustedNote;
       const isCapitalCell = isCapitalTable && i === 0;
 

@@ -1,0 +1,194 @@
+{
+  "tag": "mimo-v2.6-flash",
+  "provider": "opencode",
+  "model": "mimo-v2.6-flash",
+  "ticker": "AMZN",
+  "accession": "0001018724-26-000004",
+  "formType": "10-K",
+  "sector": "consumer_discretionary",
+  "subsector": null,
+  "language": "es",
+  "analysisId": 835,
+  "segundos": 169.6,
+  "fases": {
+    "analisis": {
+      "segundos": 69.1,
+      "costeConocido": true,
+      "llamadas": 3,
+      "promptTokens": 116024,
+      "completionTokens": 17102,
+      "reasoningTokens": 0,
+      "cacheHitTokens": 0,
+      "cacheMissTokens": 116024,
+      "totalTokens": 133126,
+      "costeUsd": 0
+    },
+    "revision": {
+      "segundos": 95.1,
+      "costeConocido": true,
+      "llamadas": 3,
+      "promptTokens": 270486,
+      "completionTokens": 19514,
+      "reasoningTokens": 0,
+      "cacheHitTokens": 0,
+      "cacheMissTokens": 270486,
+      "totalTokens": 290000,
+      "costeUsd": 0,
+      "nota": 5.5,
+      "veredicto": "incorrecto",
+      "errores": 10,
+      "corregido": true,
+      "cambios": 21
+    },
+    "pdf": {
+      "segundos": 0.5
+    }
+  },
+  "consumo": {
+    "llamadas": 6,
+    "promptTokens": 386510,
+    "completionTokens": 36616,
+    "reasoningTokens": 0,
+    "cacheHitTokens": 0,
+    "cacheMissTokens": 386510,
+    "totalTokens": 423126,
+    "costeUsd": 0,
+    "costeConocido": true
+  },
+  "costeUsd": 0,
+  "costeConocido": true,
+  "costeReferenciaDeepseekFlashUsd": 0.079946,
+  "rating": {
+    "score": 6,
+    "label": "NOTA DE RESULTADOS: 6",
+    "rationale": "Calificación puramente financiera basada en la realidad de las cuentas del ejercicio y el outlook oficial publicado. Puntos fuertes: ventas **+12,38 %** (716.924M), beneficio operativo **+16,59 %** (79.975M), beneficio neto **+31,09 %** (77.670M), margen operativo del **11,2 %** y deuda neta muy negativa (**-57.381M**), con guidance de Q1 2026 de **+11 % a +15 %** en ventas. Puntos débiles: FCF de solo **11.194M** (ajustado **-11.201,3M**) frente a un CAX de **131.819M** que crece más rápido que el flujo operativo; **2.700M** en costes de rescisión y **4.900M** en cargos especiales (FTC y disputas fiscales); deuda con vencimientos concentrados en el corto plazo; dilución accionarial del **+1,3 %** sin recompras ni dividendos que la compensen; y un peso creciente de los **15.229M** de \"Other income (expense), net\" no recurrentes en el EBT. Sin especulación sobre el cumplimiento futuro del guidance."
+  },
+  "audit": {
+    "nota": 5.5,
+    "veredicto": "incorrecto",
+    "errores": 10,
+    "corregibles": 9,
+    "corregido": true,
+    "revertido": false,
+    "fuenteRecortada": true,
+    "cambios": 21,
+    "fallosDeterministas": {
+      "antes": 1,
+      "despues": 0
+    },
+    "htmlAntes": "/api/reports/57b6db66-44a9-48fc-a24a-3a370a9ed6ca-antes.html",
+    "htmlDespues": "/api/reports/57b6db66-44a9-48fc-a24a-3a370a9ed6ca.html"
+  },
+  "auditCambios": [
+    {
+      "ruta": "horizons.0.sales.rows.3.adjusted",
+      "antes": "90902M",
+      "despues": "89602M"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.3.pctAdjusted",
+      "antes": "+32,48 %",
+      "despues": "+30,59 %"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.4.adjusted",
+      "antes": "72734,07M",
+      "despues": "70515M"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.4.pctAdjusted",
+      "antes": "+37,67 %",
+      "despues": "+33,46 %"
+    },
+    {
+      "ruta": "horizons.0.sales.notes.1",
+      "antes": "*2: Impuestos: el tipo efectivo reportado es del 19,6 % (19087M sobre EBT de 97311M), frente al 23 % de referencia sobre el EBT ajustado (98611M × 0,23 = 22680,5M). Desviación del tipo efectivo reportado frente al normalizado: (19,6 % − 23 %) / 23 % = −14,8 %, dentro del umbral ±20 %, por lo que NO se normaliza: Beneficio Neto Ajustado = EBT Ajustado (98611M) − impuesto reportado (19087M) = 79524M…",
+      "despues": "*2: Impuestos: el tipo efectivo reportado es del 19,6 % (19087M sobre EBT de 97311M), frente al 23 % de referencia sobre el EBT ajustado (89602M × 0,23 = 20608,46M). Desviación del tipo efectivo reportado frente al normalizado: (19,6 % − 23 %) / 23 % = −14,8 %, dentro del umbral ±20 %, por lo que NO se normaliza: se conserva el impuesto reportado de 19087M."
+    },
+    {
+      "ruta": "horizons.0.sales.notes.2",
+      "antes": "*3: Partidas no operativas no recurrentes: se excluye del EBT Ajustado la partida de 7709M del periodo por no ser resultado recurrente del negocio; el Beneficio Neto Ajustado resta su efecto después de impuestos al 23 % (5935,93M). Descripción de la partida: Revalorizaciones al alza por cambios de precio observable en inversiones en empresas privadas (principalmente la acción preferente no votante…",
+      "despues": "*3: Partidas no operativas no recurrentes: se excluye del EBT Ajustado la partida de 7709M del periodo por no ser resultado recurrente del negocio. EBT Ajustado = EBT Normal (97311M) + ajuste operativo (1300M) − partidas no recurrentes (7709M) = 89602M. Descripción de la partida: Revalorizaciones al alza por cambios de precio observable en inversiones en empresas privadas (principalmente la acción…"
+    },
+    {
+      "ruta": "horizons.0.sales.notes.3",
+      "antes": "*4: Impuestos: el gasto fiscal reportado fue 19087M sobre un EBT de 97311M (tipo efectivo del 19,61 %). No procede normalizar el gasto, que ya incluye el impuesto asociado a la partida no recurrente excluida; el Beneficio Neto Ajustado queda en 72734,07M.",
+      "despues": "*4: Impuestos: el gasto fiscal reportado fue 19087M sobre un EBT de 97311M (tipo efectivo del 19,61 %). No procede normalizar el gasto (desviación dentro de ±20 %), por lo que se conserva el impuesto reportado: Beneficio Neto Ajustado = EBT Ajustado (89602M) − impuesto reportado (19087M) = 70515M."
+    },
+    {
+      "ruta": "horizons.0.sales.eps",
+      "antes": "7,33 $ -> %22,4 más (5,99 $)",
+      "despues": "6,57 $ -> %18,8 más (5,53 $)"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.0.values.1",
+      "antes": "101250,7",
+      "despues": "120617,7"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.2.values.1",
+      "antes": "-30568,3",
+      "despues": "-11201,3"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.3.values.1",
+      "antes": "-2,85 $",
+      "despues": "-1,04 $"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.5.values.1",
+      "antes": "-30568,3",
+      "despues": "-11201,3"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.notes.1",
+      "antes": "*2: Impuestos: La empresa debería haber pagado 20907,5M en impuestos (23 % sobre el EBT ajustado de 90902M) y solamente ha pagado 8295M en efectivo según el estado de flujos. Ajuste de -12612,5M al Cash Flow Ajustado por la discrepancia fiscal.",
+      "despues": "*2: Impuestos: La empresa debería haber pagado 20608,46M en impuestos (23 % sobre el EBT ajustado de 89602M) y solamente ha pagado 8295M en efectivo según el estado de flujos. Ajuste de -12313,46M al Cash Flow Ajustado por la discrepancia fiscal. La cifra final combina los dos ajustes: 139514M -6183,8M (circulante) -12313,46M (impuestos) = 120617,7M."
+    },
+    {
+      "ruta": "horizons.0.cashFlow.notes.2",
+      "antes": "*3: Stock Options / Compensación en acciones (SBC): La empresa reporta 19467M en remuneración basada en acciones añadida al flujo operativo. Al suponer una dilución efectiva del accionista y concederse habitualmente con descuento, bajo un criterio conservador se deduce el importe íntegro de esta partida (-19467M) del Cash Flow Ajustado. La cifra final combina los tres ajustes sobre el Cash Flow: 1…",
+      "despues": null
+    },
+    {
+      "ruta": "conclusion.repurchases.text",
+      "antes": "Amazon no ejecutó ninguna recompra de acciones en **2025**, ni tampoco en **2023** ni **2024**, a pesar de contar con un programa autorizado por el Consejo en **marzo de 2022** por hasta **10.000M** de dólares, del que quedan **6.100M** pendientes de ejecución y sin fecha de caducidad. El número de acciones en circulación ha seguido creciendo por la dilución de la remuneración en acciones: de **10…",
+      "despues": "Amazon no ejecutó ninguna recompra de acciones en **2025**, ni tampoco en **2023** ni **2024**, a pesar de contar con un programa autorizado por el Consejo en **marzo de 2022** por hasta **10.000M** de dólares, del que quedan **6.100M** pendientes de ejecución y sin fecha de caducidad. El número de acciones en circulación ha seguido creciendo por la dilución de la remuneración en acciones: de **10…"
+    },
+    {
+      "ruta": "conclusion.repurchases.futureProjection",
+      "antes": "Proyección a 5 años: con **6.100M** de autorización restante y sin precio medio de recompra ejecutado en los últimos 3 años, no puede calcularse un precio medio; si la compañía decidiera recomprar con el FCF ajustado actual (**1.511,2M/año**) a un hipotético precio de ~**230 $** (capitalización implícita con **10.731M** de acciones), recompraría ~**6,6M** de acciones anuales (~**0,6 %** del capita…",
+      "despues": "Proyección a 5 años: con **6.100M** de autorización restante y sin precio medio de recompra ejecutado en los últimos 3 años, no puede calcularse un precio medio; si la compañía decidiera recomprar con el FCF ajustado actual (**-11.201,3M/año**) a un hipotético precio de ~**230 $** (capitalización implícita con **10.731M** de acciones), no podría recomprar acciones hasta revertir el FCF a positivo,…"
+    },
+    {
+      "ruta": "conclusion.outlook.fcfAnalysis",
+      "antes": "El FCF del ejercicio **2025** fue de solo **11.194M** (o ~**11.200M** según el comunicado), frente a un CAPEX de **131.819M** (vs **82.999M** en **2024**): la inversión en centros de datos y contenido consume casi todo el flujo operativo de **139.514M**. Tras el ajuste de circulante, el FCF ajustado cae a **1.511,2M** (**0,14 $/acción**), un margen de seguridad mínimo. Con dividendo **0** y recomp…",
+      "despues": "El FCF del ejercicio **2025** fue de solo **11.194M** (o ~**11.200M** según el comunicado), frente a un CAPEX de **131.819M** (vs **82.999M** en **2024**): la inversión en centros de datos y contenido consume casi todo el flujo operativo de **139.514M**. Tras los ajustes de circulante e impuestos, el FCF Ajustado de la tabla cae a **-11.201,3M** (**-1,04 $/acción**), un margen de seguridad negativ…"
+    },
+    {
+      "ruta": "conclusion.debt.text",
+      "antes": "La deuda total de balance pasó de **52.623M** a **65.648M** (**+13.025M**, **+24,8 %**) en **2025**, un aumento significativo financiado en parte con deuda nueva (**10.652M** netos según el estado de flujos) y en parte con **2.373M** de deuda no monetaria. La deuda neta, sin embargo, se ha vuelto más negativa (más caja que deuda): de **-48.579M** a **-57.381M** (**-8.802M** de mejora neta), ya que…",
+      "despues": "La deuda total de balance pasó de **52.623M** a **65.648M** (**+13.025M**, **+24,8 %**) en **2025**, un aumento significativo financiado en parte con deuda nueva (**10.652M** netos según el estado de flujos) y en parte con **2.373M** de deuda no monetaria. La deuda neta, sin embargo, se ha vuelto más negativa (más caja que deuda): de **-48.579M** a **-57.381M** (**-8.802M** de mejora neta), ya que…"
+    },
+    {
+      "ruta": "conclusion.watchlist.items.0",
+      "antes": "1: Evolución del CAX (131.819M en 2025) y su efecto sobre el FCF, que se ha reducido a 11.194M (o 1.511,2M ajustado por circulante).",
+      "despues": "1: Evolución del CAX (131.819M en 2025) y su efecto sobre el FCF, que se ha reducido a 11.194M (o -11.201,3M ajustado por circulante e impuestos)."
+    },
+    {
+      "ruta": "conclusion.watchlist.items.1",
+      "antes": "2: Refinanciación o renovación de los 96.776M de deuda con vencimiento dentro de un año y coste efectivo de los nuevos intereses.",
+      "despues": "2: Refinanciación o renovación de la deuda con vencimiento dentro de un año y coste efectivo de los nuevos intereses."
+    },
+    {
+      "ruta": "rating.rationale",
+      "antes": "Calificación puramente financiera basada en la realidad de las cuentas del ejercicio y el outlook oficial publicado. Puntos fuertes: ventas **+12,38 %** (716.924M), beneficio operativo **+16,59 %** (79.975M), beneficio neto **+31,09 %** (77.670M), margen operativo del **11,2 %** y deuda neta muy negativa (**-57.381M**), con guidance de Q1 2026 de **+11 % a +15 %** en ventas. Puntos débiles: FCF de…",
+      "despues": "Calificación puramente financiera basada en la realidad de las cuentas del ejercicio y el outlook oficial publicado. Puntos fuertes: ventas **+12,38 %** (716.924M), beneficio operativo **+16,59 %** (79.975M), beneficio neto **+31,09 %** (77.670M), margen operativo del **11,2 %** y deuda neta muy negativa (**-57.381M**), con guidance de Q1 2026 de **+11 % a +15 %** en ventas. Puntos débiles: FCF de…"
+    }
+  ],
+  "html": [
+    "AMZN-2025-10K_mimo-v2.6-flash.html",
+    "AMZN-2025-10K_mimo-v2.6-flash-antes-auditoria.html"
+  ],
+  "generadoEn": "2026-09-22T00:22:24.045Z"
+}

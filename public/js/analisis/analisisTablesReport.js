@@ -5,7 +5,33 @@
 (function (window) {
 
 
+  const EMPTY_CELL_RE = /^(?:—|–|-+|n\/?a|none|null|unknown|desconocid[oa]|sin datos|no disponible|no se dispone|not available|not disclosed)[\s.]*$/i;
+
+  function isEmptySnippetCell(value) {
+    if (value == null) return true;
+    if (typeof value === 'object') return false;
+    const text = String(value).trim();
+    return !text || EMPTY_CELL_RE.test(text);
+  }
+
+  function stripEmptyColumns(snippet) {
+    if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return snippet;
+    if (!snippet.rows.every(Array.isArray)) return snippet;
+    const headers = Array.isArray(snippet.headers) ? snippet.headers : [];
+    const colCount = Math.max(headers.length, ...snippet.rows.map((row) => row.length));
+    if (colCount <= 2) return snippet;
+    const keep = [];
+    for (let i = 0; i < colCount; i += 1) {
+      if (i === 0) { keep.push(true); continue; }
+      keep.push(snippet.rows.some((row) => !isEmptySnippetCell(row[i])));
+    }
+    if (keep.every(Boolean)) return snippet;
+    const remap = (cells) => cells.filter((_, i) => keep[i] !== false);
+    return { ...snippet, headers: headers.length ? remap(headers) : headers, rows: snippet.rows.map(remap) };
+  }
+
   function renderSecSnippet(snippet) {
+    snippet = stripEmptyColumns(snippet);
     if (!snippet || !Array.isArray(snippet.rows) || !snippet.rows.length) return '';
     const headers = Array.isArray(snippet.headers) ? snippet.headers : [];
     const thead = headers.length
@@ -277,6 +303,62 @@
     return html;
   }
 
+  const GUIDANCE_STATUS_LABELS = {
+    raised: 'Guidance revisado al alza',
+    lowered: 'Guidance revisado a la baja',
+    maintained: 'Guidance mantenido',
+    reaffirmed: 'Guidance reiterado',
+    new: 'Guidance nuevo',
+    withdrawn: 'Guidance retirado',
+  };
+
+  function guidanceStatusLabel(status) {
+    const key = String(status || '').trim().toLowerCase();
+    return tr(GUIDANCE_STATUS_LABELS[key] || 'Guidance');
+  }
+
+  function renderQuarterNotes(section) {
+    if (!section || typeof section !== 'object') return '';
+    const guidance = section.guidance && typeof section.guidance === 'object' ? section.guidance : null;
+    const notes = Array.isArray(section.notes)
+      ? section.notes.filter((note) => note && (note.text || note.title))
+      : [];
+    if (!guidance && !notes.length) return '';
+
+    const statusKey = String(guidance?.status || '').trim().toLowerCase();
+    const guidanceHtml = guidance && (guidance.text || (guidance.secSnippet && Array.isArray(guidance.secSnippet.rows) && guidance.secSnippet.rows.length))
+      ? `
+        <div class="annual-deepdive-card quarter-guidance-card">
+          <h5 class="annual-card-title">${escapeHtml(tr('Guidance'))} <span class="annual-badge quarter-guidance-badge${statusKey ? ` status-${escapeHtml(statusKey)}` : ''}">${escapeHtml(guidanceStatusLabel(statusKey))}</span></h5>
+          ${guidance.text ? `<p class="annual-card-text">${formatAnnualRichText(guidance.text)}</p>` : ''}
+          ${renderSecSnippet(guidance.secSnippet)}
+        </div>
+      `
+      : '';
+
+    const notesHtml = notes.map((note) => {
+      const title = note.title ? formatAnnualRichText(note.title) : '';
+      const text = note.text ? formatAnnualRichText(note.text) : '';
+      return `
+        <div class="annual-deepdive-card quarter-note-card">
+          ${title ? `<h5 class="annual-card-title">${title}</h5>` : ''}
+          ${text ? `<p class="annual-card-text">${text}</p>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="annual-conclusion-section quarter-notes-section">
+        <div class="annual-conclusion-header">
+          <h4>${escapeHtml(section.title || tr('NOTAS DEL TRIMESTRE E INFORMACIÓN RELEVANTE'))}</h4>
+          <p class="annual-conclusion-subtitle">${escapeHtml(tr('Información relevante de los últimos 3 meses extraída de las notas y del MD&A del 10-Q'))}</p>
+        </div>
+        ${guidanceHtml}
+        ${notesHtml}
+      </div>
+    `;
+  }
+
   function renderAnnualRating(rating) {
     if (!rating || rating.score == null) return '';
     const score = Number(rating.score);
@@ -313,6 +395,7 @@
     if (reportBody) {
       reportBody.setAttribute('data-report-language', reportLanguage);
       let html = horizons.map(renderHorizon).join('');
+      if (report.quarterNotes) html += renderQuarterNotes(report.quarterNotes);
       if (report.conclusion) html += renderAnnualConclusion(report.conclusion, report);
       if (report.rating) html += renderAnnualRating(report.rating);
       reportBody.innerHTML = html;
@@ -328,6 +411,7 @@ window.renderCeoPersonBlock = renderCeoPersonBlock;
 window.getExecutiveChanges = getExecutiveChanges;
 window.renderExecutiveChangesBody = renderExecutiveChangesBody;
 window.renderAnnualConclusion = renderAnnualConclusion;
+window.renderQuarterNotes = renderQuarterNotes;
 window.renderAnnualRating = renderAnnualRating;
 window.renderReport = renderReport;
 

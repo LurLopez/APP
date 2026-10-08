@@ -3,6 +3,8 @@
  * @module agents/auditor/deterministicChecks
  */
 
+import { resolveAdjustedCells } from '../../utils/salesHighlight.js';
+
 const SALES_ROWS = ['ventas', 'beneficio bruto', 'beneficio operativo', 'ebt', 'beneficio neto'];
 const CASH_ROWS = ['cash flow', 'capex', 'fcf', 'fcf/acción', 'dividendo', 'libre'];
 
@@ -88,6 +90,14 @@ function checkSales(horizon, findings) {
     if (row.isAdjusted === true && !row.adjustedNote) {
       push(findings, 'fail', 'ventas.nota_ajuste', `${row.name}: isAdjusted=true sin adjustedNote.`);
     }
+    if (row.isAdjusted === true) {
+      const currentDiff = adjusted !== null && normal !== null ? Math.abs(adjusted - normal) : null;
+      const prevDiff = prevAdjusted !== null && prevNormal !== null ? Math.abs(prevAdjusted - prevNormal) : null;
+      const originIsPrevious = prevDiff !== null && prevDiff >= 0.5 && (currentDiff === null || currentDiff < 0.5);
+      if (originIsPrevious && !resolveAdjustedCells(row).previous) {
+        push(findings, 'warn', 'ventas.resalte_columna', `${row.name}: el ajuste está en la columna «Anterior Ajustado» (${row.prevAdjusted} vs ${row.prevNormal}) pero el resalte y la nota apuntan a «Ajustado»; debe marcarse "adjustedCell": "previous".`);
+      }
+    }
   }
   const notes = (horizon?.sales?.notes ?? []).join(' ');
   for (const row of rows) {
@@ -104,6 +114,39 @@ function checkSales(horizon, findings) {
     const deviation = Math.abs(implied - net) / Math.abs(net);
     if (deviation > 0.25) {
       push(findings, 'info', 'ventas.eps_vs_neto', `EPS × acciones (${implied.toFixed(1)}M) difiere del Beneficio Neto (${net}M) en ${(deviation * 100).toFixed(0)} %; puede ser normal (BPA ajustado vs promedio ponderado) pero conviene revisarlo.`);
+    }
+  }
+  // Nota/resalte fiscal sin normalización aplicada: dentro del ±20 % no procede ajuste, así que una
+  // nota (o un resalte) que explique la normalización que finalmente no se aplica es un error: confunde.
+  const ebtRowTax = rowByName(rows, 'ebt');
+  const ebtNormalTax = parseNumber(ebtRowTax?.normal);
+  const netNormalTax = parseNumber(netRow?.normal);
+  const reportedTax = ebtNormalTax !== null && netNormalTax !== null ? ebtNormalTax - netNormalTax : null;
+  const referenceTax = ebtNormalTax !== null && ebtNormalTax > 0 ? ebtNormalTax * 0.23 : null;
+  const taxNotesSales = (horizon?.sales?.notes ?? []).filter((note) => /impuesto|fiscal|\btax/i.test(String(note)) && !/deterioro|impairment|amortizaci/i.test(String(note)));
+  // Una nota que hable del comparativo no cuenta como nota del periodo actual.
+  const previousNoteRe = /periodo comparable|comparativo|año anterior|ejercicio anterior|previous|prior|comparable period/i;
+  const currentTaxNote = taxNotesSales.some((note) => !previousNoteRe.test(String(note)));
+  const netSides = netRow ? resolveAdjustedCells(netRow) : { current: false, previous: false };
+  if (referenceTax !== null && reportedTax !== null
+    && Math.abs((reportedTax - referenceTax) / referenceTax) <= 0.2
+    && (currentTaxNote || netSides.current)) {
+    push(findings, 'warn', 'ventas.nota_fiscal_sin_ajuste', 'El tipo efectivo está dentro del ±20 %: no procede normalización fiscal, así que la nota fiscal y el resalte en Beneficio Neto sobran y deben eliminarse.');
+  }
+  // Normalización fiscal del comparativo: si el Beneficio Neto «Anterior Aj.» ya está normalizado
+  // (EBT comparativo × 0,77), debe llevar nota y resalte en esa casilla; si no, la cifra queda sin explicar.
+  // Se excluye el caso con deterioro sumado de vuelta en el comparativo (prevAdjusted ≠ prevNormal),
+  // porque ahí el ×0,77 corresponde al efecto fiscal del propio deterioro y no a una normalización.
+  const prevEbtNormalTax = parseNumber(ebtRowTax?.prevNormal);
+  const prevEbtAdjustedTax = parseNumber(ebtRowTax?.prevAdjusted ?? ebtRowTax?.prevNormal);
+  const prevNetAdjustedTax = parseNumber(netRow?.prevAdjusted);
+  const previousImpairmentApplied = prevEbtNormalTax !== null && prevEbtAdjustedTax !== null
+    && Math.abs(prevEbtAdjustedTax - prevEbtNormalTax) >= 0.5;
+  if (!previousImpairmentApplied && prevEbtAdjustedTax !== null && prevEbtAdjustedTax > 0 && prevNetAdjustedTax !== null) {
+    const expectedPrevNet = Math.round(prevEbtAdjustedTax * 0.77 * 100) / 100;
+    const normalizedPrev = Math.abs(prevNetAdjustedTax - expectedPrevNet) <= 1;
+    if (normalizedPrev && !netSides.previous) {
+      push(findings, 'warn', 'ventas.nota_fiscal_anterior', `El Beneficio Neto «Anterior Aj.» está normalizado al 23 % (${expectedPrevNet}M) pero sin nota ni resalte en esa columna; la nota fiscal debe cerrar también «Beneficio Neto Anterior Ajustado = EBT Ajustado × 0,77 = ${expectedPrevNet}M».`);
     }
   }
   if (!horizon?.sales?.shares) push(findings, 'fail', 'ventas.shares', 'Falta «shares».');
@@ -182,8 +225,17 @@ function checkCapital(horizon, findings) {
   }
   const gross = values.slice(0, -1).reduce((acc, value) => acc + Math.abs(value ?? 0), 0);
   const threshold = Math.max(50, Math.abs(libre ?? 0) * 0.2, gross * 0.1);
-  const within = total != null && Math.abs(total) <= threshold;
   const verification = String(horizon?.capital?.verification ?? '');
+  // El sistema explica bajo la tabla los movimientos que no pasan por caja (deuda no monetaria
+  // anual detectada con XBRL, efectivo restringido, efecto divisa): el veredicto se calcula
+  // sobre el resto tras descontarlos, así que un «Más o menos cuadra» con un resto declarado
+  // dentro del umbral es correcto aunque «En total» lo supere.
+  const residualMatch = verification.match(/resto sin explicar ser(?:ía|an)\s+([^\s]+?)\s*M|remaining gap would be\s+([^\s]+?)\s*M/i);
+  const residualRaw = residualMatch ? (residualMatch[1] ?? residualMatch[2]) : null;
+  const residual = residualRaw ? parseNumber(residualRaw) : null;
+  const explainsAdjustments = /no pasan por caja|no monetaria|non-cash|do not go through cash/i.test(verification);
+  const withinExplained = residual !== null && explainsAdjustments && Math.abs(residual) <= threshold;
+  const within = (total != null && Math.abs(total) <= threshold) || withinExplained;
   const saysNoCuadra = /no cuadra/i.test(verification);
   if (total != null && within && saysNoCuadra) {
     push(findings, 'fail', 'capital.verificacion', `Descuadre ${total} dentro del umbral (${threshold.toFixed(1)}) pero la verificación dice «No cuadra».`);

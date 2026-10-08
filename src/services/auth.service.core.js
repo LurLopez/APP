@@ -12,6 +12,22 @@ import { checkIsAdmin } from './auth/adminBootstrap.service.js';
 
 const SALT_ROUNDS = 10;
 
+/**
+ * Clase de error específica para anomalías en el flujo de autenticación y autorización.
+ */
+export class AuthError extends Error {
+  /**
+   * @param {string} message - Mensaje descriptivo amigable.
+   * @param {number} [status=400] - Código HTTP.
+   * @param {string|null} [code=null] - Código interno de la aplicación.
+   */
+  constructor(message, status = 400, code = null) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export function toPublicUser(user) {
   const isAdmin = checkIsAdmin(user);
   return {
@@ -112,8 +128,8 @@ export async function resetPassword({ email, code, newPassword }) {
   return { ok: true };
 }
 
-export async function login({ email, login: loginField, username, password }) {
-  const identifier = String(email || loginField || username || '').trim();
+export async function login({ email, login: loginField, username, identifier: identifierField, password }) {
+  const identifier = String(email || loginField || username || identifierField || '').trim();
 
   if (!identifier) throw new AuthError('Introduce tu correo o nombre de usuario.', 400);
   if (!password) throw new AuthError('Introduce tu contraseña.', 400);

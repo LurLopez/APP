@@ -46,64 +46,64 @@ export const PRIVATE_PATHS = new Set([
 export const GUIDES = [
   {
     slug: 'que-es-un-informe-10-q',
-    title: '¿Qué es un informe 10-Q y cómo leerlo?',
-    titleEn: 'What is a 10-Q filing and how to read it?',
-    description: 'El 10-Q es el informe trimestral que las empresas de EE. UU. presentan ante la SEC: qué contiene, cuándo se publica y cómo leerlo paso a paso.',
-    descriptionEn: 'The 10-Q is the quarterly report U.S. companies file with the SEC: what it contains, when it is filed, and how to read it step by step.',
+    title: '¿Qué es un informe 10-Q? Guía completa y cómo leerlo',
+    titleEn: 'What is a 10-Q filing? Complete guide and how to read it',
+    description: 'Qué contiene el informe trimestral (10-Q) de la SEC, cuándo se publica y cómo leerlo paso a paso: ventas, márgenes, flujo de caja y deuda.',
+    descriptionEn: 'What the SEC quarterly report (10-Q) contains, when it is filed, and how to read it step by step: sales, margins, cash flow, and debt.',
   },
   {
     slug: 'que-es-un-informe-10-k',
-    title: '¿Qué es un informe 10-K? El informe anual de la SEC',
-    titleEn: 'What is a 10-K filing? The SEC annual report',
-    description: 'El 10-K es el informe anual auditado de las empresas de EE. UU.: secciones, plazos de presentación y qué mirar para analizar una empresa.',
-    descriptionEn: 'The 10-K is the audited annual report of U.S. companies: sections, filing deadlines, and what to look for when analyzing a company.',
+    title: '¿Qué es un informe 10-K? Guía completa del informe anual',
+    titleEn: 'What is a 10-K filing? Complete guide to the annual report',
+    description: 'El 10-K es el informe anual auditado de las empresas de EE. UU.: secciones, plazos de presentación y qué mirar para analizar una empresa paso a paso.',
+    descriptionEn: 'The 10-K is the audited annual report of U.S. companies: sections, filing deadlines, and what to look for to analyze a company step by step.',
   },
   {
     slug: 'que-es-un-informe-8-k',
-    title: '¿Qué es un informe 8-K y por qué es clave?',
-    titleEn: 'What is an 8-K report and why is it key?',
-    description: 'El 8-K es el informe de hechos relevantes de la SEC: qué contiene el Item 2.02, por qué incluye la presentación de resultados y cómo interpretarlo.',
-    descriptionEn: 'The 8-K reports material corporate events to the SEC: what Item 2.02 contains, why it includes earnings presentations, and how to interpret it.',
+    title: '¿Qué es un informe 8-K? Guía del informe de hechos relevantes',
+    titleEn: 'What is an 8-K report? Guide to material event filings',
+    description: 'Qué es un 8-K, cuándo se presenta y cómo interpretarlo: el Item 2.02 con los resultados trimestrales y el guidance de la dirección.',
+    descriptionEn: 'What an 8-K is, when it is filed, and how to interpret it: Item 2.02 with quarterly earnings and management guidance.',
   },
   {
     slug: 'diferencias-entre-10-k-y-10-q',
-    title: 'Diferencias entre el 10-K y el 10-Q',
-    titleEn: 'Differences between Form 10-K and Form 10-Q',
-    description: 'Comparativa completa entre el 10-K (anual, auditado) y el 10-Q (trimestral, sin auditar): frecuencia, contenido, plazos y cuándo leer cada uno.',
-    descriptionEn: 'Complete comparison between the 10-K (annual, audited) and 10-Q (quarterly, unaudited): frequency, contents, deadlines, and when to read each.',
+    title: 'Diferencias entre el 10-K y el 10-Q (tabla comparativa)',
+    titleEn: '10-K vs 10-Q: differences and comparison table',
+    description: '10-K vs 10-Q: frecuencia, contenido, plazos y auditoría en una tabla comparativa clara, y cuándo leer cada informe de la SEC.',
+    descriptionEn: '10-K vs 10-Q: frequency, contents, deadlines, and audit requirements in a clear comparison table, and when to read each SEC filing.',
   },
   {
     slug: 'que-es-el-flujo-de-caja-libre',
-    title: '¿Qué es el flujo de caja libre (FCF)?',
-    titleEn: 'What is Free Cash Flow (FCF)?',
-    description: 'El flujo de caja libre es el dinero que una empresa genera tras invertir en su negocio: fórmula, por qué importa más que el beneficio y cómo usarlo.',
-    descriptionEn: 'Free cash flow is the cash a company generates after investing in its business: formula, why it matters more than net income, and how to use it.',
+    title: '¿Qué es el flujo de caja libre (FCF)? Fórmula y ejemplo',
+    titleEn: 'What is Free Cash Flow (FCF)? Formula and example',
+    description: 'Fórmula del flujo de caja libre (FCF = caja operativa − CAPEX), por qué importa más que el beneficio neto y cómo usarlo para valorar una empresa.',
+    descriptionEn: 'Free cash flow formula (FCF = operating cash flow − CAPEX), why it matters more than net income, and how to use it to value a company.',
   },
   {
     slug: 'que-es-la-asignacion-de-capital',
-    title: '¿Qué es la asignación de capital?',
-    titleEn: 'What is Capital Allocation?',
+    title: '¿Qué es la asignación de capital? Dividendos y recompras',
+    titleEn: 'What is capital allocation? Dividends and buybacks',
     description: 'La asignación de capital es lo que una empresa hace con el dinero que genera: dividendos, recompras, deuda, adquisiciones e inversión. Claves para el inversor.',
-    descriptionEn: 'Capital allocation is what a company does with the cash it generates: dividends, buybacks, debt, acquisitions, and reinvestment.',
+    descriptionEn: 'Capital allocation is what a company does with the cash it generates: dividends, buybacks, debt, acquisitions, and reinvestment. Key insights for investors.',
   },
   {
     slug: 'como-analiza-la-ia-por-sectores',
-    title: 'Cómo analiza la IA de Cifra según cada sector',
-    titleEn: 'How Cifra AI analyzes by sector',
+    title: 'Cómo analiza la IA un informe financiero por sectores',
+    titleEn: 'How Cifra AI analyzes a financial report by sector',
     description: 'Descubre la metodología multi-agente de Cifra: dos horizontes temporales y adaptación a consumo defensivo, software, industriales y retail.',
     descriptionEn: 'Discover Cifra multi-agent methodology: two time horizons and adaptation to consumer staples, software, industrials, and retail.',
   },
   {
     slug: 'que-es-el-bpa-ajustado',
-    title: '¿Qué es el BPA Ajustado (Non-GAAP EPS) y cómo interpretarlo?',
-    titleEn: 'What is Adjusted EPS (Non-GAAP EPS) and how to interpret it?',
-    description: 'El BPA ajustado en los resultados trimestrales: diferencias con el BPA GAAP, partidas excluidas, trampas de maquillaje y cómo lo normaliza Cifra.',
-    descriptionEn: 'Adjusted EPS in quarterly earnings: differences with GAAP EPS, excluded items, accounting gimmicks, and how Cifra normalizes it.',
+    title: 'BPA ajustado (Non-GAAP EPS): qué es y cómo interpretarlo',
+    titleEn: 'Adjusted EPS (Non-GAAP EPS): what it is and how to read it',
+    description: 'Qué es el BPA ajustado o non-GAAP, en qué se diferencia del BPA GAAP, qué partidas excluye y cómo detectar el maquillaje de resultados.',
+    descriptionEn: 'What adjusted (non-GAAP) EPS is, how it differs from GAAP EPS, which items it excludes, and how to detect earnings manipulation.',
   },
   {
     slug: 'como-analizar-una-empresa-de-consumo-defensivo',
-    title: 'Cómo analizar una empresa de consumo defensivo',
-    titleEn: 'How to analyze a consumer staples company',
+    title: 'Cómo analizar una empresa de consumo defensivo (guía)',
+    titleEn: 'How to analyze a consumer staples company (guide)',
     description: 'Guía para analizar empresas de consumo defensivo (alimentos, bebidas, tabaco, hogar): ingresos, márgenes, flujo de caja, dividendos y deuda.',
     descriptionEn: 'Guide to analyzing consumer staples companies (food, beverages, tobacco, household): sales, margins, cash flow, dividends, and debt.',
   },
@@ -296,13 +296,15 @@ export function readTemplate(fileName, lang = 'es') {
   return html;
 }
 
-export function readGuide(fileName) {
+export function readGuide(fileName, lang = 'es') {
+  const cacheKey = lang === 'en' ? `${fileName}:en` : fileName;
   if (config.production) {
-    const cached = guidesCache.get(fileName);
+    const cached = guidesCache.get(cacheKey);
     if (cached) return cached;
   }
-  const html = fs.readFileSync(path.join(GUIDES_DIR, fileName), 'utf8');
-  if (config.production) guidesCache.set(fileName, html);
+  let html = fs.readFileSync(path.join(GUIDES_DIR, fileName), 'utf8');
+  if (lang === 'en') html = translateHtmlToEnglish(html);
+  if (config.production) guidesCache.set(cacheKey, html);
   return html;
 }
 

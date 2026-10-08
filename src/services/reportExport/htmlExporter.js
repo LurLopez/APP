@@ -18,18 +18,27 @@ import {
 export function renderRichHtml(text) {
   if (!text) return '';
   return parseRichSegments(text)
-    .map((seg) => (seg.bold ? `<strong>${escapeHtml(seg.text)}</strong>` : escapeHtml(seg.text)))
+    .map((seg) => {
+      let inner = escapeHtml(seg.text);
+      if (seg.bold) inner = `<strong>${inner}</strong>`;
+      if (seg.underline) inner = `<u>${inner}</u>`;
+      return inner;
+    })
     .join('')
     .replaceAll('\n', '<br>');
 }
 
 export function renderHtmlNotes(notes) {
   if (!notes?.length) return '';
+  const renderNoteText = (text) => escapeHtml(String(text ?? ''))
+    .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+?)__/g, '<u>$1</u>')
+    .replaceAll('\n', '<br>');
   const items = notes.map((note) => {
     if (note.marker) {
-      return `<li><mark style="background:${note.bg};color:${note.color};font-weight:700;padding:1px 4px;border-radius:3px;">${escapeHtml(note.marker)}</mark> ${escapeHtml(note.text).replaceAll('\n', '<br>')}</li>`;
+      return `<li><mark style="background:${note.bg};color:${note.color};font-weight:700;padding:1px 4px;border-radius:3px;">${escapeHtml(note.marker)}</mark> ${renderNoteText(note.text)}</li>`;
     }
-    return `<li style="font-style:italic;color:${note.color};">${escapeHtml(note.text).replaceAll('\n', '<br>')}</li>`;
+    return `<li style="font-style:italic;color:${note.color};">${renderNoteText(note.text)}</li>`;
   }).join('');
   return `<ul class="notes">${items}</ul>`;
 }
@@ -141,6 +150,27 @@ function renderConclusionHtml(conclusion, language = 'es') {
   </section>`;
 }
 
+function renderQuarterNotesHtml(section, language = 'es') {
+  const lang = normalizeLanguage(language);
+  if (!section) return '';
+  return `
+  <section class="quarter-notes" style="page-break-before:always;margin-top:20pt;">
+    <h2 style="font-size:13pt;margin:0 0 4pt;">${escapeHtml(section.title)}</h2>
+    <p style="color:${COLORS.muted};font-size:9.5pt;margin:0 0 12pt;">${escapeHtml(section.subtitle)}</p>
+    ${section.cards.map((card) => `
+    <div style="border:1px solid ${COLORS.rule};border-radius:6px;padding:10pt 12pt;margin-bottom:12pt;background:#fff;">
+      <h3 style="margin:0 0 6pt;font-size:11pt;color:${COLORS.ink};">${escapeHtml(card.title)}</h3>
+      ${card.text ? `<p style="font-size:9pt;line-height:1.5;margin:4pt 0 8pt;color:#374151;">${renderRichHtml(card.text)}</p>` : ''}
+      ${card.table ? `
+        <div style="margin-top:8pt;border:1px solid #cbd5e1;border-radius:4px;overflow:hidden;">
+          ${card.table.title ? `<div style="padding:3pt 8pt;background:#e2e8f0;font-size:7.5pt;font-weight:800;letter-spacing:0.3pt;color:#334155;">${escapeHtml(t('EXTRACTO OFICIAL SEC', null, lang))}</div>
+          <div style="padding:4pt 8pt;background:#f1f5f9;font-size:8pt;font-weight:700;color:#475569;">${escapeHtml(card.table.title)} ${card.table.summary ? `<span style="font-style:italic;color:#64748b;margin-left:8pt;">${escapeHtml(card.table.summary)}</span>` : ''}</div>` : ''}
+          ${renderHtmlTable(card.table)}
+        </div>` : ''}
+    </div>`).join('')}
+  </section>`;
+}
+
 export function buildReportHtml(report) {
   const model = buildReportModel(report);
   const lang = normalizeLanguage(report?.language);
@@ -203,6 +233,7 @@ ${model.ticker ? `<p class="ticker">${escapeHtml(model.ticker)}</p>` : ''}
 ${model.periodTitle ? `<p class="period">${escapeHtml(model.periodTitle)}</p>` : ''}
 <hr>
 ${body}
+${renderQuarterNotesHtml(model.quarterNotes, lang)}
 ${renderConclusionHtml(model.conclusion, lang)}
 ${ratingHtml}
 <footer>${escapeHtml(model.footer)}</footer>

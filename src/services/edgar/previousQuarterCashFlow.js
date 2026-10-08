@@ -86,6 +86,38 @@ function buildValuePicker(prevRow) {
   };
 }
 
+/**
+ * Reconstruye el acumulado del ejercicio de una partida trimestral sumando las columnas de 3 meses
+ * del año fiscal en curso, para cuando Company Facts no publica el frame acumulado (caso PEP
+ * 2026-Q2: la compra del trimestre es 81M y Company Facts no trae el acumulado de 148M). Sin esto,
+ * `buildValuePicker` caía al valor trimestral (81M) y la deducción del trimestre siguiente
+ * (148 − 81 = 67M) volvía a contar compras ya cerradas. Solo se acepta si están todas las
+ * columnas del año hasta el trimestre previo; si falta alguna, se mantiene el respaldo anterior.
+ * @param {Array<object>} sortedRows - Filas trimestrales ordenadas de más reciente a más antigua.
+ * @param {object} prevRow - Fila del trimestre previo.
+ * @returns {number|null} Suma en unidades del filing o null si no se puede reconstruir.
+ */
+export function sumPreviousFiscalYearAcquisitions(sortedRows, prevRow) {
+  const prevIdx = (sortedRows ?? []).indexOf(prevRow);
+  if (prevIdx === -1) return null;
+  const match = /^(\d{4})-Q([1-4])$/.exec(String(prevRow?.period ?? ''));
+  if (!match) return null;
+  const [, year, quarterText] = match;
+  const quarterNum = Number(quarterText);
+  let sum = 0;
+  let count = 0;
+  for (let idx = prevIdx; idx < sortedRows.length; idx += 1) {
+    const row = sortedRows[idx];
+    const rowMatch = /^(\d{4})-Q([1-4])$/.exec(String(row?.period ?? ''));
+    if (!rowMatch || rowMatch[1] !== year) break;
+    const value = row.values?.acquisitions;
+    if (value === undefined || value === null || !Number.isFinite(Number(value))) continue;
+    sum += Math.abs(Number(value));
+    count += 1;
+  }
+  return count === quarterNum ? sum : null;
+}
+
 function toMillions(value) {
   if (value === undefined || value === null || !Number.isFinite(Number(value))) return null;
   return Math.round((Number(value) / 1e5)) / 10;
@@ -210,7 +242,7 @@ function buildCapitalAllocation(metrics) {
   };
 }
 
-function buildPreviousQuarterResult({ currentRow, prevRow, metrics }) {
+function buildPreviousQuarterResult({ currentRow, prevRow, metrics, previousAcquisitionsYtd = null }) {
   const pickPreviousValue = buildValuePicker(prevRow);
   const pickCapex = pickPreviousValue('capex');
   const pickDividends = pickPreviousValue('dividendsCommon');
@@ -252,7 +284,11 @@ function buildPreviousQuarterResult({ currentRow, prevRow, metrics }) {
     changePayablesYtd: toMillions(pickPreviousValue('changeAccountsPayable')),
     workingCapitalChangeYtd: toMillions(pickPreviousValue('workingCapitalChange')),
     divestituresYtd: toMillions(pickPreviousValue('divestitures')),
-    acquisitionsYtd: toMillions(pickAcquisitions !== undefined ? Math.abs(pickAcquisitions) : null),
+    acquisitionsYtd: prevRow?.ytdValues?.acquisitions !== undefined
+      ? toMillions(Math.abs(prevRow.ytdValues.acquisitions))
+      : (previousAcquisitionsYtd != null
+        ? toMillions(previousAcquisitionsYtd)
+        : (pickAcquisitions !== undefined ? toMillions(Math.abs(pickAcquisitions)) : null)),
     capitalAllocation: buildCapitalAllocation(metrics),
   };
 }
@@ -325,7 +361,10 @@ export async function getPreviousQuarterCashFlow(ticker, fiscalYear, fiscalQuart
     });
 
     const metrics = collectCashFlowMetrics({ currentRow, prevRow, fiscalYearStartRow });
-    const result = buildPreviousQuarterResult({ currentRow, prevRow, metrics });
+    const previousAcquisitionsYtd = prevRow?.ytdValues?.acquisitions !== undefined
+      ? null
+      : sumPreviousFiscalYearAcquisitions(sortedRows, prevRow);
+    const result = buildPreviousQuarterResult({ currentRow, prevRow, metrics, previousAcquisitionsYtd });
     if (currentRow) result.currentQuarterData = buildCurrentQuarterData({ currentRow, prevRow, metrics });
 
     return result;

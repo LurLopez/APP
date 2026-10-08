@@ -1,0 +1,184 @@
+{
+  "tag": "deepseek-v4.1-flash-opencode",
+  "provider": "opencode",
+  "model": "deepseek-v4.1-flash",
+  "ticker": "AMZN",
+  "accession": "0001018724-26-000004",
+  "formType": "10-K",
+  "sector": "consumer_discretionary",
+  "subsector": null,
+  "language": "es",
+  "analysisId": 828,
+  "segundos": 106.9,
+  "fases": {
+    "analisis": {
+      "segundos": 53.8,
+      "costeConocido": true,
+      "llamadas": 2,
+      "promptTokens": 70160,
+      "completionTokens": 7378,
+      "reasoningTokens": 0,
+      "cacheHitTokens": 0,
+      "cacheMissTokens": 70160,
+      "totalTokens": 77538,
+      "costeUsd": 0
+    },
+    "revision": {
+      "segundos": 46.6,
+      "costeConocido": true,
+      "llamadas": 2,
+      "promptTokens": 158645,
+      "completionTokens": 8703,
+      "reasoningTokens": 0,
+      "cacheHitTokens": 0,
+      "cacheMissTokens": 158645,
+      "totalTokens": 167348,
+      "costeUsd": 0,
+      "nota": 6.5,
+      "veredicto": "correcto_con_reservas",
+      "errores": 5,
+      "corregido": true,
+      "cambios": 19
+    },
+    "pdf": {
+      "segundos": 0.5
+    }
+  },
+  "consumo": {
+    "llamadas": 4,
+    "promptTokens": 228805,
+    "completionTokens": 16081,
+    "reasoningTokens": 0,
+    "cacheHitTokens": 0,
+    "cacheMissTokens": 228805,
+    "totalTokens": 244886,
+    "costeUsd": 0,
+    "costeConocido": true
+  },
+  "costeUsd": 0,
+  "costeConocido": true,
+  "costeReferenciaDeepseekFlashUsd": 0.043969,
+  "rating": {
+    "score": 7,
+    "label": "NOTA DE RESULTADOS: 7",
+    "rationale": "Calificación puramente financiera basada exclusivamente en la realidad de las cuentas del año, las metas expuestas en el outlook oficial y la asignación de capital ejecutada. Sin especulación sobre el cumplimiento futuro."
+  },
+  "audit": {
+    "nota": 6.5,
+    "veredicto": "correcto_con_reservas",
+    "errores": 5,
+    "corregibles": 5,
+    "corregido": true,
+    "revertido": false,
+    "fuenteRecortada": true,
+    "cambios": 19,
+    "fallosDeterministas": {
+      "antes": 0,
+      "despues": 0
+    },
+    "htmlAntes": "/api/reports/31702e63-0ed3-41b0-983a-02b0335e0633-antes.html",
+    "htmlDespues": "/api/reports/31702e63-0ed3-41b0-983a-02b0335e0633.html"
+  },
+  "auditCambios": [
+    {
+      "ruta": "horizons.0.sales.rows.2.adjusted",
+      "antes": "81275M",
+      "despues": "79975M"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.2.pctAdjusted",
+      "antes": "+18,49 %",
+      "despues": "+16,59 %"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.2.isAdjusted",
+      "antes": "true",
+      "despues": "false"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.2.adjustedNote",
+      "antes": "*1",
+      "despues": null
+    },
+    {
+      "ruta": "horizons.0.sales.rows.3.adjusted",
+      "antes": "90902M",
+      "despues": "89602M"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.3.pctAdjusted",
+      "antes": "+32,48 %",
+      "despues": "+30,59 %"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.4.adjusted",
+      "antes": "69994,54M",
+      "despues": "68993,54M"
+    },
+    {
+      "ruta": "horizons.0.sales.rows.4.pctAdjusted",
+      "antes": "+32,48 %",
+      "despues": "+30,59 %"
+    },
+    {
+      "ruta": "horizons.0.sales.notes.0",
+      "antes": "*1: En 2025 se registraron 1.300M de deterioros de activos (impairments), que se suman de vuelta al Beneficio Operativo en la columna Ajustado: 79.975M + 1.300M = 81.275M. No hubo deterioro de fondo de comercio ni de intangibles de vida definida/indefinida en el periodo.",
+      "despues": "*1: En 2025 se registraron 1.300M de deterioros de activos (impairments) de property and equipment y operating leases relacionados con tiendas físicas, que no se suman de vuelta al Beneficio Operativo Ajustado por no tratarse de deterioros de fondo de comercio ni de intangibles de vida definida/indefinida. No hubo deterioro de fondo de comercio ni de intangibles de vida definida/indefinida en el p…"
+    },
+    {
+      "ruta": "horizons.0.sales.notes.1",
+      "antes": "*2: Impuestos: el gasto fiscal reportado fue 19087M sobre un EBT de 97311M (tipo efectivo del 19,61 %). No procede normalizar el gasto, que ya incluye el impuesto asociado a la partida no recurrente excluida; el Beneficio Neto Ajustado queda en 69994,54M.",
+      "despues": "*2: Impuestos: el gasto fiscal reportado fue 19087M sobre un EBT de 97311M (tipo efectivo del 19,61 %). Sobre el EBT Ajustado de 89602M, el impuesto normalizado al 23 % asciende a 20608,46M. El Beneficio Neto Ajustado se calcula como EBT Ajustado × 0,77 = 68993,54M."
+    },
+    {
+      "ruta": "horizons.0.sales.eps",
+      "antes": "7,08 $ -> %28,03 más (5,53 $)",
+      "despues": "6,43 $ -> %16,27 más (5,53 $)"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.0.values.1",
+      "antes": "101250,7",
+      "despues": "120717,7"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.2.values.1",
+      "antes": "-30568,3",
+      "despues": "-11101,3"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.3.values.1",
+      "antes": "-2,85 $",
+      "despues": "-1,03 $"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.rows.5.values.1",
+      "antes": "-30568,3",
+      "despues": "-11101,3"
+    },
+    {
+      "ruta": "horizons.0.cashFlow.notes.1",
+      "antes": "*2: Impuestos: La empresa debería haber pagado 20907,5M en impuestos (23 % sobre el EBT ajustado de 90902M) y solamente ha pagado 8295M en efectivo según el estado de flujos. Ajuste de -12612,5M al Cash Flow Ajustado por la discrepancia fiscal.",
+      "despues": "*2: Impuestos: La empresa debería haber pagado 20608,46M en impuestos (23 % sobre el EBT ajustado de 89602M) y solamente ha pagado 8295M en efectivo según el estado de flujos. Ajuste de -12313,46M al Cash Flow Ajustado por la discrepancia fiscal. La cifra final combina los dos ajustes sobre el Cash Flow: 139514M -6183,8M (circulante) -12313,46M (impuestos) = 120717,7M."
+    },
+    {
+      "ruta": "horizons.0.cashFlow.notes.2",
+      "antes": "*3: Stock Options / Compensación en acciones (SBC): La empresa reporta 19467M en remuneración basada en acciones añadida al flujo operativo. Al suponer una dilución efectiva del accionista y concederse habitualmente con descuento, bajo un criterio conservador se deduce el importe íntegro de esta partida (-19467M) del Cash Flow Ajustado. La cifra final combina los tres ajustes sobre el Cash Flow: 1…",
+      "despues": null
+    },
+    {
+      "ruta": "conclusion.acquisitions.hasDivestitures",
+      "antes": "true",
+      "despues": "false"
+    },
+    {
+      "ruta": "conclusion.acquisitions.hasSpinOffs",
+      "antes": "true",
+      "despues": "false"
+    }
+  ],
+  "html": [
+    "AMZN-2025-10K_deepseek-v4.1-flash-opencode.html",
+    "AMZN-2025-10K_deepseek-v4.1-flash-opencode-antes-auditoria.html"
+  ],
+  "generadoEn": "2026-09-22T00:02:30.073Z"
+}

@@ -57,7 +57,7 @@ export async function getCompanySeoContent(ticker) {
   const cached = companyContentCache.get(cleanTicker);
   if (cached && Date.now() - cached.at < COMPANY_CONTENT_TTL) return cached.data;
 
-  const content = { profile: null, annual: [], filings: [], publicReports: [] };
+  const content = { profile: null, annual: [], quarterly: [], filings: [], publicReports: [] };
   try {
     content.profile = await getCompanySeoProfile(cleanTicker);
   } catch {
@@ -66,20 +66,32 @@ export async function getCompanySeoContent(ticker) {
 
   try {
     const results = await getCompanyResults(cleanTicker, { authenticated: false });
+    const toRow = (row) => ({
+      revenue: row.values.revenue,
+      netIncome: row.values.netIncome ?? row.values.netIncomeToCommonIncludingUnusual ?? null,
+      freeCashFlow: row.values.freeCashFlow ?? null,
+      epsDiluted: row.values.epsDiluted ?? null,
+      operatingIncome: row.values.operatingIncome ?? null,
+    });
     content.annual = (results?.annual ?? [])
       .filter((row) => row?.periodEnd && Number.isFinite(Number(row?.values?.revenue)))
       .slice(0, 5)
       .map((row) => ({
         year: row.period ?? row.periodEnd?.slice(0, 4),
         periodEnd: row.periodEnd,
-        revenue: row.values.revenue,
-        netIncome: row.values.netIncome ?? row.values.netIncomeToCommonIncludingUnusual ?? null,
-        freeCashFlow: row.values.freeCashFlow ?? null,
-        epsDiluted: row.values.epsDiluted ?? null,
-        operatingIncome: row.values.operatingIncome ?? null,
+        ...toRow(row),
+      }));
+    content.quarterly = (results?.quarterly ?? [])
+      .filter((row) => row?.periodEnd && Number.isFinite(Number(row?.values?.revenue)))
+      .slice(0, 4)
+      .map((row) => ({
+        period: row.period ?? row.periodEnd?.slice(0, 7),
+        periodEnd: row.periodEnd,
+        ...toRow(row),
       }));
   } catch {
     content.annual = [];
+    content.quarterly = [];
   }
 
   if (content.profile) {
@@ -201,6 +213,23 @@ export async function getCompanyBotContent(meta, lang = 'es') {
       ? 'Figures according to annual reports filed with the SEC (data from SEC EDGAR). EPS: diluted earnings per share.'
       : 'Cifras según los informes anuales presentados ante la SEC (datos de SEC EDGAR). EPS: beneficio por acción diluido.';
     parts.push(`<p class="seo-note">${note}</p>`);
+  }
+
+  if (content.quarterly?.length) {
+    parts.push(isEn ? `<h2>Latest quarterly results for ${escapeHtml(meta.name)}</h2>` : `<h2>Últimos resultados trimestrales de ${escapeHtml(meta.name)}</h2>`);
+    const thCols = isEn
+      ? '<th scope="col">Quarter</th><th scope="col">Revenue</th><th scope="col">Operating income</th><th scope="col">Net income</th><th scope="col">Free cash flow</th><th scope="col">EPS</th>'
+      : '<th scope="col">Trimestre</th><th scope="col">Ventas</th><th scope="col">Beneficio operativo</th><th scope="col">Beneficio neto</th><th scope="col">Flujo de caja libre</th><th scope="col">EPS</th>';
+    parts.push(`<table><thead><tr>${thCols}</tr></thead><tbody>`);
+    for (const row of content.quarterly) {
+      const label = row.period || row.periodEnd || '—';
+      parts.push(`<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(formatUsdMillions(row.revenue) ?? '—')}</td><td>${escapeHtml(formatUsdMillions(row.operatingIncome) ?? '—')}</td><td>${escapeHtml(formatUsdMillions(row.netIncome) ?? '—')}</td><td>${escapeHtml(formatUsdMillions(row.freeCashFlow) ?? '—')}</td><td>${escapeHtml(formatUsdShare(row.epsDiluted) ?? '—')}</td></tr>`);
+    }
+    parts.push('</tbody></table>');
+    const qNote = isEn
+      ? 'Figures for each quarter as reported in the 10-Q filings (data from SEC EDGAR).'
+      : 'Cifras de cada trimestre según los informes 10-Q presentados ante la SEC (datos de SEC EDGAR).';
+    parts.push(`<p class="seo-note">${qNote}</p>`);
   }
 
   if (content.filings.length) {

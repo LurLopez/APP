@@ -3,18 +3,22 @@
  * @module services/seo/pageRenderer.service
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import config from '../../../config/index.js';
 import {
   SITE_NAME,
   PRIVATE_PATHS,
   GUIDES,
   LEGAL_PAGES,
+  GUIDES_DIR,
   readTemplate,
   readGuide,
   readLegal,
   replaceTokens,
   setMetaTag,
   escapeHtml,
+  getEnDictionary,
   withCompliance,
 } from './seoConstants.js';
 import { injectCompanyMeta, applyNoIndex } from './companyMeta.service.js';
@@ -143,7 +147,18 @@ export function serveStandalone(res, html, { cacheControl = 'public, max-age=180
         const data = JSON.parse(jsonText);
         const localizeNode = (node) => {
           if (!node || typeof node !== 'object') return;
+          const dict = getEnDictionary();
           if (node.inLanguage) node.inLanguage = 'en';
+          if (node['@type'] === 'Question') {
+            if (typeof node.name === 'string' && dict[node.name]) node.name = dict[node.name];
+            if (typeof node.acceptedAnswer?.text === 'string' && dict[node.acceptedAnswer.text]) {
+              node.acceptedAnswer.text = dict[node.acceptedAnswer.text];
+            }
+          }
+          if (node['@type'] === 'Article') {
+            if (typeof node.articleSection === 'string' && dict[node.articleSection]) node.articleSection = dict[node.articleSection];
+            if (typeof node.keywords === 'string' && dict[node.keywords]) node.keywords = dict[node.keywords];
+          }
           if (typeof node.url === 'string' && !node.url.includes('/en/')) {
             node.url = node.url.replace(/(\/)(guias|legal)/, '$1en/$2');
           }
@@ -248,6 +263,78 @@ export function serveStandalone(res, html, { cacheControl = 'public, max-age=180
   res.send(withCompliance(out));
 }
 
+function stripTagsAndDecode(value) {
+  return String(value ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Sincroniza el JSON-LD FAQPage con la FAQ visible de la guía (en el idioma
+ * final de la página) y actualiza dateModified con la fecha real del archivo.
+ * Google exige que el marcado FAQ coincida con el contenido visible.
+ * @private
+ * @param {string} html - HTML de la guía (ya traducido si procede).
+ * @param {string} slug - Slug de la guía.
+ * @returns {string}
+ */
+function syncGuideStructuredData(html, slug) {
+  let out = html;
+
+  const sectionMatch = out.match(/<section[^>]*class="guia-faq"[^>]*>([\s\S]*?)<\/section>/i);
+  if (sectionMatch) {
+    const pairs = [];
+    const re = /<h3[^>]*>([\s\S]*?)<\/h3>([\s\S]*?)(?=<h3|$)/gi;
+    let match;
+    while ((match = re.exec(sectionMatch[1]))) {
+      const question = stripTagsAndDecode(match[1]);
+      const answerMatch = match[2].match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+      const answer = stripTagsAndDecode(answerMatch?.[1] ?? match[2]);
+      if (question && answer) pairs.push({ question, answer });
+    }
+    if (pairs.length) {
+      out = out.replace(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/, (scriptMatch, jsonText) => {
+        try {
+          const data = JSON.parse(jsonText);
+          const walk = (node) => {
+            if (!node || typeof node !== 'object') return;
+            if (node['@type'] === 'FAQPage' && Array.isArray(node.mainEntity)) {
+              node.mainEntity = pairs.map(({ question, answer }) => ({
+                '@type': 'Question',
+                name: question,
+                acceptedAnswer: { '@type': 'Answer', text: answer },
+              }));
+              return;
+            }
+            for (const key of Object.keys(node)) walk(node[key]);
+          };
+          walk(data);
+          return `<script type="application/ld+json">\n${safeJsonForScript(data)}\n</script>`;
+        } catch {
+          return scriptMatch;
+        }
+      });
+    }
+  }
+
+  try {
+    const stats = fs.statSync(path.join(GUIDES_DIR, `${slug}.html`));
+    const date = stats.mtime.toISOString().slice(0, 10);
+    out = out.replace(/"dateModified":\s*"\d{4}-\d{2}-\d{2}"/, `"dateModified": "${date}"`);
+  } catch {
+    // Sin archivo no hay nada que actualizar.
+  }
+
+  return out;
+}
+
 export function serveGuide(res, slug, { lang = 'es' } = {}) {
   const guide = GUIDES.find((entry) => entry.slug === slug);
   if (!guide) return false;
@@ -256,7 +343,8 @@ export function serveGuide(res, slug, { lang = 'es' } = {}) {
     const pathname = isEn ? `/en/guias/${slug}` : `/guias/${slug}`;
     const title = isEn && guide.titleEn ? guide.titleEn : guide.title;
     const description = isEn && guide.descriptionEn ? guide.descriptionEn : guide.description;
-    serveStandalone(res, readGuide(`${slug}.html`), { lang, pathname, title, description, slug });
+    const html = syncGuideStructuredData(readGuide(`${slug}.html`, lang), slug);
+    serveStandalone(res, html, { lang, pathname, title, description, slug, contentLang: lang });
     return true;
   } catch {
     return false;

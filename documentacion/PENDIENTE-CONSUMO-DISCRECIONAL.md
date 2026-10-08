@@ -57,6 +57,6 @@ Para cada subsector falta crear `src/agents/knowledge/consumo-discrecional/subse
 - **Inventario**: vigilar inventario por tienda vs ventas y riesgo de rebajas; impacta al margen bruto.
 - **Estacionalidad**: comparar siempre contra el mismo trimestre del año anterior (no contra el trimestre inmediatamente anterior).
 - **E-commerce**: ingresos diferidos por tarjetas regalo, suscripciones y pedidos no entregados dentro del WC.
-- **Reglas anuales específicas (opcional)**: `src/agents/knowledge/anual/consumo-discrecional/sector.md`. Hoy el 10-K usa `anual/general.md` + el `sector.md` trimestral, que ya funciona.
+- **Reglas anuales específicas (opcional)**: `src/agents/knowledge/anual/consumo-discrecional/sector.md`. Hoy el 10-K usa `financiero/general.md` + `notas/anual.md` + el `sector.md` trimestral, que ya funciona.
 - **Universo del worker con capitalización**: hoy `npm run analyze:discretionary` pregenera la lista curada de `KNOWN_CONSUMER_DISCRETIONARY_TICKERS` (161 empresas); no hay modos `large/all` porque falta el dataset de market caps (como `scripts/data/consumer-staples.js`).
 - **Portada/SEO**: la web sigue anunciando solo consumo defensivo (y tecnología en algunas guías); actualizar los textos cuando se quiera comunicar la cobertura completa.

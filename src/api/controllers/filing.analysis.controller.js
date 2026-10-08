@@ -2,8 +2,9 @@
  * @fileoverview Módulo extraído de filingAnalysis.controller.js.
  */
 
-import { getFilingContentBuffer, getPresentationBuffers } from '../../services/edgar.service.js';
-import { analyzePdf, analyzeText, htmlToText, buildPresentationText } from '../../services/analysis.service.js';
+import { getFilingContentBuffer } from '../../services/edgar.service.js';
+import { analyzePdf, analyzeText, htmlToText } from '../../services/analysis.service.js';
+import { getFilingPresentationText } from '../../services/analysis/presentationText.service.js';
 import { findLatestDoneAnalysis } from '../../../db/repositories/analysisRepository.js';
 import { AgentError } from '../../agents/baseAgent.js';
 import { AiProviderError } from '../../services/ai/modelProvider.js';
@@ -172,13 +173,7 @@ export async function analyzeFilingHandler(req, res, next) {
         return;
       }
 
-      let presentationText = null;
-      try {
-        const presentations = await getPresentationBuffers(ticker, accession);
-        if (presentations.length) presentationText = await buildPresentationText(presentations);
-      } catch (presentationError) {
-        console.warn('[analysis:presentation]', presentationError.message);
-      }
+      const presentationText = await getFilingPresentationText(ticker, accession);
 
       const options = {
         userId: user.id,
@@ -225,6 +220,7 @@ export async function analyzeFilingHandler(req, res, next) {
       currentVersion: result.version ?? null,
       versionOutdated: false,
       report: result.report,
+      audit: result.audit ?? null,
       pdfUrl: result.pdfUrl,
       downloadBase: result.downloadBase,
       language: result.language ?? DEFAULT_LANGUAGE,

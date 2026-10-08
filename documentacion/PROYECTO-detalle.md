@@ -56,15 +56,16 @@ Todo lo que quede fuera de este alcance debe detectarse y rechazarse con un mens
 
 ## 5. Arquitectura de agentes IA
 
-Sistema de **agentes extensible**: cada agente hace una tarea concreta. En beta habrá 3 agentes, pero el diseño debe permitir añadir más agentes por **país** y por **sector** sin reescribir la lógica base.
+Sistema de **agentes extensible**: cada agente hace una tarea concreta. En beta hay 4 agentes, pero el diseño debe permitir añadir más agentes por **país** y por **sector** sin reescribir la lógica base.
 
 ### Agentes de la beta
 
 1. **Agente verificador de origen** — Lee el PDF y determina si los resultados son de una empresa de **Estados Unidos**. Si no lo es → error.
 2. **Agente verificador de sector** — Lee el PDF y determina si la empresa es de **consumo defensivo**. Si no lo es → error.
-3. **Agente analista principal** — Realiza el análisis financiero del informe (2 fases: extracción de cifras + estructuración con las reglas del sector) y genera el informe final con su PDF.
+3. **Agente analista principal** — Realiza el análisis financiero del informe (2 fases: extracción de cifras + estructuración con las reglas del sector) y genera el informe final.
+4. **Agente auditor** — Audita el informe contra el **texto completo** del filing y las **mismas reglas `.md`** que usa el analista (generales, sector, subsector y empresa): nota de 1 a 10 (guardada en `analyses.audit` y en el registro, sin mostrarse al usuario en la interfaz), errores probados (con evidencia) y comprobaciones deterministas. Si hay errores graves o menores, el mismo agente genera la versión corregida del informe aplicando el «esperado» de cada error; la corrección solo sustituye al original si supera las validaciones (estructura y horizontes intactos, sin empeorar las comprobaciones deterministas). Cada análisis deja un registro exacto por fases (ticker, tipo y año, tiempos y costes del análisis y de la revisión, nota, cambios aplicados y coste total) en `logs/analisis.log` y `analysis_logs`, y dos instantáneas HTML comparables: `<uuid>-antes.html` (informe del analista antes de los ajustes) y `<uuid>.html` (informe final). Se puede desactivar con `AI_AUDIT_ENABLED=false` (auditar sin corregir: `AI_AUDIT_FIX_ENABLED=false`).
 
-> Los 3 agentes están implementados y registrados (`agentRegistry`); las reglas del sector viven en `src/agents/prompts/consumo-defensivo.md`. La subida manual y el botón "Analizar" de un filing ejecutan el mismo pipeline (`analysis.service.js`).
+> Los 4 agentes están implementados y registrados (`agentRegistry`); las reglas de análisis se organizan por contenido: `src/agents/knowledge/financiero/general.md` (los tres bloques numéricos, común a 10-Q y 10-K) y `src/agents/knowledge/notas/trimestral.md` o `notas/anual.md` (parte cualitativa, según el formulario), más las reglas de sector en `src/agents/prompts/consumo-defensivo.md`. La subida manual y el botón "Analizar" de un filing ejecutan el mismo pipeline (`analysis.service.js`).
 
 ### Flujo del proceso de análisis
 
@@ -88,9 +89,18 @@ PDF recibido (vía subida manual o vía buscador)
 ┌──────────────────────────────┐
 │ 3. Agente analista principal │
 │    (2 fases: extracción +    │
-│    estructuración + PDF)     │
+│    estructuración)           │
 └──────────────────────────────┘
-        │
+        │ Informe JSON
+        ▼
+┌──────────────────────────────┐      ┌───────────────────────────┐
+│ 4. Agente auditor            │◀─────│ Texto completo del filing │
+│    (nota 1-10 + errores)     │      │ + informe generado        │
+└──────────────────────────────┘      └───────────────────────────┘
+        │ ¿Errores graves/menores?
+        ├── Sí ──▶ corrección sobre el informe ──┐
+        │                                        │
+        │◀───────────────────────────────────────┘
         ▼
    Informe final + PDF para el usuario
    (guardado en analyses si hay sesión)
@@ -153,7 +163,7 @@ La arquitectura debe estar preparada desde el principio para:
 | Fase | Contenido | Estado |
 |---|---|---|
 | **0** | Documento de visión y requisitos (este documento) | ✅ Completado |
-| **1** | Subida manual de PDF → análisis (beta, EE. UU. + consumo defensivo) | ✅ Pipeline completo: 3 agentes + informe (2 horizontes, 3 bloques) + PDF + guardado por usuario |
+| **1** | Subida manual de PDF → análisis (beta, EE. UU. + consumo defensivo) | ✅ Pipeline completo: 4 agentes + informe (2 horizontes, 3 bloques) + PDF + guardado por usuario |
 | **2** | Buscador de empresas (ticker) + histórico de filings + ver PDF + analizar | ✅ Buscador, cribador sin huecos, perfil y gráfico, filings con vista previa/descarga y botón "Analizar" |
 | **3** | Registro / inicio de sesión | ✅ Implementado (verificación por correo + recuperación de contraseña); asociación de análisis por usuario ✅ |
 | **4** | Análisis completo de empresa (multi-periodo) | ⏳ Pendiente |
@@ -171,7 +181,7 @@ La arquitectura debe estar preparada desde el principio para:
 | **Stack tecnológico** | Framework de frontend/backend, base de datos, hosting. Se eligió teniendo en cuenta el perfil del desarrollador (sección 10) | ✅ Decidido: Node.js + Express + PostgreSQL + frontend puro (ver `ARQUITECTURA.md`) |
 | **Despliegue (dónde alojarlo)** | VPS único vs PaaS (Render/Railway/Neon) con BD gestionada | 🔴 No bloquea; decidir cuando toque publicar |
 | **Modelo de IA** | Comparados: DeepSeek directo vs OpenCode Go | 🔶 En uso: **DeepSeek directo** (`AI_PROVIDER=deepseek`, 22–23 s, fiable; OpenCode Go intermitente). Confirmar a medio plazo |
-| **Formato del informe final** | Los informes de referencia del usuario guían el prompt (`src/agents/prompts/consumo-defensivo.md`); se refinará con más referencias | 🔶 Formato base en producción (2 horizontes + Ventas/Cash Flow/Asignación de Capital) |
+| **Formato del informe final** | Los informes de referencia del usuario guían el prompt (`src/agents/prompts/consumo-defensivo.md`); se refinará con más referencias | 🔶 Formato base en producción (2 horizontes + Ventas/Cash Flow/Asignación de Capital). Los 10-Q añaden además «Notas del trimestre»: hechos relevantes de los últimos 3 meses y estado del guidance (mantenido/revisado al alza/a la baja/retirado/nuevo) |
 | **Multi-idioma (ES/EN)** | Interfaz y análisis con idioma independiente; detección por idioma del navegador; caché de análisis por idioma; traducción de un análisis ya generado al otro idioma sin reanalizar el filing (etiquetas por diccionario, cifras intactas, narrativa por IA) | ✅ Implementado el núcleo (motor i18n, preferencias, directiva de idioma en agentes, caché por idioma, traducción de variantes, correos y exportaciones); pendiente Fase 5 (rutas `/en`, hreflang). Ver `documentacion/PLAN-MULTIIDIOMA.md` |
 
 ## 10. Contexto del desarrollador

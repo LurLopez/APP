@@ -51,6 +51,8 @@ import {
   renumberConclusionSections,
 } from './annualConclusionProcessor.js';
 import { normalizeLanguage, t } from '../../utils/i18n.js';
+import { normalizeExtractionPayload } from './extractionNormalizer.js';
+import { stripEmptySnippetColumns } from './snippetHelpers.js';
 
 export function resolveAnalysisInput(input) {
   const formType = input.formType ?? '10-Q';
@@ -71,13 +73,16 @@ export async function loadSectorRules({ sector, subsector, formType, ticker }) {
   }
 }
 
-export async function runExtraction({ text, presentationText, languageDirective }) {
+export async function runExtraction({ text, presentationText, previousGuidanceText, languageDirective }) {
   const extractionPrompt = `${EXTRACTION_PROMPT.replace('{SCHEMA}', EXTRACTION_SCHEMA.trim())}\n\n${languageDirective}`;
   try {
-    return await chatJson([
+    const raw = await chatJson([
       { role: 'system', content: extractionPrompt },
-      { role: 'user', content: buildAnalysisText(text, presentationText) },
+      { role: 'user', content: buildAnalysisText(text, presentationText, previousGuidanceText) },
     ]);
+    const { data, warnings } = normalizeExtractionPayload(raw);
+    warnings.forEach((warning) => console.warn(`[analyst:extraction-normalizer] ${warning}`));
+    return data;
   } catch (error) {
     console.error('[analyst:extraction]', error.message);
     if (error instanceof AiProviderError) throw error;
@@ -420,6 +425,17 @@ export function pickPreviousQuarterDebt(prevFlow, currentDebt) {
   if (matches(prevFlow.currentBalanceSheetDebtWithoutCurrentPortion) && !matches(prevFlow.currentBalanceSheetDebt)) {
     return withoutCurrentPortion;
   }
+  // Si el trimestre actual no publica una porción corriente separada (sus dos composiciones
+  // coinciden), la etiqueta LongTermDebtCurrent del trimestre previo es un detalle narrativo ya
+  // incluido en la deuda a corto plazo (caso PEP 2026-Q3: 1.600M dentro de "Short-term debt
+  // obligations"): se usa la composición sin porción corriente para no inflar la amortización de
+  // deuda del trimestre (2.933M frente a 1.333M reales de balance).
+  const currentCompositionsMatch = prevFlow.currentBalanceSheetDebt != null
+    && prevFlow.currentBalanceSheetDebtWithoutCurrentPortion != null
+    && Math.abs(prevFlow.currentBalanceSheetDebt - prevFlow.currentBalanceSheetDebtWithoutCurrentPortion) < 0.5;
+  if (currentCompositionsMatch && matches(prevFlow.currentBalanceSheetDebtWithoutCurrentPortion)) {
+    return withoutCurrentPortion;
+  }
   return withCurrentPortion;
 }
 
@@ -461,7 +477,16 @@ export function storePreviousQuarterCashFlow(extracted, prevFlow, deduced) {
   }
 
   extracted.facts = extracted.facts || {};
-  if (extracted.facts.shareBuybacksQuarter == null && deduced.buybacks != null) {
+  // Recompras del trimestre: la deducción aritmética (acumulado actual − acumulado del trimestre
+  // previo, ambos en base caja del estado de flujos) manda sobre el valor de la IA, que a veces
+  // toma la columna de 12 semanas del estado de patrimonio —base devengo— y descuadra la
+  // asignación de capital (PEP 2026-Q3: 267M del estado de patrimonio frente a 260M de caja,
+  // 739 − 479). Si no hay acumulados que restar, se conserva lo extraído.
+  if (deduced.buybacks != null) {
+    const aiQuarter = toOptionalNumber(extracted.facts.shareBuybacksQuarter);
+    if (aiQuarter != null && Math.abs(Math.abs(aiQuarter) - Math.abs(deduced.buybacks)) >= 1) {
+      console.info(`[analyst] Recompras del trimestre deducidas del acumulado: ${aiQuarter}M -> ${deduced.buybacks}M`);
+    }
     extracted.facts.shareBuybacksQuarter = deduced.buybacks;
   }
   // Adquisiciones del trimestre: la deducción aritmética (acumulado actual − acumulado del
@@ -777,4 +802,130 @@ export function normalizeAnnualRating(result, language) {
   result.rating.score = Math.min(10, Math.max(1, Math.round(scoreNum * 10) / 10));
   result.rating.label = t('NOTA DE RESULTADOS: {score}', { score: result.rating.score }, language);
   result.rating.rationale = result.rating.rationale || t('Calificación puramente financiera sin especulación sobre cumplimiento futuro.', null, language);
+}
+
+const GUIDANCE_STATUS_ALIASES = {
+  raised: 'raised', increase: 'raised', increased: 'raised', up: 'raised', upgrade: 'raised', upgraded: 'raised',
+  lowered: 'lowered', cut: 'lowered', reduced: 'lowered', down: 'lowered', decrease: 'lowered', downgraded: 'lowered',
+  maintained: 'maintained', unchanged: 'maintained', repeated: 'maintained', reiterated: 'reaffirmed', reiterates: 'reaffirmed',
+  reaffirmed: 'reaffirmed', reaffirms: 'reaffirmed',
+  new: 'new', initiated: 'new', introduced: 'new',
+  withdrawn: 'withdrawn', suspended: 'withdrawn', removed: 'withdrawn',
+};
+
+/**
+ * Normaliza el estado del guidance a los valores canónicos del informe.
+ * @param {string} value - Estado devuelto por la IA o la extracción.
+ * @returns {string|null} Estado canónico o null si no es reconocible.
+ */
+function normalizeGuidanceStatus(value) {
+  const key = String(value ?? '').trim().toLowerCase();
+  if (!key || key === 'not_mentioned' || key === 'none' || key === 'null') return null;
+  return GUIDANCE_STATUS_ALIASES[key] ?? null;
+}
+
+function normalizeQuarterNote(note) {
+  if (typeof note === 'string') {
+    const text = note.trim();
+    return text ? { title: null, text } : null;
+  }
+  if (!note || typeof note !== 'object') return null;
+  const title = typeof note.title === 'string' && note.title.trim() ? note.title.trim() : null;
+  const text = typeof note.text === 'string' && note.text.trim() ? note.text.trim() : null;
+  if (text) return { title, text };
+  return title ? { title: null, text: title } : null;
+}
+
+function guidanceTextFromOutlook(outlook, lang) {
+  const parts = [];
+  if (outlook.guidanceSales && !/sin guidance|no quantitative guidance/i.test(String(outlook.guidanceSales))) {
+    parts.push(`${t('Ventas', null, lang)}: ${outlook.guidanceSales}`);
+  }
+  if (outlook.guidanceEbt) parts.push(`EBT: ${outlook.guidanceEbt}`);
+  if (outlook.guidanceEps) parts.push(`${t('BPA', null, lang)}: ${outlook.guidanceEps}`);
+  if (outlook.guidanceFcf) parts.push(`FCF: ${outlook.guidanceFcf}`);
+  if (outlook.guidanceCapex) parts.push(`CAPEX: ${outlook.guidanceCapex}`);
+  if (outlook.guidanceNetInterest) parts.push(`${t('Gastos por intereses', null, lang)}: ${outlook.guidanceNetInterest}`);
+  if (!parts.length) return null;
+  return t('Guidance comunicado por la dirección: {parts}.', { parts: parts.join(', ') }, lang);
+}
+
+function normalizeModelGuidance(guidance) {
+  if (!guidance || typeof guidance !== 'object') return null;
+  if (guidance.mentioned === false) return null;
+  const status = normalizeGuidanceStatus(guidance.status);
+  const text = typeof guidance.text === 'string' ? guidance.text.trim() : '';
+  const snippet = guidance.secSnippet ?? guidance.secTable ?? null;
+  const validSnippet = snippet && Array.isArray(snippet.rows) && snippet.rows.length ? snippet : null;
+  if (!status && !text) return null;
+  return {
+    ...(status ? { status } : {}),
+    ...(text ? { text } : {}),
+    ...(validSnippet ? { secSnippet: validSnippet } : {}),
+  };
+}
+
+function buildQuarterNotesFallback(extracted, lang) {
+  const details = extracted?.quarterDetails ?? {};
+  const rawGuidance = details?.guidance ?? extracted?.annualDetails?.outlook ?? null;
+  let guidance = null;
+  if (rawGuidance && typeof rawGuidance === 'object') {
+    const status = normalizeGuidanceStatus(rawGuidance.status);
+    const mentioned = rawGuidance.mentioned !== false;
+    const text = typeof rawGuidance.text === 'string' ? rawGuidance.text.trim() : '';
+    const secSnippet = rawGuidance.secTable ?? rawGuidance.secSnippet ?? null;
+    const builtText = text || (details?.guidance === rawGuidance ? null : guidanceTextFromOutlook(rawGuidance, lang));
+    if (mentioned && (status || builtText || secSnippet)) {
+      guidance = {
+        ...(status ? { status } : {}),
+        ...(builtText ? { text: builtText } : {}),
+        ...(secSnippet && Array.isArray(secSnippet.rows) && secSnippet.rows.length ? { secSnippet } : {}),
+      };
+      if (!guidance.text && !guidance.secSnippet) guidance = null;
+    }
+  }
+
+  const rawNotes = Array.isArray(details?.notes) ? details.notes : [];
+  // Tope determinista: las notas del trimestre son solo hechos muy importantes (máximo 4).
+  const notes = rawNotes.map(normalizeQuarterNote).filter(Boolean).slice(0, 4);
+  if (!notes.length && Array.isArray(extracted?.extraNotes)) {
+    for (const extra of extracted.extraNotes) {
+      const note = normalizeQuarterNote(extra);
+      if (note) notes.push(note);
+    }
+  }
+  if (!guidance && !notes.length) return null;
+  return { guidance, notes };
+}
+
+/**
+ * Garantiza la sección de notas del trimestre en el informe 10-Q a partir de la
+ * extracción (quarterDetails) y valida lo que haya devuelto el modelo.
+ * @param {object} result - Informe estructurado (se modifica in situ).
+ * @param {object} extracted - Datos de extracción normalizados.
+ * @param {string} [language='es'] - Idioma del informe.
+ */
+export function applyQuarterNotes(result, extracted, language = 'es') {
+  if (!result || typeof result !== 'object') return;
+  const lang = normalizeLanguage(language);
+  const fallback = buildQuarterNotesFallback(extracted, lang);
+  const model = result.quarterNotes && typeof result.quarterNotes === 'object' ? result.quarterNotes : null;
+  const guidance = normalizeModelGuidance(model?.guidance) || fallback?.guidance || null;
+  if (guidance?.secSnippet) {
+    guidance.secSnippet = stripEmptySnippetColumns(guidance.secSnippet);
+  }
+  const modelNotes = model && Array.isArray(model.notes)
+    ? model.notes.map(normalizeQuarterNote).filter(Boolean).slice(0, 4)
+    : [];
+  const notes = modelNotes.length ? modelNotes : (fallback?.notes ?? []);
+  if (!guidance && !notes.length) {
+    delete result.quarterNotes;
+    return;
+  }
+  const modelTitle = typeof model?.title === 'string' ? model.title.trim() : '';
+  result.quarterNotes = {
+    title: modelTitle || t('NOTAS DEL TRIMESTRE E INFORMACIÓN RELEVANTE', null, lang),
+    ...(guidance ? { guidance } : {}),
+    notes,
+  };
 }

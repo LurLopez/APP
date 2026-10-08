@@ -1,18 +1,21 @@
-# Reglas Generales de Análisis Financiero (Cifra)
+# Reglas Generales — Parte Financiera (Cifra)
 
-> Nivel 1 — Marco Universal aplicable a todas las empresas, sectores y subsectores.
+> Nivel 1 — Parte financiera común a los análisis trimestrales (10-Q) y anuales (10-K): estructura, horizontes y los tres bloques numéricos (Ventas, Cash Flow y Asignación de Capital). Las reglas de la parte cualitativa viven separadas en `notas/trimestral.md` (10-Q) y `notas/anual.md` (10-K).
+> Aplicable a todas las empresas, sectores y subsectores.
 > Versión: 0
 
 ---
 
 ## 1. Estructura y Horizontes Temporales
 
-El análisis financiero se estructura por horizontes temporales siguiendo esta regla según el trimestre fiscal:
+El análisis financiero se estructura por horizontes temporales siguiendo estas reglas según el formulario y el trimestre fiscal:
 
-- **Trimestres Q2, Q3 y Q4 (10-Q y 10-K)**: Se estructuran obligatoriamente en **dos horizontes temporales**, en este orden:
-  1. **`ÚLTIMOS 3 MESES`**: Datos exclusivos del trimestre fiscal analizado.
-  2. **`EN TODO EL AÑO (X MESES)`**: Datos acumulados (*Year-To-Date* o YTD) del ejercicio fiscal en curso con el número de meses transcurridos (ej. 6 meses para Q2, 9 meses para Q3, 12 meses para Q4).
-- **Trimestre Q1**: **Solo se presenta un único bloque temporal (`ÚLTIMOS 3 MESES`)**, omitiendo la sección de "EN TODO EL AÑO", ya que el acumulado del año coincide exactamente con los primeros tres meses.
+- **Informes trimestrales (10-Q)**:
+  - **Trimestres Q2, Q3 y Q4**: Se estructuran obligatoriamente en **dos horizontes temporales**, en este orden:
+    1. **`ÚLTIMOS 3 MESES`**: Datos exclusivos del trimestre fiscal analizado.
+    2. **`EN TODO EL AÑO (X MESES)`**: Datos acumulados (*Year-To-Date* o YTD) del ejercicio fiscal en curso con el número de meses transcurridos (ej. 6 meses para Q2, 9 meses para Q3, 12 meses para Q4).
+  - **Trimestre Q1**: **Solo se presenta un único bloque temporal (`ÚLTIMOS 3 MESES`)**, omitiendo la sección de "EN TODO EL AÑO", ya que el acumulado del año coincide exactamente con los primeros tres meses.
+- **Informes anuales (10-K)**: Un único horizonte **`EN TODO EL AÑO (12 MESES)`**, con las cuentas auditadas del ejercicio cerrado (ver la sección 3, «Variantes del Formulario 10-K»).
 
 ### Separación Estricta de Páginas y Cohesión Visual
 - **Páginas Independientes por Horizonte Temporal (PDF / Informes)**:
@@ -61,7 +64,7 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
     $$\text{Beneficio Operativo Anterior Ajustado} = \text{Beneficio Operativo Anterior Normal} + \text{Impairment Anterior}$$
     $$\text{EBT Anterior Ajustado} = \text{EBT Anterior Normal} + \text{Impairment Anterior}$$
     $$\text{Beneficio Neto Ajustado} = \text{EBT Ajustado} \times (1 - t) = (\text{EBT Normal} + \text{Impairment}) \times (1 - t)$$
-  - **Impuestos recalculados sobre el EBT ajustado cuando la desviación supera ±20 %**: Se compara el impuesto reportado con el 23 % del EBT Ajustado. Si la desviación relativa es inferior a `-20 %` o superior a `+20 %`, se aplica el 23 % sobre el EBT Ajustado. Si queda dentro de ±20 %, se conserva el impuesto reportado o el tipo efectivo aplicable.
+  - **Impuestos recalculados sobre el EBT ajustado cuando la desviación supera ±20 %**: Se compara el impuesto reportado con el 23 % del EBT Ajustado. Si la desviación relativa es inferior a `-20 %` o superior a `+20 %`, se aplica el 23 % sobre el EBT Ajustado. Si queda dentro de ±20 %, se conserva el impuesto reportado o el tipo efectivo aplicable, **sin nota fiscal ni resalte en Beneficio Neto** (queda prohibido explicar en nota un ajuste que finalmente no se aplica). La regla aplica también a la columna **Anterior Ajustado**: si el impuesto del periodo comparable se desvía, su Beneficio Neto Anterior Ajustado se normaliza (EBT comparativo × 0,77), la nota fiscal lo cierra y el resalte va a la casilla «Anterior Aj.» (`adjustedCell: "previous"`, o `"both"` si se normalizan ambos periodos).
     * Ejemplo: EBT reportado 100M y beneficio neto 80M (20 %). Si el EBT ajustado es 300M, el impuesto reportado de 20M se desvía más de un 20% del impuesto normalizado de 69M: se aplica el 23 % → **Beneficio Neto Ajustado = 300M − 69M = 231M**.
   - Queda estrictamente prohibido dejar Anterior Ajustado igual a Anterior Normal si en el periodo anterior hubo un impairment o deterioro extraordinario.
   - Se debe reflejar la nota explicativa correspondiente con su llamada (ej. `*1: El año anterior tuvieron un impairment de 1428M`).
@@ -72,7 +75,7 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
     $$\text{Impuestos normalizados} = 0,23 \times \text{EBT Ajustado}$$
     $$\text{Beneficio Neto Ajustado} = \text{EBT Ajustado} - 0,23 \times \text{EBT Ajustado} = \text{EBT Ajustado} \times 0,77$$
   - Ejemplo: EBT reportado 100M, beneficio neto 80M (tipo efectivo 20 %). El EBT ajustado es 300M. Mantener solo 20M de impuestos es incorrecto: los impuestos normalizados son 23 % × 300M = 69M, y el Beneficio Neto Ajustado = 231M.
-  - La nota explicativa debe mostrar el desglose: EBT ajustado, tipo aplicado (23 % o el efectivo reportado) y el importe de impuestos resultante.
+  - Cuando proceda la normalización (desviación fuera de ±20 %), la nota explicativa (*2) debe mostrar el desglose: EBT ajustado, tipo aplicado (23 %) e importe de impuestos resultante, tanto para el periodo actual como, si también se desvía, para el comparativo ("Beneficio Neto Anterior Ajustado = EBT Ajustado × 0,77 = ..."). Si la desviación queda dentro de ±20 % en ambos periodos, no se escribe nota fiscal alguna.
 - **Resaltado Exclusivo en la Casilla de Origen del Ajuste (Sin Propagación en Cascada)**:
   - **Punto de Intervención Contable**: El color de resaltado y la llamada de nota al pie (`*1:`, `*2:...`) se aplican **exclusiva y estrictamente a la casilla de la métrica donde se origina directamente el ajuste contable**, y NUNCA a las líneas posteriores que cambian únicamente como consecuencia matemática indirecta (arrastre en cascada).
   - **Mapeo estricto por concepto**:
@@ -108,12 +111,12 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
     1. **Circulante Base**: Variación del circulante reportada en el estado de flujos de caja.
     2. **Circulante Teórico**: Estimado con el peso agregado histórico del circulante sobre el flujo operativo sin circulante de los últimos 10 ejercicios (método único, también cuando el informe publica volumen):
         $$\text{WC}_{\text{teórico}} = \left( \frac{\sum \Delta WC}{\sum (\text{CFO} - \Delta WC)} \right)_{\text{últimos 10 ejercicios}} \times (\text{CFO} - \Delta WC)_{\text{periodo}}$$
-        Ejemplo: CFO 80.000M con ΔWC −20.000M ⇒ base 100.000M y peso del −20 %. El sistema calcula esta estimación de forma determinista (serie histórica de EDGAR) y la entrega en `workingCapitalData`; no se inventa un volumen ni una inflación.
+        Ejemplo: CFO 80.000M con ΔWC −20.000M ⇒ base 100.000M y peso del −20 %. El sistema calcula esta estimación de forma determinista (serie histórica de EDGAR) y la entrega en `workingCapitalData`; no se inventa un volumen ni una inflación. En informes trimestrales el importe anual se divide entre 4 (un trimestre) y el acumulado usa los trimestres transcurridos. La nota al pie debe ser breve: solo la media (%) aplicada y el ajuste resultante, sin listar los ratios anuales.
      3. **Ajuste del Flujo**: Se descuenta la diferencia entre el circulante base y el teórico ($\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{normal}} - (\text{WC}_{\text{base}} - \text{WC}_{\text{teórico}})$), recalculando FCF, FCF/Acción y Libre.
        4. **Normalización fiscal del Cash Flow**: El trabajo analítico consiste en calcular cuántos impuestos debería pagar la empresa en realidad (23 % sobre el EBT ajustado) y cuánto consta que ha pagado en los cash flows (bien directamente por la línea de efectivo pagado como "Income tax (paid) received" / "Income taxes paid", o bien mediante la conciliación "Gasto fiscal - Ajuste fiscal del cash flow / impuestos diferidos"). Si existe una discrepancia entre los impuestos pagados y los normalizados, se ajusta el Cash Flow en la columna Ajustado:
           $$\text{Ajuste fiscal} = \text{Impuestos pagados en efectivo} - (0,23 \times \text{EBT Ajustado})$$
           $$\text{Cash Flow}_{\text{ajustado}} = \text{Cash Flow}_{\text{ajustado por WC}} + \text{Ajuste fiscal}$$
-          Si la empresa pagó menos impuestos de lo normalizado, el Cash Flow disminuye (ajuste negativo); si pagó más, aumenta (ajuste positivo). Este ajuste se aplica ante cualquier discrepancia material para corregir la distorsión del flujo operativo, añadiéndose la Nota `*2: Impuestos: ...` con el desglose exacto de lo que debería haber pagado frente a lo pagado realmente.
+          Si la empresa pagó menos impuestos de lo normalizado, el Cash Flow disminuye (ajuste negativo); si pagó más, aumenta (ajuste positivo). Solo se aplica si la discrepancia (en valor absoluto) **supera el 10 % del impuesto teórico**: si no lo supera, no se ajusta nada ni se menciona (ni nota `*2`). Cuando se aplica, se añade la Nota `*2: Impuestos: ...` con el desglose exacto de lo que debería haber pagado frente a lo pagado realmente.
         - **Ejemplo**: EBT ajustado 1.385,4M, impuestos normalizados al 23 % = 318,6M. Si en el estado de flujos consta que pagó 131,4M, ha pagado 187,2M de menos: el Cash Flow Ajustado resta -187,2M y se añade la Nota `*2`. Si el EBT ajustado fuese 100M (23M normalizados) y pagó 30M, el Cash Flow Ajustado recibe +7M.
      5. **Ajuste de Stock Options / Compensación en Acciones (SBC)**:
         - La remuneración basada en acciones (Stock-based compensation / Share-based compensation) añadida de vuelta al flujo operativo en el estado de flujos de caja no requiere salida de caja inmediata, pero diluye de forma directa a los accionistas existentes. Además, las opciones sobre acciones y planes de incentivos suelen concederse habitualmente con descuento.
@@ -233,7 +236,20 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
 
 ---
 
-## 3. Formato Numérico, Colores y Convenciones de Estilo
+## 3. Variantes del Formulario 10-K (Análisis Anual)
+
+El análisis anual (Form 10-K) comparte íntegramente la mecánica de los tres bloques, con estas diferencias:
+
+- **Horizonte único**: encabezado **`[AÑO] ANNUAL results — [TICKER]`** (ej. `2025 ANNUAL results — TAP`) y subtítulo de periodo **`EN TODO EL AÑO (12 MESES)`**. **Sin deducciones trimestrales intermedias**: las magnitudes de resultados, flujos y balances provienen directamente del Form 10-K auditado.
+- **Acciones y BPA**: la cifra de **`ACCIONES`** es la del cierre definitivo del ejercicio fiscal (al final del año, **no el promedio ponderado diluido**) y se indica su variación frente al ejercicio anterior (`X M (al final del [AÑO], no el promedio) -> %X menos/más (Y M) -> efecto en el BPA: +%Z`). El **`BPA`** es el Beneficio Por Acción ajustado con su variación porcentual frente al año anterior.
+- **Working Capital anual**: el peso agregado histórico se aplica al flujo del ejercicio completo, **sin prorrateo trimestral** (no se divide entre 4); la nota del circulante sigue siendo breve (media histórica aplicada y ajuste resultante).
+- **Comparativas de balance**: la caja, la deuda y las inversiones a corto plazo se comparan contra el cierre del ejercicio anterior (principio del año fiscal analizado), no contra el trimestre previo.
+- **Asignación de capital anual**: se mapean los movimientos no monetarios del ejercicio (efectivo restringido/escrow, deuda asumida en compras, efecto divisa) con el mismo criterio de signos y materialidad que en los bloques comunes.
+- **Contenido cualitativo**: la parte cualitativa del 10-K (indagación a fondo y nota de resultados) se rige por `notas/anual.md`, no por `notas/trimestral.md`.
+
+---
+
+## 4. Formato Numérico, Colores y Convenciones de Estilo
 
 - **Negrita en Columnas Clave**: Las cifras de las columnas **`Ajustado`** y **`Normal`** siempre se muestran en **negrita**, tanto en el horizonte trimestral como en el acumulado anual.
 - **Colores en Porcentajes (`% Ajustado` y `% Normal`)**:
@@ -246,6 +262,7 @@ Cada horizonte temporal debe contener de forma estricta los siguientes tres bloq
   - **Ajuste / Nota 4**: Morado / Malva (`#e9d5ff`, texto `#7e22ce`)
   - **Ajuste / Nota 5**: Celeste pastel (`#bae6fd`, texto `#0369a1`)
   - **Ajuste / Nota 6**: Rosa pastel (`#fbcfe8`, texto `#be185d`)
+- **Prohibición de redondeo**: Todas las cifras deben ser **exactas**, copiadas tal cual de los estados financieros y del JSON de extracción (que el sistema completa desde el XBRL de la SEC). Queda terminantemente prohibido redondear o estimar cifras reportadas (ej. no escribir `4500M` si la cifra es `4462M`, ni `800M` si es `801M`). Si una cifra no consta, se indica que no consta; nunca se sustituye por una aproximación.
 - **Moneda y Millones**: Todas las cifras monetarias en **millones de dólares estadounidenses** con sufijo **`M`** (ej. `2788M`). Símbolo **`$`** para precios y ratios por acción (ej. `0,83 $`).
 - **Decimales**: todas las cifras (flujos, asignación de capital, etc.) llevan **como máximo 2 decimales** tras la coma y nunca muestran artefactos de coma flotante (ej. prohibido `1827,1000000000004`; correcto `1827,1`).
 - **Porcentajes**: Con **coma decimal**, dos decimales y signo explícito.

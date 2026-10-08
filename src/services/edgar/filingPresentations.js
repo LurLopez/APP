@@ -26,6 +26,48 @@ const INDEX_DOC_NAME_RE = /index|^r\d+\.(?:htm|html)$/i;
 
 const MAX_PRESENTATION_BYTES = 20 * 1024 * 1024;
 
+// Presupuesto máximo para reunir las presentaciones (descubrimiento + descarga) antes de
+// continuar sin ellas. Sin este límite, el rastreo de webs de IR lentas puede bloquear el
+// análisis varios minutos (p. ej. STZ: ~4,7 min para 0 decks). 0 lo desactiva.
+function presentationFetchTimeoutMs() {
+  const raw = process.env.PRESENTATION_FETCH_TIMEOUT_MS;
+  if (raw === undefined || raw === '') return 30000;
+  const ms = Number(raw);
+  return Number.isFinite(ms) && ms >= 0 ? ms : 30000;
+}
+
+// Presupuesto máximo para el rastreo de la web de IR dentro de la búsqueda de documentos
+// complementarios. El comunicado 8-K de la SEC (fuente principal del guidance) debe descubrirse
+// SIEMPRE, aunque la web de IR tarde minutos: con este límite el rastreo lento se abandona en
+// segundo plano (sigue corriendo y llena su caché para próximos análisis) y la búsqueda del 8-K
+// continúa de inmediato. 0 lo desactiva (espera al rastreo completo).
+function irDeckFetchTimeoutMs() {
+  const raw = process.env.IR_DECK_FETCH_TIMEOUT_MS;
+  if (raw === undefined || raw === '') return 8000;
+  const ms = Number(raw);
+  return Number.isFinite(ms) && ms >= 0 ? ms : 8000;
+}
+
+async function getIrDeckWithBudget(company, filing) {
+  const timeoutMs = irDeckFetchTimeoutMs();
+  const job = Promise.resolve()
+    .then(() => getIrDeckForFiling(company, filing))
+    .catch(() => null);
+  if (!(timeoutMs > 0)) return job;
+  let timer;
+  try {
+    const deck = await Promise.race([
+      job,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+    return deck ?? null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Lee el cuerpo de una respuesta con un límite estricto de tamaño (anti-DoS de memoria).
  * @param {Response} response - Respuesta fetch.
@@ -144,7 +186,7 @@ async function findFilingPresentations(company, filing) {
 
   const promise = (async () => {
     const presentations = [];
-    const irDeck = await getIrDeckForFiling(company, filing);
+    const irDeck = await getIrDeckWithBudget(company, filing);
     if (irDeck) {
       presentations.push({
         kind: 'presentation',
@@ -287,14 +329,28 @@ export async function getFilingsWithPresentations(ticker, options = {}) {
   };
 }
 
+async function findAnyFilingEntry(company, accession) {
+  const submissions = await getCompanySubmissions(company);
+  const recent = normalizeRecentFilings(submissions?.filings?.recent);
+  const entry = recent.find((item) => item.accessionNumber === accession);
+  if (!entry) return null;
+  return {
+    formType: entry.form,
+    period: entry.reportDate ?? null,
+    filedAt: entry.filingDate ?? null,
+    accession: entry.accessionNumber,
+  };
+}
+
 export async function getFilingPresentations(ticker, accession) {
   const { company, filings } = await getCompanyFilings(ticker);
-  const filing = filings.find((item) => item.accession === accession);
+  const filing = filings.find((item) => item.accession === accession)
+    ?? await findAnyFilingEntry(company, accession);
   if (!filing) return [];
   return findFilingPresentations(company, filing);
 }
 
-export async function getPresentationBuffers(ticker, accession) {
+async function collectPresentationBuffers(ticker, accession) {
   const presentations = await getFilingPresentations(ticker, accession);
   if (!presentations.length) return [];
 
@@ -328,4 +384,37 @@ export async function getPresentationBuffers(ticker, accession) {
   return results
     .filter((r) => r.status === 'fulfilled' && r.value)
     .map((r) => r.value);
+}
+
+/**
+ * Descarga las presentaciones de resultados asociadas a un filing con un presupuesto de
+ * tiempo. Si el descubrimiento o la descarga superan `PRESENTATION_FETCH_TIMEOUT_MS`
+ * (por defecto 30 s), se devuelve lo que haya y el análisis continúa sin esperar más.
+ * El rastreo descartado sigue en segundo plano para llenar la caché de cara a futuros análisis.
+ * @param {string} ticker - Símbolo bursátil.
+ * @param {string} accession - Número de registro de la SEC.
+ * @returns {Promise<Array<{name: string, buffer: Buffer, kind: string}>>} Presentaciones descargadas.
+ */
+export async function getPresentationBuffers(ticker, accession) {
+  const timeoutMs = presentationFetchTimeoutMs();
+  const job = collectPresentationBuffers(ticker, accession);
+  // El trabajo descartado por tiempo no debe generar un rechazo no controlado.
+  job.catch(() => {});
+  if (!(timeoutMs > 0)) return job;
+
+  let timer;
+  try {
+    const result = await Promise.race([
+      job,
+      new Promise((resolve) => {
+        timer = setTimeout(() => {
+          console.warn(`[edgar:presentation] La búsqueda de presentaciones de ${ticker} ${accession} superó ${timeoutMs} ms; se analiza sin documentos complementarios.`);
+          resolve([]);
+        }, timeoutMs);
+      }),
+    ]);
+    return result ?? [];
+  } finally {
+    clearTimeout(timer);
+  }
 }

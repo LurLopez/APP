@@ -15,10 +15,11 @@ import { getExecutiveFieldLabels } from './executiveChanges.js';
 import { BRAND_URL, BRAND_LABEL, BRAND_LOGO_RATIO, readBrandLogo } from './reportBranding.js';
 import { t, normalizeLanguage } from '../../utils/i18n.js';
 
-function docxRun(text, { size, bold, italic, color, highlight } = {}) {
+function docxRun(text, { size, bold, italic, underline, color, highlight } = {}) {
   const rPr = [
     bold ? '<w:b/>' : '',
     italic ? '<w:i/>' : '',
+    underline ? '<w:u w:val="single"/>' : '',
     color ? `<w:color w:val="${hex(color)}"/>` : '',
     highlight ? `<w:shd w:val="clear" w:color="auto" w:fill="${hex(highlight)}"/>` : '',
     size ? `<w:sz w:val="${Math.round(size * 2)}"/>` : '',
@@ -27,7 +28,10 @@ function docxRun(text, { size, bold, italic, color, highlight } = {}) {
 }
 
 function docxParagraph(text, opts = {}) {
-  const pPr = `${opts.pageBreakBefore ? '<w:pageBreakBefore/>' : ''}<w:spacing w:before="${opts.before ?? 0}" w:after="${opts.after ?? 40}"/>`;
+  const border = opts.bottomBorder
+    ? '<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="2" w:color="E2E8F0"/></w:pBdr>'
+    : '';
+  const pPr = `${opts.pageBreakBefore ? '<w:pageBreakBefore/>' : ''}${opts.keepNext ? '<w:keepNext/>' : ''}${border}<w:spacing w:before="${opts.before ?? 0}" w:after="${opts.after ?? 40}"/>`;
   return `<w:p><w:pPr>${pPr}</w:pPr>${docxRun(text, opts)}</w:p>`;
 }
 
@@ -40,6 +44,7 @@ function docxRichParagraph(text, opts = {}) {
       size: opts.size ?? 8.5,
       bold: seg.bold ? true : (opts.bold ?? false),
       italic: opts.italic,
+      underline: seg.underline === true,
       color: seg.bold ? (opts.boldColor ?? '#0f172a') : (opts.color ?? COLORS.ink),
     })).join('');
     return `<w:p><w:pPr>${pPr}</w:pPr>${runs}</w:p>`;
@@ -64,10 +69,13 @@ function docxTable(table) {
 
 function docxNotes(notes) {
   return (notes ?? []).map((note) => {
+    const noteRuns = (text, opts) => parseRichSegments(text, { autoBold: false })
+      .map((seg) => docxRun(seg.text, { ...opts, bold: seg.bold ? true : opts.bold, underline: seg.underline === true }))
+      .join('');
     if (note.marker) {
-      return `<w:p><w:pPr><w:spacing w:before="0" w:after="40"/></w:pPr>${docxRun(note.marker, { size: 7.5, bold: true, color: note.color, highlight: note.bg })}${docxRun(` ${note.text}`, { size: 7.5, color: COLORS.noteText })}</w:p>`;
+      return `<w:p><w:pPr><w:spacing w:before="0" w:after="40"/></w:pPr>${docxRun(note.marker, { size: 7.5, bold: true, color: note.color, highlight: note.bg })}${noteRuns(` ${note.text}`, { size: 7.5, color: COLORS.noteText })}</w:p>`;
     }
-    return `<w:p><w:pPr><w:spacing w:before="0" w:after="40"/></w:pPr>${docxRun(note.text, { size: 7.5, italic: true, color: note.color })}</w:p>`;
+    return `<w:p><w:pPr><w:spacing w:before="0" w:after="40"/></w:pPr>${noteRuns(note.text, { size: 7.5, italic: true, color: note.color })}</w:p>`;
   }).join('');
 }
 
@@ -152,10 +160,19 @@ function docxExecutiveChangesBlock(section, language = 'es') {
   return parts;
 }
 
-function appendCardsToDocx(parts, cards, images, ids, language = 'es') {
+function appendCardsToDocx(parts, cards, images, ids, language = 'es', { pageBreakBetweenCards = false } = {}) {
   const lang = normalizeLanguage(language);
   cards.forEach((card, cardIndex) => {
-    parts.push(docxParagraph(card.title, { size: 11, bold: true, color: COLORS.ink, after: 40, before: 60, pageBreakBefore: cardIndex > 0 }));
+    parts.push(docxParagraph(card.title, {
+      size: 11,
+      bold: true,
+      color: COLORS.ink,
+      after: 60,
+      before: 120,
+      bottomBorder: true,
+      keepNext: true,
+      pageBreakBefore: pageBreakBetweenCards && cardIndex > 0,
+    }));
     if (card.text) parts.push(docxRichParagraph(card.text, { size: 8.5, color: COLORS.ink, after: 40 }));
     if (card.executiveChanges) docxExecutiveChangesBlock(card.executiveChanges, lang).forEach((part) => parts.push(part));
     if (card.badges?.length) card.badges.forEach((b) => parts.push(docxRichParagraph(`• ${b}`, { size: 8, color: '#854D0E', boldColor: '#7C2D12', after: 20 })));
@@ -224,10 +241,16 @@ function buildDocxXml(model, images = {}, language = 'es') {
     });
   });
 
+  if (model.quarterNotes) {
+    parts.push(docxParagraph(model.quarterNotes.title, { size: 14, bold: true, color: COLORS.ink, after: 40, pageBreakBefore: true }));
+    if (model.quarterNotes.subtitle) parts.push(docxParagraph(model.quarterNotes.subtitle, { size: 9, italic: true, color: COLORS.muted, after: 80 }));
+    appendCardsToDocx(parts, model.quarterNotes.cards, images, ids, lang);
+  }
+
   if (model.conclusion) {
     parts.push(docxParagraph(model.conclusion.title, { size: 14, bold: true, color: COLORS.ink, after: 40, pageBreakBefore: true }));
     if (model.conclusion.subtitle) parts.push(docxParagraph(model.conclusion.subtitle, { size: 9, italic: true, color: COLORS.muted, after: 80 }));
-    appendCardsToDocx(parts, model.conclusion.cards, images, ids, lang);
+    appendCardsToDocx(parts, model.conclusion.cards, images, ids, lang, { pageBreakBetweenCards: true });
   }
 
   if (model.rating) {

@@ -50,6 +50,10 @@ export const FREE_TEXT_PATHS = new Set([
   'conclusion.acquisitions.text',
   'conclusion.dividends.text',
   'conclusion.watchlist.items.*',
+  'quarterNotes.title',
+  'quarterNotes.guidance.text',
+  'quarterNotes.notes.*.title',
+  'quarterNotes.notes.*.text',
 ]);
 
 /**
@@ -82,6 +86,8 @@ export const SNIPPET_PREFIXES = [
   'conclusion.outlook.secSnippet',
   'conclusion.debt.secSnippet',
   'conclusion.debt.secTable',
+  'quarterNotes.guidance.secSnippet',
+  'quarterNotes.guidance.secTable',
 ];
 
 const LETTER_PATTERN = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/;

@@ -14,7 +14,7 @@ test('la nota del circulante no llama «Cash Flow Ajustado» al subtotal previo 
   });
   assert.match(sentence, /tras el ajuste de circulante queda en/);
   assert.doesNotMatch(sentence, /Cash Flow ajustado resta esa desviación/);
-  assert.match(sentence, /1784,4M - \(-159,1M\) = 1943,5M/);
+  assert.match(sentence, /1784,4M - \(__-159,1M__\) = 1943,5M/, 'El importe ajustado va subrayado con __…__');
 });
 
 test('normalizeExtractedUnits convierte a millones los impuestos pagados en filings en miles (caso FIZZ)', () => {
@@ -43,6 +43,86 @@ test('getTaxNormalizationData descarta un pago de impuestos desproporcionado sin
     isTrimestral: false,
   });
   assert.equal(result, null);
+});
+
+test('getTaxNormalizationData ignora una discrepancia fiscal ≤ 10 % del impuesto teórico (caso KHC)', () => {
+  const horizon = {
+    label: 'EN TODO EL AÑO (6 MESES)',
+    sales: {
+      rows: [
+        { name: 'EBT', normal: '1999M', adjusted: '1999M' },
+        { name: 'Beneficio Neto', normal: '1500M' },
+      ],
+    },
+  };
+  // Teórico: 23 % × 1999M = 459,8M; pagado 462M => discrepancia de 2,2M (0,5 %) => sin ajuste ni nota.
+  const ignored = getTaxNormalizationData({
+    extracted: { facts: { incomeTaxesPaidYtd: 462, incomeTaxExpenseYtd: 460 } },
+    horizon,
+    isTrimestral: false,
+  });
+  assert.equal(ignored, null);
+
+  // Pagado 520M => discrepancia de 60,2M (13,1 %) => sí se ajusta.
+  const applied = getTaxNormalizationData({
+    extracted: { facts: { incomeTaxesPaidYtd: 520, incomeTaxExpenseYtd: 460 } },
+    horizon,
+    isTrimestral: false,
+  });
+  assert.ok(applied, 'Debe aplicarse el ajuste cuando la discrepancia supera el 10 %');
+  assert.equal(applied.normalizedCashTaxes, 459.8);
+  assert.equal(applied.adjustment, 60.2);
+});
+
+test('normalizeCashFlowBlock retira la nota fiscal de la IA cuando la discrepancia es insignificante', async () => {
+  const { normalizeCashFlowBlock } = await import('../../src/agents/analyst/analystCashCapitalProcessor.js');
+  const horizon = {
+    label: 'EN TODO EL AÑO (6 MESES)',
+    sales: {
+      rows: [
+        { name: 'EBT', normal: '1999M', adjusted: '1999M' },
+        { name: 'Beneficio Neto', normal: '1500M' },
+      ],
+    },
+    cashFlow: {
+      scenarios: ['Normal (WC=402)', 'Ajustado*1 (WC=115)'],
+      rows: [
+        { name: 'Cash Flow', values: ['2088', '2088'] },
+        { name: 'CAPEX', values: ['300', '300'] },
+        { name: 'FCF', values: ['1788', '1788'] },
+        { name: 'FCF/Acción', values: ['1,79 $', '1,79 $'] },
+        { name: 'Dividendo', values: ['200', '200'] },
+        { name: 'Libre', values: ['1588', '1588'] },
+      ],
+      notes: ['*2: Impuestos: La empresa debería haber pagado 459,8M en impuestos (23 % sobre el EBT ajustado de 1999M) y solamente ha pagado 462M en efectivo según el estado de flujos. Ajuste de +2,2M al Cash Flow Ajustado por la discrepancia fiscal.'],
+    },
+  };
+  const extracted = {
+    shares: 1000,
+    facts: { incomeTaxesPaidYtd: 462, incomeTaxExpenseYtd: 460 },
+    workingCapitalData: {
+      ytdScenarios: ['Normal (WC=402)', 'Ajustado*1 (WC=115)'],
+      ytdValues: {
+        cfo: ['2088', '2088'],
+        capex: ['300', '300'],
+        fcf: ['1788', '1788'],
+        fcfPerShare: ['1,79 $', '1,79 $'],
+        dividends: ['200', '200'],
+        libre: ['1588', '1588'],
+      },
+      explanationYtd: '*1: WC = media de los últimos 10 ejercicios: 5,4%. Desviación del circulante reportado (402M) frente al WC teórico (115M): 287M. El Cash Flow tras el ajuste de circulante queda en: 2088M - (287M) = 1801M.',
+    },
+  };
+
+  normalizeCashFlowBlock(horizon, extracted);
+
+  assert.equal(
+    horizon.cashFlow.notes.some((n) => /^\*?\d*:?\s*(Impuestos|Taxes)\b|discrepancia fiscal|tax discrepancy/i.test(String(n))),
+    false,
+    'La nota fiscal insignificante debe eliminarse',
+  );
+  assert.equal(horizon.cashFlow.rows.find((r) => r.name === 'Cash Flow').values[1], '2088');
+  assert.ok(horizon.cashFlow.notes.some((n) => n.startsWith('*1:')), 'La nota del circulante se mantiene');
 });
 
 test('getTaxNormalizationData mantiene el ajuste fiscal cuando el pago es plausible (caso PEP)', () => {

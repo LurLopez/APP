@@ -13,6 +13,22 @@ export const SECTOR_FILES = {
   consumer_discretionary: 'consumo-discrecional',
 };
 
+// La base de conocimiento se organiza por contenido, no por formulario:
+// `financiero/` (bloques numéricos, común a 10-Q y 10-K) y `notas/` (parte
+// cualitativa; trimestral o anual según el formulario).
+const FINANCIERO_FILE = 'financiero/general.md';
+const NOTAS_FILES = { annual: 'notas/anual.md', quarterly: 'notas/trimestral.md' };
+const LEGACY_GENERAL_FILES = { annual: 'anual/general.md', quarterly: 'general.md' };
+
+async function readFirstAvailable(paths) {
+  for (const relativePath of paths) {
+    try {
+      return await readFile(new URL(relativePath, KNOWLEDGE_DIR), 'utf8');
+    } catch {}
+  }
+  return '';
+}
+
 /**
  * Carga las reglas markdown de conocimiento aplicables a un sector, subsector, tipo de formulario y empresa.
  * @param {string} sector - Identificador o slug del sector.
@@ -24,17 +40,19 @@ export const SECTOR_FILES = {
 export async function loadKnowledgeRules(sector, subsector, formType = '10-Q', ticker = null) {
   const isAnnual = String(formType || '').toUpperCase().includes('10-K')
     || String(formType || '').toLowerCase().includes('anual');
+  const formKey = isAnnual ? 'annual' : 'quarterly';
 
   let generalRules = '';
-  if (isAnnual) {
-    try {
-      generalRules = await readFile(new URL('anual/general.md', KNOWLEDGE_DIR), 'utf8');
-    } catch {}
-  }
-  if (!generalRules) {
-    try {
-      generalRules = await readFile(new URL('general.md', KNOWLEDGE_DIR), 'utf8');
-    } catch {}
+  const financieroRules = await readFirstAvailable([FINANCIERO_FILE]);
+  const notasRules = await readFirstAvailable([NOTAS_FILES[formKey]]);
+  if (financieroRules || notasRules) {
+    generalRules = [
+      financieroRules,
+      notasRules,
+    ].filter(Boolean).join('\n\n---\n\n');
+  } else {
+    // Compatibilidad con la estructura antigua (general.md / anual/general.md).
+    generalRules = await readFirstAvailable([LEGACY_GENERAL_FILES[formKey]]);
   }
 
   const sectorSlug = SECTOR_FILES[sector] ?? sector;
@@ -83,7 +101,13 @@ export async function loadKnowledgeRules(sector, subsector, formType = '10-Q', t
 
   const parts = [];
   const generalTitle = isAnnual ? 'REGLAS GENERALES Y FORMATO ANUAL (10-K)' : 'REGLAS GENERALES Y FORMATO';
-  if (generalRules) parts.push(`### ${generalTitle}:\n${generalRules}`);
+  const notasTitle = isAnnual ? 'NOTAS E INDAGACIÓN A FONDO (10-K)' : 'NOTAS DEL TRIMESTRE (10-Q)';
+  if (financieroRules || notasRules) {
+    if (financieroRules) parts.push(`### ${generalTitle}:\n${financieroRules}`);
+    if (notasRules) parts.push(`### ${notasTitle}:\n${notasRules}`);
+  } else if (generalRules) {
+    parts.push(`### ${generalTitle}:\n${generalRules}`);
+  }
   if (sectorRules) parts.push(`### REGLAS DEL SECTOR (${sectorSlug}):\n${sectorRules}`);
   if (subsectorRules) parts.push(`### REGLAS DEL SUBSECTOR (${subsector}):\n${subsectorRules}`);
   if (empresaRules) parts.push(`### REGLAS DE LA EMPRESA (${String(ticker).toUpperCase()}):\n${empresaRules}`);
@@ -372,9 +396,10 @@ export function extractFinancialWindow(source) {
  * Construye el cuerpo del informe textual optimizado para enviar al LLM, incluyendo estados financieros y notas.
  * @param {string} text - Texto principal del filing SEC.
  * @param {string} [presentationText] - Texto suplementario de la presentación de resultados.
+ * @param {string} [previousGuidanceText] - Guidance del comunicado de resultados anterior (8-K).
  * @returns {string} Texto preparado con presupuesto de caracteres.
  */
-export function buildAnalysisText(text, presentationText) {
+export function buildAnalysisText(text, presentationText, previousGuidanceText) {
   const source = String(text ?? '');
   if (!source) return '';
 
@@ -389,9 +414,15 @@ export function buildAnalysisText(text, presentationText) {
   const keyBlock = keySections ? `\n\n[SECCIONES CLAVE ADICIONALES DEL INFORME]\n${keySections}` : '';
   const main = `${mainContent}${keyBlock}`;
 
+  const blocks = [];
   const presentation = String(presentationText ?? '').trim();
-  if (!presentation) return main;
-
-  const presentationBudget = 30000;
-  return `${main}\n\n[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]\n${presentation.slice(0, presentationBudget)}`;
+  if (presentation) {
+    const presentationBudget = 30000;
+    blocks.push(`[SECCIÓN COMPLEMENTARIA: PRESENTACIÓN Y COMUNICADO DE RESULTADOS (EARNINGS PRESENTATION / 8-K PRESS RELEASE)]\n${presentation.slice(0, presentationBudget)}`);
+  }
+  const previous = String(previousGuidanceText ?? '').trim();
+  if (previous) {
+    blocks.push(`[GUIDANCE ANTERIOR (8-K DE RESULTADOS DEL PERIODO PRECEDENTE). Referencia ÚNICA Y EXCLUSIVA para la columna «Guidance anterior» de la tabla del guidance: NUNCA lo uses como guidance actual ni para el status]\n${previous.slice(0, 12000)}`);
+  }
+  return blocks.length ? `${main}\n\n${blocks.join('\n\n')}` : main;
 }
