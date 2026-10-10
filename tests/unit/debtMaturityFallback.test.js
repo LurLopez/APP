@@ -587,3 +587,38 @@ Thereafter \t3,730.8`;
   ]);
   assert.equal(result.afterYearFive, 3730.8);
 });
+
+test('la ventana por año fiscal empieza en el año siguiente cuando no hay vencimientos en el año de cierre', () => {
+  const fiscalItems = [
+    { year: 2027, label: 'Finance lease liabilities 2027', amount: 577 },
+    { year: 2031, label: 'Finance lease liabilities 2031', amount: 130 },
+  ];
+  assert.deepEqual(maturityWindowBounds(2026, '2026-09-03', fiscalItems), { minYear: 2027, maxYear: 2031 });
+
+  const calendarItems = [{ year: 2026, label: 'Senior debt due October 2026', amount: 762.5 }];
+  assert.deepEqual(maturityWindowBounds(2026, '2026-05-31', calendarItems), { minYear: 2026, maxYear: 2030 });
+});
+
+test('el calendario excluye los arrendamientos financieros y no se genera si no quedan notas (caso MU)', () => {
+  const onlyLeasesAndFarNotes = {
+    maturitySchedule: [
+      { year: 2027, label: 'Finance lease liabilities 2027', amount: 577, rate: 4.71, type: 'Finance Lease' },
+      { year: 2031, label: 'Finance lease liabilities 2031', amount: 130, rate: 4.71, type: 'Finance Lease' },
+      { year: 2032, label: '2032 Green Bonds 2.703% Senior Notes due April 2032', amount: 997, rate: 2.703, type: 'Senior Notes' },
+    ],
+  };
+  assert.equal(buildDebtMaturityModel(onlyLeasesAndFarNotes, 2026, 'es', '2026-09-03'), null);
+
+  const withNotesInWindow = {
+    maturitySchedule: [
+      { year: 2027, label: 'Finance lease liabilities 2027', amount: 577, rate: 4.71, type: 'Finance Lease' },
+      { year: 2027, label: '2.703% Notes due April 2027', amount: 500, rate: 2.703, type: 'Senior Notes' },
+      { year: 2031, label: '3.366% Notes due November 2031', amount: 497, rate: 3.366, type: 'Senior Notes' },
+    ],
+  };
+  const model = buildDebtMaturityModel(withNotesInWindow, 2026, 'es', '2026-09-03');
+  assert.ok(model);
+  assert.deepEqual(model.years.map((y) => y.year), [2027, 2028, 2029, 2030, 2031]);
+  assert.ok(!model.years.some((y) => y.items.some((it) => /lease/i.test(it.type))));
+  assert.equal(model.totalAmount, 997);
+});

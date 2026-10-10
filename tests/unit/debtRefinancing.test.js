@@ -81,3 +81,10 @@ test('usa el impacto en BPA y el cargo por intereses publicados cuando faltan ti
   assert.equal(badges[2].val, '$1600M');
   assert.equal(badges[3].val, '-0,13 $/acc');
 });
+
+test('no pinta el bloque si solo hay una amortización anticipada sin emisión nueva', () => {
+  const debt = {
+    refinancing: { occurred: true, description: 'Amortización anticipada de notas por 9.255M$', amountRefinanced: 9255 },
+  };
+  assert.equal(buildDebtRefinancingModel(debt, {}), null);
+});

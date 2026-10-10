@@ -22,15 +22,23 @@ const MATURITY_TABLE_THEREAFTER_ROW = /^thereafter\s*(?:[$\u20ac\u00a3]\s*)?([\d
  * Si el ejercicio cierra en diciembre, la ventana empieza en el año siguiente;
  * si cierra en otro mes, parte del año de cierre aún es futuro y cuenta como primer año
  * (ej. cierre 31-may-2026 -> ventana 2026-2030, con los vencimientos de octubre de 2026 dentro).
+ * Tablas etiquetadas por año fiscal: si los vencimientos vienen numerados por ejercicio fiscal
+ * y ninguno cae en el año de cierre, la ventana empieza en el año siguiente
+ * (ej. MU cierre 03-sep-2026, vencimientos 2027-2031 -> ventana 2027-2031, no 2026-2030).
  * @param {string|number} fiscalYear - Año fiscal del informe.
  * @param {string} [periodEnd] - Fecha de cierre en formato AAAA-MM-DD.
+ * @param {Array<object>} [items] - Vencimientos (con campo "year") para ajustar la ventana fiscal.
  * @returns {{minYear: number, maxYear: number}|null} Límites de la ventana o null.
  */
-export function maturityWindowBounds(fiscalYear, periodEnd) {
+export function maturityWindowBounds(fiscalYear, periodEnd, items = null) {
   const baseYear = Number(fiscalYear);
   if (!Number.isFinite(baseYear) || baseYear < 2000) return null;
   const month = Number(String(periodEnd ?? '').slice(5, 7));
-  const minYear = Number.isFinite(month) && month >= 1 && month <= 11 ? baseYear : baseYear + 1;
+  let minYear = Number.isFinite(month) && month >= 1 && month <= 11 ? baseYear : baseYear + 1;
+  if (minYear === baseYear && Array.isArray(items) && items.length) {
+    const years = items.map((item) => Number(item?.year)).filter((year) => Number.isFinite(year) && year >= 2000);
+    if (years.length && Math.min(...years) > baseYear) minYear = baseYear + 1;
+  }
   return { minYear, maxYear: minYear + 4 };
 }
 

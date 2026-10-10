@@ -79,8 +79,6 @@ export function buildDebtMaturityModel(debt, reportFiscalYear, language = 'es', 
     const fromSnippet = String(debt?.secSnippet?.title || debt?.title || '').match(/20\d\d/);
     baseYear = fromSnippet ? parseInt(fromSnippet[0], 10) : 2025;
   }
-  const bounds = maturityWindowBounds(baseYear, periodEnd) ?? { minYear: baseYear + 1, maxYear: baseYear + 5 };
-  const { minYear, maxYear } = bounds;
 
   const rawItems = [];
   const pushItem = (entry, fallbackYear) => {
@@ -121,11 +119,17 @@ export function buildDebtMaturityModel(debt, reportFiscalYear, language = 'es', 
     debt.maturityCalendar.years.forEach((entry) => pushItem({ ...entry, type: 'Deuda total' }));
   }
 
-  const futureItems = rawItems.filter((it) => Number.isFinite(it.year) && it.year > maxYear && Number.isFinite(it.amount));
-  const filtered = rawItems.filter((it) => Number.isFinite(it.year) && it.year >= minYear && it.year <= maxYear && Number.isFinite(it.amount) && it.amount > 0);
+  // El calendario incluye solo notas: los arrendamientos financieros se excluyen y, si no
+  // quedan vencimientos de notas en la ventana, no se genera calendario (ni tabla de respaldo).
+  const noteItems = rawItems.filter((it) => !/lease|arrendamiento/i.test(`${it.type} ${it.name}`));
+  const bounds = maturityWindowBounds(baseYear, periodEnd, noteItems) ?? { minYear: baseYear + 1, maxYear: baseYear + 5 };
+  const { minYear, maxYear } = bounds;
+
+  const futureItems = noteItems.filter((it) => Number.isFinite(it.year) && it.year > maxYear && Number.isFinite(it.amount));
+  const filtered = noteItems.filter((it) => Number.isFinite(it.year) && it.year >= minYear && it.year <= maxYear && Number.isFinite(it.amount) && it.amount > 0);
   if (filtered.length === 0) return null;
 
-  const allRatedItems = rawItems.filter((it) => Number.isFinite(it.interestRate) && it.interestRate > 0);
+  const allRatedItems = noteItems.filter((it) => Number.isFinite(it.interestRate) && it.interestRate > 0);
   const allRatedAmount = allRatedItems.reduce((sum, it) => sum + it.amount, 0);
   const itemsAverageRate = allRatedAmount > 0 ? allRatedItems.reduce((sum, it) => sum + it.amount * it.interestRate, 0) / allRatedAmount : null;
   const itemsAverageRateEstimated = allRatedItems.some((it) => it.estimated === true);

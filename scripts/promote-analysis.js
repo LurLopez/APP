@@ -246,7 +246,9 @@ async function promoteOne(analysis) {
       WHERE pdf_url = ${sqlLiteral(analysis.pdf_url)} AND report IS NOT NULL
       ORDER BY id DESC LIMIT 1;`,
   );
-  const remoteFile = runRemote(`ls -l ${PROD_DIR}/uploads/generated/${baseId}.pdf`);
+  // El listado del fichero va por SSH directo: runRemote lo enviaba a psql y abortaba la
+  // promoción antes de procesar las traducciones (--with-translations).
+  const remoteFile = execFileSync('ssh', [SSH_TARGET, `ls -l ${PROD_DIR}/uploads/generated/${baseId}.pdf`], { encoding: 'utf8' }).trim();
 
   console.log('\nVerificación en producción:');
   console.log(`  ${verification}`);

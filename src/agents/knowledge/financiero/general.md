@@ -251,6 +251,7 @@ El análisis anual (Form 10-K) comparte íntegramente la mecánica de los tres b
 
 ## 4. Formato Numérico, Colores y Convenciones de Estilo
 
+- **Claridad ante todo**: notas y textos cortos y muy fáciles de entender. Orden: cifra actual → comparación entre paréntesis → variación. Prohibido encadenar flechas (->) o escribir el porcentaje antes de la cifra. Un descuadre o ajuste se explica citando la causa principal en una sola frase (sin listas exhaustivas).
 - **Negrita en Columnas Clave**: Las cifras de las columnas **`Ajustado`** y **`Normal`** siempre se muestran en **negrita**, tanto en el horizonte trimestral como en el acumulado anual.
 - **Colores en Porcentajes (`% Ajustado` y `% Normal`)**:
   - Variaciones positivas ($> 0$): Color **verde** (ej. `+16,67 %`, `21,05 %`).

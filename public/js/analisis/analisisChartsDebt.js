@@ -85,9 +85,6 @@
       const fromSnippet = String(debt?.secSnippet?.title || debt?.title || '').match(/20\d\d/);
       baseYear = fromSnippet ? parseInt(fromSnippet[0], 10) : 2025;
     }
-    const periodMonth = Number(String(periodEnd ?? '').slice(5, 7));
-    const minYear = Number.isFinite(periodMonth) && periodMonth >= 1 && periodMonth <= 11 ? baseYear : baseYear + 1;
-    const maxYear = minYear + 4;
 
     const parseAmount = (val) => {
       if (val == null) return NaN;
@@ -137,12 +134,22 @@
       debt.maturityCalendar.years.forEach((e) => pushItem({ ...e, type: 'Deuda total' }));
     }
 
-    const futureItems = rawItems.filter((it) => Number.isFinite(it.year) && it.year > maxYear && Number.isFinite(it.amount));
-    const filtered = rawItems.filter((it) => Number.isFinite(it.year) && it.year >= minYear && it.year <= maxYear && Number.isFinite(it.amount) && it.amount > 0);
+    // Calendario solo de notas: los arrendamientos financieros se excluyen.
+    const noteItems = rawItems.filter((it) => !/lease|arrendamiento/i.test(`${it.type} ${it.name}`));
+    const periodMonth = Number(String(periodEnd ?? '').slice(5, 7));
+    let minYear = Number.isFinite(periodMonth) && periodMonth >= 1 && periodMonth <= 11 ? baseYear : baseYear + 1;
+    if (minYear === baseYear && noteItems.length) {
+      const years = noteItems.map((it) => Number(it.year)).filter((year) => Number.isFinite(year) && year >= 2000);
+      if (years.length && Math.min(...years) > baseYear) minYear = baseYear + 1;
+    }
+    const maxYear = minYear + 4;
+
+    const futureItems = noteItems.filter((it) => Number.isFinite(it.year) && it.year > maxYear && Number.isFinite(it.amount));
+    const filtered = noteItems.filter((it) => Number.isFinite(it.year) && it.year >= minYear && it.year <= maxYear && Number.isFinite(it.amount) && it.amount > 0);
     if (filtered.length === 0) return '';
 
     const allAmount = filtered.reduce((s, it) => s + it.amount, 0);
-    const allRatedItems = rawItems.filter((it) => it.interestRate != null);
+    const allRatedItems = noteItems.filter((it) => it.interestRate != null);
     const allRatedAmount = allRatedItems.reduce((s, it) => s + it.amount, 0);
     const systemRate = Number(debt.allDebtAverageRate);
     const hasSystemRate = Number.isFinite(systemRate) && systemRate > 0;

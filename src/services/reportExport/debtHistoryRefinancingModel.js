@@ -202,8 +202,12 @@ export function buildDebtRefinancingModel(debt, report, language = null) {
       : t('impacto favorable en el BPA de **+{eps} $/acción** según el informe', { eps: absEps }, lang);
   }
 
-  const hasData = Number.isFinite(oldDebtRate) || Number.isFinite(newDebtRate) || Number.isFinite(amount) || Number.isFinite(epsImpact) || debt.refinancingAnalysis || debt.refinancingImpact;
-  if (!hasData) return null;
+  // Solo se pinta una refinanciación real: con canje/emisión nueva (tipos anterior y nuevo)
+  // o con impacto publicado (intereses o BPA). Una amortización anticipada pagada con caja
+  // sin emisión nueva (solo volumen y descripción) no genera el bloque: se explica en el texto.
+  const hasRateSwap = Number.isFinite(oldDebtRate) && Number.isFinite(newDebtRate);
+  const hasImpact = Number.isFinite(interestDelta) || Number.isFinite(epsImpact);
+  if (!hasRateSwap && !hasImpact) return null;
 
   const rateText = (value) => (lang === 'en' ? value.toFixed(2) : value.toFixed(2).replace('.', ','));
 

@@ -51,9 +51,7 @@ function drawDebtSection(doc, debt, report, margin, y, language = 'es') {
   if (refinancing) {
     curY = drawDebtRefinancingBox(doc, refinancing, curY);
   }
-  if (debt.secSnippet && !maturityChart) {
-    curY = drawPdfSecSnippet(doc, debt.secSnippet, curY);
-  }
+  // El extracto SEC no se usa como tabla de respaldo del calendario: sin gráfico no hay tabla.
   return drawHorizontalRule(doc, curY);
 }
 

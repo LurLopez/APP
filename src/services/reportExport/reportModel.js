@@ -148,7 +148,8 @@ function buildConclusionCards(conc, report, language = 'es') {
       debtMaturityChart: maturityChart,
       debtHistoryChart: historyChart,
       refinancing: refinancingModel,
-      table: maturityChart ? null : buildSecSnippetTable(debt.secSnippet),
+      // El extracto SEC no se usa como tabla de respaldo del calendario: sin gráfico no hay tabla.
+      table: null,
     });
   }
 

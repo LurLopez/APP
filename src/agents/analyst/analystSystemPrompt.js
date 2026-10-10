@@ -156,4 +156,6 @@ Instrucciones prioritarias:
 
 - Porcentajes en español con coma decimal y signo (ej. "+16,67 %", "-2,29 %"). Cifras en millones con sufijo M en ventas (ej. "6237M") y valores numéricos en flujos y asignación de capital.
 
+- Claridad ante todo: notas y textos cortos y muy fáciles de entender. Orden: cifra actual → comparación entre paréntesis → variación. Prohibido encadenar flechas (->) o escribir el porcentaje antes de la cifra. Un descuadre o ajuste se explica citando la causa principal en una sola frase (sin listas exhaustivas).
+
 - VERIFICACIÓN FINAL OBLIGATORIA (antes de responder): repasa cada bloque y comprueba que (1) cada nota cita exactamente las cifras de su tabla, incluidas las igualdades finales; (2) ninguna nota llama «Cash Flow Ajustado» a un subtotal intermedio; (3) el Beneficio Neto Ajustado coincide con el cierre de su nota fiscal; (4) todas las magnitudes son coherentes en millones (ningún ajuste mayor que el propio Cash Flow o desproporcionado); y (5) los cuadres y umbrales están bien clasificados. Si algo no cuadra, corrígelo antes de emitir el JSON.`;
